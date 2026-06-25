@@ -1,29 +1,9 @@
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts';
 import { Download, FileText } from 'lucide-react';
 
-const performanceData = [
-  { week: 'Week 1', score: 65 },
-  { week: 'Week 2', score: 72 },
-  { week: 'Week 3', score: 68 },
-  { week: 'Week 4', score: 85 },
-  { week: 'Week 5', score: 82 },
-  { week: 'Week 6', score: 91 },
-];
-
-const deficitData = [
-  { subject: 'OSI Model', A: 45, fullMark: 100 },
-  { subject: 'Binary Trees', A: 85, fullMark: 100 },
-  { subject: 'Normalization', A: 50, fullMark: 100 },
-  { subject: 'Sorting Algos', A: 90, fullMark: 100 },
-  { subject: 'SQL Joins', A: 60, fullMark: 100 },
-  { subject: 'Hashing', A: 75, fullMark: 100 },
-];
-
-const assignments = [
-  { id: 1, title: 'Adaptive DB Normalization', date: 'Oct 24', status: 'Generated' },
-  { id: 2, title: 'OSI Layers deep dive', date: 'Oct 18', status: 'Completed' },
-  { id: 3, title: 'SQL Joins Practice', date: 'Oct 12', status: 'Completed' },
-];
+const performanceData: any[] = [];
+const deficitData: any[] = [];
+const assignments: any[] = [];
 
 export default function StudentSpace() {
   return (
@@ -36,25 +16,8 @@ export default function StudentSpace() {
             <span className="w-2 h-2 rounded-full bg-blue-500 mr-2"></span>
             Performance Trajectory
           </h3>
-          <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={performanceData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-                <XAxis dataKey="week" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                <RechartsTooltip 
-                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', borderRadius: '8px' }}
-                  itemStyle={{ color: '#e2e8f0' }}
-                />
-                <Area type="monotone" dataKey="score" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorScore)" />
-              </AreaChart>
-            </ResponsiveContainer>
+          <div className="h-[300px] w-full flex items-center justify-center border border-dashed border-slate-700 rounded-lg">
+            <p className="text-slate-500">No performance data available yet.</p>
           </div>
         </div>
 
@@ -64,18 +27,8 @@ export default function StudentSpace() {
             <span className="w-2 h-2 rounded-full bg-purple-500 mr-2"></span>
             Knowledge Deficits
           </h3>
-          <div className="h-[300px] w-full -ml-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <RadarChart cx="50%" cy="50%" outerRadius="70%" data={deficitData}>
-                <PolarGrid stroke="#1e293b" />
-                <PolarAngleAxis dataKey="subject" tick={{ fill: '#94a3b8', fontSize: 10 }} />
-                <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: '#475569', fontSize: 10 }} />
-                <Radar name="Student" dataKey="A" stroke="#8b5cf6" strokeWidth={2} fill="#8b5cf6" fillOpacity={0.3} />
-                <RechartsTooltip 
-                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', borderRadius: '8px' }}
-                />
-              </RadarChart>
-            </ResponsiveContainer>
+          <div className="h-[300px] w-full flex items-center justify-center border border-dashed border-slate-700 rounded-lg">
+            <p className="text-slate-500">No analysis available.</p>
           </div>
         </div>
       </div>
@@ -96,7 +49,7 @@ export default function StudentSpace() {
               </tr>
             </thead>
             <tbody>
-              {assignments.map((item) => (
+              {assignments.length > 0 ? assignments.map((item) => (
                 <tr key={item.id} className="border-b border-slate-800/50 hover:bg-slate-800/20 transition-colors">
                   <td className="py-4">
                     <div className="flex items-center">
@@ -118,7 +71,11 @@ export default function StudentSpace() {
                     </button>
                   </td>
                 </tr>
-              ))}
+              )) : (
+                <tr>
+                  <td colSpan={4} className="py-8 text-center text-slate-500 italic">No assignments found.</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

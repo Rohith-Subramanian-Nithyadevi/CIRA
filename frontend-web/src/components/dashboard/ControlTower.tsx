@@ -2,19 +2,8 @@ import { useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell } from 'recharts';
 import { Filter, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 
-const populationData = [
-  { name: 'Excellent', count: 420 },
-  { name: 'Average', count: 850 },
-  { name: 'Poor', count: 180 },
-];
-
-const mockStudents = Array.from({ length: 12 }, (_, i) => ({
-  id: `STU-${1000 + i}`,
-  name: ['Alex Mercer', 'Jordan Chase', 'Sam Wilson', 'Taylor Reed'][i % 4] + ` ${i}`,
-  department: ['Computer Science', 'Information Tech', 'Cybersecurity'][i % 3],
-  year: ['2024', '2025', '2026'][i % 3],
-  readiness_probability: Math.floor(Math.random() * 100),
-}));
+const populationData: any[] = [];
+const mockStudents: any[] = [];
 
 export default function ControlTower() {
   const [filterDept, setFilterDept] = useState('All');
@@ -33,25 +22,8 @@ export default function ControlTower() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="glass-card p-6 lg:col-span-1">
           <h3 className="text-lg font-bold mb-6">Campus Population by Band</h3>
-          <div className="h-[250px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={populationData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-                <XAxis dataKey="name" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                <RechartsTooltip 
-                  cursor={{ fill: '#1e293b', opacity: 0.4 }}
-                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', borderRadius: '8px' }}
-                  itemStyle={{ color: '#e2e8f0' }}
-                />
-                <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                  {populationData.map((_, index) => {
-                    const colors = ['#10b981', '#3b82f6', '#ef4444']; // Emerald, Blue, Red
-                    return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />;
-                  })}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="h-[250px] w-full flex items-center justify-center border border-dashed border-slate-700 rounded-lg">
+            <p className="text-slate-500">No population data available yet.</p>
           </div>
         </div>
 
@@ -60,19 +32,19 @@ export default function ControlTower() {
            <div className="grid grid-cols-2 gap-4">
              <div className="p-4 bg-slate-800/30 rounded-xl border border-slate-800">
                <p className="text-sm text-slate-400 font-medium mb-1">Total Enrolled</p>
-               <p className="text-3xl font-bold text-white">1,450</p>
+               <p className="text-3xl font-bold text-white">0</p>
              </div>
              <div className="p-4 bg-slate-800/30 rounded-xl border border-slate-800">
                <p className="text-sm text-slate-400 font-medium mb-1">Active Remediation</p>
-               <p className="text-3xl font-bold text-purple-400">342</p>
+               <p className="text-3xl font-bold text-purple-400">0</p>
              </div>
              <div className="p-4 bg-slate-800/30 rounded-xl border border-slate-800">
                <p className="text-sm text-slate-400 font-medium mb-1">Avg Placement Prob.</p>
-               <p className="text-3xl font-bold text-blue-400">72.4%</p>
+               <p className="text-3xl font-bold text-blue-400">0.0%</p>
              </div>
              <div className="p-4 bg-slate-800/30 rounded-xl border border-slate-800">
                <p className="text-sm text-slate-400 font-medium mb-1">Critical Deficits</p>
-               <p className="text-3xl font-bold text-red-400">18</p>
+               <p className="text-3xl font-bold text-red-400">0</p>
              </div>
            </div>
         </div>

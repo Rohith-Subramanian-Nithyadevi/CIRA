@@ -53,9 +53,9 @@ export default function AdminDashboard() {
 
   return (
     <DashboardLayout title="Admin Control Center" activeTab={activeTab} onTabChange={setActiveTab}>
-      {activeTab === 'profile' ? (
-        <UserProfile />
-      ) : (
+      {activeTab === 'profile' && <UserProfile />}
+      
+      {activeTab === 'hub' && (
         <div className="space-y-8">
           <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
@@ -117,7 +117,28 @@ export default function AdminDashboard() {
             </div>
           )}
         </section>
-      </div>
+        </div>
+      )}
+
+      {activeTab === 'faculty' && (
+        <div className="p-6 bg-slate-900 rounded-xl border border-slate-800">
+          <h2 className="text-xl font-bold mb-4">Faculty Approvals</h2>
+          <p className="text-slate-500">You can manage Faculty Approvals from the Admin Hub.</p>
+        </div>
+      )}
+
+      {activeTab === 'users' && (
+        <div className="p-6 bg-slate-900 rounded-xl border border-slate-800">
+          <h2 className="text-xl font-bold mb-4">User Management</h2>
+          <p className="text-slate-500">Search and manage all platform users.</p>
+        </div>
+      )}
+
+      {activeTab === 'departments' && (
+        <div className="p-6 bg-slate-900 rounded-xl border border-slate-800">
+          <h2 className="text-xl font-bold mb-4">Department Management</h2>
+          <p className="text-slate-500">Create and manage departments and sections.</p>
+        </div>
       )}
     </DashboardLayout>
   );
