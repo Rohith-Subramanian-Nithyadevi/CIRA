@@ -5,6 +5,7 @@ import examRoutes from './routes/exam.routes';
 import facultyRoutes from './routes/faculty.routes';
 import analyticsRoutes from './routes/analytics.routes';
 import departmentRoutes from './routes/department.routes';
+import adminRoutes from './routes/admin.routes';
 import { errorHandler } from './middlewares/error.middleware';
 
 const app: Application = express();
@@ -19,6 +20,7 @@ app.use('/api/v1/exams', examRoutes);
 app.use('/api/v1/faculty', facultyRoutes);
 app.use('/api/v1/analytics', analyticsRoutes);
 app.use('/api/v1/departments', departmentRoutes);
+app.use('/api/v1/admin', adminRoutes);
 
 // Global Error Handler Middleware
 // Must be registered after all routes and other middlewares

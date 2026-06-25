@@ -6,7 +6,7 @@ const prisma = new PrismaClient();
 async function main() {
   console.log("Seeding database with default Admin and Departments...");
   
-  const adminEmail = 'admin';
+  const adminEmail = 'admin@amrita.edu';
   const adminPassword = 'cira_admin@amrita';
   
   // Hash the password
