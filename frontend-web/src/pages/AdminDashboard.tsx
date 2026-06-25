@@ -36,8 +36,9 @@ export default function AdminDashboard() {
   const [selectedDeptId, setSelectedDeptId] = useState('');
 
   useEffect(() => {
-    const fetchFaculty = async () => {
+    const fetchAdminData = async () => {
       try {
+        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
         const token = localStorage.getItem('cira_token');
         const headers = { 'Authorization': `Bearer ${token}` };
 

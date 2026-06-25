@@ -1,8 +1,6 @@
 import { useState } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell } from 'recharts';
 import { Filter, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 
-const populationData: any[] = [];
 const mockStudents: any[] = [];
 
 export default function ControlTower() {

@@ -1,8 +1,5 @@
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts';
 import { Download, FileText } from 'lucide-react';
 
-const performanceData: any[] = [];
-const deficitData: any[] = [];
 const assignments: any[] = [];
 
 export default function StudentSpace() {
