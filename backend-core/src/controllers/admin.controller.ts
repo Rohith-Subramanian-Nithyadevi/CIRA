@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
+import { BadRequestError } from '../utils/errors';
 import { NotFoundError } from '../utils/errors';
 
 const prisma = new PrismaClient();
@@ -52,6 +53,50 @@ export const approveFaculty = async (req: Request, res: Response, next: NextFunc
     res.status(200).json({
       status: 'success',
       data: { user: updated }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getAllUsers = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const users = await prisma.user.findMany({
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        department: true,
+        approvalStatus: true,
+        createdAt: true
+      }
+    });
+
+    res.status(200).json({
+      status: 'success',
+      data: { users }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteUser = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    
+    if (id === req.user?.userId) {
+      throw new BadRequestError('Cannot delete yourself');
+    }
+
+    await prisma.user.delete({
+      where: { id: id as string }
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'User deleted successfully'
     });
   } catch (error) {
     next(error);

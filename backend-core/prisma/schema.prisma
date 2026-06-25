@@ -57,10 +57,10 @@ model User {
   subject        String?
   
   departmentId   String?
-  department     Department?    @relation("UserDepartment", fields: [departmentId], references: [id])
+  department     Department?    @relation("UserDepartment", fields: [departmentId], references: [id], onDelete: SetNull)
   
   sectionId      String?
-  section        Section?       @relation("UserSection", fields: [sectionId], references: [id])
+  section        Section?       @relation("UserSection", fields: [sectionId], references: [id], onDelete: SetNull)
   
   mappedDepartments FacultyDepartment[]
 
