@@ -87,6 +87,9 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
             name: user.name,
             email: user.email,
             role: user.role,
+            phone: user.phone,
+            rollNumber: user.rollNumber,
+            employeeId: user.employeeId,
             approvalStatus: user.approvalStatus
           }
         }
@@ -103,6 +106,9 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
           name: user.name,
           email: user.email,
           role: user.role,
+          phone: user.phone,
+          rollNumber: user.rollNumber,
+          employeeId: user.employeeId,
           approvalStatus: user.approvalStatus
         },
         token,
@@ -150,6 +156,9 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
           name: user.name,
           email: user.email,
           role: user.role,
+          phone: user.phone,
+          rollNumber: user.rollNumber,
+          employeeId: user.employeeId,
           departmentId: user.departmentId,
         },
         token,
