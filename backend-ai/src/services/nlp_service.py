@@ -5,10 +5,16 @@ from src.config.db import db
 
 logger = logging.getLogger(__name__)
 
-# Load the lightweight model once at startup (this takes time on the first run)
-logger.info("Loading sentence-transformer model: all-MiniLM-L6-v2")
-model = SentenceTransformer('all-MiniLM-L6-v2')
-logger.info("Model loaded successfully")
+# Lazy loaded model
+model = None
+
+def get_model():
+    global model
+    if model is None:
+        logger.info("Loading sentence-transformer model: all-MiniLM-L6-v2")
+        model = SentenceTransformer('all-MiniLM-L6-v2')
+        logger.info("Model loaded successfully")
+    return model
 
 async def get_all_db_sub_topics() -> list[str]:
     """Fetch all unique sub_topics from the MongoDB QuestionBank"""
@@ -32,11 +38,12 @@ async def match_failed_topics_to_db(failed_topics: list[str], threshold: float =
     matched_sub_topics = set()
     
     # Compute embeddings for the database ontology
-    db_embeddings = model.encode(db_sub_topics)
+    current_model = get_model()
+    db_embeddings = current_model.encode(db_sub_topics)
     
     for failed_topic in failed_topics:
         # Encode the student's failed concept
-        failed_embedding = model.encode([failed_topic])
+        failed_embedding = current_model.encode([failed_topic])
         
         # Calculate cosine similarities
         similarities = cosine_similarity(failed_embedding, db_embeddings)[0]
