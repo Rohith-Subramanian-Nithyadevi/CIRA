@@ -82,8 +82,14 @@ export default function Login() {
         setLoading(false);
         return;
       }
-      if (!departmentId) {
+      if (role === 'STUDENT' && !departmentId) {
         setError("Please select a department.");
+        setLoading(false);
+        return;
+      }
+      
+      if (role === 'FACULTY' && !subject) {
+        setError("Please select a subject.");
         setLoading(false);
         return;
       }
