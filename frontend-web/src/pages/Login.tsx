@@ -122,7 +122,11 @@ export default function Login() {
       } else {
         localStorage.setItem('cira_token', data.data.token);
         localStorage.setItem('cira_user', JSON.stringify(data.data.user));
-        navigate('/dashboard'); // Will be protected based on role in next phases
+        
+        const loggedInUserRole = data.data.user.role;
+        if (loggedInUserRole === 'ADMIN') navigate('/admin/dashboard');
+        else if (loggedInUserRole === 'FACULTY') navigate('/faculty/dashboard');
+        else navigate('/student/dashboard');
       }
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred.');
