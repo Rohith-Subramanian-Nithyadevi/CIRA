@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>CIRA Secure Assessment Environment</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        background-color: #0f172a;
+        color: #f8fafc;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        margin: 0;
+        user-select: none; /* Disable text selection */
+      }
+      h1 {
+        font-size: 2.5rem;
+        margin-bottom: 1rem;
+      }
+      .warning {
+        background: rgba(239, 68, 68, 0.2);
+        border: 1px solid #ef4444;
+        padding: 1rem;
+        border-radius: 8px;
+        color: #fca5a5;
+      }
+    </style>
+  </head>
+  <!-- PRD: Browser & Copy-Paste Blocking (Disabling right click context menu) -->
+  <body oncontextmenu="return false;">
+    <h1>Secure Assessment Active</h1>
+    <div class="warning">
+      WARNING: You are in a secure examination environment. <br/>
+      Attempting to exit, switch applications, or use unauthorized tools will result in immediate test termination.
+    </div>
+    <div style="margin-top: 2rem;">
+      <iframe src="http://localhost:5173/exam-portal" style="width: 90vw; height: 70vh; border: none; background: white; border-radius: 8px;"></iframe>
+    </div>
+  </body>
+</html>

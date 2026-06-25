@@ -1,0 +1,57 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  STUDENT
+  ADMIN
+  FACULTY
+}
+
+enum AssessmentType {
+  INITIAL
+  WEEKLY
+  FINAL
+}
+
+model User {
+  id         String   @id @default(uuid())
+  role       Role     @default(STUDENT)
+  name       String
+  email      String   @unique
+  password   String
+  department String?
+  year       Int?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  results    Result[]
+}
+
+model Assessment {
+  id         String         @id @default(uuid())
+  title      String
+  type       AssessmentType
+  start_time DateTime
+  end_time   DateTime
+
+  results    Result[]
+}
+
+model Result {
+  id            String     @id @default(uuid())
+  user_id       String
+  assessment_id String
+  score         Float
+  metrics_json  Json       // Captures granular score objects
+
+  user          User       @relation(fields: [user_id], references: [id])
+  assessment    Assessment @relation(fields: [assessment_id], references: [id])
+
+  @@unique([user_id, assessment_id])
+}
