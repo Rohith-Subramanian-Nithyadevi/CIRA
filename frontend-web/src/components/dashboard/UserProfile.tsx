@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function UserProfile() {
   const user = JSON.parse(localStorage.getItem('cira_user') || '{}');
