@@ -1,11 +1,11 @@
 import { Router } from 'express';
 import { getDepartmentAnalytics } from '../controllers/analytics.controller';
-import { protect, restrictTo } from '../middlewares/auth.middleware';
+import { authenticate, authorize } from '../middlewares/auth.middleware';
 
 const router = Router();
 
-router.use(protect);
-router.use(restrictTo('ADMIN', 'FACULTY'));
+router.use(authenticate);
+router.use(authorize(['ADMIN', 'FACULTY']));
 
 router.get('/department', getDepartmentAnalytics);
 
