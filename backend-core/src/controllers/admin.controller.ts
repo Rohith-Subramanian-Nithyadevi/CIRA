@@ -4,12 +4,11 @@ import { NotFoundError } from '../utils/errors';
 
 const prisma = new PrismaClient();
 
-export const getPendingFaculty = async (req: Request, res: Response, next: NextFunction) => {
+export const getAllFaculty = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const pendingFaculty = await prisma.user.findMany({
+    const faculty = await prisma.user.findMany({
       where: { 
-        role: 'FACULTY',
-        approvalStatus: 'PENDING'
+        role: 'FACULTY'
       },
       select: {
         id: true,
@@ -17,13 +16,14 @@ export const getPendingFaculty = async (req: Request, res: Response, next: NextF
         email: true,
         employeeId: true,
         department: true,
+        approvalStatus: true,
         createdAt: true
       }
     });
 
     res.status(200).json({
       status: 'success',
-      data: { pendingFaculty }
+      data: { faculty }
     });
   } catch (error) {
     next(error);

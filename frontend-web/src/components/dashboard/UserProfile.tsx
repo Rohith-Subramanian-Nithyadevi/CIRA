@@ -8,6 +8,21 @@ export default function UserProfile() {
   const [name, setName] = useState(user.name || '');
   const [phone, setPhone] = useState(user.phone || '');
   const [password, setPassword] = useState('');
+  const [enrollDepartmentId, setEnrollDepartmentId] = useState('');
+  const [departments, setDepartments] = useState<{id: string, name: string}[]>([]);
+
+  // Fetch departments if faculty
+  useState(() => {
+    if (role === 'FACULTY') {
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+      fetch(`${baseUrl}/api/v1/departments`)
+        .then(res => res.json())
+        .then(data => {
+          if (data?.data?.departments) setDepartments(data.data.departments);
+        })
+        .catch(console.error);
+    }
+  });
 
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState('');
@@ -89,13 +104,43 @@ export default function UserProfile() {
         )}
 
         {role === 'FACULTY' && (
-          <div>
-            <label className="block text-sm font-medium text-slate-400 mb-1">Employee ID</label>
-            <input type="text" disabled value={user.employeeId || 'N/A'} className="w-full px-4 py-2 bg-slate-800/30 border border-slate-800 rounded text-slate-500 cursor-not-allowed" />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-400 mb-1">Employee ID</label>
+              <input type="text" disabled value={user.employeeId || 'N/A'} className="w-full px-4 py-2 bg-slate-800/30 border border-slate-800 rounded text-slate-500 cursor-not-allowed" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-400 mb-1">Subject</label>
+              <input type="text" disabled value={user.subject || 'N/A'} className="w-full px-4 py-2 bg-slate-800/30 border border-slate-800 rounded text-slate-500 cursor-not-allowed uppercase" />
+            </div>
           </div>
         )}
 
-        <div className="pt-4 flex gap-4">
+        {role === 'FACULTY' && (
+          <div className="space-y-4 pt-4 border-t border-slate-800">
+            <h3 className="text-lg font-bold text-white">Course Enrollment Mapping</h3>
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-400 mb-1">Select Department/Class to Enroll</label>
+                <div className="flex gap-2">
+                  <select 
+                    value={enrollDepartmentId} 
+                    onChange={(e) => setEnrollDepartmentId(e.target.value)} 
+                    className="flex-1 px-4 py-2 bg-slate-800/50 border border-slate-700 rounded focus:border-blue-500 transition-colors text-white appearance-none"
+                  >
+                    <option value="" disabled>Select Department</option>
+                    {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                  </select>
+                  <button onClick={() => setSuccess('Successfully enrolled in class!')} disabled={!enrollDepartmentId} className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded font-medium disabled:opacity-50">
+                    Enroll
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="pt-4 border-t border-slate-800 flex gap-4">
           {isEditing ? (
             <>
               <button onClick={handleSave} disabled={loading} className="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-medium transition-colors disabled:opacity-50">

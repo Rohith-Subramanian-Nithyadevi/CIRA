@@ -13,7 +13,9 @@ const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8, 'Password must be at least 8 characters long'),
   phone: z.string().optional(),
-  departmentId: z.string().min(1, 'Department is required'),
+  
+  // Student Specific
+  departmentId: z.string().optional(),
   
   // Student Specific
   rollNumber: z.string().optional(),
@@ -21,6 +23,7 @@ const registerSchema = z.object({
   
   // Faculty Specific
   employeeId: z.string().optional(),
+  subject: z.string().optional(),
 });
 
 const loginSchema = z.object({
@@ -42,6 +45,7 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
 
     // Role specific validations
     if (validatedData.role === 'STUDENT') {
+      if (!validatedData.departmentId) throw new BadRequestError('Department is required for students');
       if (!validatedData.rollNumber) throw new BadRequestError('Roll number is required for students');
       if (!validatedData.sectionId) throw new BadRequestError('Section is required for students');
       
@@ -51,6 +55,7 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
 
     if (validatedData.role === 'FACULTY') {
       if (!validatedData.employeeId) throw new BadRequestError('Employee ID is required for faculty');
+      if (!validatedData.subject) throw new BadRequestError('Subject is required for faculty');
       
       const existingEmp = await prisma.user.findUnique({ where: { employeeId: validatedData.employeeId }});
       if (existingEmp) throw new BadRequestError('Employee ID already registered');
@@ -72,6 +77,7 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
         rollNumber: validatedData.rollNumber,
         sectionId: validatedData.sectionId,
         employeeId: validatedData.employeeId,
+        subject: validatedData.subject,
         approvalStatus
       },
     });
@@ -159,6 +165,7 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
           phone: user.phone,
           rollNumber: user.rollNumber,
           employeeId: user.employeeId,
+          subject: user.subject,
           departmentId: user.departmentId,
         },
         token,

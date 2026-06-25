@@ -2,34 +2,35 @@ import { useState, useEffect } from 'react';
 import DashboardLayout from '../components/DashboardLayout';
 import UserProfile from '../components/dashboard/UserProfile';
 
-interface PendingFaculty {
+interface Faculty {
   id: string;
   name: string;
   email: string;
   employeeId: string;
+  approvalStatus: 'PENDING' | 'APPROVED' | 'REJECTED';
 }
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('hub');
-  const [pendingFaculty, setPendingFaculty] = useState<PendingFaculty[]>([]);
+  const [facultyList, setFacultyList] = useState<Faculty[]>([]);
 
   useEffect(() => {
-    const fetchPending = async () => {
+    const fetchFaculty = async () => {
       try {
         const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
         const token = localStorage.getItem('cira_token');
-        const res = await fetch(`${baseUrl}/api/v1/admin/faculty/pending`, {
+        const res = await fetch(`${baseUrl}/api/v1/admin/faculty/all`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         const data = await res.json();
-        if (data.data?.pendingFaculty) {
-          setPendingFaculty(data.data.pendingFaculty);
+        if (data.data?.faculty) {
+          setFacultyList(data.data.faculty);
         }
       } catch (err) {
-        console.error("Failed to fetch pending faculty", err);
+        console.error("Failed to fetch faculty", err);
       }
     };
-    fetchPending();
+    fetchFaculty();
   }, []);
 
   const handleApproval = async (id: string, status: 'APPROVED' | 'REJECTED') => {
@@ -44,7 +45,7 @@ export default function AdminDashboard() {
         },
         body: JSON.stringify({ status })
       });
-      setPendingFaculty(prev => prev.filter(f => f.id !== id));
+      setFacultyList(prev => prev.map(f => f.id === id ? { ...f, approvalStatus: status } : f));
     } catch (err) {
       console.error("Failed to approve/reject", err);
     }
@@ -58,8 +59,12 @@ export default function AdminDashboard() {
         <div className="space-y-8">
           <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
+            <h3 className="text-slate-400 text-sm font-medium">Total Faculty</h3>
+            <p className="text-3xl font-bold mt-2 text-yellow-500">{facultyList.length}</p>
+          </div>
+          <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
             <h3 className="text-slate-400 text-sm font-medium">Pending Approvals</h3>
-            <p className="text-3xl font-bold mt-2 text-yellow-500">{pendingFaculty.length}</p>
+            <p className="text-3xl font-bold mt-2 text-yellow-500">{facultyList.filter(f => f.approvalStatus === 'PENDING').length}</p>
           </div>
           <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
             <h3 className="text-slate-400 text-sm font-medium">System Health</h3>
@@ -68,10 +73,10 @@ export default function AdminDashboard() {
         </section>
 
         <section className="bg-slate-900 rounded-xl border border-slate-800 p-6">
-          <h2 className="text-xl font-bold mb-4">Pending Faculty Approvals</h2>
+          <h2 className="text-xl font-bold mb-4">Faculty Management</h2>
           
-          {pendingFaculty.length === 0 ? (
-            <p className="text-slate-400 text-sm italic">No pending faculty registrations.</p>
+          {facultyList.length === 0 ? (
+            <p className="text-slate-400 text-sm italic">No faculty registered yet.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left text-slate-300">
@@ -80,18 +85,30 @@ export default function AdminDashboard() {
                     <th className="px-6 py-3">Name</th>
                     <th className="px-6 py-3">Employee ID</th>
                     <th className="px-6 py-3">Email</th>
+                    <th className="px-6 py-3">Status</th>
                     <th className="px-6 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {pendingFaculty.map(faculty => (
+                  {facultyList.map(faculty => (
                     <tr key={faculty.id} className="border-b border-slate-800 hover:bg-slate-800/50">
                       <td className="px-6 py-4 font-medium text-white">{faculty.name}</td>
                       <td className="px-6 py-4">{faculty.employeeId}</td>
                       <td className="px-6 py-4">{faculty.email}</td>
+                      <td className="px-6 py-4">
+                        <span className={`px-2 py-1 rounded text-xs ${faculty.approvalStatus === 'APPROVED' ? 'bg-green-500/20 text-green-400' : faculty.approvalStatus === 'PENDING' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'}`}>
+                          {faculty.approvalStatus}
+                        </span>
+                      </td>
                       <td className="px-6 py-4 text-right">
-                        <button onClick={() => handleApproval(faculty.id, 'APPROVED')} className="text-green-400 hover:text-green-300 mr-4 font-medium">Approve</button>
-                        <button onClick={() => handleApproval(faculty.id, 'REJECTED')} className="text-red-400 hover:text-red-300 font-medium">Reject</button>
+                        {faculty.approvalStatus !== 'APPROVED' && (
+                          <button onClick={() => handleApproval(faculty.id, 'APPROVED')} className="text-green-400 hover:text-green-300 mr-4 font-medium">Approve</button>
+                        )}
+                        {faculty.approvalStatus !== 'REJECTED' && (
+                          <button onClick={() => handleApproval(faculty.id, 'REJECTED')} className="text-red-400 hover:text-red-300 font-medium">
+                            {faculty.approvalStatus === 'APPROVED' ? 'Kick (Reject)' : 'Reject'}
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}

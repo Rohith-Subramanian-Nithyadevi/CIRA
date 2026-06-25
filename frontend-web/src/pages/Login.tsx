@@ -31,6 +31,7 @@ export default function Login() {
   
   // Faculty specific
   const [employeeId, setEmployeeId] = useState('');
+  const [subject, setSubject] = useState('');
 
   const [departments, setDepartments] = useState<Department[]>([]);
   const [error, setError] = useState('');
@@ -93,14 +94,16 @@ export default function Login() {
       const endpoint = isLogin ? '/api/v1/auth/login' : '/api/v1/auth/register';
       
       const payload: any = isLogin ? { email, password } : { 
-        email, password, name, phone, role, departmentId 
+        email, password, name, phone, role
       };
 
       if (!isLogin && role === 'STUDENT') {
+        payload.departmentId = departmentId;
         payload.rollNumber = rollNumber;
         payload.sectionId = sectionId;
       } else if (!isLogin && role === 'FACULTY') {
         payload.employeeId = employeeId;
+        payload.subject = subject;
       }
 
       const response = await fetch(`${baseUrl}${endpoint}`, {
@@ -195,13 +198,26 @@ export default function Login() {
                 </div>
               )}
 
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">Department</label>
-                <select required value={departmentId} onChange={(e) => { setDepartmentId(e.target.value); setSectionId(''); }} className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded focus:border-blue-500 transition-colors text-white appearance-none">
-                  <option value="" disabled>Select Department</option>
-                  {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                </select>
-              </div>
+              {role === 'STUDENT' ? (
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1">Department</label>
+                  <select required value={departmentId} onChange={(e) => { setDepartmentId(e.target.value); setSectionId(''); }} className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded focus:border-blue-500 transition-colors text-white appearance-none">
+                    <option value="" disabled>Select Department</option>
+                    {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                  </select>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1">Subject</label>
+                  <select required value={subject} onChange={(e) => setSubject(e.target.value)} className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded focus:border-blue-500 transition-colors text-white appearance-none">
+                    <option value="" disabled>Select Subject</option>
+                    <option value="softskills">Softskills</option>
+                    <option value="verbal">Verbal</option>
+                    <option value="aptitude">Aptitude</option>
+                    <option value="trainee">Trainee</option>
+                  </select>
+                </div>
+              )}
 
               {role === 'STUDENT' && (
                 <div>

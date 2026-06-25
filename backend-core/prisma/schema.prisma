@@ -54,6 +54,7 @@ model User {
   rollNumber     String?        @unique
   employeeId     String?        @unique
   approvalStatus ApprovalStatus @default(APPROVED)
+  subject        String?
   
   departmentId   String?
   department     Department?    @relation("UserDepartment", fields: [departmentId], references: [id])
