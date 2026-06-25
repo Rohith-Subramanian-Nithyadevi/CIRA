@@ -4,32 +4,56 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log("Seeding database...");
+  console.log("Seeding database with default Admin and Departments...");
   
-  const email = 'rohithsn18@gmail.com';
-  const password = 'password123';
+  const adminEmail = 'admin';
+  const adminPassword = 'cira_admin@amrita';
   
   // Hash the password
   const salt = await bcrypt.genSalt(10);
-  const hashedPassword = await bcrypt.hash(password, salt);
+  const hashedPassword = await bcrypt.hash(adminPassword, salt);
 
-  // Upsert the user so it doesn't fail if they already exist
-  const user = await prisma.user.upsert({
-    where: { email },
-    update: {},
-    create: {
-      email,
+  // Upsert the Admin user
+  const admin = await prisma.user.upsert({
+    where: { email: adminEmail },
+    update: {
       password: hashedPassword,
-      name: 'Rohith',
+    },
+    create: {
+      email: adminEmail,
+      password: hashedPassword,
+      name: 'System Admin',
       role: 'ADMIN',
-      department: 'CIR',
-      year: 4
+      approvalStatus: 'APPROVED'
     },
   });
 
-  console.log("Seed successful! You can now log in with:");
-  console.log(`Email: ${user.email}`);
-  console.log(`Password: ${password}`);
+  console.log("Admin seeded successfully!");
+
+  // Seed default departments if none exist to avoid empty dropdowns
+  const csDept = await prisma.department.upsert({
+    where: { name: 'Computer Science' },
+    update: {},
+    create: {
+      name: 'Computer Science',
+      sections: {
+        create: [{ name: 'A' }, { name: 'B' }, { name: 'C' }]
+      }
+    }
+  });
+
+  const ecDept = await prisma.department.upsert({
+    where: { name: 'Electronics' },
+    update: {},
+    create: {
+      name: 'Electronics',
+      sections: {
+        create: [{ name: 'A' }, { name: 'B' }]
+      }
+    }
+  });
+
+  console.log("Departments seeded successfully!");
 }
 
 main()

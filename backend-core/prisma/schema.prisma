@@ -13,24 +13,123 @@ enum Role {
   FACULTY
 }
 
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PerformanceRating {
+  EXCELLENT
+  GOOD
+  AVERAGE
+  POOR
+}
+
+model Department {
+  id        String    @id @default(uuid())
+  name      String    @unique
+  sections  Section[]
+  users     User[]    @relation("UserDepartment")
+  mappedFaculty FacultyDepartment[]
+}
+
+model Section {
+  id           String     @id @default(uuid())
+  name         String
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  users        User[]     @relation("UserSection")
+
+  @@unique([name, departmentId])
+}
+
+model User {
+  id             String         @id @default(uuid())
+  role           Role           @default(STUDENT)
+  name           String
+  email          String         @unique
+  password       String
+  phone          String?
+  rollNumber     String?        @unique
+  employeeId     String?        @unique
+  approvalStatus ApprovalStatus @default(APPROVED)
+  
+  departmentId   String?
+  department     Department?    @relation("UserDepartment", fields: [departmentId], references: [id])
+  
+  sectionId      String?
+  section        Section?       @relation("UserSection", fields: [sectionId], references: [id])
+  
+  mappedDepartments FacultyDepartment[]
+
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  results                Result[]
+  quizAttempts           QuizAttempt[]
+  assignmentSubmissions  AssignmentSubmission[]
+}
+
+model FacultyDepartment {
+  userId       String
+  departmentId String
+
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  @@id([userId, departmentId])
+}
+
+model Quiz {
+  id           String        @id @default(uuid())
+  title        String
+  description  String?
+  scheduledFor DateTime?
+  createdBy    String
+  createdAt    DateTime      @default(now())
+  
+  attempts     QuizAttempt[]
+}
+
+model QuizAttempt {
+  id        String   @id @default(uuid())
+  userId    String
+  quizId    String
+  score     Float
+  metrics   Json?
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quiz      Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+}
+
+model Assignment {
+  id           String   @id @default(uuid())
+  title        String
+  description  String?
+  createdBy    String
+  createdAt    DateTime @default(now())
+  
+  submissions  AssignmentSubmission[]
+}
+
+model AssignmentSubmission {
+  id           String             @id @default(uuid())
+  userId       String
+  assignmentId String
+  rating       PerformanceRating?
+  feedback     String?
+  submittedAt  DateTime           @default(now())
+
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignment   Assignment         @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+}
+
 enum AssessmentType {
   INITIAL
   WEEKLY
   FINAL
-}
-
-model User {
-  id         String   @id @default(uuid())
-  role       Role     @default(STUDENT)
-  name       String
-  email      String   @unique
-  password   String
-  department String?
-  year       Int?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  results    Result[]
 }
 
 model Assessment {
@@ -39,7 +138,6 @@ model Assessment {
   type       AssessmentType
   start_time DateTime
   end_time   DateTime
-
   results    Result[]
 }
 
@@ -48,7 +146,7 @@ model Result {
   user_id       String
   assessment_id String
   score         Float
-  metrics_json  Json       // Captures granular score objects
+  metrics_json  Json
 
   user          User       @relation(fields: [user_id], references: [id])
   assessment    Assessment @relation(fields: [assessment_id], references: [id])

@@ -5,12 +5,15 @@ const prisma = new PrismaClient();
 
 export const getDepartmentAnalytics = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const department = req.query.department as string;
+    const departmentId = req.query.departmentId as string;
 
-    const whereClause = department ? { department } : {};
+    const whereClause: any = { role: 'STUDENT' };
+    if (departmentId) {
+      whereClause.departmentId = departmentId;
+    }
     
     const students = await prisma.user.findMany({
-      where: { role: 'STUDENT', ...whereClause },
+      where: whereClause,
       include: { results: true }
     });
 
@@ -21,7 +24,7 @@ export const getDepartmentAnalytics = async (req: Request, res: Response, next: 
     students.forEach(student => {
         let studentAvg = 0;
         if(student.results.length > 0) {
-            const sum = student.results.reduce((acc, curr) => acc + curr.score, 0);
+            const sum = student.results.reduce((acc: number, curr: any) => acc + curr.score, 0);
             studentAvg = sum / student.results.length;
             totalScore += studentAvg;
             resultCount++;
@@ -37,7 +40,7 @@ export const getDepartmentAnalytics = async (req: Request, res: Response, next: 
     res.status(200).json({
       status: 'success',
       data: {
-        department: department || 'All',
+        departmentId: departmentId || 'All',
         averageIRI,
         readinessDistribution: tiers,
         totalStudentsEvaluated: resultCount
