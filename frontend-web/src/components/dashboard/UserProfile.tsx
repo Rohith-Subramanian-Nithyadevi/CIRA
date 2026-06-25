@@ -10,9 +10,10 @@ export default function UserProfile() {
   const [password, setPassword] = useState('');
   const [enrollDepartmentId, setEnrollDepartmentId] = useState('');
   const [departments, setDepartments] = useState<{id: string, name: string}[]>([]);
+  const [enrolledDepartments, setEnrolledDepartments] = useState<{id: string, name: string}[]>([]);
 
   // Fetch departments if faculty
-  useState(() => {
+  useEffect(() => {
     if (role === 'FACULTY') {
       const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
       fetch(`${baseUrl}/api/v1/departments`)
@@ -21,8 +22,21 @@ export default function UserProfile() {
           if (data?.data?.departments) setDepartments(data.data.departments);
         })
         .catch(console.error);
+
+      // Fetch enrolled departments
+      const token = localStorage.getItem('cira_token');
+      if (token) {
+        fetch(`${baseUrl}/api/v1/faculty/departments`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+          .then(res => res.json())
+          .then(data => {
+            if (data?.data?.departments) setEnrolledDepartments(data.data.departments);
+          })
+          .catch(console.error);
+      }
     }
-  });
+  }, [role]);
 
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState('');
@@ -129,13 +143,63 @@ export default function UserProfile() {
                     className="flex-1 px-4 py-2 bg-slate-800/50 border border-slate-700 rounded focus:border-blue-500 transition-colors text-white appearance-none"
                   >
                     <option value="" disabled>Select Department</option>
-                    {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                    {departments.filter(d => !enrolledDepartments.find(ed => ed.id === d.id)).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                   </select>
-                  <button onClick={() => setSuccess('Successfully enrolled in class!')} disabled={!enrollDepartmentId} className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded font-medium disabled:opacity-50">
+                  <button 
+                    onClick={async () => {
+                      try {
+                        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+                        const token = localStorage.getItem('cira_token');
+                        const res = await fetch(`${baseUrl}/api/v1/faculty/enroll`, {
+                          method: 'POST',
+                          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ departmentId: enrollDepartmentId })
+                        });
+                        if (res.ok) {
+                          const dept = departments.find(d => d.id === enrollDepartmentId);
+                          if (dept) setEnrolledDepartments(prev => [...prev, dept]);
+                          setSuccess('Successfully enrolled in class!');
+                          setEnrollDepartmentId('');
+                        }
+                      } catch (err) { console.error(err); }
+                    }} 
+                    disabled={!enrollDepartmentId} 
+                    className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded font-medium disabled:opacity-50"
+                  >
                     Enroll
                   </button>
                 </div>
               </div>
+              
+              {enrolledDepartments.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  <label className="block text-sm font-medium text-slate-400 mb-1">Enrolled Departments</label>
+                  {enrolledDepartments.map(ed => (
+                    <div key={ed.id} className="p-3 bg-slate-800/50 border border-slate-700 rounded flex justify-between items-center text-sm">
+                      <span>{ed.name}</span>
+                      <button 
+                        onClick={async () => {
+                          try {
+                            const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+                            const token = localStorage.getItem('cira_token');
+                            const res = await fetch(`${baseUrl}/api/v1/faculty/enroll/${ed.id}`, {
+                              method: 'DELETE',
+                              headers: { 'Authorization': `Bearer ${token}` }
+                            });
+                            if (res.ok) {
+                              setEnrolledDepartments(prev => prev.filter(d => d.id !== ed.id));
+                              setSuccess('Unenrolled successfully');
+                            }
+                          } catch (err) { console.error(err); }
+                        }}
+                        className="text-red-400 hover:text-red-300 transition-colors"
+                      >
+                        Unenroll
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}

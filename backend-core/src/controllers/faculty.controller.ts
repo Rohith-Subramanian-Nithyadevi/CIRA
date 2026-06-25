@@ -51,3 +51,82 @@ export const evaluateStudent = async (req: Request, res: Response, next: NextFun
     next(error);
   }
 };
+
+export const enrollDepartment = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { departmentId } = z.object({ departmentId: z.string() }).parse(req.body);
+    const userId = req.user!.userId;
+
+    const mapping = await prisma.facultyDepartment.create({
+      data: { userId, departmentId }
+    });
+
+    res.status(201).json({ status: 'success', data: { mapping } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const unenrollDepartment = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { departmentId } = req.params;
+    const userId = req.user!.userId;
+
+    await prisma.facultyDepartment.delete({
+      where: { userId_departmentId: { userId, departmentId: departmentId as string } }
+    });
+
+    res.status(200).json({ status: 'success', message: 'Unenrolled successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getEnrolledDepartments = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.user!.userId;
+
+    const departments = await prisma.facultyDepartment.findMany({
+      where: { userId },
+      include: { department: true }
+    });
+
+    res.status(200).json({ status: 'success', data: { departments: departments.map(d => d.department) } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getStudents = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.user!.userId;
+
+    // Get departments mapped to this faculty
+    const mappedDepts = await prisma.facultyDepartment.findMany({
+      where: { userId },
+      select: { departmentId: true }
+    });
+    
+    const deptIds = mappedDepts.map(d => d.departmentId);
+
+    // Fetch students belonging to those departments
+    const students = await prisma.user.findMany({
+      where: {
+        role: 'STUDENT',
+        departmentId: { in: deptIds }
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        rollNumber: true,
+        department: { select: { name: true } },
+        section: { select: { name: true } }
+      }
+    });
+
+    res.status(200).json({ status: 'success', data: { students } });
+  } catch (error) {
+    next(error);
+  }
+};
