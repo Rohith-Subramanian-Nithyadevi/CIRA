@@ -5,9 +5,11 @@ import React from 'react';
 interface DashboardLayoutProps {
   children: React.ReactNode;
   title: string;
+  activeTab: string;
+  onTabChange: (tab: string) => void;
 }
 
-export default function DashboardLayout({ children, title }: DashboardLayoutProps) {
+export default function DashboardLayout({ children, title, activeTab, onTabChange }: DashboardLayoutProps) {
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('cira_user') || '{}');
   const role = user.role || 'STUDENT';
@@ -29,50 +31,56 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
         <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
           {role === 'ADMIN' && (
             <>
-              <button className="flex items-center w-full px-3 py-2 bg-blue-500/10 text-blue-400 rounded-lg">
+              <button onClick={() => onTabChange('hub')} className={`flex items-center w-full px-3 py-2 rounded-lg transition-colors ${activeTab === 'hub' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}>
                 <LayoutDashboard className="w-5 h-5 mr-3" /> Admin Hub
               </button>
-              <button className="flex items-center w-full px-3 py-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors">
+              <button onClick={() => onTabChange('faculty')} className={`flex items-center w-full px-3 py-2 rounded-lg transition-colors ${activeTab === 'faculty' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}>
                 <CheckSquare className="w-5 h-5 mr-3" /> Faculty Approvals
               </button>
-              <button className="flex items-center w-full px-3 py-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors">
+              <button onClick={() => onTabChange('users')} className={`flex items-center w-full px-3 py-2 rounded-lg transition-colors ${activeTab === 'users' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}>
                 <Users className="w-5 h-5 mr-3" /> User Management
               </button>
-              <button className="flex items-center w-full px-3 py-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors">
+              <button onClick={() => onTabChange('departments')} className={`flex items-center w-full px-3 py-2 rounded-lg transition-colors ${activeTab === 'departments' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}>
                 <Settings className="w-5 h-5 mr-3" /> Departments
+              </button>
+              <button onClick={() => onTabChange('profile')} className={`flex items-center w-full px-3 py-2 rounded-lg transition-colors ${activeTab === 'profile' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}>
+                <User className="w-5 h-5 mr-3" /> My Profile
               </button>
             </>
           )}
 
           {role === 'FACULTY' && (
             <>
-              <button className="flex items-center w-full px-3 py-2 bg-blue-500/10 text-blue-400 rounded-lg">
+              <button onClick={() => onTabChange('tower')} className={`flex items-center w-full px-3 py-2 rounded-lg transition-colors ${activeTab === 'tower' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}>
                 <LayoutDashboard className="w-5 h-5 mr-3" /> Control Tower
               </button>
-              <button className="flex items-center w-full px-3 py-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors">
+              <button onClick={() => onTabChange('reports')} className={`flex items-center w-full px-3 py-2 rounded-lg transition-colors ${activeTab === 'reports' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}>
                 <Users className="w-5 h-5 mr-3" /> Student Reports
               </button>
-              <button className="flex items-center w-full px-3 py-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors">
+              <button onClick={() => onTabChange('quizzes')} className={`flex items-center w-full px-3 py-2 rounded-lg transition-colors ${activeTab === 'quizzes' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}>
                 <BookOpen className="w-5 h-5 mr-3" /> Quizzes
               </button>
-              <button className="flex items-center w-full px-3 py-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors">
+              <button onClick={() => onTabChange('assignments')} className={`flex items-center w-full px-3 py-2 rounded-lg transition-colors ${activeTab === 'assignments' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}>
                 <FileText className="w-5 h-5 mr-3" /> Assignments
+              </button>
+              <button onClick={() => onTabChange('profile')} className={`flex items-center w-full px-3 py-2 rounded-lg transition-colors ${activeTab === 'profile' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}>
+                <User className="w-5 h-5 mr-3" /> My Profile
               </button>
             </>
           )}
 
           {role === 'STUDENT' && (
             <>
-              <button className="flex items-center w-full px-3 py-2 bg-blue-500/10 text-blue-400 rounded-lg">
+              <button onClick={() => onTabChange('progress')} className={`flex items-center w-full px-3 py-2 rounded-lg transition-colors ${activeTab === 'progress' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}>
                 <LayoutDashboard className="w-5 h-5 mr-3" /> My Progress
               </button>
-              <button className="flex items-center w-full px-3 py-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors">
+              <button onClick={() => onTabChange('assignments')} className={`flex items-center w-full px-3 py-2 rounded-lg transition-colors ${activeTab === 'assignments' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}>
                 <FileText className="w-5 h-5 mr-3" /> Assignments
               </button>
-              <button className="flex items-center w-full px-3 py-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors">
+              <button onClick={() => onTabChange('quizzes')} className={`flex items-center w-full px-3 py-2 rounded-lg transition-colors ${activeTab === 'quizzes' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}>
                 <BookOpen className="w-5 h-5 mr-3" /> Quizzes
               </button>
-              <button className="flex items-center w-full px-3 py-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors">
+              <button onClick={() => onTabChange('profile')} className={`flex items-center w-full px-3 py-2 rounded-lg transition-colors ${activeTab === 'profile' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}>
                 <User className="w-5 h-5 mr-3" /> My Profile
               </button>
             </>

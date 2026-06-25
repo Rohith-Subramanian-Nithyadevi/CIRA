@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import DashboardLayout from '../components/DashboardLayout';
+import UserProfile from '../components/dashboard/UserProfile';
 
 interface PendingFaculty {
   id: string;
@@ -9,6 +10,7 @@ interface PendingFaculty {
 }
 
 export default function AdminDashboard() {
+  const [activeTab, setActiveTab] = useState('hub');
   const [pendingFaculty, setPendingFaculty] = useState<PendingFaculty[]>([]);
 
   useEffect(() => {
@@ -49,9 +51,12 @@ export default function AdminDashboard() {
   };
 
   return (
-    <DashboardLayout title="Admin Control Center">
-      <div className="space-y-8">
-        <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
+    <DashboardLayout title="Admin Control Center" activeTab={activeTab} onTabChange={setActiveTab}>
+      {activeTab === 'profile' ? (
+        <UserProfile />
+      ) : (
+        <div className="space-y-8">
+          <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
             <h3 className="text-slate-400 text-sm font-medium">Pending Approvals</h3>
             <p className="text-3xl font-bold mt-2 text-yellow-500">{pendingFaculty.length}</p>
@@ -96,6 +101,7 @@ export default function AdminDashboard() {
           )}
         </section>
       </div>
+      )}
     </DashboardLayout>
   );
 }
