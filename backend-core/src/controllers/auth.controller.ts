@@ -4,6 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { generateToken } from '../utils/jwt';
 import { BadRequestError, UnauthorizedError, NotFoundError, ForbiddenError } from '../utils/errors';
+import { sendVerificationEmail } from '../utils/email';
 
 const prisma = new PrismaClient();
 
@@ -11,6 +12,7 @@ const registerSchema = z.object({
   role: z.enum(['STUDENT', 'FACULTY']),
   name: z.string().min(1, 'Name is required'),
   email: z.string().email(),
+  personalEmail: z.string().email('Valid personal email is required'),
   password: z.string().min(8, 'Password must be at least 8 characters long'),
   phone: z.string().optional(),
   
@@ -35,12 +37,17 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
   try {
     const validatedData = registerSchema.parse(req.body);
 
-    const existingUser = await prisma.user.findUnique({
-      where: { email: validatedData.email },
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: validatedData.email },
+          { personalEmail: validatedData.personalEmail }
+        ]
+      }
     });
 
     if (existingUser) {
-      throw new BadRequestError('User with this email already exists', 'ERR_USER_EXISTS');
+      throw new BadRequestError('User with this college or personal email already exists', 'ERR_USER_EXISTS');
     }
 
     // Role specific validations
@@ -65,12 +72,14 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
     const hashedPassword = await bcrypt.hash(validatedData.password, salt);
 
     const approvalStatus = validatedData.role === 'FACULTY' ? 'PENDING' : 'APPROVED';
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
 
     const user = await prisma.user.create({
       data: {
         role: validatedData.role,
         name: validatedData.name,
         email: validatedData.email,
+        personalEmail: validatedData.personalEmail,
         password: hashedPassword,
         phone: validatedData.phone,
         departmentId: validatedData.departmentId,
@@ -78,44 +87,71 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
         sectionId: validatedData.sectionId,
         employeeId: validatedData.employeeId,
         subject: validatedData.subject,
-        approvalStatus
+        approvalStatus,
+        isEmailVerified: false,
+        verificationCode,
       },
     });
 
-    // We do not issue a token for faculty immediately if they are pending approval
-    if (user.approvalStatus === 'PENDING') {
-      return res.status(201).json({
-        status: 'success',
-        message: 'Registration successful. Your account is pending administrator approval.',
-        data: {
-          user: {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            role: user.role,
-            phone: user.phone,
-            rollNumber: user.rollNumber,
-            employeeId: user.employeeId,
-            approvalStatus: user.approvalStatus
-          }
-        }
-      });
-    }
+    // Send verification email
+    await sendVerificationEmail(validatedData.personalEmail, verificationCode);
 
-    const token = generateToken({ userId: user.id, role: user.role });
-
+    // Since email verification is required, we don't issue the token immediately
     res.status(201).json({
       status: 'success',
+      message: 'Registration successful. Please verify your email.',
       data: {
         user: {
           id: user.id,
           name: user.name,
           email: user.email,
           role: user.role,
-          phone: user.phone,
-          rollNumber: user.rollNumber,
-          employeeId: user.employeeId,
-          approvalStatus: user.approvalStatus
+          isEmailVerified: user.isEmailVerified
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const verifyEmail = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { email, code } = req.body;
+    if (!email || !code) throw new BadRequestError('Email and verification code are required');
+
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) throw new NotFoundError('User not found');
+
+    if (user.isEmailVerified) throw new BadRequestError('Email already verified');
+
+    if (user.verificationCode !== code) throw new BadRequestError('Invalid verification code');
+
+    const updatedUser = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        isEmailVerified: true,
+        verificationCode: null,
+      },
+    });
+
+    if (updatedUser.approvalStatus === 'PENDING') {
+      return res.status(200).json({
+        status: 'success',
+        message: 'Email verified! Your account is pending administrator approval.',
+        data: { user: { role: updatedUser.role } }
+      });
+    }
+
+    const token = generateToken({ userId: updatedUser.id, role: updatedUser.role });
+    res.status(200).json({
+      status: 'success',
+      data: {
+        user: {
+          id: updatedUser.id,
+          name: updatedUser.name,
+          email: updatedUser.email,
+          role: updatedUser.role,
         },
         token,
       },
@@ -150,6 +186,10 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
     }
     if (user.approvalStatus === 'REJECTED') {
       throw new ForbiddenError('Your account has been rejected by an administrator.', 'ERR_ACCOUNT_REJECTED');
+    }
+
+    if (!user.isEmailVerified && user.role !== 'ADMIN') {
+      throw new ForbiddenError('Please verify your personal email first.', 'ERR_EMAIL_NOT_VERIFIED');
     }
 
     const token = generateToken({ userId: user.id, role: user.role });

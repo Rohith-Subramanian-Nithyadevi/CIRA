@@ -20,9 +20,13 @@ export default function Login() {
   
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [personalEmail, setPersonalEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [phone, setPhone] = useState('');
+  
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verificationCode, setVerificationCode] = useState('');
   
   // Student specific
   const [rollNumber, setRollNumber] = useState('');
@@ -100,7 +104,7 @@ export default function Login() {
       const endpoint = isLogin ? '/api/v1/auth/login' : '/api/v1/auth/register';
       
       const payload: any = isLogin ? { email, password } : { 
-        email, password, name, phone, role
+        email, personalEmail, password, name, phone, role
       };
 
       if (!isLogin && role === 'STUDENT') {
@@ -124,9 +128,55 @@ export default function Login() {
         throw new Error(data.message || 'Authentication failed.');
       }
 
+      if (!isLogin && data.message?.includes('verify')) {
+        setSuccess(data.message);
+        setIsVerifying(true);
+        return;
+      }
+
       if (!isLogin && role === 'FACULTY') {
         // Faculty requires approval
         setSuccess('Registration successful! Your account is pending admin approval.');
+        setIsLogin(true);
+      } else {
+        localStorage.setItem('cira_token', data.data.token);
+        localStorage.setItem('cira_user', JSON.stringify(data.data.user));
+        
+        const loggedInUserRole = data.data.user.role;
+        if (loggedInUserRole === 'ADMIN') navigate('/admin/dashboard');
+        else if (loggedInUserRole === 'FACULTY') navigate('/faculty/dashboard');
+        else navigate('/student/dashboard');
+      }
+    } catch (err: any) {
+      setError(err.message || 'An unexpected error occurred.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+      const response = await fetch(`${baseUrl}/api/v1/auth/verify-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code: verificationCode }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Verification failed.');
+      }
+
+      if (data.message?.includes('pending')) {
+        setSuccess(data.message);
+        setIsVerifying(false);
         setIsLogin(true);
       } else {
         localStorage.setItem('cira_token', data.data.token);
@@ -167,7 +217,22 @@ export default function Login() {
         {error && <div className="bg-red-500/10 border border-red-500/50 text-red-400 p-3 rounded mb-4 text-sm text-left">{error}</div>}
         {success && <div className="bg-green-500/10 border border-green-500/50 text-green-400 p-3 rounded mb-4 text-sm text-left">{success}</div>}
 
-        <form onSubmit={handleSubmit} className="space-y-4 text-left">
+        {isVerifying ? (
+          <form onSubmit={handleVerifySubmit} className="space-y-4 text-left">
+            <div>
+              <label htmlFor="verificationCode" className="block text-sm font-medium text-slate-300 mb-1">Verification Code</label>
+              <input id="verificationCode" type="text" required value={verificationCode} onChange={(e) => setVerificationCode(e.target.value)} className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded focus:border-blue-500 transition-colors" placeholder="123456" />
+              <p className="text-xs text-slate-500 mt-1">Sent to your Personal Email ({personalEmail})</p>
+            </div>
+            <button type="submit" disabled={loading} className="w-full mt-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-medium transition-colors disabled:opacity-50">
+              {loading ? 'Verifying...' : 'Verify Email'}
+            </button>
+            <button type="button" onClick={() => setIsVerifying(false)} className="w-full mt-2 py-2 text-slate-400 hover:text-slate-300 text-sm">
+              Cancel
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4 text-left">
           {!isLogin && (
             <div className="flex justify-center gap-4 mb-4">
               <label className="flex items-center space-x-2 cursor-pointer">
@@ -242,6 +307,13 @@ export default function Login() {
             <input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded focus:border-blue-500 transition-colors" placeholder="user@university.edu" />
           </div>
 
+          {!isLogin && (
+            <div>
+              <label htmlFor="personalEmail" className="block text-sm font-medium text-slate-300 mb-1">Personal Email (Gmail)</label>
+              <input id="personalEmail" type="email" required value={personalEmail} onChange={(e) => setPersonalEmail(e.target.value)} className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded focus:border-blue-500 transition-colors" placeholder="you@gmail.com" />
+            </div>
+          )}
+
           <div className={!isLogin ? "grid grid-cols-1 md:grid-cols-2 gap-4" : ""}>
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-slate-300 mb-1">Password</label>
@@ -260,6 +332,7 @@ export default function Login() {
             {loading ? 'Processing...' : (isLogin ? 'Secure Login' : 'Create Account')}
           </button>
         </form>
+        )}
 
         <a href="/" className="mt-8 inline-block text-blue-400 hover:text-blue-300 text-sm">Return to Gateway</a>
       </div>
