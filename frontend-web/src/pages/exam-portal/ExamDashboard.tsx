@@ -56,6 +56,10 @@ export default function ExamDashboard() {
               const isCompleted = attempt?.status === 'SUBMITTED' || attempt?.status === 'EVALUATED';
               const isInProgress = attempt?.status === 'IN_PROGRESS';
 
+              const now = new Date();
+              const startDate = quiz.startDate ? new Date(quiz.startDate) : null;
+              const isUpcoming = startDate && startDate > now;
+
               return (
                 <div key={quiz.id} className="bg-slate-900 border border-slate-800 rounded-xl p-6 flex flex-col md:flex-row items-center justify-between">
                   <div>
@@ -72,6 +76,11 @@ export default function ExamDashboard() {
                       <div className="px-6 py-3 bg-green-900/40 text-green-400 font-medium rounded-lg border border-green-800 flex items-center">
                         <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
                         Completed
+                      </div>
+                    ) : isUpcoming ? (
+                      <div className="px-6 py-3 bg-slate-800 text-slate-300 font-medium rounded-lg border border-slate-700 flex items-center">
+                        <svg className="w-5 h-5 mr-2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        Starts {startDate.toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}
                       </div>
                     ) : (
                       <button
