@@ -61,10 +61,14 @@ export default function QuizManagement() {
     e.preventDefault();
     setLoading(true);
     try {
+      const payload = { ...formData };
+      if (payload.startDate) payload.startDate = new Date(payload.startDate).toISOString();
+      if (payload.endDate) payload.endDate = new Date(payload.endDate).toISOString();
+
       const res = await fetch(`${baseUrl}/api/v1/faculty/quiz/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (data?.status === 'success') {
@@ -464,7 +468,7 @@ export default function QuizManagement() {
                 <tr key={quiz.id} className="border-b border-slate-800/50 hover:bg-slate-800/20">
                   <td className="py-4 font-medium text-slate-200">{quiz.title}</td>
                   <td className="py-4 text-slate-400">{quiz.subject}</td>
-                  <td className="py-4 text-slate-400">{quiz.startDate ? new Date(quiz.startDate).toLocaleDateString() : 'N/A'}</td>
+                  <td className="py-4 text-slate-400">{quiz.startDate ? new Date(quiz.startDate).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : 'N/A'}</td>
                   <td className="py-4 text-slate-400">{quiz._count?.questions || 0}</td>
                   <td className="py-4 space-x-3 text-sm flex">
                     <button onClick={() => { setActiveQuizId(quiz.id); setActiveView('add_questions'); }} className="text-blue-500 hover:text-blue-400">Edit Questions</button>
