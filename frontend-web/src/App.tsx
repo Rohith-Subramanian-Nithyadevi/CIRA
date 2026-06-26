@@ -5,6 +5,8 @@ import AdminDashboard from './pages/AdminDashboard';
 import FacultyDashboard from './pages/FacultyDashboard';
 import StudentDashboard from './pages/StudentDashboard';
 import ProtectedRoute from './components/ProtectedRoute';
+import ExamDashboard from './pages/exam-portal/ExamDashboard';
+import ExamInterface from './pages/exam-portal/ExamInterface';
 
 function App() {
   return (
@@ -12,6 +14,10 @@ function App() {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
+        
+        {/* Exam Portal Routes (Locked down UI for Desktop Client) */}
+        <Route path="/exam-portal" element={<ExamDashboard />} />
+        <Route path="/exam-portal/take/:quizId" element={<ExamInterface />} />
         
         {/* Protected Admin Routes */}
         <Route path="/admin/dashboard" element={
