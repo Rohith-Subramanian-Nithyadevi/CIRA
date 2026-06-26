@@ -17,7 +17,7 @@ services:
   mongo1:
     image: mongo:6.0
     container_name: cira_mongo1
-    command: ["--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
+    command: [ "--replSet", "rs0", "--bind_ip_all", "--port", "27017" ]
     ports:
       - "27017:27017"
     volumes:
@@ -27,7 +27,7 @@ services:
   mongo2:
     image: mongo:6.0
     container_name: cira_mongo2
-    command: ["--replSet", "rs0", "--bind_ip_all", "--port", "27018"]
+    command: [ "--replSet", "rs0", "--bind_ip_all", "--port", "27018" ]
     ports:
       - "27018:27018"
     volumes:
@@ -37,7 +37,7 @@ services:
   mongo3:
     image: mongo:6.0
     container_name: cira_mongo3
-    command: ["--replSet", "rs0", "--bind_ip_all", "--port", "27019"]
+    command: [ "--replSet", "rs0", "--bind_ip_all", "--port", "27019" ]
     ports:
       - "27019:27019"
     volumes:
@@ -52,17 +52,14 @@ services:
       - mongo3
     restart: "no"
     entrypoint: >
-      mongosh --host mongo1:27017 --eval 
-      '
-      rs.initiate({
+      mongosh --host mongo1:27017 --eval  ' rs.initiate({
         _id: "rs0",
         members: [
           { _id: 0, host: "mongo1:27017" },
           { _id: 1, host: "mongo2:27018" },
           { _id: 2, host: "mongo3:27019" }
         ]
-      })
-      '
+      }) '
 
 volumes:
   postgres_data:
