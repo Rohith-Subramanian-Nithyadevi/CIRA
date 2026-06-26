@@ -143,9 +143,18 @@ export default function Login() {
         localStorage.setItem('cira_user', JSON.stringify(data.data.user));
         
         const loggedInUserRole = data.data.user.role;
-        if (loggedInUserRole === 'ADMIN') navigate('/admin/dashboard');
-        else if (loggedInUserRole === 'FACULTY') navigate('/faculty/dashboard');
-        else navigate('/student/dashboard');
+        const urlParams = new URLSearchParams(window.location.search);
+        const isDesktopClient = urlParams.get('client') === 'desktop';
+
+        if (isDesktopClient && loggedInUserRole === 'STUDENT') {
+          navigate('/exam-portal');
+        } else if (loggedInUserRole === 'ADMIN') {
+          navigate('/admin/dashboard');
+        } else if (loggedInUserRole === 'FACULTY') {
+          navigate('/faculty/dashboard');
+        } else {
+          navigate('/student/dashboard');
+        }
       }
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred.');

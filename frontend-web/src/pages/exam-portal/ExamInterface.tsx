@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 
 type QuestionStatus = 'NOT_VISITED' | 'NOT_ANSWERED' | 'ANSWERED' | 'MARKED_FOR_REVIEW' | 'ANSWERED_AND_MARKED_FOR_REVIEW';
 
@@ -12,30 +12,58 @@ interface Question {
 }
 
 export default function ExamInterface() {
-  // const { quizId } = useParams();
+  const { quizId } = useParams();
   const navigate = useNavigate();
   
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
   const [responses, setResponses] = useState<Record<string, { data: any, status: QuestionStatus }>>({});
-  const [timeLeft, setTimeLeft] = useState(60 * 60); // 1 hour mock
+  const [timeLeft, setTimeLeft] = useState(60 * 60); 
   const [saving, setSaving] = useState(false);
+  const [attemptId, setAttemptId] = useState<string>('');
+  const [quizDetails, setQuizDetails] = useState<any>(null);
 
   useEffect(() => {
-    // Mock load quiz
-    setQuestions([
-      { id: 'q1', type: 'MCQ', text: 'What is the time complexity of binary search?', marks: 2, options: ['O(1)', 'O(n)', 'O(log n)', 'O(n^2)'] },
-      { id: 'q2', type: 'SHORT_WRITTEN', text: 'Explain Polymorphism in your own words.', marks: 5 },
-      { id: 'q3', type: 'MCQ', text: 'Which of the following is not a NoSQL database?', marks: 2, options: ['MongoDB', 'Cassandra', 'PostgreSQL', 'Redis'] },
-    ]);
+    const fetchQuiz = async () => {
+      try {
+        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+        const token = localStorage.getItem('cira_token');
+        const res = await fetch(`${baseUrl}/api/v1/student/exam/start/${quizId}`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        
+        if (data.status === 'success') {
+          const { attempt, quiz } = data.data;
+          setQuizDetails(quiz);
+          setQuestions(quiz.questions || []);
+          setAttemptId(attempt.id);
+          
+          const loadedResponses: Record<string, { data: any, status: QuestionStatus }> = {};
+          if (attempt.responses) {
+             attempt.responses.forEach((r: any) => {
+               loadedResponses[r.questionId] = { data: r.answerData, status: r.status };
+             });
+          }
+          setResponses(loadedResponses);
+          
+          const startTime = new Date(attempt.startTime).getTime();
+          const durationSec = (quiz.durationMinutes || 60) * 60;
+          const elapsedSec = Math.floor((Date.now() - startTime) / 1000);
+          const remaining = Math.max(0, durationSec - elapsedSec);
+          setTimeLeft(remaining);
+        } else {
+           alert('Error starting exam: ' + data.message);
+           navigate('/exam-portal');
+        }
+      } catch(err) {
+         console.error(err);
+      }
+    };
     
-    // Initialize responses
-    const initialResponses: Record<string, { data: any, status: QuestionStatus }> = {};
-    // q1 is visited, others not visited
-    initialResponses['q1'] = { data: null, status: 'NOT_ANSWERED' };
-    setResponses(initialResponses);
-    
-    // Timer
+    if (quizId) fetchQuiz();
+
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
@@ -48,13 +76,24 @@ export default function ExamInterface() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, []);
+  }, [quizId]);
 
   const handleSaveResponse = async (questionId: string, answerData: any, status: QuestionStatus) => {
     setResponses(prev => ({ ...prev, [questionId]: { data: answerData, status } }));
     setSaving(true);
-    // Mock API call to auto-save
-    setTimeout(() => setSaving(false), 500);
+    try {
+        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+        const token = localStorage.getItem('cira_token');
+        await fetch(`${baseUrl}/api/v1/student/exam/attempt/${attemptId}/save-response`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ questionId, answerData, status })
+        });
+    } catch(e) {
+      console.error(e);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleNext = () => {
@@ -94,16 +133,48 @@ export default function ExamInterface() {
     handleSaveResponse(qId, null, 'NOT_ANSWERED');
   };
 
-  const handleSubmit = () => {
-    // API Call to submit
-    alert('Examination Submitted Successfully!');
-    navigate('/exam-portal');
+  const handleSubmit = async () => {
+    try {
+        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+        const token = localStorage.getItem('cira_token');
+        const res = await fetch(`${baseUrl}/api/v1/student/exam/attempt/${attemptId}/submit`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+          alert('Examination Submitted Successfully!');
+          navigate('/exam-portal');
+        } else {
+          alert('Error submitting: ' + data.message);
+          navigate('/exam-portal');
+        }
+    } catch(e) {
+        console.error(e);
+        alert('Error submitting examination');
+        navigate('/exam-portal');
+    }
   };
 
   if (questions.length === 0) return <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">Loading...</div>;
 
   const currentQ = questions[currentQuestionIdx];
   const currentResp = responses[currentQ.id];
+
+  const handleToggleMultiSelect = (opt: string) => {
+    let curr = Array.isArray(currentResp?.data) ? [...currentResp.data] : [];
+    if (curr.includes(opt)) curr = curr.filter(x => x !== opt);
+    else curr.push(opt);
+    handleSaveResponse(currentQ.id, curr, 'ANSWERED');
+  };
+
+  const handleMatchingSelect = (leftOpt: string, rightOpt: string) => {
+    let curr = Array.isArray(currentResp?.data) ? [...currentResp.data] : [];
+    const idx = curr.findIndex(x => x.left === leftOpt);
+    if (idx >= 0) curr[idx].right = rightOpt;
+    else curr.push({ left: leftOpt, right: rightOpt });
+    handleSaveResponse(currentQ.id, curr, 'ANSWERED');
+  };
 
   const formatTime = (seconds: number) => {
     const h = Math.floor(seconds / 3600);
@@ -124,11 +195,10 @@ export default function ExamInterface() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
-      {/* Top Navigation */}
       <header className="bg-slate-900 text-white px-6 py-4 flex justify-between items-center shadow-md">
         <div>
-          <h1 className="text-xl font-bold">Midterm Examination: Data Structures</h1>
-          <div className="text-sm text-slate-400">Student: John Doe (Roll: CS2024-001)</div>
+          <h1 className="text-xl font-bold">{quizDetails?.title || 'Examination'}</h1>
+          <div className="text-sm text-slate-400">Subject: {quizDetails?.subject || 'N/A'}</div>
         </div>
         <div className="flex items-center space-x-6">
           <div className="flex items-center space-x-2">
@@ -145,7 +215,6 @@ export default function ExamInterface() {
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Left Side: Question Area */}
         <div className="flex-1 flex flex-col border-r border-slate-200">
           <div className="flex-1 p-8 overflow-y-auto">
             <div className="flex justify-between items-center border-b border-slate-200 pb-4 mb-6">
@@ -159,7 +228,6 @@ export default function ExamInterface() {
               {currentQ.text}
             </div>
 
-            {/* Answer Input Area */}
             <div className="space-y-4">
               {currentQ.type === 'MCQ' && currentQ.options?.map((opt: string, idx: number) => (
                 <label key={idx} className={`block p-4 border rounded-lg cursor-pointer transition-colors ${currentResp?.data === opt ? 'bg-blue-50 border-blue-500' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
@@ -167,7 +235,7 @@ export default function ExamInterface() {
                     <input 
                       type="radio" 
                       name={`q-${currentQ.id}`} 
-                      className="w-5 h-5 text-blue-600 border-gray-300 focus:ring-blue-500"
+                      className="w-5 h-5 text-blue-600 border-gray-300 focus:ring-blue-500 cursor-pointer"
                       checked={currentResp?.data === opt}
                       onChange={() => handleSaveResponse(currentQ.id, opt, 'ANSWERED')}
                     />
@@ -176,18 +244,69 @@ export default function ExamInterface() {
                 </label>
               ))}
 
-              {currentQ.type === 'SHORT_WRITTEN' && (
+              {currentQ.type === 'MULTI_SELECT' && currentQ.options?.map((opt: string, idx: number) => {
+                const isSelected = Array.isArray(currentResp?.data) && currentResp.data.includes(opt);
+                return (
+                  <label key={idx} className={`block p-4 border rounded-lg cursor-pointer transition-colors ${isSelected ? 'bg-purple-50 border-purple-500' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
+                    <div className="flex items-center space-x-3">
+                      <input 
+                        type="checkbox" 
+                        className="w-5 h-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500 cursor-pointer"
+                        checked={isSelected}
+                        onChange={() => handleToggleMultiSelect(opt)}
+                      />
+                      <span className="text-slate-700 text-lg">{opt}</span>
+                    </div>
+                  </label>
+                );
+              })}
+
+              {(currentQ.type === 'SHORT_WRITTEN' || currentQ.type === 'LONG_WRITTEN') && (
                 <textarea 
-                  className="w-full h-48 p-4 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none text-slate-700"
+                  className={`w-full p-4 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none text-slate-700 ${currentQ.type === 'LONG_WRITTEN' ? 'h-64' : 'h-32'}`}
                   placeholder="Type your answer here..."
                   value={currentResp?.data || ''}
                   onChange={(e) => handleSaveResponse(currentQ.id, e.target.value, 'ANSWERED')}
                 />
               )}
+
+              {currentQ.type === 'NUMERICAL' && (
+                <input 
+                  type="number"
+                  className="w-full p-4 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-700 text-lg"
+                  placeholder="Enter the numerical value..."
+                  value={currentResp?.data || ''}
+                  onChange={(e) => handleSaveResponse(currentQ.id, Number(e.target.value), 'ANSWERED')}
+                />
+              )}
+
+              {currentQ.type === 'MATCHING' && currentQ.options?.lefts && currentQ.options?.rights && (
+                <div className="space-y-4">
+                  {currentQ.options.lefts.map((leftOpt: string, idx: number) => {
+                    const currentArr = Array.isArray(currentResp?.data) ? currentResp.data : [];
+                    const selectedRight = currentArr.find(x => x.left === leftOpt)?.right || '';
+                    return (
+                      <div key={idx} className="flex items-center space-x-4 p-4 bg-white border border-slate-200 rounded-lg">
+                        <div className="flex-1 text-slate-700 text-lg font-medium">{leftOpt}</div>
+                        <div className="text-slate-400">→</div>
+                        <select 
+                          className="flex-1 p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-700"
+                          value={selectedRight}
+                          onChange={(e) => handleMatchingSelect(leftOpt, e.target.value)}
+                        >
+                          <option value="">Select match...</option>
+                          {currentQ.options.rights.map((rightOpt: string, rIdx: number) => (
+                            <option key={rIdx} value={rightOpt}>{rightOpt}</option>
+                          ))}
+                        </select>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Bottom Controls */}
           <div className="bg-white border-t border-slate-200 p-4 flex justify-between items-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
             <div className="space-x-3">
               <button onClick={handleMarkReview} className="px-5 py-2.5 border border-yellow-500 text-yellow-600 hover:bg-yellow-50 font-medium rounded-lg transition-colors">Mark for Review & Next</button>
@@ -203,13 +322,11 @@ export default function ExamInterface() {
           </div>
         </div>
 
-        {/* Right Side: Question Palette */}
         <div className="w-80 bg-white flex flex-col shadow-[-4px_0_6px_-1px_rgba(0,0,0,0.05)] z-10">
           <div className="p-4 border-b border-slate-200 bg-slate-50">
             <h3 className="font-bold text-slate-800 text-lg">Question Palette</h3>
           </div>
           
-          {/* Legend */}
           <div className="p-4 border-b border-slate-200 text-sm space-y-3 bg-white">
             <div className="flex space-x-4">
               <div className="flex items-center space-x-2"><div className="w-6 h-6 bg-green-500 rounded text-white flex items-center justify-center text-xs">1</div><span>Answered</span></div>

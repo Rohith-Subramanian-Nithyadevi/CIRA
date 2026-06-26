@@ -4,6 +4,90 @@ import { BadRequestError } from '../utils/errors';
 
 const prisma = new PrismaClient();
 
+// Get All Quizzes for logged in Faculty
+export const getQuizzes = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = (req as any).user?.userId || 'system';
+    const userRole = (req as any).user?.role;
+
+    // Faculty sees only their quizzes, Admins see all
+    const whereClause = userRole === 'ADMIN' ? {} : { createdBy: userId };
+
+    const quizzes = await prisma.quiz.findMany({
+      where: whereClause,
+      include: {
+        _count: {
+          select: { questions: true, attempts: true }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    res.status(200).json({ status: 'success', data: quizzes });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Get a Single Quiz by ID
+export const getQuizById = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const quizId = req.params.quizId as string;
+    const userId = (req as any).user?.userId || 'system';
+    const userRole = (req as any).user?.role;
+
+    const quiz = await prisma.quiz.findUnique({
+      where: { id: quizId },
+      include: {
+        questions: true,
+        targetDepartments: true,
+        targetSections: true
+      }
+    });
+
+    if (!quiz) {
+      throw new BadRequestError('Quiz not found', 'NOT_FOUND');
+    }
+
+    if (userRole !== 'ADMIN' && quiz.createdBy !== userId) {
+      throw new BadRequestError('Not authorized to access this quiz', 'UNAUTHORIZED');
+    }
+
+    res.status(200).json({ status: 'success', data: quiz });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Delete a Quiz
+export const deleteQuiz = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const quizId = req.params.quizId as string;
+    const userId = (req as any).user?.userId || 'system';
+    const userRole = (req as any).user?.role;
+
+    const quiz = await prisma.quiz.findUnique({
+      where: { id: quizId }
+    });
+
+    if (!quiz) {
+      throw new BadRequestError('Quiz not found', 'NOT_FOUND');
+    }
+
+    if (userRole !== 'ADMIN' && quiz.createdBy !== userId) {
+      throw new BadRequestError('Not authorized to delete this quiz', 'UNAUTHORIZED');
+    }
+
+    await prisma.quiz.delete({
+      where: { id: quizId }
+    });
+
+    res.status(200).json({ status: 'success', message: 'Quiz deleted successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // Create Quiz (Basic Info & Schedule)
 export const createQuiz = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -26,7 +110,7 @@ export const createQuiz = async (req: Request, res: Response, next: NextFunction
     } = req.body;
 
     // We assume the auth middleware sets req.user
-    const createdBy = (req as any).user?.id || 'system';
+    const createdBy = (req as any).user?.userId || 'system';
 
     const quiz = await prisma.quiz.create({
       data: {
@@ -102,7 +186,7 @@ export const getSubmissions = async (req: Request, res: Response, next: NextFunc
     const quizId = req.params.quizId as string;
     
     const attempts = await prisma.quizAttempt.findMany({
-      where: { quizId, status: 'SUBMITTED' },
+      where: { quizId, status: { in: ['SUBMITTED', 'EVALUATED'] } },
       include: {
         user: { select: { name: true, rollNumber: true, email: true } },
         responses: { include: { question: true } }
@@ -119,12 +203,26 @@ export const getSubmissions = async (req: Request, res: Response, next: NextFunc
 export const evaluateAttempt = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const attemptId = req.params.attemptId as string;
-    const { writtenScore, facultyFeedback, performanceCategory, finalGrade } = req.body;
+    const { evaluations, writtenScore: rawWrittenScore, facultyFeedback, performanceCategory, finalGrade } = req.body;
 
     const attempt = await prisma.quizAttempt.findUnique({ where: { id: attemptId } });
     if (!attempt) throw new BadRequestError('Attempt not found', 'NOT_FOUND');
 
-    const totalScore = attempt.objectiveScore + (Number(writtenScore) || 0);
+    let writtenScore = 0;
+
+    if (evaluations && Array.isArray(evaluations)) {
+      for (const evalItem of evaluations) {
+        await prisma.quizResponse.update({
+          where: { id: evalItem.responseId },
+          data: { marksAwarded: Number(evalItem.marks) }
+        });
+        writtenScore += Number(evalItem.marks);
+      }
+    } else if (rawWrittenScore !== undefined) {
+      writtenScore = Number(rawWrittenScore);
+    }
+
+    const totalScore = attempt.objectiveScore + writtenScore;
 
     const updated = await prisma.quizAttempt.update({
       where: { id: attemptId },

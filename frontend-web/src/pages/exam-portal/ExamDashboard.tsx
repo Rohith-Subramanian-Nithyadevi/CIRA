@@ -7,20 +7,24 @@ export default function ExamDashboard() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // In a real app, fetch from /api/v1/student/exam/eligible
-    // Using mock data for UI visualization right now
-    setTimeout(() => {
-      setQuizzes([
-        {
-          id: 'mock-quiz-1',
-          title: 'Midterm Examination: Data Structures',
-          subject: 'Computer Science',
-          durationMinutes: 90,
-          totalMarks: 100
+    const fetchQuizzes = async () => {
+      try {
+        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+        const token = localStorage.getItem('cira_token');
+        const res = await fetch(`${baseUrl}/api/v1/student/exam/eligible`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (data?.data) {
+          setQuizzes(data.data);
         }
-      ]);
-      setLoading(false);
-    }, 1000);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchQuizzes();
   }, []);
 
   const handleStart = (quizId: string) => {
@@ -47,24 +51,40 @@ export default function ExamDashboard() {
           </div>
         ) : (
           <div className="grid gap-6">
-            {quizzes.map((quiz) => (
-              <div key={quiz.id} className="bg-slate-900 border border-slate-800 rounded-xl p-6 flex flex-col md:flex-row items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-bold text-white mb-2">{quiz.title}</h2>
-                  <div className="flex space-x-4 text-sm text-slate-400">
-                    <span>Subject: {quiz.subject}</span>
-                    <span>Duration: {quiz.durationMinutes} mins</span>
-                    <span>Marks: {quiz.totalMarks}</span>
+            {quizzes.map((quiz) => {
+              const attempt = quiz.attempts && quiz.attempts.length > 0 ? quiz.attempts[0] : null;
+              const isCompleted = attempt?.status === 'SUBMITTED' || attempt?.status === 'EVALUATED';
+              const isInProgress = attempt?.status === 'IN_PROGRESS';
+
+              return (
+                <div key={quiz.id} className="bg-slate-900 border border-slate-800 rounded-xl p-6 flex flex-col md:flex-row items-center justify-between">
+                  <div>
+                    <h2 className="text-xl font-bold text-white mb-2">{quiz.title}</h2>
+                    <div className="flex space-x-4 text-sm text-slate-400">
+                      <span>Subject: {quiz.subject}</span>
+                      <span>Duration: {quiz.durationMinutes} mins</span>
+                      <span>Marks: {quiz.totalMarks}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-4 md:mt-0">
+                    {isCompleted ? (
+                      <div className="px-6 py-3 bg-green-900/40 text-green-400 font-medium rounded-lg border border-green-800 flex items-center">
+                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+                        Completed
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => handleStart(quiz.id)}
+                        className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg transition-colors"
+                      >
+                        {isInProgress ? 'Resume Examination' : 'Start Examination'}
+                      </button>
+                    )}
                   </div>
                 </div>
-                <button
-                  onClick={() => handleStart(quiz.id)}
-                  className="mt-4 md:mt-0 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg transition-colors"
-                >
-                  Start Examination
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

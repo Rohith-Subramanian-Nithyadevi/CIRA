@@ -30,14 +30,14 @@
     </style>
   </head>
   <!-- PRD: Browser & Copy-Paste Blocking (Disabling right click context menu) -->
-  <body oncontextmenu="return false;">
-    <h1>Secure Assessment Active</h1>
-    <div class="warning">
-      WARNING: You are in a secure examination environment. <br/>
-      Attempting to exit, switch applications, or use unauthorized tools will result in immediate test termination.
+  <body oncontextmenu="return false;" style="margin: 0; overflow: hidden;">
+    
+    <div style="position: absolute; top: 0; left: 0; width: 100%; text-align: center; pointer-events: none; z-index: 9999;">
+      <div class="warning" style="display: inline-block; margin-top: 10px; padding: 10px 20px; font-weight: bold; background: rgba(239, 68, 68, 0.9);">
+        SECURE EXAMINATION ENVIRONMENT ACTIVE - NO EXITING ALLOWED
+      </div>
     </div>
-    <div style="margin-top: 2rem;">
-      <iframe src="http://localhost:5173/exam-portal" style="width: 90vw; height: 70vh; border: none; background: white; border-radius: 8px;"></iframe>
-    </div>
+
+    <iframe src="http://localhost:5173/login?client=desktop" style="position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; border: none; background: #0f172a;"></iframe>
   </body>
 </html>
