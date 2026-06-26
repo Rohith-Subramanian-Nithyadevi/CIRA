@@ -77,11 +77,14 @@ model User {
   role           Role           @default(STUDENT)
   name           String
   email          String         @unique
+  personalEmail  String?        @unique
   password       String
   phone          String?
   rollNumber     String?        @unique
   employeeId     String?        @unique
   approvalStatus ApprovalStatus @default(APPROVED)
+  isEmailVerified Boolean       @default(false)
+  verificationCode String?
   subject        String?
   
   departmentId   String?
