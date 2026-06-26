@@ -23,7 +23,7 @@ export default function Login() {
   const [personalEmail, setPersonalEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [phone, setPhone] = useState('');
+  const [phone, setPhone] = useState('+91 ');
   
   const [isVerifying, setIsVerifying] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
@@ -86,6 +86,20 @@ export default function Login() {
         setLoading(false);
         return;
       }
+
+      const phoneRegex = /^\+91\s?\d{10}$/;
+      if (!phoneRegex.test(phone.trim())) {
+        setError("Please enter a valid 10-digit phone number with +91 code.");
+        setLoading(false);
+        return;
+      }
+
+      if (/[A-Z]/.test(email) || /[A-Z]/.test(personalEmail)) {
+        setError("Email addresses must not contain uppercase letters.");
+        setLoading(false);
+        return;
+      }
+
       if (role === 'STUDENT' && !departmentId) {
         setError("Please select a department.");
         setLoading(false);
@@ -263,7 +277,14 @@ export default function Login() {
               </div>
               <div>
                 <label htmlFor="phone" className="block text-sm font-medium text-slate-300 mb-1">Phone Number</label>
-                <input id="phone" type="text" required value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded focus:border-blue-500 transition-colors" placeholder="+1234567890" />
+                <input id="phone" type="tel" required value={phone} onChange={(e) => {
+                  const val = e.target.value;
+                  if (val.startsWith('+91')) {
+                    setPhone(val);
+                  } else {
+                    setPhone('+91 ' + val.replace(/^\+?9?1?\s*/, ''));
+                  }
+                }} className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded focus:border-blue-500 transition-colors" placeholder="+91 9876543210" />
               </div>
               
               {role === 'STUDENT' ? (
@@ -313,13 +334,13 @@ export default function Login() {
 
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-1">College Email Address</label>
-            <input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded focus:border-blue-500 transition-colors" placeholder="user@university.edu" />
+            <input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value.toLowerCase())} className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded focus:border-blue-500 transition-colors" placeholder="user@university.edu" />
           </div>
 
           {!isLogin && (
             <div>
               <label htmlFor="personalEmail" className="block text-sm font-medium text-slate-300 mb-1">Personal Email (Gmail)</label>
-              <input id="personalEmail" type="email" required value={personalEmail} onChange={(e) => setPersonalEmail(e.target.value)} className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded focus:border-blue-500 transition-colors" placeholder="you@gmail.com" />
+              <input id="personalEmail" type="email" required value={personalEmail} onChange={(e) => setPersonalEmail(e.target.value.toLowerCase())} className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded focus:border-blue-500 transition-colors" placeholder="you@gmail.com" />
             </div>
           )}
 
