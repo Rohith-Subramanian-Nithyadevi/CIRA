@@ -7,7 +7,7 @@ const prisma = new PrismaClient();
 // Get eligible quizzes for the logged-in student
 export const getEligibleQuizzes = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = (req as any).user?.id;
+    const userId = (req as any).user?.userId;
     if (!userId) throw new BadRequestError('User not authenticated', 'UNAUTHORIZED');
 
     const user = await prisma.user.findUnique({
@@ -62,7 +62,7 @@ export const getEligibleQuizzes = async (req: Request, res: Response, next: Next
 export const startExam = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const quizId = req.params.quizId as string;
-    const userId = (req as any).user?.id;
+    const userId = (req as any).user?.userId;
 
     // Check if attempt exists
     let attempt = await prisma.quizAttempt.findFirst({
@@ -100,6 +100,17 @@ export const startExam = async (req: Request, res: Response, next: NextFunction)
         }
       }
     });
+
+    if (quiz && quiz.questions) {
+      quiz.questions = quiz.questions.map((q: any) => {
+        if (q.type === 'MATCHING' && Array.isArray(q.options)) {
+          const lefts = q.options.map((o: any) => o.left);
+          const rights = q.options.map((o: any) => o.right).sort(() => Math.random() - 0.5);
+          q.options = { lefts, rights };
+        }
+        return q;
+      });
+    }
 
     res.status(200).json({ status: 'success', data: { attempt, quiz } });
   } catch (error) {
@@ -167,8 +178,31 @@ export const submitExam = async (req: Request, res: Response, next: NextFunction
           const isObjective = ['MCQ', 'MULTI_SELECT', 'TRUE_FALSE', 'MATCHING', 'NUMERICAL', 'FILL_BLANK'].includes(question.type);
           
           if (isObjective && question.answerKey) {
-            // Simplified check: stringify comparison (Works for basic objects/arrays if sorted, but we assume exact match for MVP)
-            const isCorrect = JSON.stringify(response.answerData) === JSON.stringify(question.answerKey);
+            let isCorrect = false;
+
+            if (question.type === 'NUMERICAL') {
+              // Exact numerical match (can be enhanced to handle tolerance)
+              isCorrect = Number(response.answerData) === Number(question.answerKey);
+            } else if (question.type === 'MULTI_SELECT' || question.type === 'MATCHING') {
+              // Deep equality check for arrays or objects
+              const answerStr = JSON.stringify(response.answerData);
+              const keyStr = JSON.stringify(question.answerKey);
+              // Simple check for arrays (assuming order doesn't matter for multi_select, sorting them)
+              if (Array.isArray(response.answerData) && Array.isArray(question.answerKey)) {
+                if (question.type === 'MATCHING') {
+                  const ansSorted = [...response.answerData].sort((a: any, b: any) => (a.left || '').localeCompare(b.left || ''));
+                  const keySorted = [...question.answerKey].sort((a: any, b: any) => (a.left || '').localeCompare(b.left || ''));
+                  isCorrect = JSON.stringify(ansSorted) === JSON.stringify(keySorted);
+                } else {
+                  isCorrect = JSON.stringify([...response.answerData].sort()) === JSON.stringify([...question.answerKey].sort());
+                }
+              } else {
+                isCorrect = answerStr === keyStr;
+              }
+            } else {
+              isCorrect = response.answerData === question.answerKey;
+            }
+
             if (isCorrect) {
               objectiveScore += question.marks;
             } else {
