@@ -15,14 +15,14 @@ const registerSchema = z.object({
   personalEmail: z.string().email('Valid personal email is required'),
   password: z.string().min(8, 'Password must be at least 8 characters long'),
   phone: z.string().optional(),
-  
+
   // Student Specific
   departmentId: z.string().optional(),
-  
+
   // Student Specific
   rollNumber: z.string().optional(),
   sectionId: z.string().optional(),
-  
+
   // Faculty Specific
   employeeId: z.string().optional(),
   subject: z.string().optional(),
@@ -55,16 +55,16 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
       if (!validatedData.departmentId) throw new BadRequestError('Department is required for students');
       if (!validatedData.rollNumber) throw new BadRequestError('Roll number is required for students');
       if (!validatedData.sectionId) throw new BadRequestError('Section is required for students');
-      
-      const existingRoll = await prisma.user.findUnique({ where: { rollNumber: validatedData.rollNumber }});
+
+      const existingRoll = await prisma.user.findUnique({ where: { rollNumber: validatedData.rollNumber } });
       if (existingRoll) throw new BadRequestError('Roll number already registered');
     }
 
     if (validatedData.role === 'FACULTY') {
       if (!validatedData.employeeId) throw new BadRequestError('Employee ID is required for faculty');
       if (!validatedData.subject) throw new BadRequestError('Subject is required for faculty');
-      
-      const existingEmp = await prisma.user.findUnique({ where: { employeeId: validatedData.employeeId }});
+
+      const existingEmp = await prisma.user.findUnique({ where: { employeeId: validatedData.employeeId } });
       if (existingEmp) throw new BadRequestError('Employee ID already registered');
     }
 

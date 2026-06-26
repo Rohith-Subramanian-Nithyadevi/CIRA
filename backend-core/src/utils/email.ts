@@ -10,7 +10,7 @@ export const sendVerificationEmail = async (to: string, code: string) => {
 
   try {
     const data = await resend.emails.send({
-      from: 'CIRA Platform <onboarding@resend.dev>', // resend.dev allows sending to verified test emails. For production, add your own domain.
+      from: 'CIRA Platform <noreply@ganathavinash.site>', 
       to,
       subject: 'Verify your CIRA account',
       html: `
