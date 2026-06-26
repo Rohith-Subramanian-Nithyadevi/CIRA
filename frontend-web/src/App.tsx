@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { Toaster } from 'sonner';
 import LandingPage from './pages/LandingPage';
 import Login from './pages/Login';
 import AdminDashboard from './pages/AdminDashboard';
@@ -11,6 +12,7 @@ import ExamInterface from './pages/exam-portal/ExamInterface';
 function App() {
   return (
     <BrowserRouter>
+      <Toaster richColors position="top-right" />
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
