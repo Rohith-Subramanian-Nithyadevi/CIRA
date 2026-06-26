@@ -312,7 +312,9 @@ export default function Login() {
                     <Label className="text-slate-300 text-sm font-medium ml-1">Department</Label>
                     <Select value={departmentId} onValueChange={(val) => { setDepartmentId(val || ''); setSectionId(''); }} required>
                       <SelectTrigger className="h-11 rounded-xl bg-slate-950/40 border-slate-700/50 focus:ring-blue-500 text-slate-100 px-4">
-                        <SelectValue placeholder="Select Department" />
+                        <SelectValue placeholder="Select Department">
+                          {departmentId ? departments.find(d => d.id === departmentId)?.name : "Select Department"}
+                        </SelectValue>
                       </SelectTrigger>
                       <SelectContent className="bg-slate-900 border-slate-700 text-slate-100 rounded-xl shadow-xl">
                         {departments.map(d => <SelectItem key={d.id} value={d.id} className="py-2.5 focus:bg-blue-600 focus:text-white cursor-pointer">{d.name}</SelectItem>)}
@@ -324,7 +326,9 @@ export default function Login() {
                     <Label className="text-slate-300 text-sm font-medium ml-1">Subject</Label>
                     <Select value={subject} onValueChange={(val) => setSubject(val || '')} required>
                       <SelectTrigger className="h-11 rounded-xl bg-slate-950/40 border-slate-700/50 focus:ring-blue-500 text-slate-100 px-4">
-                        <SelectValue placeholder="Select Subject" />
+                        <SelectValue placeholder="Select Subject">
+                          {subject ? subject.charAt(0).toUpperCase() + subject.slice(1) : "Select Subject"}
+                        </SelectValue>
                       </SelectTrigger>
                       <SelectContent className="bg-slate-900 border-slate-700 text-slate-100 rounded-xl shadow-xl">
                         <SelectItem value="softskills" className="py-2.5 focus:bg-blue-600 focus:text-white cursor-pointer">Softskills</SelectItem>
@@ -341,7 +345,9 @@ export default function Login() {
                     <Label className="text-slate-300 text-sm font-medium ml-1">Section</Label>
                     <Select value={sectionId} onValueChange={(val) => setSectionId(val || '')} disabled={!departmentId} required>
                       <SelectTrigger className="h-11 rounded-xl bg-slate-950/40 border-slate-700/50 focus:ring-blue-500 text-slate-100 px-4 disabled:opacity-50">
-                        <SelectValue placeholder="Select Section" />
+                        <SelectValue placeholder="Select Section">
+                          {sectionId ? selectedDepartment?.sections.find(s => s.id === sectionId)?.name : "Select Section"}
+                        </SelectValue>
                       </SelectTrigger>
                       <SelectContent className="bg-slate-900 border-slate-700 text-slate-100 rounded-xl shadow-xl">
                         {selectedDepartment?.sections.map(s => <SelectItem key={s.id} value={s.id} className="py-2.5 focus:bg-blue-600 focus:text-white cursor-pointer">{s.name}</SelectItem>)}
