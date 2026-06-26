@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 type QuestionStatus = 'NOT_VISITED' | 'NOT_ANSWERED' | 'ANSWERED' | 'MARKED_FOR_REVIEW' | 'ANSWERED_AND_MARKED_FOR_REVIEW';
 
@@ -12,7 +12,7 @@ interface Question {
 }
 
 export default function ExamInterface() {
-  const { quizId } = useParams();
+  // const { quizId } = useParams();
   const navigate = useNavigate();
   
   const [questions, setQuestions] = useState<Question[]>([]);
