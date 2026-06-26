@@ -80,7 +80,7 @@ export default function ExamDashboard() {
                     ) : isUpcoming ? (
                       <div className="px-6 py-3 bg-slate-800 text-slate-300 font-medium rounded-lg border border-slate-700 flex items-center">
                         <svg className="w-5 h-5 mr-2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                        Starts {startDate.toLocaleString()}
+                        Starts {startDate.toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}
                       </div>
                     ) : (
                       <button
