@@ -32,7 +32,7 @@ export const getQuizzes = async (req: Request, res: Response, next: NextFunction
 // Get a Single Quiz by ID
 export const getQuizById = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const quizId = req.params.quizId;
+    const quizId = req.params.quizId as string;
     const userId = (req as any).user?.userId || 'system';
     const userRole = (req as any).user?.role;
 
@@ -62,7 +62,7 @@ export const getQuizById = async (req: Request, res: Response, next: NextFunctio
 // Delete a Quiz
 export const deleteQuiz = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const quizId = req.params.quizId;
+    const quizId = req.params.quizId as string;
     const userId = (req as any).user?.userId || 'system';
     const userRole = (req as any).user?.role;
 
