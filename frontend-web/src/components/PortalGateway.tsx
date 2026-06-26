@@ -7,7 +7,7 @@ export default function PortalGateway() {
   const navigate = useNavigate();
 
   return (
-    <section className="py-20 relative z-10">
+    <section id="unified-portal" className="py-20 relative z-10">
       <div className="max-w-4xl mx-auto px-6 text-center">
         <motion.div 
           className="glass-card p-12 relative overflow-hidden"

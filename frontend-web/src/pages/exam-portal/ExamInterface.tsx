@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 
 type QuestionStatus = 'NOT_VISITED' | 'NOT_ANSWERED' | 'ANSWERED' | 'MARKED_FOR_REVIEW' | 'ANSWERED_AND_MARKED_FOR_REVIEW';
 
@@ -54,7 +55,7 @@ export default function ExamInterface() {
           const remaining = Math.max(0, durationSec - elapsedSec);
           setTimeLeft(remaining);
         } else {
-           alert('Error starting exam: ' + data.message);
+           toast.error('Error starting exam: ' + data.message);
            navigate('/exam-portal');
         }
       } catch(err) {
@@ -143,15 +144,15 @@ export default function ExamInterface() {
         });
         const data = await res.json();
         if (data.status === 'success') {
-          alert('Examination Submitted Successfully!');
+          toast.success('Examination Submitted Successfully!');
           navigate('/exam-portal');
         } else {
-          alert('Error submitting: ' + data.message);
+          toast.error('Error submitting: ' + data.message);
           navigate('/exam-portal');
         }
     } catch(e) {
         console.error(e);
-        alert('Error submitting examination');
+        toast.error('Error submitting examination');
         navigate('/exam-portal');
     }
   };
