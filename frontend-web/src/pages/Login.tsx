@@ -290,7 +290,7 @@ export default function Login() {
               {role === 'STUDENT' ? (
                 <div>
                   <label htmlFor="rollNumber" className="block text-sm font-medium text-slate-300 mb-1">Roll Number</label>
-                  <input id="rollNumber" type="text" required value={rollNumber} onChange={(e) => setRollNumber(e.target.value)} className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded focus:border-blue-500 transition-colors" placeholder="CB.EN.U4..." />
+                  <input id="rollNumber" type="text" required value={rollNumber} onChange={(e) => setRollNumber(e.target.value)} className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded focus:border-blue-500 transition-colors" placeholder="CH.EN.U4..." />
                 </div>
               ) : (
                 <div>
