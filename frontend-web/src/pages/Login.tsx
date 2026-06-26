@@ -144,7 +144,7 @@ export default function Login() {
         
         const loggedInUserRole = data.data.user.role;
         const urlParams = new URLSearchParams(window.location.search);
-        const isDesktopClient = urlParams.get('client') === 'desktop';
+        const isDesktopClient = urlParams.get('client') === 'desktop' || navigator.userAgent.toLowerCase().includes('electron');
 
         if (isDesktopClient && loggedInUserRole === 'STUDENT') {
           navigate('/exam-portal');
