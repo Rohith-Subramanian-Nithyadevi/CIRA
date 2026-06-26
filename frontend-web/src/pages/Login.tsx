@@ -251,7 +251,7 @@ export default function Login() {
               <div className="space-y-2">
                 <Label htmlFor="verificationCode" className="text-slate-300 text-sm font-medium ml-1">Verification Code</Label>
                 <Input id="verificationCode" type="text" required value={verificationCode} onChange={(e) => setVerificationCode(e.target.value)} className="h-11 rounded-xl bg-slate-950/40 border-slate-700/50 focus-visible:ring-blue-500 focus-visible:border-blue-500 text-base px-4" placeholder="123456" />
-                <p className="text-sm text-slate-500 ml-1">Sent to your Personal Email ({personalEmail})</p>
+                <p className="text-sm text-slate-500 ml-1">Sent to your Personal Email ({personalEmail}). <span className="text-slate-400 italic">Check spam if not found.</span></p>
               </div>
               <Button type="submit" disabled={loading} className="w-full h-12 text-base font-semibold rounded-xl mt-6 bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-900/20 transition-all hover:-translate-y-0.5">
                 {loading ? 'Verifying...' : 'Verify Email'}
