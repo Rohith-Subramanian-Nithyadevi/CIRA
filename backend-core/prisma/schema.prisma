@@ -26,12 +26,38 @@ enum PerformanceRating {
   POOR
 }
 
+enum QuestionType {
+  MCQ
+  MULTI_SELECT
+  NUMERICAL
+  SHORT_WRITTEN
+  LONG_WRITTEN
+  MATCHING
+  TRUE_FALSE
+  FILL_BLANK
+}
+
+enum ResponseStatus {
+  NOT_VISITED
+  NOT_ANSWERED
+  ANSWERED
+  MARKED_FOR_REVIEW
+  ANSWERED_AND_MARKED_FOR_REVIEW
+}
+
+enum QuizAttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  EVALUATED
+}
+
 model Department {
   id        String    @id @default(uuid())
   name      String    @unique
   sections  Section[]
   users     User[]    @relation("UserDepartment")
   mappedFaculty FacultyDepartment[]
+  quizAssignments QuizDepartment[]
 }
 
 model Section {
@@ -40,6 +66,7 @@ model Section {
   departmentId String
   department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
   users        User[]     @relation("UserSection")
+  quizAssignments QuizSection[]
 
   @@unique([name, departmentId])
 }
@@ -70,6 +97,7 @@ model User {
   results                Result[]
   quizAttempts           QuizAttempt[]
   assignmentSubmissions  AssignmentSubmission[]
+  quizAssignments        QuizStudent[]
 }
 
 model FacultyDepartment {
@@ -83,26 +111,113 @@ model FacultyDepartment {
 }
 
 model Quiz {
-  id           String        @id @default(uuid())
-  title        String
-  description  String?
-  scheduledFor DateTime?
-  createdBy    String
-  createdAt    DateTime      @default(now())
+  id               String        @id @default(uuid())
+  title            String
+  subject          String?
+  description      String?
+  instructions     String?
+  totalMarks       Float         @default(0)
+  passingMarks     Float         @default(0)
   
-  attempts     QuizAttempt[]
+  startDate        DateTime?
+  endDate          DateTime?
+  durationMinutes  Int           @default(60)
+  allowLateJoin    Boolean       @default(false)
+  autoSubmit       Boolean       @default(true)
+
+  performanceBands Json?         // e.g., { "EXCELLENT": { min: 90, max: 100 }, ... }
+  
+  createdBy        String
+  createdAt        DateTime      @default(now())
+  
+  questions        Question[]
+  attempts         QuizAttempt[]
+  targetDepartments QuizDepartment[]
+  targetSections    QuizSection[]
+  targetStudents    QuizStudent[]
+}
+
+model Question {
+  id            String       @id @default(uuid())
+  quizId        String
+  type          QuestionType
+  text          String
+  marks         Float
+  negativeMarks Float        @default(0)
+  options       Json?        // Array of options for MCQ/Multi-select
+  answerKey     Json?        // Correct answer(s)
+  explanation   String?      // Optional explanation
+
+  quiz          Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  responses     QuizResponse[]
+}
+
+model QuizDepartment {
+  quizId       String
+  departmentId String
+
+  quiz         Quiz       @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  @@id([quizId, departmentId])
+}
+
+model QuizSection {
+  quizId       String
+  sectionId    String
+
+  quiz         Quiz       @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  section      Section    @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@id([quizId, sectionId])
+}
+
+model QuizStudent {
+  quizId       String
+  userId       String
+
+  quiz         Quiz       @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([quizId, userId])
 }
 
 model QuizAttempt {
-  id        String   @id @default(uuid())
-  userId    String
-  quizId    String
-  score     Float
-  metrics   Json?
-  createdAt DateTime @default(now())
+  id                  String             @id @default(uuid())
+  userId              String
+  quizId              String
+  status              QuizAttemptStatus  @default(IN_PROGRESS)
+  startTime           DateTime           @default(now())
+  endTime             DateTime?
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  quiz      Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  score               Float              @default(0) // legacy/fallback
+  objectiveScore      Float              @default(0)
+  writtenScore        Float              @default(0)
+  totalScore          Float              @default(0)
+  finalGrade          String?
+  performanceCategory PerformanceRating?
+  facultyFeedback     String?
+  
+  metrics             Json?
+  createdAt           DateTime           @default(now())
+
+  user                User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quiz                Quiz               @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  responses           QuizResponse[]
+}
+
+model QuizResponse {
+  id          String         @id @default(uuid())
+  attemptId   String
+  questionId  String
+  answerData  Json?
+  status      ResponseStatus @default(NOT_VISITED)
+  savedAt     DateTime       @default(now())
+
+  attempt     QuizAttempt    @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question    Question       @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, questionId])
 }
 
 model Assignment {
