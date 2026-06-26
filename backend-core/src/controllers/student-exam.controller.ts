@@ -33,12 +33,6 @@ export const getEligibleQuizzes = async (req: Request, res: Response, next: Next
           },
           {
             OR: [
-              { startDate: null },
-              { startDate: { lte: now } }
-            ]
-          },
-          {
-            OR: [
               { endDate: null },
               { endDate: { gte: now } }
             ]
@@ -72,7 +66,19 @@ export const startExam = async (req: Request, res: Response, next: NextFunction)
       }
     });
 
+    // Check quiz schedule before allowing new attempt
+    const quizMetadata = await prisma.quiz.findUnique({ where: { id: quizId } });
+    if (!quizMetadata) throw new BadRequestError('Quiz not found', 'NOT_FOUND');
+    
     if (!attempt) {
+      const now = new Date();
+      if (quizMetadata.startDate && quizMetadata.startDate > now) {
+        throw new BadRequestError('Exam has not started yet', 'FORBIDDEN');
+      }
+      if (quizMetadata.endDate && quizMetadata.endDate < now) {
+        throw new BadRequestError('Exam has already ended', 'FORBIDDEN');
+      }
+
       // Create new attempt
       attempt = await prisma.quizAttempt.create({
         data: {
