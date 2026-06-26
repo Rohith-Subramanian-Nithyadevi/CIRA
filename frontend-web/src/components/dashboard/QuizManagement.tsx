@@ -61,10 +61,14 @@ export default function QuizManagement() {
     e.preventDefault();
     setLoading(true);
     try {
+      const payload = { ...formData };
+      if (payload.startDate) payload.startDate = new Date(payload.startDate).toISOString();
+      if (payload.endDate) payload.endDate = new Date(payload.endDate).toISOString();
+
       const res = await fetch(`${baseUrl}/api/v1/faculty/quiz/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (data?.status === 'success') {
