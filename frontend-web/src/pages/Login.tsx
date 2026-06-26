@@ -184,38 +184,38 @@ export default function Login() {
           {!isLogin && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">Full Name</label>
-                <input type="text" required value={name} onChange={(e) => setName(e.target.value)} className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded focus:border-blue-500 transition-colors" placeholder="John Doe" />
+                <label htmlFor="name" className="block text-sm font-medium text-slate-300 mb-1">Full Name</label>
+                <input id="name" type="text" required value={name} onChange={(e) => setName(e.target.value)} className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded focus:border-blue-500 transition-colors" placeholder="John Doe" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">Phone Number</label>
-                <input type="text" required value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded focus:border-blue-500 transition-colors" placeholder="+1234567890" />
+                <label htmlFor="phone" className="block text-sm font-medium text-slate-300 mb-1">Phone Number</label>
+                <input id="phone" type="text" required value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded focus:border-blue-500 transition-colors" placeholder="+1234567890" />
               </div>
               
               {role === 'STUDENT' ? (
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">Roll Number</label>
-                  <input type="text" required value={rollNumber} onChange={(e) => setRollNumber(e.target.value)} className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded focus:border-blue-500 transition-colors" placeholder="CB.EN.U4..." />
+                  <label htmlFor="rollNumber" className="block text-sm font-medium text-slate-300 mb-1">Roll Number</label>
+                  <input id="rollNumber" type="text" required value={rollNumber} onChange={(e) => setRollNumber(e.target.value)} className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded focus:border-blue-500 transition-colors" placeholder="CB.EN.U4..." />
                 </div>
               ) : (
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">Employee ID</label>
-                  <input type="text" required value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded focus:border-blue-500 transition-colors" placeholder="FAC123" />
+                  <label htmlFor="employeeId" className="block text-sm font-medium text-slate-300 mb-1">Employee ID</label>
+                  <input id="employeeId" type="text" required value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded focus:border-blue-500 transition-colors" placeholder="FAC123" />
                 </div>
               )}
 
               {role === 'STUDENT' ? (
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">Department</label>
-                  <select required value={departmentId} onChange={(e) => { setDepartmentId(e.target.value); setSectionId(''); }} className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded focus:border-blue-500 transition-colors text-white appearance-none">
+                  <label htmlFor="departmentId" className="block text-sm font-medium text-slate-300 mb-1">Department</label>
+                  <select id="departmentId" required value={departmentId} onChange={(e) => { setDepartmentId(e.target.value); setSectionId(''); }} className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded focus:border-blue-500 transition-colors text-white appearance-none">
                     <option value="" disabled>Select Department</option>
                     {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                   </select>
                 </div>
               ) : (
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">Subject</label>
-                  <select required value={subject} onChange={(e) => setSubject(e.target.value)} className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded focus:border-blue-500 transition-colors text-white appearance-none">
+                  <label htmlFor="subject" className="block text-sm font-medium text-slate-300 mb-1">Subject</label>
+                  <select id="subject" required value={subject} onChange={(e) => setSubject(e.target.value)} className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded focus:border-blue-500 transition-colors text-white appearance-none">
                     <option value="" disabled>Select Subject</option>
                     <option value="softskills">Softskills</option>
                     <option value="verbal">Verbal</option>
@@ -227,8 +227,8 @@ export default function Login() {
 
               {role === 'STUDENT' && (
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">Section</label>
-                  <select required value={sectionId} onChange={(e) => setSectionId(e.target.value)} disabled={!departmentId} className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded focus:border-blue-500 transition-colors text-white appearance-none disabled:opacity-50">
+                  <label htmlFor="sectionId" className="block text-sm font-medium text-slate-300 mb-1">Section</label>
+                  <select id="sectionId" required value={sectionId} onChange={(e) => setSectionId(e.target.value)} disabled={!departmentId} className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded focus:border-blue-500 transition-colors text-white appearance-none disabled:opacity-50">
                     <option value="" disabled>Select Section</option>
                     {selectedDepartment?.sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
@@ -238,20 +238,20 @@ export default function Login() {
           )}
 
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">College Email Address</label>
-            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded focus:border-blue-500 transition-colors" placeholder="user@university.edu" />
+            <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-1">College Email Address</label>
+            <input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded focus:border-blue-500 transition-colors" placeholder="user@university.edu" />
           </div>
 
           <div className={!isLogin ? "grid grid-cols-1 md:grid-cols-2 gap-4" : ""}>
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Password</label>
-              <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded focus:border-blue-500 transition-colors" placeholder="••••••••" />
+              <label htmlFor="password" className="block text-sm font-medium text-slate-300 mb-1">Password</label>
+              <input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded focus:border-blue-500 transition-colors" placeholder="••••••••" />
               {!isLogin && <p className="text-xs text-slate-500 mt-1">8+ chars, 1 uppercase, 1 number.</p>}
             </div>
             {!isLogin && (
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">Confirm Password</label>
-                <input type="password" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded focus:border-blue-500 transition-colors" placeholder="••••••••" />
+                <label htmlFor="confirmPassword" className="block text-sm font-medium text-slate-300 mb-1">Confirm Password</label>
+                <input id="confirmPassword" type="password" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded focus:border-blue-500 transition-colors" placeholder="••••••••" />
               </div>
             )}
           </div>
