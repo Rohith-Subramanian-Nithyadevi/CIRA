@@ -1,42 +1,41 @@
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 
-let transporter: nodemailer.Transporter | null = null;
+// Initialize Resend with the API key from environment variables
+const resend = new Resend(process.env.RESEND_API_KEY || 're_placeholder_key');
 
 export const sendVerificationEmail = async (to: string, code: string) => {
-  if (!transporter) {
-    if (process.env.SMTP_USER && process.env.SMTP_PASS) {
-      // Use real SMTP (e.g., Gmail) if credentials are provided in .env
-      transporter = nodemailer.createTransport({
-        service: 'gmail', // or your provider
-        auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASS,
-        },
-      });
-    } else {
-      // Fallback: Generate test account for local development
-      console.log('No SMTP credentials found in .env, falling back to Ethereal Email');
-      const testAccount = await nodemailer.createTestAccount();
-      transporter = nodemailer.createTransport({
-        host: 'smtp.ethereal.email',
-        port: 587,
-        secure: false,
-        auth: {
-          user: testAccount.user,
-          pass: testAccount.pass,
-        },
-      });
-    }
+  if (!process.env.RESEND_API_KEY) {
+    console.warn('⚠️ WARNING: RESEND_API_KEY is missing from .env. The email will likely fail to send.');
   }
 
-  const info = await transporter.sendMail({
-    from: '"CIRA Platform" <noreply@cira-platform.edu>',
-    to,
-    subject: 'Your CIRA Verification Code',
-    text: `Your verification code is: ${code}. It will expire in 10 minutes.`,
-    html: `<b>Your verification code is: ${code}</b><br/>It will expire in 10 minutes.`,
-  });
+  try {
+    const data = await resend.emails.send({
+      from: 'CIRA Platform <onboarding@resend.dev>', // resend.dev allows sending to verified test emails. For production, add your own domain.
+      to,
+      subject: 'Verify your CIRA account',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
+          <h2 style="color: #1e293b; text-align: center;">Welcome to CIRA</h2>
+          <p style="color: #475569; font-size: 16px;">Thank you for registering. Please use the verification code below to complete your sign-up process:</p>
+          <div style="background-color: #f1f5f9; padding: 15px; border-radius: 8px; text-align: center; margin: 20px 0;">
+            <span style="font-size: 24px; font-weight: bold; color: #2563eb; letter-spacing: 5px;">${code}</span>
+          </div>
+          <p style="color: #475569; font-size: 14px;">This code will expire shortly. If you did not request this, please ignore this email.</p>
+          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 30px 0;" />
+          <p style="color: #94a3b8; font-size: 12px; text-align: center;">CIRA Centralized Access Portal</p>
+        </div>
+      `,
+    });
 
-  console.log('Verification email sent: %s', info.messageId);
-  console.log('Preview URL: %s', nodemailer.getTestMessageUrl(info)); // Useful for testing without real email
+    if (data.error) {
+      console.error('Resend API Error:', data.error);
+      throw new Error(data.error.message);
+    }
+
+    console.log('✅ Verification email sent via Resend API to:', to);
+    return data;
+  } catch (error) {
+    console.error('Failed to send verification email:', error);
+    throw error;
+  }
 };
