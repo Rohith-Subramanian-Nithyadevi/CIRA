@@ -7,7 +7,7 @@ export default function DistributionHub() {
     <section className="py-20 bg-slate-900/30 border-t border-slate-800/50">
       <div className="max-w-6xl mx-auto px-6">
         <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold mb-4 text-white">Secure Client Distribution Hub</h2>
+          <h2 className="text-3xl font-bold mb-4 text-white">Working On Anti-Plagiarism (Ongoing)</h2>
           <p className="text-slate-400 max-w-2xl mx-auto">
             Download the isolated desktop application required to participate in secure evaluations. The client features environment lockdown and real-time telemetry.
           </p>

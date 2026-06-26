@@ -28,7 +28,7 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer className="py-8 border-t border-slate-900 bg-slate-950 text-center text-slate-500 text-sm">
-        <p>© {new Date().getFullYear()} University Institute of Technology. All rights reserved.</p>
+        <p>© {new Date().getFullYear()} Amrita Vishwa Vidyapeetham Chennai Campus. All rights reserved.</p>
         <p className="mt-2">CIRA Adaptive Assessment Engine & Telemetry Infrastructure.</p>
       </footer>
     </div>
