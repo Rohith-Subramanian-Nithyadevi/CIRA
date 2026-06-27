@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from dotenv import load_dotenv
 import os
+from src.routes import department
 
 load_dotenv()
 
@@ -51,6 +52,7 @@ app.add_middleware(
 app.include_router(analytics.router, prefix="/api/v1/analytics", tags=["Analytics"])
 app.include_router(assignments.router, prefix="/api/v1/assignments", tags=["Assignments"])
 app.include_router(weak_topic.router,  prefix="/api/v1/weak-topics", tags=["Weak Topics"])
+app.include_router(department.router, prefix="/api/v1/department", tags=["Department"])
 
 @app.get("/health")
 async def health_check():
