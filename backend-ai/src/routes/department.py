@@ -5,7 +5,7 @@ Two endpoints for department-level IRI aggregation.
 Called by backend-core when faculty or admin request the department dashboard.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status  # type: ignore[import]
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from ..schemas.department import DepartmentReadinessRequest, DepartmentReadinessResponse
 from ..services.department_service import DepartmentService
