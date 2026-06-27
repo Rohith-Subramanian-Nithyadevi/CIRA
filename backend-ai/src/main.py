@@ -14,7 +14,7 @@ import os
 
 load_dotenv()
 
-from src.routes import analytics, assignments, weak_topic, department, topic_matcher, nlp
+from src.routes import analytics, assignment, weak_topics, department, topic_matcher, nlp
 from src.dependencies import get_db
 
 
@@ -68,10 +68,10 @@ app.add_middleware(
 # ── Routers ───────────────────────────────────────────────────────────────────
 
 app.include_router(analytics.router,     prefix="/api/v1/analytics",     tags=["Analytics"])
-app.include_router(weak_topic.router,    prefix="/api/v1/weak-topics",    tags=["Weak Topics"])
+app.include_router(weak_topics.router,    prefix="/api/v1/weak-topics",    tags=["Weak Topics"])
 app.include_router(department.router,    prefix="/api/v1/department",     tags=["Department"])
 app.include_router(topic_matcher.router, prefix="/api/v1/topic-matcher",  tags=["Topic Matcher"])
-app.include_router(assignments.router,   prefix="/api/v1/assignments",    tags=["Assignments"])
+app.include_router(assignment.router,   prefix="/api/v1/assignments",    tags=["Assignments"])
 app.include_router(nlp.router,           prefix="/api/v1/nlp",            tags=["NLP"])
 
 
