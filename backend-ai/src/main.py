@@ -1,58 +1,58 @@
-from fastapi import FastAPI
-from contextlib import asynccontextmanager    
-from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
 from dotenv import load_dotenv
-import os
-from src.routes import department
-
 load_dotenv()
 
-from src.routes import analytics, assignments
-from src.routes import weak_topic 
-from src.dependencies import get_db  
+import os
+from contextlib import asynccontextmanager
 
-@asynccontextmanager                                          
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+import uvicorn
 
-async def lifespan(app: FastAPI):                             
+from src.routes import department, analytics, assignments, weak_topic
+from src.dependencies import get_db
 
-    # ── Startup: verify MongoDB is reachable ──────────────── 
 
-    db = get_db()                                             
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # ── Startup: connect and verify MongoDB is reachable ──────
+    db = get_db()
+    await db.client.admin.command("ping")
+    app.state.db = db
+    print("✓ MongoDB connected")
+    yield
+    # ── Shutdown: close the connection pool ───────────────────
+    app.state.db.client.close()
+    print("✓ MongoDB connection closed")
 
-    await db.client.admin.command("ping")                     
-
-    print("✓ MongoDB connected")                              
-
-    yield                                                     
-
-    # ── Shutdown: close the connection ─────────────────────  
-
-    db.client.close()                                         
-
-    print("✓ MongoDB connection closed")   
 
 app = FastAPI(
     title="CIRA AI Telemetry Service",
     description="Mathematical foundation and predictive telemetry service",
     version="1.0.0",
-    lifespan=lifespan,    
+    lifespan=lifespan,
 )
 
-# Configure CORS for integration with other microservices/frontends
+# ── CORS ──────────────────────────────────────────────────────
+# allow_origins="*" and allow_credentials=True cannot coexist
+# (browsers reject it). Use explicit origins instead.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify the allowed origins
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:5173",
+        os.environ.get("FRONTEND_URL", ""),
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Register routers
-app.include_router(analytics.router, prefix="/api/v1/analytics", tags=["Analytics"])
-app.include_router(assignments.router, prefix="/api/v1/assignments", tags=["Assignments"])
-app.include_router(weak_topic.router,  prefix="/api/v1/weak-topics", tags=["Weak Topics"])
-app.include_router(department.router, prefix="/api/v1/department", tags=["Department"])
+# ── Routers ───────────────────────────────────────────────────
+app.include_router(analytics.router,   prefix="/api/v1/analytics",   tags=["Analytics"])
+app.include_router(assignments.router, prefix="/api/v1/assignments",  tags=["Assignments"])
+app.include_router(weak_topic.router,  prefix="/api/v1/weak-topics",  tags=["Weak Topics"])
+app.include_router(department.router,  prefix="/api/v1/department",   tags=["Department"])
+
 
 @app.get("/health")
 async def health_check():
@@ -60,4 +60,5 @@ async def health_check():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
-    uvicorn.run("src.main:app", host="0.0.0.0", port=port, reload=True)
+    debug = os.environ.get("ENV", "development") == "development"
+    uvicorn.run("src.main:app", host="0.0.0.0", port=port, reload=debug)

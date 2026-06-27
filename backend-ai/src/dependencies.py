@@ -33,10 +33,16 @@ def get_analytics_service() -> AnalyticsService:
     """
     return AnalyticsService(db=get_db())
 
-
 def get_weak_topic_service() -> WeakTopicService:
     """
     Inject WeakTopicService into route handlers.
     Usage in a route:  service: WeakTopicService = Depends(get_weak_topic_service)
     """
     return WeakTopicService(db=get_db())
+
+def get_department_service() -> DepartmentService:
+    """
+    Inject DepartmentService into route handlers.
+    Usage in a route:  service: DepartmentService = Depends(get_department_service)
+    """
+    return DepartmentService(db=get_db())
