@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 from src.routes import department, analytics, assignments, weak_topic
+from src.routes import topic_matcher
 from src.dependencies import get_db
 
 
@@ -52,6 +53,7 @@ app.include_router(analytics.router,   prefix="/api/v1/analytics",   tags=["Anal
 app.include_router(assignments.router, prefix="/api/v1/assignments",  tags=["Assignments"])
 app.include_router(weak_topic.router,  prefix="/api/v1/weak-topics",  tags=["Weak Topics"])
 app.include_router(department.router,  prefix="/api/v1/department",   tags=["Department"])
+app.include_router(topic_matcher.router, prefix="/api/v1/topic-matcher", tags=["Topic Matcher"])
 
 
 @app.get("/health")
