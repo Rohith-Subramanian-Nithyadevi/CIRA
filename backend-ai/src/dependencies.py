@@ -11,6 +11,10 @@ from functools import lru_cache
 import os
 from .services.topic_matcher_service import TopicMatcherService
 from .services.analytics_service import AnalyticsService
+from .services.assignment_service import AssignmentService
+from .services.weak_topic_service import WeakTopicService
+from .services.department_service import DepartmentService
+from .services.nlp_service import NLPService
 
 # ── MongoDB client (created once, reused for all requests) ────────────────────
 
@@ -72,3 +76,17 @@ def get_topic_matcher_service() -> TopicMatcherService:
     and cached on the service instance for the lifetime of the worker.
     """
     return TopicMatcherService(db=get_db())
+
+def get_assignment_service() -> AssignmentService:
+    """
+    Inject AssignmentService into route handlers.
+    Stateless — no DB needed, all data arrives in the request body.
+    """
+    return AssignmentService()
+
+def get_nlp_service() -> NLPService:
+    """
+    Inject NLPService into route handlers.
+    Stateless — no DB needed. Model is a module-level singleton.
+    """
+    return NLPService()
