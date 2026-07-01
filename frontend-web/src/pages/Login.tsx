@@ -224,7 +224,7 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black text-slate-100 py-12 px-4 sm:px-6 lg:px-8">
-      <Card className="w-full max-w-xl border-slate-700/50 bg-slate-900/60 backdrop-blur-2xl shadow-[0_0_50px_-12px_rgba(37,99,235,0.25)] text-slate-100 rounded-3xl overflow-hidden">
+      <Card className="w-full max-w-xl border-slate-700/50 bg-slate-900/60 backdrop-blur-2xl shadow-[0_0_50px_-12px_rgba(37,99,235,0.25)] text-slate-100 rounded-3xl">
         <CardHeader className="text-center pb-6 pt-8">
           <CardTitle className="text-3xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white to-slate-400">Centralized Access Portal</CardTitle>
         </CardHeader>
