@@ -3,4 +3,5 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('secureExamAPI', {
   // Expose specific functions if needed later
+  quitApp: () => ipcRenderer.send('quit-app')
 });
