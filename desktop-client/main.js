@@ -20,6 +20,11 @@ function createWindow() {
   // Prevent screenshots and screen recording
   mainWindow.setContentProtection(true);
 
+  // Block any attempt to open a new window (e.g. target="_blank" links or window.open)
+  mainWindow.webContents.setWindowOpenHandler(() => {
+    return { action: 'deny' };
+  });
+
   // PRD: Browser & Copy-Paste Blocking (partially handled by disabling devtools and shortcuts)
   mainWindow.webContents.on('before-input-event', (event, input) => {
     if (input.control && ['c', 'v', 'x'].includes(input.key.toLowerCase())) {
