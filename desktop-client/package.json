@@ -4,10 +4,21 @@
   "description": "CIRA Secure Desktop Examination Application",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "build": "electron-builder --mac --win"
   },
-  "dependencies": {},
+  "build": {
+    "appId": "com.cira.desktop",
+    "productName": "CIRA Desktop Client",
+    "mac": {
+      "target": ["dmg"]
+    },
+    "win": {
+      "target": ["nsis"]
+    }
+  },
   "devDependencies": {
-    "electron": "^28.0.0"
+    "electron": "^28.0.0",
+    "electron-builder": "^26.15.3"
   }
 }
