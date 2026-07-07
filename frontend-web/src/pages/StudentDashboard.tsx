@@ -56,11 +56,11 @@ export default function StudentDashboard() {
               <h2 className="text-xl font-bold mb-2">Active Examinations</h2>
               <p className="text-slate-500 mb-4">Access your active exams via the Secure Desktop Client.</p>
               <div className="flex gap-4">
-                <a href="https://github.com/Rohith-Subramanian-Nithyadevi/CIRA/releases/latest" target="_blank" rel="noreferrer" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold text-sm transition-colors flex items-center">
+                <a href="https://github.com/Rohith-Subramanian-Nithyadevi/CIRA/raw/vishnu_branch/releases/CIRA-Secure-Client.exe" target="_blank" rel="noreferrer" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold text-sm transition-colors flex items-center">
                   <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                   Download .exe
                 </a>
-                <a href="https://github.com/Rohith-Subramanian-Nithyadevi/CIRA/releases/latest" target="_blank" rel="noreferrer" className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg font-bold text-sm transition-colors flex items-center">
+                <a href="https://github.com/Rohith-Subramanian-Nithyadevi/CIRA/raw/vishnu_branch/releases/CIRA-Secure-Client.dmg" target="_blank" rel="noreferrer" className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg font-bold text-sm transition-colors flex items-center">
                   <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                   Download .dmg
                 </a>
