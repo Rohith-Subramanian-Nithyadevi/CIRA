@@ -151,6 +151,7 @@ model Question {
   options       Json?        // Array of options for MCQ/Multi-select
   answerKey     Json?        // Correct answer(s)
   explanation   String?      // Optional explanation
+  image         String?      // Optional image URL
 
   quiz          Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
   responses     QuizResponse[]
