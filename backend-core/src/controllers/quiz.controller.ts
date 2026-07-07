@@ -169,6 +169,7 @@ export const addQuestions = async (req: Request, res: Response, next: NextFuncti
             options: q.options || null,
             answerKey: q.answerKey || null,
             explanation: q.explanation || null,
+            image: q.image || null,
           }
         })
       )
@@ -237,6 +238,85 @@ export const evaluateAttempt = async (req: Request, res: Response, next: NextFun
     });
 
     res.status(200).json({ status: 'success', data: updated });
+  } catch (error) {
+    next(error);
+  }
+};
+
+import { exec } from 'child_process';
+import path from 'path';
+import fs from 'fs';
+import { uploadToCloudinary } from '../utils/cloudinary';
+
+// Upload DOCX and parse it
+export const uploadDocxParser = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    if (!req.file) {
+      throw new BadRequestError('No file uploaded', 'INVALID_INPUT');
+    }
+
+    const filePath = path.resolve(req.file.path);
+    const pythonScript = path.resolve(__dirname, '../utils/parse_docx.py');
+    
+    // Spawn python process
+    exec(`python "${pythonScript}" "${filePath}"`, async (error, stdout, stderr) => {
+      // Clean up uploaded DOCX
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+
+      if (error) {
+        console.error('Python parse error:', error, stderr);
+        return next(new BadRequestError('Failed to parse docx document', 'PARSE_ERROR'));
+      }
+
+      try {
+        const parsed = JSON.parse(stdout);
+        if (parsed.error) {
+          return next(new BadRequestError(parsed.error, 'PARSE_ERROR'));
+        }
+
+        const questions = parsed.data || [];
+
+        // Upload any temp images to Cloudinary
+        for (let q of questions) {
+          if (q.tempImage) {
+            try {
+              const url = await uploadToCloudinary(q.tempImage);
+              if (url) {
+                q.image = url;
+              }
+            } catch (imgErr) {
+              console.error('Failed to upload image for question', imgErr);
+            }
+            delete q.tempImage;
+          }
+        }
+
+        res.status(200).json({ status: 'success', data: questions });
+      } catch (parseErr) {
+        console.error('JSON parse error from python:', parseErr, stdout);
+        next(new BadRequestError('Failed to read parsed data', 'PARSE_ERROR'));
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Upload single image (for inline image management)
+export const uploadImageHandler = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    if (!req.file) {
+      throw new BadRequestError('No image uploaded', 'INVALID_INPUT');
+    }
+
+    const filePath = path.resolve(req.file.path);
+    const url = await uploadToCloudinary(filePath);
+
+    if (!url) {
+      throw new BadRequestError('Failed to upload image to Cloudinary', 'UPLOAD_ERROR');
+    }
+
+    res.status(200).json({ status: 'success', data: { url } });
   } catch (error) {
     next(error);
   }
