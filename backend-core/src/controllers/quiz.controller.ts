@@ -243,12 +243,13 @@ export const evaluateAttempt = async (req: Request, res: Response, next: NextFun
   }
 };
 
-import { exec } from 'child_process';
-import path from 'path';
 import fs from 'fs';
+import path from 'path';
 import { uploadToCloudinary } from '../utils/cloudinary';
+import mammoth from 'mammoth';
+import * as cheerio from 'cheerio';
 
-// Upload DOCX and parse it
+// Upload DOCX and parse it natively in Node (No python needed)
 export const uploadDocxParser = async (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!req.file) {
@@ -256,47 +257,93 @@ export const uploadDocxParser = async (req: Request, res: Response, next: NextFu
     }
 
     const filePath = path.resolve(req.file.path);
-    const pythonScript = path.resolve(__dirname, '../utils/parse_docx.py');
     
-    // Spawn python process
-    exec(`python "${pythonScript}" "${filePath}"`, async (error, stdout, stderr) => {
-      // Clean up uploaded DOCX
-      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    try {
+      const result = await mammoth.convertToHtml({ path: filePath });
+      const html = result.value;
+      const $ = cheerio.load(html);
+      
+      const questions: any[] = [];
+      let currentQ: any = null;
 
-      if (error) {
-        console.error('Python parse error:', error, stderr);
-        return next(new BadRequestError('Failed to parse docx document', 'PARSE_ERROR'));
-      }
-
-      try {
-        const parsed = JSON.parse(stdout);
-        if (parsed.error) {
-          return next(new BadRequestError(parsed.error, 'PARSE_ERROR'));
+      const elements = $('p, img').toArray();
+      
+      for (let i = 0; i < elements.length; i++) {
+        const el = elements[i];
+        
+        if (el.tagName === 'img') {
+          // It's an image
+          const src = $(el).attr('src');
+          if (src && currentQ) {
+            try {
+              // Upload base64 directly to Cloudinary
+              const url = await uploadToCloudinary(src);
+              if (url) currentQ.image = url;
+            } catch (err) {
+              console.error('Image upload failed', err);
+            }
+          }
+          continue;
         }
 
-        const questions = parsed.data || [];
+        const text = $(el).text().trim();
+        if (!text) continue;
 
-        // Upload any temp images to Cloudinary
-        for (let q of questions) {
-          if (q.tempImage) {
-            try {
-              const url = await uploadToCloudinary(q.tempImage);
-              if (url) {
-                q.image = url;
-              }
-            } catch (imgErr) {
-              console.error('Failed to upload image for question', imgErr);
+        if (text.startsWith('[Q]')) {
+          if (currentQ) {
+            if (!currentQ.answerKey) currentQ.validationError = "Missing [ANS] tag";
+            questions.push(currentQ);
+          }
+          
+          const qText = text.substring(3).trim();
+          currentQ = {
+            type: 'MCQ',
+            text: qText,
+            marks: 1,
+            options: [],
+            answerKey: null
+          };
+        } else if (currentQ) {
+          const optMatch = text.match(/^\[([A-Z])\](.*)/);
+          if (optMatch) {
+            currentQ.options.push(optMatch[2].trim());
+          } else if (text.startsWith('[ANS]')) {
+            currentQ.answerKey = text.substring(5).trim();
+          } else if (text.startsWith('[IMG]')) {
+            currentQ.hasImagePlaceholder = true;
+          } else {
+            // Append to question text if no options defined yet
+            if (currentQ.options.length === 0) {
+              currentQ.text += '\n' + text;
             }
-            delete q.tempImage;
           }
         }
-
-        res.status(200).json({ status: 'success', data: questions });
-      } catch (parseErr) {
-        console.error('JSON parse error from python:', parseErr, stdout);
-        next(new BadRequestError('Failed to read parsed data', 'PARSE_ERROR'));
       }
-    });
+
+      if (currentQ) {
+        if (!currentQ.answerKey) currentQ.validationError = "Missing [ANS] tag";
+        questions.push(currentQ);
+      }
+
+      // Post-process Answer Key Letters
+      for (const q of questions) {
+        if (q.answerKey && q.answerKey.length === 1 && "ABCDEF".includes(q.answerKey.toUpperCase())) {
+          const idx = q.answerKey.toUpperCase().charCodeAt(0) - 65; // 'A' is 65
+          if (idx >= 0 && idx < q.options.length) {
+            q.answerKey = q.options[idx];
+          }
+        }
+      }
+
+      // Clean up uploaded docx
+      fs.unlinkSync(filePath);
+
+      res.status(200).json({ status: 'success', data: questions });
+    } catch (parseErr) {
+      console.error('DOCX parsing error:', parseErr);
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      throw new BadRequestError('Failed to parse docx document', 'PARSE_ERROR');
+    }
   } catch (error) {
     next(error);
   }
