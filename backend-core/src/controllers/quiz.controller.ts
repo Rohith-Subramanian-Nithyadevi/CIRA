@@ -240,6 +240,9 @@ export const evaluateAttempt = async (req: Request, res: Response, next: NextFun
     res.status(200).json({ status: 'success', data: updated });
   } catch (error) {
     next(error);
+  }
+};
+
 import fs from 'fs';
 import path from 'path';
 import { uploadToCloudinary } from '../utils/cloudinary';
