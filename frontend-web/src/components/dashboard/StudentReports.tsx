@@ -11,8 +11,8 @@ import {
   PieChart,
   Pie,
   Cell,
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
 } from 'recharts';
 import { Search, ChevronRight, User, BookOpen, AlertTriangle, TrendingUp, ArrowLeft } from 'lucide-react';
 
@@ -204,15 +204,21 @@ export const StudentReports = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-gray-800/50 backdrop-blur-md rounded-xl p-6 border border-gray-700">
             <h3 className="text-xl font-semibold mb-6 flex items-center"><TrendingUp className="mr-2 text-indigo-400"/> Performance Trend</h3>
-            <div className="h-64">
+            <div className="h-64 mt-2">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={studentQuizzes}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                  <XAxis dataKey="name" stroke="#9CA3AF" />
-                  <YAxis stroke="#9CA3AF" domain={[0, 100]}/>
-                  <RechartsTooltip contentStyle={{ backgroundColor: '#1F2937', border: 'none', borderRadius: '8px' }} />
-                  <Line type="monotone" dataKey="score" stroke="#818CF8" strokeWidth={3} dot={{r: 6}} activeDot={{r: 8}} />
-                </LineChart>
+                <AreaChart data={studentQuizzes} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#818CF8" stopOpacity={0.6}/>
+                      <stop offset="95%" stopColor="#818CF8" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} opacity={0.4} />
+                  <XAxis dataKey="name" stroke="#9CA3AF" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9CA3AF' }} />
+                  <YAxis stroke="#9CA3AF" domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9CA3AF' }} />
+                  <RechartsTooltip contentStyle={{ backgroundColor: 'rgba(31, 41, 55, 0.95)', border: '1px solid #374151', borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.5)' }} itemStyle={{ color: '#E5E7EB', fontWeight: 'bold' }} />
+                  <Area type="monotone" dataKey="score" stroke="#818CF8" strokeWidth={3} fillOpacity={1} fill="url(#colorScore)" activeDot={{r: 6, fill: '#818CF8', stroke: '#fff', strokeWidth: 2, filter: 'drop-shadow(0px 2px 4px rgba(0,0,0,0.5))'}} />
+                </AreaChart>
               </ResponsiveContainer>
             </div>
           </div>
@@ -315,15 +321,29 @@ export const StudentReports = () => {
             <h3 className="text-lg font-semibold mb-6">Readiness Distribution by Department</h3>
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={yearData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
-                  <XAxis dataKey="name" stroke="#9CA3AF" />
-                  <YAxis stroke="#9CA3AF" />
-                  <RechartsTooltip contentStyle={{ backgroundColor: '#1F2937', border: 'none', borderRadius: '8px' }} />
-                  <Legend />
-                  <Bar dataKey="Excellent" stackId="a" fill={COLORS[0]} radius={[0, 0, 4, 4]} />
-                  <Bar dataKey="Average" stackId="a" fill={COLORS[1]} />
-                  <Bar dataKey="Poor" stackId="a" fill={COLORS[2]} radius={[4, 4, 0, 0]} />
+                <BarChart data={yearData} margin={{ top: 20, right: 10, left: -20, bottom: 0 }} barSize={40}>
+                  <defs>
+                    <linearGradient id="colorExcellent" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#34D399" stopOpacity={1}/>
+                      <stop offset="100%" stopColor="#059669" stopOpacity={0.8}/>
+                    </linearGradient>
+                    <linearGradient id="colorAverage" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#FBBF24" stopOpacity={1}/>
+                      <stop offset="100%" stopColor="#D97706" stopOpacity={0.8}/>
+                    </linearGradient>
+                    <linearGradient id="colorPoor" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#F87171" stopOpacity={1}/>
+                      <stop offset="100%" stopColor="#DC2626" stopOpacity={0.8}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} opacity={0.4} />
+                  <XAxis dataKey="name" stroke="#9CA3AF" axisLine={false} tickLine={false} tick={{ fontSize: 13 }} />
+                  <YAxis stroke="#9CA3AF" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
+                  <RechartsTooltip cursor={{ fill: '#374151', opacity: 0.2 }} contentStyle={{ backgroundColor: 'rgba(31, 41, 55, 0.95)', border: '1px solid #4B5563', borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.5)' }} itemStyle={{ fontWeight: 'bold', color: '#E5E7EB' }} />
+                  <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
+                  <Bar dataKey="Excellent" stackId="a" fill="url(#colorExcellent)" radius={[0, 0, 4, 4]} />
+                  <Bar dataKey="Average" stackId="a" fill="url(#colorAverage)" />
+                  <Bar dataKey="Poor" stackId="a" fill="url(#colorPoor)" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -350,17 +370,31 @@ export const StudentReports = () => {
            
            <div className="bg-gray-800/40 backdrop-blur-sm border border-gray-700/50 rounded-xl p-6 mt-8">
             <h3 className="text-lg font-semibold mb-6">Performance by Section</h3>
-            <div className="h-72">
+            <div className="h-72 mt-4">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={deptData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
-                  <XAxis dataKey="name" stroke="#9CA3AF" />
-                  <YAxis stroke="#9CA3AF" />
-                  <RechartsTooltip contentStyle={{ backgroundColor: '#1F2937', border: 'none', borderRadius: '8px' }} />
-                  <Legend />
-                  <Bar dataKey="Excellent" stackId="a" fill={COLORS[0]} />
-                  <Bar dataKey="Average" stackId="a" fill={COLORS[1]} />
-                  <Bar dataKey="Poor" stackId="a" fill={COLORS[2]} />
+                <BarChart data={deptData} margin={{ top: 20, right: 10, left: -20, bottom: 0 }} barSize={40}>
+                  <defs>
+                    <linearGradient id="secExcellent" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#34D399" stopOpacity={1}/>
+                      <stop offset="100%" stopColor="#059669" stopOpacity={0.8}/>
+                    </linearGradient>
+                    <linearGradient id="secAverage" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#FBBF24" stopOpacity={1}/>
+                      <stop offset="100%" stopColor="#D97706" stopOpacity={0.8}/>
+                    </linearGradient>
+                    <linearGradient id="secPoor" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#F87171" stopOpacity={1}/>
+                      <stop offset="100%" stopColor="#DC2626" stopOpacity={0.8}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} opacity={0.4} />
+                  <XAxis dataKey="name" stroke="#9CA3AF" axisLine={false} tickLine={false} tick={{ fontSize: 13 }} />
+                  <YAxis stroke="#9CA3AF" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
+                  <RechartsTooltip cursor={{ fill: '#374151', opacity: 0.2 }} contentStyle={{ backgroundColor: 'rgba(31, 41, 55, 0.95)', border: '1px solid #4B5563', borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.5)' }} itemStyle={{ fontWeight: 'bold', color: '#E5E7EB' }} />
+                  <Legend iconType="circle" wrapperStyle={{ paddingTop: '10px' }} />
+                  <Bar dataKey="Excellent" stackId="a" fill="url(#secExcellent)" radius={[0, 0, 4, 4]} />
+                  <Bar dataKey="Average" stackId="a" fill="url(#secAverage)" />
+                  <Bar dataKey="Poor" stackId="a" fill="url(#secPoor)" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -399,24 +433,40 @@ export const StudentReports = () => {
             {/* Score Distribution */}
             <div className="bg-gray-800/40 border border-gray-700/50 rounded-xl p-6 lg:col-span-1">
               <h3 className="text-lg font-semibold mb-4 text-center">Score Distribution</h3>
-              <div className="h-64">
+              <div className="h-64 mt-2">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
+                    <defs>
+                      <linearGradient id="pieGrad0" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#34D399" stopOpacity={1}/>
+                        <stop offset="100%" stopColor="#059669" stopOpacity={1}/>
+                      </linearGradient>
+                      <linearGradient id="pieGrad1" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#FBBF24" stopOpacity={1}/>
+                        <stop offset="100%" stopColor="#D97706" stopOpacity={1}/>
+                      </linearGradient>
+                      <linearGradient id="pieGrad2" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#F87171" stopOpacity={1}/>
+                        <stop offset="100%" stopColor="#DC2626" stopOpacity={1}/>
+                      </linearGradient>
+                    </defs>
                     <Pie
                       data={quizDetails.pieData}
                       cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={80}
-                      paddingAngle={5}
+                      cy="45%"
+                      innerRadius={65}
+                      outerRadius={85}
+                      paddingAngle={8}
                       dataKey="value"
+                      stroke="none"
+                      cornerRadius={6}
                     >
                       {quizDetails.pieData.map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        <Cell key={`cell-${index}`} fill={`url(#pieGrad${index % 3})`} style={{ filter: 'drop-shadow(0px 4px 6px rgba(0,0,0,0.3))' }} />
                       ))}
                     </Pie>
-                    <RechartsTooltip contentStyle={{ backgroundColor: '#1F2937', border: 'none', borderRadius: '8px' }} />
-                    <Legend verticalAlign="bottom" height={36}/>
+                    <RechartsTooltip contentStyle={{ backgroundColor: 'rgba(31, 41, 55, 0.95)', border: '1px solid #4B5563', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.5)' }} itemStyle={{ color: '#E5E7EB', fontWeight: 'bold' }} />
+                    <Legend verticalAlign="bottom" height={36} iconType="circle" />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -425,16 +475,30 @@ export const StudentReports = () => {
             {/* Topic Wise Breakdown */}
             <div className="bg-gray-800/40 border border-gray-700/50 rounded-xl p-6 lg:col-span-2">
                <h3 className="text-lg font-semibold mb-6">Topic-wise Class Average</h3>
-               <div className="h-64">
+               <div className="h-64 mt-2">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={quizDetails.topicAverages} layout="vertical" margin={{ left: 40 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" horizontal={false} />
-                    <XAxis type="number" domain={[0, 100]} stroke="#9CA3AF" />
-                    <YAxis dataKey="topic" type="category" stroke="#9CA3AF" tick={{fill: '#D1D5DB'}} />
-                    <RechartsTooltip contentStyle={{ backgroundColor: '#1F2937', border: 'none', borderRadius: '8px' }} cursor={{fill: '#374151', opacity: 0.4}} />
-                    <Bar dataKey="avg" fill="#818CF8" radius={[0, 4, 4, 0]}>
+                  <BarChart data={quizDetails.topicAverages} layout="vertical" margin={{ top: 10, right: 30, left: 40, bottom: 0 }} barSize={24}>
+                    <defs>
+                      <linearGradient id="barGood" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stopColor="#059669" stopOpacity={0.8}/>
+                        <stop offset="100%" stopColor="#34D399" stopOpacity={1}/>
+                      </linearGradient>
+                      <linearGradient id="barAvg" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stopColor="#D97706" stopOpacity={0.8}/>
+                        <stop offset="100%" stopColor="#FBBF24" stopOpacity={1}/>
+                      </linearGradient>
+                      <linearGradient id="barPoor" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stopColor="#DC2626" stopOpacity={0.8}/>
+                        <stop offset="100%" stopColor="#F87171" stopOpacity={1}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" horizontal={false} opacity={0.4} />
+                    <XAxis type="number" domain={[0, 100]} stroke="#9CA3AF" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
+                    <YAxis dataKey="topic" type="category" stroke="#9CA3AF" axisLine={false} tickLine={false} tick={{ fill: '#D1D5DB', fontSize: 12 }} />
+                    <RechartsTooltip cursor={{fill: '#374151', opacity: 0.2}} contentStyle={{ backgroundColor: 'rgba(31, 41, 55, 0.95)', border: '1px solid #4B5563', borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.5)' }} itemStyle={{ fontWeight: 'bold', color: '#E5E7EB' }} />
+                    <Bar dataKey="avg" radius={[0, 6, 6, 0]}>
                       {quizDetails.topicAverages.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.avg < 60 ? '#EF4444' : entry.avg < 75 ? '#F59E0B' : '#10B981'} />
+                        <Cell key={`cell-${index}`} fill={entry.avg < 60 ? 'url(#barPoor)' : entry.avg < 75 ? 'url(#barAvg)' : 'url(#barGood)'} />
                       ))}
                     </Bar>
                   </BarChart>
