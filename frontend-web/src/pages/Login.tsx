@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import DotField from '../components/ui/DotField';
 
 interface Department {
@@ -247,7 +246,13 @@ export default function Login() {
 
       <div className="relative z-10 w-full max-w-xl border border-border-soft bg-white shadow-[0_20px_40px_rgba(0,0,0,0.06)] text-ink rounded-xl p-8 sm:p-10">
         <div className="text-center pb-6 pt-2 flex flex-col items-center">
-          <img src="/img/qq.jpeg" alt="CIRA Logo" className="w-14 h-14 mb-4 object-contain rounded" />
+          <div className="w-36 h-20 overflow-hidden relative rounded-xl mb-8 shadow-sm">
+            <img 
+              src="/img/qq.jpeg" 
+              alt="CIRA Logo" 
+              className="absolute inset-0 w-full h-full object-contain scale-[1.4]" 
+            />
+          </div>
           <h2 className="text-3xl font-serif font-bold text-ink leading-tight">Centralized Access Portal</h2>
         </div>
         <div>
@@ -285,18 +290,22 @@ export default function Login() {
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4 text-left">
             {!isLogin && (
-              <div className="flex justify-center mb-5">
-                <div className="bg-cream-edge p-1.5 rounded-full border border-border-soft inline-flex mx-auto">
-                  <RadioGroup value={role} onValueChange={(val: any) => setRole(val)} className="flex space-x-6 px-4 py-1">
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="STUDENT" id="r1" className="w-4 h-4 border-border-soft text-maroon focus:ring-maroon" />
-                      <Label htmlFor="r1" className="text-ink font-medium text-sm cursor-pointer">Student</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="FACULTY" id="r2" className="w-4 h-4 border-border-soft text-maroon focus:ring-maroon" />
-                      <Label htmlFor="r2" className="text-ink font-medium text-sm cursor-pointer">Faculty</Label>
-                    </div>
-                  </RadioGroup>
+              <div className="flex justify-center mb-6">
+                <div className="flex bg-cream-edge rounded-full p-1 border border-border-soft w-full max-w-[280px]">
+                  <button 
+                    type="button"
+                    onClick={() => setRole('STUDENT')}
+                    className={`flex-1 rounded-full py-2 text-sm transition-all duration-300 ${role === 'STUDENT' ? 'bg-maroon text-white shadow-sm font-bold' : 'text-gray-body hover:text-ink font-medium'}`}
+                  >
+                    Student
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => setRole('FACULTY')}
+                    className={`flex-1 rounded-full py-2 text-sm transition-all duration-300 ${role === 'FACULTY' ? 'bg-maroon text-white shadow-sm font-bold' : 'text-gray-body hover:text-ink font-medium'}`}
+                  >
+                    Faculty
+                  </button>
                 </div>
               </div>
             )}
