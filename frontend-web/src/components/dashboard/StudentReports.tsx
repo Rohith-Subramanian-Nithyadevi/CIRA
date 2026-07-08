@@ -96,19 +96,28 @@ export const StudentReports = () => {
     }
   };
 
-  // 1. Year Level Data (Aggregated across all departments)
+  // 1. Year Level Data (Aggregated by Subject across all students)
   const yearData = useMemo(() => {
-    return mockData.departments.map(d => {
-      const deptStudents = studentsData.filter(s => s.departmentId === d.id);
+    const poorObj: any = { band: 'Poor' };
+    const avgObj: any = { band: 'Average' };
+    const excObj: any = { band: 'Excellent' };
+
+    mockData.quizzes.forEach(quiz => {
       let excellent = 0, average = 0, poor = 0;
-      deptStudents.forEach(s => {
-        const avgScore = s.quizzes.reduce((acc: number, q: any) => acc + q.score, 0) / s.quizzes.length;
-        if (avgScore >= 80) excellent++;
-        else if (avgScore >= 60) average++;
-        else poor++;
+      studentsData.forEach(s => {
+        const qAttempt = s.quizzes.find((sq: any) => sq.quizId === quiz.id);
+        if (qAttempt) {
+          if (qAttempt.band === 'Excellent') excellent++;
+          else if (qAttempt.band === 'Average') average++;
+          else poor++;
+        }
       });
-      return { name: d.name, Excellent: excellent, Average: average, Poor: poor };
+      poorObj[quiz.title] = poor;
+      avgObj[quiz.title] = average;
+      excObj[quiz.title] = excellent;
     });
+
+    return [poorObj, avgObj, excObj];
   }, []);
 
   // 2. Department Level Data (Aggregated across sections)
@@ -318,32 +327,32 @@ export const StudentReports = () => {
           </div>
 
           <div className="bg-gray-800/40 backdrop-blur-sm border border-gray-700/50 rounded-xl p-6 mt-8">
-            <h3 className="text-lg font-semibold mb-6">Readiness Distribution by Department</h3>
+            <h3 className="text-lg font-semibold mb-6">Subject Performance by Band</h3>
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={yearData} margin={{ top: 20, right: 10, left: -20, bottom: 0 }} barSize={40}>
+                <BarChart data={yearData} margin={{ top: 20, right: 10, left: -20, bottom: 0 }} barSize={30}>
                   <defs>
-                    <linearGradient id="colorExcellent" x1="0" y1="0" x2="0" y2="1">
+                    <linearGradient id="gradAptitude" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#818CF8" stopOpacity={1}/>
+                      <stop offset="100%" stopColor="#4F46E5" stopOpacity={0.8}/>
+                    </linearGradient>
+                    <linearGradient id="gradSoftSkills" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#34D399" stopOpacity={1}/>
                       <stop offset="100%" stopColor="#059669" stopOpacity={0.8}/>
                     </linearGradient>
-                    <linearGradient id="colorAverage" x1="0" y1="0" x2="0" y2="1">
+                    <linearGradient id="gradVerbal" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#FBBF24" stopOpacity={1}/>
                       <stop offset="100%" stopColor="#D97706" stopOpacity={0.8}/>
                     </linearGradient>
-                    <linearGradient id="colorPoor" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#F87171" stopOpacity={1}/>
-                      <stop offset="100%" stopColor="#DC2626" stopOpacity={0.8}/>
-                    </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} opacity={0.4} />
-                  <XAxis dataKey="name" stroke="#9CA3AF" axisLine={false} tickLine={false} tick={{ fontSize: 13 }} />
+                  <XAxis dataKey="band" stroke="#9CA3AF" axisLine={false} tickLine={false} tick={{ fontSize: 13 }} />
                   <YAxis stroke="#9CA3AF" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
                   <RechartsTooltip cursor={{ fill: '#374151', opacity: 0.2 }} contentStyle={{ backgroundColor: 'rgba(31, 41, 55, 0.95)', border: '1px solid #4B5563', borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.5)' }} itemStyle={{ fontWeight: 'bold', color: '#E5E7EB' }} />
                   <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
-                  <Bar dataKey="Excellent" stackId="a" fill="url(#colorExcellent)" radius={[0, 0, 4, 4]} />
-                  <Bar dataKey="Average" stackId="a" fill="url(#colorAverage)" />
-                  <Bar dataKey="Poor" stackId="a" fill="url(#colorPoor)" radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="Aptitude Assessment" fill="url(#gradAptitude)" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Soft Skills Evaluation" fill="url(#gradSoftSkills)" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Verbal Reasoning" fill="url(#gradVerbal)" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
