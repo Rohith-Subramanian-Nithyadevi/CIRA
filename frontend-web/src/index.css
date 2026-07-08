@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700;800&display=swap');
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
@@ -15,10 +16,21 @@
     @apply font-sans antialiased selection:bg-blue-500/30 bg-background text-foreground;
   }
   .theme {
-    --font-heading: var(--font-sans);
-    --font-sans: 'Geist Variable', sans-serif;
+    --font-heading: var(--font-serif);
+    --font-sans: 'Inter', sans-serif;
   }
   :root {
+    --bg-cream: #FAF5EE;
+    --bg-cream-edge: #EFE5D8;
+    --maroon: #9B2242;
+    --maroon-deep: #8A1E3A;
+    --ink: #1A1A1A;
+    --gray-body: #6B6560;
+    --white: #FFFFFF;
+    --chip-peach: #F5E3D2;
+    --cta-tan: #E8D6B8;
+    --border-soft: #E7DDD0;
+
     --background: oklch(1 0 0);
     --foreground: oklch(0.145 0 0);
     --card: oklch(1 0 0);
