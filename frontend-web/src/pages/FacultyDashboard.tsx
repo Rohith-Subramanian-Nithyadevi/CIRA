@@ -15,9 +15,9 @@ export default function FacultyDashboard() {
       {activeTab === 'reports' && <StudentReports />}
       {activeTab === 'quizzes' && <QuizManagement />}
       {activeTab === 'assignments' && (
-        <div className="p-6 bg-slate-900 rounded-xl border border-slate-800">
-          <h2 className="text-xl font-bold mb-4">Assignment Management</h2>
-          <p className="text-slate-500">Create, assign, and grade assignments here.</p>
+        <div className="p-6 bg-white rounded-xl border border-border-soft shadow-sm">
+          <h2 className="text-xl font-serif font-bold mb-4 text-ink">Assignment Management</h2>
+          <p className="text-gray-body text-sm">Create, assign, and grade assignments here.</p>
         </div>
       )}
     </DashboardLayout>

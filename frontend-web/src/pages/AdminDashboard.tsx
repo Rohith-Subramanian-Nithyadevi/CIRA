@@ -156,82 +156,86 @@ export default function AdminDashboard() {
       {activeTab === 'hub' && (
         <div className="space-y-8">
           <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
-            <h3 className="text-slate-400 text-sm font-medium">Total Faculty</h3>
-            <p className="text-3xl font-bold mt-2 text-yellow-500">{facultyList.length}</p>
-          </div>
-          <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
-            <h3 className="text-slate-400 text-sm font-medium">Pending Approvals</h3>
-            <p className="text-3xl font-bold mt-2 text-yellow-500">{facultyList.filter(f => f.approvalStatus === 'PENDING').length}</p>
-          </div>
-          <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
-            <h3 className="text-slate-400 text-sm font-medium">System Health</h3>
-            <p className="text-3xl font-bold mt-2 text-green-500">100%</p>
-          </div>
-        </section>
-
-        <section className="bg-slate-900 rounded-xl border border-slate-800 p-6">
-          <h2 className="text-xl font-bold mb-4">Faculty Management</h2>
-          
-          {facultyList.length === 0 ? (
-            <p className="text-slate-400 text-sm italic">No faculty registered yet.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left text-slate-300">
-                <thead className="text-xs uppercase bg-slate-800 border-b border-slate-700">
-                  <tr>
-                    <th className="px-6 py-3">Name</th>
-                    <th className="px-6 py-3">Employee ID</th>
-                    <th className="px-6 py-3">Email</th>
-                    <th className="px-6 py-3">Status</th>
-                    <th className="px-6 py-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {facultyList.map(faculty => (
-                    <tr key={faculty.id} className="border-b border-slate-800 hover:bg-slate-800/50">
-                      <td className="px-6 py-4 font-medium text-white">{faculty.name}</td>
-                      <td className="px-6 py-4">{faculty.employeeId}</td>
-                      <td className="px-6 py-4">{faculty.email}</td>
-                      <td className="px-6 py-4">
-                        <span className={`px-2 py-1 rounded text-xs ${faculty.approvalStatus === 'APPROVED' ? 'bg-green-500/20 text-green-400' : faculty.approvalStatus === 'PENDING' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'}`}>
-                          {faculty.approvalStatus}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        {faculty.approvalStatus !== 'APPROVED' && (
-                          <button onClick={() => handleApproval(faculty.id, 'APPROVED')} className="text-green-400 hover:text-green-300 mr-4 font-medium">Approve</button>
-                        )}
-                        {faculty.approvalStatus !== 'REJECTED' && (
-                          <button onClick={() => handleApproval(faculty.id, 'REJECTED')} className="text-red-400 hover:text-red-300 font-medium">
-                            {faculty.approvalStatus === 'APPROVED' ? 'Kick (Reject)' : 'Reject'}
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="bg-white p-6 rounded-xl border border-border-soft shadow-sm">
+              <h3 className="text-gray-body text-sm font-medium">Total Faculty</h3>
+              <p className="text-3xl font-bold mt-2 text-maroon">{facultyList.length}</p>
             </div>
-          )}
-        </section>
+            <div className="bg-white p-6 rounded-xl border border-border-soft shadow-sm">
+              <h3 className="text-gray-body text-sm font-medium">Pending Approvals</h3>
+              <p className="text-3xl font-bold mt-2 text-maroon">{facultyList.filter(f => f.approvalStatus === 'PENDING').length}</p>
+            </div>
+            <div className="bg-white p-6 rounded-xl border border-border-soft shadow-sm">
+              <h3 className="text-gray-body text-sm font-medium">System Health</h3>
+              <p className="text-3xl font-bold mt-2 text-green-600">100%</p>
+            </div>
+          </section>
+
+          <section className="bg-white rounded-xl border border-border-soft p-6 shadow-sm">
+            <h2 className="text-xl font-serif font-bold mb-4 text-ink">Faculty Management</h2>
+            
+            {facultyList.length === 0 ? (
+              <p className="text-gray-body text-sm italic">No faculty registered yet.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left text-ink">
+                  <thead className="text-xs uppercase bg-cream-edge/40 border-b border-border-soft text-gray-body">
+                    <tr>
+                      <th className="px-6 py-3">Name</th>
+                      <th className="px-6 py-3">Employee ID</th>
+                      <th className="px-6 py-3">Email</th>
+                      <th className="px-6 py-3">Status</th>
+                      <th className="px-6 py-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {facultyList.map(faculty => (
+                      <tr key={faculty.id} className="border-b border-border-soft hover:bg-cream/40 transition-colors">
+                        <td className="px-6 py-4 font-semibold text-ink">{faculty.name}</td>
+                        <td className="px-6 py-4 font-mono text-xs">{faculty.employeeId}</td>
+                        <td className="px-6 py-4 text-gray-body">{faculty.email}</td>
+                        <td className="px-6 py-4">
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${
+                            faculty.approvalStatus === 'APPROVED' ? 'bg-green-500/10 text-green-700 border-green-200' : 
+                            faculty.approvalStatus === 'PENDING' ? 'bg-yellow-500/10 text-yellow-700 border-yellow-200' : 
+                            'bg-red-500/10 text-red-700 border-red-200'
+                          }`}>
+                            {faculty.approvalStatus}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          {faculty.approvalStatus !== 'APPROVED' && (
+                            <button onClick={() => handleApproval(faculty.id, 'APPROVED')} className="text-green-600 hover:text-green-700 mr-4 font-semibold">Approve</button>
+                          )}
+                          {faculty.approvalStatus !== 'REJECTED' && (
+                            <button onClick={() => handleApproval(faculty.id, 'REJECTED')} className="text-red-600 hover:text-red-700 font-semibold">
+                              {faculty.approvalStatus === 'APPROVED' ? 'Kick (Reject)' : 'Reject'}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
         </div>
       )}
 
       {activeTab === 'faculty' && (
-        <div className="p-6 bg-slate-900 rounded-xl border border-slate-800">
-          <h2 className="text-xl font-bold mb-4">Faculty Approvals</h2>
-          <p className="text-slate-500">You can manage Faculty Approvals from the Admin Hub.</p>
+        <div className="p-6 bg-white rounded-xl border border-border-soft shadow-sm">
+          <h2 className="text-xl font-serif font-bold mb-4 text-ink">Faculty Approvals</h2>
+          <p className="text-gray-body text-sm">You can manage Faculty Approvals from the Admin Hub.</p>
         </div>
       )}
 
       {activeTab === 'users' && (
         <div className="space-y-6">
-          <div className="p-6 bg-slate-900 rounded-xl border border-slate-800">
-            <h2 className="text-xl font-bold mb-4">User Management</h2>
+          <div className="p-6 bg-white rounded-xl border border-border-soft shadow-sm">
+            <h2 className="text-xl font-serif font-bold mb-4 text-ink">User Management</h2>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left text-slate-300">
-                <thead className="text-xs uppercase bg-slate-800 border-b border-slate-700">
+              <table className="w-full text-sm text-left text-ink">
+                <thead className="text-xs uppercase bg-cream-edge/40 border-b border-border-soft text-gray-body">
                   <tr>
                     <th className="px-6 py-3">Name</th>
                     <th className="px-6 py-3">Email</th>
@@ -242,17 +246,21 @@ export default function AdminDashboard() {
                 </thead>
                 <tbody>
                   {userList.map(u => (
-                    <tr key={u.id} className="border-b border-slate-800 hover:bg-slate-800/50">
-                      <td className="px-6 py-4 font-medium text-white">{u.name}</td>
-                      <td className="px-6 py-4">{u.email}</td>
-                      <td className="px-6 py-4">{u.role}</td>
+                    <tr key={u.id} className="border-b border-border-soft hover:bg-cream/40 transition-colors">
+                      <td className="px-6 py-4 font-semibold text-ink">{u.name}</td>
+                      <td className="px-6 py-4 text-gray-body">{u.email}</td>
+                      <td className="px-6 py-4 text-xs font-mono">{u.role}</td>
                       <td className="px-6 py-4">
-                        <span className={`px-2 py-1 rounded text-xs ${u.approvalStatus === 'APPROVED' ? 'bg-green-500/20 text-green-400' : u.approvalStatus === 'PENDING' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'}`}>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${
+                          u.approvalStatus === 'APPROVED' ? 'bg-green-500/10 text-green-700 border-green-200' : 
+                          u.approvalStatus === 'PENDING' ? 'bg-yellow-500/10 text-yellow-700 border-yellow-200' : 
+                          'bg-red-500/10 text-red-700 border-red-200'
+                        }`}>
                           {u.approvalStatus}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <button onClick={() => handleDeleteUser(u.id)} className="text-red-400 hover:text-red-300 font-medium">Delete</button>
+                        <button onClick={() => handleDeleteUser(u.id)} className="text-red-600 hover:text-red-700 font-semibold">Delete</button>
                       </td>
                     </tr>
                   ))}
@@ -265,42 +273,42 @@ export default function AdminDashboard() {
 
       {activeTab === 'departments' && (
         <div className="space-y-6">
-          <div className="p-6 bg-slate-900 rounded-xl border border-slate-800">
-            <h2 className="text-xl font-bold mb-4">Create Department</h2>
+          <div className="p-6 bg-white rounded-xl border border-border-soft shadow-sm">
+            <h2 className="text-xl font-serif font-bold mb-4 text-ink">Create Department</h2>
             <div className="flex gap-4">
-              <input type="text" value={newDeptName} onChange={e => setNewDeptName(e.target.value)} placeholder="Department Name (e.g. Mechanical Engineering)" className="flex-1 px-4 py-2 bg-slate-800 border border-slate-700 rounded focus:border-blue-500 outline-none" />
-              <button onClick={handleCreateDepartment} className="px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded font-medium">Create</button>
+              <input type="text" value={newDeptName} onChange={e => setNewDeptName(e.target.value)} placeholder="Department Name (e.g. Mechanical Engineering)" className="flex-1 px-4 py-2.5 bg-white border border-border-soft rounded-lg focus:border-maroon focus:ring-1 focus:ring-maroon text-ink outline-none" />
+              <button onClick={handleCreateDepartment} className="px-6 py-2.5 bg-maroon hover:bg-maroon-deep text-white rounded-full font-bold transition-all hover:scale-105 active:scale-95 text-sm shadow-sm">Create</button>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="p-6 bg-slate-900 rounded-xl border border-slate-800 overflow-y-auto max-h-[500px]">
-              <h2 className="text-xl font-bold mb-4">Departments List</h2>
+            <div className="p-6 bg-white rounded-xl border border-border-soft shadow-sm overflow-y-auto max-h-[500px]">
+              <h2 className="text-xl font-serif font-bold mb-4 text-ink">Departments List</h2>
               {departments.map(d => (
-                <div key={d.id} className={`p-4 border rounded-lg mb-3 cursor-pointer transition-colors flex justify-between items-center ${selectedDeptId === d.id ? 'border-blue-500 bg-blue-500/10' : 'border-slate-700 hover:border-slate-600'}`} onClick={() => setSelectedDeptId(d.id)}>
+                <div key={d.id} className={`p-4 border rounded-xl mb-3 cursor-pointer transition-colors flex justify-between items-center ${selectedDeptId === d.id ? 'border-maroon bg-maroon/5' : 'border-border-soft hover:border-maroon/30 hover:bg-cream/40'}`} onClick={() => setSelectedDeptId(d.id)}>
                   <div>
-                    <h3 className="font-bold text-white">{d.name}</h3>
-                    <p className="text-xs text-slate-400">{d.sections.length} sections</p>
+                    <h3 className="font-bold text-ink">{d.name}</h3>
+                    <p className="text-xs text-gray-body">{d.sections.length} sections</p>
                   </div>
-                  <button onClick={(e) => { e.stopPropagation(); handleDeleteDepartment(d.id); }} className="text-red-400 text-xs hover:underline">Delete</button>
+                  <button onClick={(e) => { e.stopPropagation(); handleDeleteDepartment(d.id); }} className="text-red-600 text-xs font-semibold hover:underline">Delete</button>
                 </div>
               ))}
             </div>
 
-            <div className="p-6 bg-slate-900 rounded-xl border border-slate-800">
-              <h2 className="text-xl font-bold mb-4">Manage Sections</h2>
+            <div className="p-6 bg-white rounded-xl border border-border-soft shadow-sm">
+              <h2 className="text-xl font-serif font-bold mb-4 text-ink">Manage Sections</h2>
               {!selectedDeptId ? (
-                <p className="text-slate-500 italic">Select a department from the left to manage sections.</p>
+                <p className="text-gray-body italic text-sm">Select a department from the left to manage sections.</p>
               ) : (
                 <div className="space-y-4">
-                  <h3 className="font-bold text-blue-400">{departments.find(d => d.id === selectedDeptId)?.name}</h3>
+                  <h3 className="font-bold text-maroon">{departments.find(d => d.id === selectedDeptId)?.name}</h3>
                   <div className="flex gap-2">
-                    <input type="text" value={newSectionName} onChange={e => setNewSectionName(e.target.value)} placeholder="Section Name (e.g. A, B, C)" className="w-32 px-4 py-2 bg-slate-800 border border-slate-700 rounded focus:border-blue-500 outline-none" />
-                    <button onClick={handleCreateSection} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded font-medium">Add</button>
+                    <input type="text" value={newSectionName} onChange={e => setNewSectionName(e.target.value)} placeholder="Section Name (e.g. A, B, C)" className="w-48 px-4 py-2 bg-white border border-border-soft rounded-lg focus:border-maroon focus:ring-1 focus:ring-maroon text-ink outline-none text-sm" />
+                    <button onClick={handleCreateSection} className="px-6 py-2 bg-maroon hover:bg-maroon-deep text-white rounded-full font-bold transition-all text-sm shadow-sm">Add</button>
                   </div>
                   <div className="mt-4 space-y-2">
                     {departments.find(d => d.id === selectedDeptId)?.sections.map(s => (
-                      <div key={s.id} className="p-3 bg-slate-800/50 border border-slate-700 rounded flex justify-between items-center">
+                      <div key={s.id} className="p-3 bg-cream/40 border border-border-soft rounded-lg flex justify-between items-center text-sm text-ink">
                         <span>Section {s.name}</span>
                       </div>
                     ))}

@@ -16,8 +16,6 @@ import {
 } from 'recharts';
 import { Search, ChevronRight, User, BookOpen, AlertTriangle, TrendingUp, ArrowLeft } from 'lucide-react';
 
-// const COLORS = ['#10B981', '#F59E0B', '#EF4444']; // Green, Yellow, Red
-
 // --- FAKE DATA SET ---
 const mockData = {
   years: ['2023-2024', '2024-2025'],
@@ -191,57 +189,57 @@ export const StudentReports = () => {
     });
 
     return (
-      <div className="p-6 text-gray-100">
+      <div className="text-ink">
         <button 
           onClick={() => { setSearchedStudent(null); setSearchTerm(''); }}
-          className="flex items-center text-blue-400 hover:text-blue-300 mb-6 transition-colors"
+          className="flex items-center text-maroon hover:text-maroon-deep mb-6 transition-colors font-bold text-sm"
         >
-          <ArrowLeft className="w-5 h-5 mr-2" /> Back to Analytics
+          <ArrowLeft className="w-4 h-4 mr-2" /> Back to Analytics
         </button>
         
-        <div className="bg-gray-800/50 backdrop-blur-md rounded-xl p-6 border border-gray-700 shadow-xl mb-6 flex items-center justify-between">
+        <div className="bg-white rounded-xl p-6 border border-border-soft shadow-sm mb-6 flex items-center justify-between">
           <div>
-            <h2 className="text-3xl font-bold text-white mb-2">{searchedStudent.name}</h2>
-            <p className="text-gray-400 text-lg">Roll Number: <span className="text-gray-200 font-mono">{searchedStudent.rollNumber}</span></p>
-            <p className="text-gray-400">Department: {mockData.departments.find(d => d.id === searchedStudent.departmentId)?.name} | Section: {searchedStudent.sectionId}</p>
+            <h2 className="text-3xl font-serif font-bold text-ink mb-2">{searchedStudent.name}</h2>
+            <p className="text-gray-body text-base">Roll Number: <span className="text-ink font-mono font-bold">{searchedStudent.rollNumber}</span></p>
+            <p className="text-gray-body mt-1">Department: {mockData.departments.find(d => d.id === searchedStudent.departmentId)?.name} | Section: {searchedStudent.sectionId}</p>
           </div>
-          <div className="h-24 w-24 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center border-4 border-gray-800 shadow-lg">
-            <User className="w-12 h-12 text-white" />
+          <div className="h-20 w-20 bg-maroon/10 border border-maroon/20 rounded-full flex items-center justify-center shadow-sm">
+            <User className="w-10 h-10 text-maroon" />
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-gray-800/50 backdrop-blur-md rounded-xl p-6 border border-gray-700">
-            <h3 className="text-xl font-semibold mb-6 flex items-center"><TrendingUp className="mr-2 text-indigo-400"/> Performance Trend</h3>
+          <div className="bg-white rounded-xl p-6 border border-border-soft shadow-sm">
+            <h3 className="text-lg font-serif font-bold mb-6 flex items-center text-ink"><TrendingUp className="mr-2 text-maroon w-5 h-5"/> Performance Trend</h3>
             <div className="h-64 mt-2">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={studentQuizzes} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#818CF8" stopOpacity={0.6}/>
-                      <stop offset="95%" stopColor="#818CF8" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="#9B2242" stopOpacity={0.4}/>
+                      <stop offset="95%" stopColor="#9B2242" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} opacity={0.4} />
-                  <XAxis dataKey="name" stroke="#9CA3AF" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9CA3AF' }} />
-                  <YAxis stroke="#9CA3AF" domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9CA3AF' }} />
-                  <RechartsTooltip contentStyle={{ backgroundColor: 'rgba(31, 41, 55, 0.95)', border: '1px solid #374151', borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.5)' }} itemStyle={{ color: '#E5E7EB', fontWeight: 'bold' }} />
-                  <Area type="monotone" dataKey="score" stroke="#818CF8" strokeWidth={3} fillOpacity={1} fill="url(#colorScore)" activeDot={{r: 6, fill: '#818CF8', stroke: '#fff', strokeWidth: 2, filter: 'drop-shadow(0px 2px 4px rgba(0,0,0,0.5))'}} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" vertical={false} opacity={0.6} />
+                  <XAxis dataKey="name" stroke="var(--gray-body)" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'var(--gray-body)' }} />
+                  <YAxis stroke="var(--gray-body)" domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'var(--gray-body)' }} />
+                  <RechartsTooltip contentStyle={{ backgroundColor: '#ffffff', border: '1px solid var(--border-soft)', borderRadius: '8px', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }} itemStyle={{ color: 'var(--ink)', fontWeight: 'bold' }} />
+                  <Area type="monotone" dataKey="score" stroke="#9B2242" strokeWidth={3} fillOpacity={1} fill="url(#colorScore)" activeDot={{r: 6, fill: '#9B2242', stroke: '#fff', strokeWidth: 2}} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
           </div>
 
-          <div className="bg-gray-800/50 backdrop-blur-md rounded-xl p-6 border border-gray-700">
-             <h3 className="text-xl font-semibold mb-6 flex items-center"><BookOpen className="mr-2 text-green-400"/> Topic Strengths & Weaknesses</h3>
+          <div className="bg-white rounded-xl p-6 border border-border-soft shadow-sm">
+             <h3 className="text-lg font-serif font-bold mb-6 flex items-center text-ink"><BookOpen className="mr-2 text-maroon w-5 h-5"/> Topic Strengths & Weaknesses</h3>
              <div className="space-y-4 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
                 {searchedStudent.quizzes.map((q: any) => (
-                  <div key={q.quizId} className="border-b border-gray-700 pb-4">
-                    <h4 className="font-medium text-gray-300 mb-2">{mockData.quizzes.find(mq => mq.id === q.quizId)?.title}</h4>
+                  <div key={q.quizId} className="border-b border-border-soft pb-4 last:border-b-0 last:pb-0">
+                    <h4 className="font-semibold text-ink mb-2">{mockData.quizzes.find(mq => mq.id === q.quizId)?.title}</h4>
                     {q.topicScores.map((ts: any) => (
                       <div key={ts.topic} className="flex justify-between items-center mb-1 text-sm">
-                        <span className="text-gray-400">{ts.topic}</span>
-                        <span className={`font-semibold ${ts.score >= 80 ? 'text-green-400' : ts.score >= 60 ? 'text-yellow-400' : 'text-red-400'}`}>
+                        <span className="text-gray-body">{ts.topic}</span>
+                        <span className={`font-bold ${ts.score >= 80 ? 'text-green-700' : ts.score >= 60 ? 'text-yellow-700' : 'text-red-700'}`}>
                           {ts.score}%
                         </span>
                       </div>
@@ -257,18 +255,18 @@ export const StudentReports = () => {
 
   // RENDER HIERARCHICAL DASHBOARD
   return (
-    <div className="p-6 text-gray-100 min-h-screen">
+    <div className="text-ink">
       {/* Top Bar: Search and Breadcrumbs */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-        <div className="flex items-center space-x-2 text-sm font-medium">
-          <span className="text-gray-400 cursor-pointer hover:text-white transition-colors" onClick={() => { setSelectedDept(null); setSelectedSection(null); setSelectedQuiz(null); }}>
+        <div className="flex items-center space-x-2 text-xs font-semibold uppercase tracking-wider text-gray-body">
+          <span className="cursor-pointer hover:text-maroon transition-colors" onClick={() => { setSelectedDept(null); setSelectedSection(null); setSelectedQuiz(null); }}>
             Year: {selectedYear}
           </span>
           
           {selectedDept && (
             <>
-              <ChevronRight className="w-4 h-4 text-gray-600" />
-              <span className="text-gray-400 cursor-pointer hover:text-white transition-colors" onClick={() => { setSelectedSection(null); setSelectedQuiz(null); }}>
+              <ChevronRight className="w-3.5 h-3.5 text-gray-body/60" />
+              <span className="cursor-pointer hover:text-maroon transition-colors" onClick={() => { setSelectedSection(null); setSelectedQuiz(null); }}>
                 {mockData.departments.find(d => d.id === selectedDept)?.name}
               </span>
             </>
@@ -276,8 +274,8 @@ export const StudentReports = () => {
 
           {selectedSection && (
             <>
-              <ChevronRight className="w-4 h-4 text-gray-600" />
-              <span className="text-gray-400 cursor-pointer hover:text-white transition-colors" onClick={() => { setSelectedQuiz(null); }}>
+              <ChevronRight className="w-3.5 h-3.5 text-gray-body/60" />
+              <span className="cursor-pointer hover:text-maroon transition-colors" onClick={() => { setSelectedQuiz(null); }}>
                 Section {selectedSection}
               </span>
             </>
@@ -285,8 +283,8 @@ export const StudentReports = () => {
 
           {selectedQuiz && (
             <>
-              <ChevronRight className="w-4 h-4 text-gray-600" />
-              <span className="text-indigo-400">
+              <ChevronRight className="w-3.5 h-3.5 text-gray-body/60" />
+              <span className="text-maroon">
                 {mockData.quizzes.find(q => q.id === selectedQuiz)?.title}
               </span>
             </>
@@ -299,57 +297,57 @@ export const StudentReports = () => {
             placeholder="Search Roll No (e.g. CB.EN...)"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-gray-800/80 border border-gray-700 rounded-lg pl-10 pr-4 py-2 focus:outline-none focus:border-indigo-500 transition-colors text-sm"
+            className="w-full bg-white border border-border-soft rounded-lg pl-10 pr-4 py-2 focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon transition-colors text-sm text-ink placeholder:text-gray-body/50"
           />
-          <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-500" />
+          <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-body/50" />
         </form>
       </div>
 
       {/* Level 1: Year Analysis (Choose Dept) */}
       {!selectedDept && (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <h2 className="text-2xl font-bold text-white">Department Overview</h2>
+        <div className="space-y-6 animate-in fade-in duration-500">
+          <h2 className="text-xl font-serif font-bold text-ink">Department Overview</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {mockData.departments.map(dept => (
               <div 
                 key={dept.id} 
                 onClick={() => setSelectedDept(dept.id)}
-                className="bg-gray-800/40 backdrop-blur-sm border border-gray-700/50 rounded-xl p-6 hover:bg-gray-750 hover:border-indigo-500/50 cursor-pointer transition-all hover:-translate-y-1 hover:shadow-lg hover:shadow-indigo-500/10"
+                className="bg-white border border-border-soft rounded-xl p-6 hover:border-maroon/40 cursor-pointer transition-all hover:-translate-y-1 hover:shadow-sm"
               >
-                <h3 className="text-xl font-semibold mb-2">{dept.name}</h3>
-                <p className="text-sm text-gray-400 mb-4">Click to view section details</p>
-                <div className="w-full bg-gray-700 rounded-full h-2 mb-2">
-                  <div className="bg-indigo-500 h-2 rounded-full" style={{width: '75%'}}></div>
+                <h3 className="text-lg font-bold text-ink mb-1">{dept.name}</h3>
+                <p className="text-xs text-gray-body mb-4">Click to view section details</p>
+                <div className="w-full bg-cream rounded-full h-2 mb-2">
+                  <div className="bg-maroon h-2 rounded-full" style={{width: '75%'}}></div>
                 </div>
-                <p className="text-xs text-right text-indigo-400 font-medium">75% Avg Readiness</p>
+                <p className="text-xs text-right text-maroon font-semibold">75% Avg Readiness</p>
               </div>
             ))}
           </div>
 
-          <div className="bg-gray-800/40 backdrop-blur-sm border border-gray-700/50 rounded-xl p-6 mt-8">
-            <h3 className="text-lg font-semibold mb-6">Subject Performance by Band</h3>
+          <div className="bg-white border border-border-soft rounded-xl p-6 mt-8 shadow-sm">
+            <h3 className="text-lg font-serif font-bold mb-6 text-ink">Subject Performance by Band</h3>
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={yearData} margin={{ top: 20, right: 10, left: -20, bottom: 0 }} barSize={30}>
                   <defs>
                     <linearGradient id="gradAptitude" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#818CF8" stopOpacity={1}/>
-                      <stop offset="100%" stopColor="#4F46E5" stopOpacity={0.8}/>
+                      <stop offset="0%" stopColor="#9B2242" stopOpacity={1}/>
+                      <stop offset="100%" stopColor="#8A1E3A" stopOpacity={0.85}/>
                     </linearGradient>
                     <linearGradient id="gradSoftSkills" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#34D399" stopOpacity={1}/>
-                      <stop offset="100%" stopColor="#059669" stopOpacity={0.8}/>
+                      <stop offset="0%" stopColor="#E8D6B8" stopOpacity={1}/>
+                      <stop offset="100%" stopColor="#C8B698" stopOpacity={0.85}/>
                     </linearGradient>
                     <linearGradient id="gradVerbal" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#FBBF24" stopOpacity={1}/>
-                      <stop offset="100%" stopColor="#D97706" stopOpacity={0.8}/>
+                      <stop offset="0%" stopColor="#F5E3D2" stopOpacity={1}/>
+                      <stop offset="100%" stopColor="#E3D1C0" stopOpacity={0.85}/>
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} opacity={0.4} />
-                  <XAxis dataKey="band" stroke="#9CA3AF" axisLine={false} tickLine={false} tick={{ fontSize: 13 }} />
-                  <YAxis stroke="#9CA3AF" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
-                  <RechartsTooltip cursor={{ fill: '#374151', opacity: 0.2 }} contentStyle={{ backgroundColor: 'rgba(31, 41, 55, 0.95)', border: '1px solid #4B5563', borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.5)' }} itemStyle={{ fontWeight: 'bold', color: '#E5E7EB' }} />
-                  <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" vertical={false} opacity={0.6} />
+                  <XAxis dataKey="band" stroke="var(--gray-body)" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'var(--gray-body)' }} />
+                  <YAxis stroke="var(--gray-body)" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'var(--gray-body)' }} />
+                  <RechartsTooltip cursor={{ fill: 'var(--cream)', opacity: 0.3 }} contentStyle={{ backgroundColor: '#ffffff', border: '1px solid var(--border-soft)', borderRadius: '8px', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }} itemStyle={{ fontWeight: 'bold', color: 'var(--ink)' }} />
+                  <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: 12, fill: 'var(--ink)' }} />
                   <Bar dataKey="Aptitude Assessment" fill="url(#gradAptitude)" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="Soft Skills Evaluation" fill="url(#gradSoftSkills)" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="Verbal Reasoning" fill="url(#gradVerbal)" radius={[4, 4, 0, 0]} />
@@ -362,45 +360,45 @@ export const StudentReports = () => {
 
       {/* Level 2: Dept Analysis (Choose Section) */}
       {selectedDept && !selectedSection && (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-           <h2 className="text-2xl font-bold text-white">Section Overview</h2>
+        <div className="space-y-6 animate-in fade-in duration-500">
+           <h2 className="text-xl font-serif font-bold text-ink">Section Overview</h2>
            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
              {mockData.sections.map(sec => (
                 <div 
                   key={sec} 
                   onClick={() => setSelectedSection(sec)}
-                  className="bg-gray-800/40 border border-gray-700/50 rounded-xl p-5 hover:border-blue-500/50 cursor-pointer transition-all hover:bg-gray-750 flex items-center justify-between"
+                  className="bg-white border border-border-soft rounded-xl p-5 hover:border-maroon/40 cursor-pointer transition-all flex items-center justify-between shadow-sm"
                 >
-                  <span className="text-lg font-medium text-gray-200">Section {sec}</span>
-                  <ChevronRight className="w-5 h-5 text-gray-500" />
+                  <span className="text-base font-semibold text-ink">Section {sec}</span>
+                  <ChevronRight className="w-5 h-5 text-gray-body" />
                 </div>
              ))}
            </div>
            
-           <div className="bg-gray-800/40 backdrop-blur-sm border border-gray-700/50 rounded-xl p-6 mt-8">
-            <h3 className="text-lg font-semibold mb-6">Performance by Section</h3>
+           <div className="bg-white border border-border-soft rounded-xl p-6 mt-8 shadow-sm">
+            <h3 className="text-lg font-serif font-bold mb-6 text-ink">Performance by Section</h3>
             <div className="h-72 mt-4">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={deptData} margin={{ top: 20, right: 10, left: -20, bottom: 0 }} barSize={40}>
                   <defs>
                     <linearGradient id="secExcellent" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#34D399" stopOpacity={1}/>
-                      <stop offset="100%" stopColor="#059669" stopOpacity={0.8}/>
+                      <stop offset="0%" stopColor="#10B981" stopOpacity={1}/>
+                      <stop offset="100%" stopColor="#059669" stopOpacity={0.85}/>
                     </linearGradient>
                     <linearGradient id="secAverage" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#FBBF24" stopOpacity={1}/>
-                      <stop offset="100%" stopColor="#D97706" stopOpacity={0.8}/>
+                      <stop offset="0%" stopColor="#F59E0B" stopOpacity={1}/>
+                      <stop offset="100%" stopColor="#D97706" stopOpacity={0.85}/>
                     </linearGradient>
                     <linearGradient id="secPoor" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#F87171" stopOpacity={1}/>
-                      <stop offset="100%" stopColor="#DC2626" stopOpacity={0.8}/>
+                      <stop offset="0%" stopColor="#EF4444" stopOpacity={1}/>
+                      <stop offset="100%" stopColor="#DC2626" stopOpacity={0.85}/>
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} opacity={0.4} />
-                  <XAxis dataKey="name" stroke="#9CA3AF" axisLine={false} tickLine={false} tick={{ fontSize: 13 }} />
-                  <YAxis stroke="#9CA3AF" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
-                  <RechartsTooltip cursor={{ fill: '#374151', opacity: 0.2 }} contentStyle={{ backgroundColor: 'rgba(31, 41, 55, 0.95)', border: '1px solid #4B5563', borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.5)' }} itemStyle={{ fontWeight: 'bold', color: '#E5E7EB' }} />
-                  <Legend iconType="circle" wrapperStyle={{ paddingTop: '10px' }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" vertical={false} opacity={0.6} />
+                  <XAxis dataKey="name" stroke="var(--gray-body)" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'var(--gray-body)' }} />
+                  <YAxis stroke="var(--gray-body)" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'var(--gray-body)' }} />
+                  <RechartsTooltip cursor={{ fill: 'var(--cream)', opacity: 0.3 }} contentStyle={{ backgroundColor: '#ffffff', border: '1px solid var(--border-soft)', borderRadius: '8px', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }} itemStyle={{ fontWeight: 'bold', color: 'var(--ink)' }} />
+                  <Legend iconType="circle" wrapperStyle={{ paddingTop: '10px', fontSize: 12 }} />
                   <Bar dataKey="Excellent" stackId="a" fill="url(#secExcellent)" radius={[0, 0, 4, 4]} />
                   <Bar dataKey="Average" stackId="a" fill="url(#secAverage)" />
                   <Bar dataKey="Poor" stackId="a" fill="url(#secPoor)" radius={[6, 6, 0, 0]} />
@@ -413,19 +411,19 @@ export const StudentReports = () => {
 
       {/* Level 3: Section Analysis (Choose Quiz) */}
       {selectedSection && !selectedQuiz && (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-           <h2 className="text-2xl font-bold text-white mb-6">Recent Assessments (Section {selectedSection})</h2>
+        <div className="space-y-6 animate-in fade-in duration-500">
+           <h2 className="text-xl font-serif font-bold text-ink mb-6">Recent Assessments (Section {selectedSection})</h2>
            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
              {mockData.quizzes.map(quiz => (
                 <div 
                   key={quiz.id} 
                   onClick={() => setSelectedQuiz(quiz.id)}
-                  className="bg-gradient-to-br from-gray-800/80 to-gray-900/80 border border-gray-700 rounded-xl p-6 hover:border-indigo-500/50 cursor-pointer transition-all shadow-lg hover:shadow-indigo-500/20 group relative overflow-hidden"
+                  className="bg-white border border-border-soft rounded-xl p-6 hover:border-maroon/40 cursor-pointer transition-all shadow-sm group relative overflow-hidden"
                 >
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl group-hover:bg-indigo-500/20 transition-all"></div>
-                  <h3 className="text-xl font-bold text-gray-100 mb-2 relative z-10">{quiz.title}</h3>
-                  <p className="text-sm text-gray-400 mb-4 relative z-10">Conducted on {quiz.date}</p>
-                  <div className="flex items-center text-indigo-400 text-sm font-medium relative z-10">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-maroon/5 rounded-full blur-3xl group-hover:bg-maroon/10 transition-all"></div>
+                  <h3 className="text-lg font-bold text-ink mb-1 relative z-10">{quiz.title}</h3>
+                  <p className="text-xs text-gray-body mb-4 relative z-10">Conducted on {quiz.date}</p>
+                  <div className="flex items-center text-maroon text-xs font-bold relative z-10">
                     View detailed analytics <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
                   </div>
                 </div>
@@ -436,26 +434,26 @@ export const StudentReports = () => {
 
       {/* Level 4: Quiz Analysis (Detailed view) */}
       {selectedQuiz && quizDetails && (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="space-y-6 animate-in fade-in duration-500">
           
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Score Distribution */}
-            <div className="bg-gray-800/40 border border-gray-700/50 rounded-xl p-6 lg:col-span-1">
-              <h3 className="text-lg font-semibold mb-4 text-center">Score Distribution</h3>
+            <div className="bg-white border border-border-soft rounded-xl p-6 lg:col-span-1 shadow-sm">
+              <h3 className="text-base font-bold text-ink mb-4 text-center font-serif">Score Distribution</h3>
               <div className="h-64 mt-2">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <defs>
                       <linearGradient id="pieGrad0" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#34D399" stopOpacity={1}/>
+                        <stop offset="0%" stopColor="#10B981" stopOpacity={1}/>
                         <stop offset="100%" stopColor="#059669" stopOpacity={1}/>
                       </linearGradient>
                       <linearGradient id="pieGrad1" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#FBBF24" stopOpacity={1}/>
+                        <stop offset="0%" stopColor="#F59E0B" stopOpacity={1}/>
                         <stop offset="100%" stopColor="#D97706" stopOpacity={1}/>
                       </linearGradient>
                       <linearGradient id="pieGrad2" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#F87171" stopOpacity={1}/>
+                        <stop offset="0%" stopColor="#EF4444" stopOpacity={1}/>
                         <stop offset="100%" stopColor="#DC2626" stopOpacity={1}/>
                       </linearGradient>
                     </defs>
@@ -471,40 +469,40 @@ export const StudentReports = () => {
                       cornerRadius={6}
                     >
                       {quizDetails.pieData.map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={`url(#pieGrad${index % 3})`} style={{ filter: 'drop-shadow(0px 4px 6px rgba(0,0,0,0.3))' }} />
+                        <Cell key={`cell-${index}`} fill={`url(#pieGrad${index % 3})`} />
                       ))}
                     </Pie>
-                    <RechartsTooltip contentStyle={{ backgroundColor: 'rgba(31, 41, 55, 0.95)', border: '1px solid #4B5563', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.5)' }} itemStyle={{ color: '#E5E7EB', fontWeight: 'bold' }} />
-                    <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                    <RechartsTooltip contentStyle={{ backgroundColor: '#ffffff', border: '1px solid var(--border-soft)', borderRadius: '8px', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }} itemStyle={{ color: 'var(--ink)', fontWeight: 'bold' }} />
+                    <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: 11 }} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
             </div>
 
             {/* Topic Wise Breakdown */}
-            <div className="bg-gray-800/40 border border-gray-700/50 rounded-xl p-6 lg:col-span-2">
-               <h3 className="text-lg font-semibold mb-6">Topic-wise Class Average</h3>
+            <div className="bg-white border border-border-soft rounded-xl p-6 lg:col-span-2 shadow-sm">
+               <h3 className="text-base font-bold text-ink mb-6 font-serif">Topic-wise Class Average</h3>
                <div className="h-64 mt-2">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={quizDetails.topicAverages} layout="vertical" margin={{ top: 10, right: 30, left: 40, bottom: 0 }} barSize={24}>
                     <defs>
                       <linearGradient id="barGood" x1="0" y1="0" x2="1" y2="0">
-                        <stop offset="0%" stopColor="#059669" stopOpacity={0.8}/>
-                        <stop offset="100%" stopColor="#34D399" stopOpacity={1}/>
+                        <stop offset="0%" stopColor="#059669" stopOpacity={0.85}/>
+                        <stop offset="100%" stopColor="#10B981" stopOpacity={1}/>
                       </linearGradient>
                       <linearGradient id="barAvg" x1="0" y1="0" x2="1" y2="0">
-                        <stop offset="0%" stopColor="#D97706" stopOpacity={0.8}/>
-                        <stop offset="100%" stopColor="#FBBF24" stopOpacity={1}/>
+                        <stop offset="0%" stopColor="#D97706" stopOpacity={0.85}/>
+                        <stop offset="100%" stopColor="#F59E0B" stopOpacity={1}/>
                       </linearGradient>
                       <linearGradient id="barPoor" x1="0" y1="0" x2="1" y2="0">
-                        <stop offset="0%" stopColor="#DC2626" stopOpacity={0.8}/>
-                        <stop offset="100%" stopColor="#F87171" stopOpacity={1}/>
+                        <stop offset="0%" stopColor="#DC2626" stopOpacity={0.85}/>
+                        <stop offset="100%" stopColor="#EF4444" stopOpacity={1}/>
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" horizontal={false} opacity={0.4} />
-                    <XAxis type="number" domain={[0, 100]} stroke="#9CA3AF" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
-                    <YAxis dataKey="topic" type="category" stroke="#9CA3AF" axisLine={false} tickLine={false} tick={{ fill: '#D1D5DB', fontSize: 12 }} />
-                    <RechartsTooltip cursor={{fill: '#374151', opacity: 0.2}} contentStyle={{ backgroundColor: 'rgba(31, 41, 55, 0.95)', border: '1px solid #4B5563', borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.5)' }} itemStyle={{ fontWeight: 'bold', color: '#E5E7EB' }} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" horizontal={false} opacity={0.6} />
+                    <XAxis type="number" domain={[0, 100]} stroke="var(--gray-body)" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'var(--gray-body)' }} />
+                    <YAxis dataKey="topic" type="category" stroke="var(--gray-body)" axisLine={false} tickLine={false} tick={{ fill: 'var(--ink)', fontSize: 11 }} />
+                    <RechartsTooltip cursor={{fill: 'var(--cream)', opacity: 0.3}} contentStyle={{ backgroundColor: '#ffffff', border: '1px solid var(--border-soft)', borderRadius: '8px', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }} itemStyle={{ fontWeight: 'bold', color: 'var(--ink)' }} />
                     <Bar dataKey="avg" radius={[0, 6, 6, 0]}>
                       {quizDetails.topicAverages.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.avg < 60 ? 'url(#barPoor)' : entry.avg < 75 ? 'url(#barAvg)' : 'url(#barGood)'} />
@@ -518,17 +516,17 @@ export const StudentReports = () => {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
              {/* Class Leaderboard */}
-            <div className="bg-gray-800/40 border border-gray-700/50 rounded-xl p-6 lg:col-span-2">
-              <h3 className="text-lg font-semibold mb-4">Class Leaderboard</h3>
+            <div className="bg-white border border-border-soft rounded-xl p-6 lg:col-span-2 shadow-sm">
+              <h3 className="text-base font-bold text-ink mb-4 font-serif">Class Leaderboard</h3>
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm text-gray-300">
-                  <thead className="text-xs text-gray-400 uppercase bg-gray-700/50 border-b border-gray-700">
+                <table className="w-full text-left text-sm text-ink">
+                  <thead className="text-xs text-gray-body uppercase bg-cream-edge/40 border-b border-border-soft">
                     <tr>
-                      <th className="px-4 py-3 rounded-tl-lg">Rank</th>
-                      <th className="px-4 py-3">Roll Number</th>
-                      <th className="px-4 py-3">Name</th>
-                      <th className="px-4 py-3">Score</th>
-                      <th className="px-4 py-3 rounded-tr-lg">Band</th>
+                      <th className="px-4 py-3 rounded-tl-lg font-semibold">Rank</th>
+                      <th className="px-4 py-3 font-semibold">Roll Number</th>
+                      <th className="px-4 py-3 font-semibold">Name</th>
+                      <th className="px-4 py-3 font-semibold">Score</th>
+                      <th className="px-4 py-3 rounded-tr-lg font-semibold">Band</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -536,17 +534,17 @@ export const StudentReports = () => {
                       <tr 
                         key={student.roll} 
                         onClick={() => { setSearchTerm(student.roll); setSearchedStudent(studentsData.find(s => s.rollNumber === student.roll)); }}
-                        className="border-b border-gray-700/50 hover:bg-gray-700/30 cursor-pointer transition-colors"
+                        className="border-b border-border-soft hover:bg-cream/40 cursor-pointer transition-colors"
                       >
-                        <td className="px-4 py-3 font-medium">{idx + 1}</td>
-                        <td className="px-4 py-3 font-mono text-indigo-300">{student.roll}</td>
-                        <td className="px-4 py-3">{student.name}</td>
-                        <td className="px-4 py-3">{student.score}%</td>
+                        <td className="px-4 py-3 font-semibold">{idx + 1}</td>
+                        <td className="px-4 py-3 font-mono text-maroon text-xs font-semibold">{student.roll}</td>
+                        <td className="px-4 py-3 text-gray-body">{student.name}</td>
+                        <td className="px-4 py-3 text-ink font-semibold">{student.score}%</td>
                         <td className="px-4 py-3">
-                          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                            student.band === 'Excellent' ? 'bg-green-500/20 text-green-400' :
-                            student.band === 'Average' ? 'bg-yellow-500/20 text-yellow-400' :
-                            'bg-red-500/20 text-red-400'
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${
+                            student.band === 'Excellent' ? 'bg-green-50/10 text-green-700 border-green-200' :
+                            student.band === 'Average' ? 'bg-yellow-50/10 text-yellow-700 border-yellow-200' :
+                            'bg-red-50/10 text-red-700 border-red-200'
                           }`}>
                             {student.band}
                           </span>
@@ -559,23 +557,23 @@ export const StudentReports = () => {
             </div>
 
             {/* Actionable Insights */}
-            <div className="bg-gray-800/40 border border-gray-700/50 rounded-xl p-6">
-              <h3 className="text-lg font-semibold mb-4 flex items-center"><AlertTriangle className="w-5 h-5 text-yellow-500 mr-2"/> Actionable Insights</h3>
+            <div className="bg-white border border-border-soft rounded-xl p-6 shadow-sm">
+              <h3 className="text-base font-bold text-ink mb-4 flex items-center font-serif"><AlertTriangle className="w-5 h-5 text-yellow-600 mr-2"/> Actionable Insights</h3>
               <div className="space-y-4">
                 {quizDetails.topicAverages.filter(t => t.avg < 65).length > 0 ? (
                   quizDetails.topicAverages.filter(t => t.avg < 65).map(weakTopic => (
-                    <div key={weakTopic.topic} className="bg-red-500/10 border border-red-500/20 rounded-lg p-4">
-                      <h4 className="text-red-400 font-medium text-sm mb-1">Low Performance in {weakTopic.topic}</h4>
-                      <p className="text-gray-400 text-xs">Class average is {weakTopic.avg}%. Consider scheduling a remedial session for this topic.</p>
+                    <div key={weakTopic.topic} className="bg-red-50 border border-red-200 rounded-xl p-4">
+                      <h4 className="text-red-700 font-bold text-sm mb-1">Low Performance in {weakTopic.topic}</h4>
+                      <p className="text-gray-body text-xs leading-relaxed">Class average is {weakTopic.avg}%. Consider scheduling a remedial session for this topic.</p>
                     </div>
                   ))
                 ) : (
-                  <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4">
-                    <h4 className="text-green-400 font-medium text-sm mb-1">Excellent Overall Performance</h4>
-                    <p className="text-gray-400 text-xs">No critical weak topics identified for this assessment.</p>
+                  <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+                    <h4 className="text-green-700 font-bold text-sm mb-1">Excellent Overall Performance</h4>
+                    <p className="text-gray-body text-xs leading-relaxed">No critical weak topics identified for this assessment.</p>
                   </div>
                 )}
-                <button className="w-full mt-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors font-medium text-sm shadow-lg shadow-indigo-500/20">
+                <button className="w-full mt-4 py-2.5 bg-maroon hover:bg-maroon-deep text-white rounded-full transition-all font-bold text-xs shadow-sm hover:scale-105 active:scale-95">
                   Generate Remedial Assignments
                 </button>
               </div>
