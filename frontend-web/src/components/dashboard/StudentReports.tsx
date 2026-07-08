@@ -16,7 +16,7 @@ import {
 } from 'recharts';
 import { Search, ChevronRight, User, BookOpen, AlertTriangle, TrendingUp, ArrowLeft } from 'lucide-react';
 
-const COLORS = ['#10B981', '#F59E0B', '#EF4444']; // Green, Yellow, Red
+// const COLORS = ['#10B981', '#F59E0B', '#EF4444']; // Green, Yellow, Red
 
 // --- FAKE DATA SET ---
 const mockData = {
