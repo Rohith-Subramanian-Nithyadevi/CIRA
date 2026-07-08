@@ -1,17 +1,17 @@
 import { useState } from 'react';
 import DashboardLayout from '../components/DashboardLayout';
-import ControlTower from '../components/dashboard/ControlTower';
+import FacultyHome from '../components/dashboard/FacultyHome';
 import UserProfile from '../components/dashboard/UserProfile';
 import QuizManagement from '../components/dashboard/QuizManagement';
 import { StudentReports } from '../components/dashboard/StudentReports';
 
 export default function FacultyDashboard() {
-  const [activeTab, setActiveTab] = useState('tower');
+  const [activeTab, setActiveTab] = useState('home');
 
   return (
     <DashboardLayout title="Institutional Surveillance" activeTab={activeTab} onTabChange={setActiveTab}>
       {activeTab === 'profile' && <UserProfile />}
-      {activeTab === 'tower' && <ControlTower />}
+      {activeTab === 'home' && <FacultyHome />}
       {activeTab === 'reports' && <StudentReports />}
       {activeTab === 'quizzes' && <QuizManagement />}
       {activeTab === 'assignments' && (
