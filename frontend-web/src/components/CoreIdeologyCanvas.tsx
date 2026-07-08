@@ -1,8 +1,30 @@
+import { useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { BrainCircuit, ShieldCheck, TrendingUp } from 'lucide-react';
 import DotField from './ui/DotField';
 
 export default function CoreIdeologyCanvas() {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  const handleTimeUpdate = () => {
+    const video = videoRef.current;
+    if (!video || !video.duration || isNaN(video.duration)) return;
+    
+    const stopTime = Math.max(0, video.duration - 1);
+    if (video.currentTime >= stopTime) {
+      video.pause();
+      video.currentTime = stopTime;
+    }
+  };
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (video) {
+      video.play().catch(err => {
+        console.log("Autoplay blocked by browser", err);
+      });
+    }
+  }, []);
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: { 
@@ -79,42 +101,17 @@ export default function CoreIdeologyCanvas() {
                   </div>
                   <div className="h-3 w-24 bg-gray-body/15 rounded ml-2"></div>
                 </div>
-                {/* Content Area */}
-                <div className="p-6 relative">
-                  <div className="flex justify-between items-start mb-6">
-                    <div>
-                      <span className="text-[10px] tracking-wider font-bold text-gray-body uppercase font-sans">Weekly Activity</span>
-                      <h3 className="font-serif text-3xl font-bold text-maroon mt-1">84% Success</h3>
-                    </div>
-                    <div className="w-9 h-9 rounded-full bg-chip-peach text-maroon flex items-center justify-center">
-                      <TrendingUp className="w-4 h-4" />
-                    </div>
-                  </div>
-
-                  {/* Simple Bar Chart */}
-                  <div className="flex items-end justify-between gap-4 h-36 pt-4 border-b border-border-soft">
-                    {[
-                      { day: 'Mon', h: '45%' },
-                      { day: 'Tue', h: '65%' },
-                      { day: 'Wed', h: '55%' },
-                      { day: 'Thu', h: '85%' },
-                      { day: 'Fri', h: '75%' }
-                    ].map((item, i) => (
-                      <div key={i} className="flex flex-col items-center flex-1 h-full justify-end">
-                        <div 
-                          className="w-full bg-maroon rounded-t-sm transition-all duration-500 hover:bg-maroon-deep"
-                          style={{ height: item.h }}
-                        ></div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="flex justify-between text-[11px] text-gray-body font-sans font-medium mt-2 px-1">
-                    <span>Mon</span>
-                    <span>Tue</span>
-                    <span>Wed</span>
-                    <span>Thu</span>
-                    <span>Fri</span>
-                  </div>
+                {/* Video Content Area */}
+                <div className="relative aspect-[16/10] bg-black overflow-hidden select-none">
+                  <video
+                    ref={videoRef}
+                    src="/img/srcv.mp4"
+                    autoPlay
+                    muted
+                    playsInline
+                    className="w-full h-full object-cover"
+                    onTimeUpdate={handleTimeUpdate}
+                  />
                 </div>
               </div>
             </motion.div>
