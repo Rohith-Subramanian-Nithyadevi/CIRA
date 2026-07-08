@@ -207,13 +207,13 @@ export default function QuizManagement() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2 p-4 bg-slate-800/50 rounded-lg border border-slate-700">
               <Label className="block mb-2">Target Departments (Hold Ctrl)</Label>
-              <select multiple value={formData.targetDepartments} onChange={e => setFormData({...formData, targetDepartments: [...e.target.selectedOptions].map(o => o.value)})} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white h-32">
+              <select multiple value={formData.targetDepartments} onChange={e => setFormData({...formData, targetDepartments: Array.from(e.target.selectedOptions).map(o => o.value)})} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white h-32">
                 {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
               </select>
             </div>
             <div className="space-y-2 p-4 bg-slate-800/50 rounded-lg border border-slate-700">
               <Label className="block mb-2">Target Sections</Label>
-              <select multiple value={formData.targetSections} onChange={e => setFormData({...formData, targetSections: [...e.target.selectedOptions].map(o => o.value)})} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white h-32 disabled:opacity-50" disabled={availableSections.length === 0}>
+              <select multiple value={formData.targetSections} onChange={e => setFormData({...formData, targetSections: Array.from(e.target.selectedOptions).map(o => o.value)})} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white h-32 disabled:opacity-50" disabled={availableSections.length === 0}>
                 {availableSections.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </div>
