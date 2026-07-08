@@ -26,8 +26,7 @@ export default function DistributionHub() {
               Compatible with Windows 10 & 11 (64-bit). Includes runtime protections and secure boot checks.
             </p>
             <a 
-              href="/downloads/CIRA-Secure-Client.exe" 
-              download
+              href="https://github.com/Rohith-Subramanian-Nithyadevi/CIRA/releases/download/v1.0.0/CIRA.Desktop.Client.Setup.1.0.0.exe" 
               className="mt-auto flex items-center justify-center w-full py-3 px-6 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 transition-all text-slate-200 font-medium group"
             >
               <Download className="w-4 h-4 mr-2 group-hover:-translate-y-1 transition-transform" />
@@ -48,8 +47,7 @@ export default function DistributionHub() {
               Universal binary for Apple Silicon (M1/M2/M3) and Intel. Requires macOS 12 Monterey or newer.
             </p>
             <a 
-              href="/downloads/CIRA-Secure-Client.dmg" 
-              download
+              href="https://github.com/Rohith-Subramanian-Nithyadevi/CIRA/releases/download/v1.0.0/CIRA-Secure-Client.dmg" 
               className="mt-auto flex items-center justify-center w-full py-3 px-6 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 transition-all text-slate-200 font-medium group"
             >
               <Download className="w-4 h-4 mr-2 group-hover:-translate-y-1 transition-transform" />

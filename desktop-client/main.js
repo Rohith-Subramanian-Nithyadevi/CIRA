@@ -1,9 +1,12 @@
 const { app, BrowserWindow, globalShortcut, ipcMain } = require('electron');
 const path = require('path');
+const { fork } = require('child_process');
+const fs = require('fs');
 
 let isSafeExit = false;
 
-function createWindow() {
+async function createWindow() {
+
   const mainWindow = new BrowserWindow({
     width: 800,
     height: 600,
@@ -40,7 +43,15 @@ function createWindow() {
     }
   });
 
-  mainWindow.loadFile('index.html');
+  mainWindow.webContents.on('did-fail-load', (e, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    if (isMainFrame) {
+      console.error('Failed to load frontend:', errorDescription);
+      mainWindow.loadFile(path.join(__dirname, 'error.html'));
+    }
+  });
+
+  // Load the local wrapper which contains the exit button and iframe
+  mainWindow.loadFile(path.join(__dirname, 'index.html'));
 }
 
 app.whenReady().then(() => {

@@ -114,6 +114,61 @@ export default function QuizManagement() {
     } catch (err) { console.error(err); } finally { setLoading(false); }
   };
 
+  const handleUploadDocx = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    setLoading(true);
+    toast.info('Parsing DOCX... this might take a moment.');
+    try {
+      const res = await fetch(`${baseUrl}/api/v1/faculty/quiz/upload-docx`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      });
+      const data = await res.json();
+      if (data?.status === 'success' && data.data) {
+        toast.success('DOCX parsed successfully! Please review the questions.');
+        setQuestions(data.data);
+      } else {
+        toast.error('Failed to parse DOCX: ' + data.message);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Error uploading DOCX');
+    } finally {
+      setLoading(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleImageUpload = async (qIndex: number, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    toast.info('Uploading image...');
+    try {
+      const res = await fetch(`${baseUrl}/api/v1/faculty/quiz/upload-image`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      });
+      const data = await res.json();
+      if (data?.status === 'success' && data.data?.url) {
+        toast.success('Image uploaded!');
+        updateQuestion(qIndex, 'image', data.data.url);
+      } else {
+        toast.error('Failed to upload image');
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Error uploading image');
+    }
+  };
+
   const handleAddQuestionRow = () => {
     setQuestions([...questions, { type: 'MCQ', text: '', marks: 1, options: ['', '', '', ''], answerKey: '' }]);
   };
@@ -207,13 +262,13 @@ export default function QuizManagement() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2 p-4 bg-slate-800/50 rounded-lg border border-slate-700">
               <Label className="block mb-2">Target Departments (Hold Ctrl)</Label>
-              <select multiple value={formData.targetDepartments} onChange={e => setFormData({...formData, targetDepartments: [...e.target.selectedOptions].map(o => o.value)})} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white h-32">
+              <select multiple value={formData.targetDepartments} onChange={e => setFormData({...formData, targetDepartments: Array.from(e.target.selectedOptions).map(o => o.value)})} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white h-32">
                 {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
               </select>
             </div>
             <div className="space-y-2 p-4 bg-slate-800/50 rounded-lg border border-slate-700">
               <Label className="block mb-2">Target Sections</Label>
-              <select multiple value={formData.targetSections} onChange={e => setFormData({...formData, targetSections: [...e.target.selectedOptions].map(o => o.value)})} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white h-32 disabled:opacity-50" disabled={availableSections.length === 0}>
+              <select multiple value={formData.targetSections} onChange={e => setFormData({...formData, targetSections: Array.from(e.target.selectedOptions).map(o => o.value)})} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white h-32 disabled:opacity-50" disabled={availableSections.length === 0}>
                 {availableSections.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </div>
@@ -229,7 +284,13 @@ export default function QuizManagement() {
       <Card className="bg-slate-900 border-slate-800 text-slate-200 shadow-xl"><CardContent className="p-6">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-bold text-white">Add Questions to Quiz</h2>
-          <button onClick={() => setActiveView('list')} className="text-blue-500 hover:text-blue-400">Cancel</button>
+          <div className="flex items-center gap-4">
+            <label className="cursor-pointer px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-sm font-medium transition-colors">
+              Upload .docx
+              <input type="file" accept=".docx" className="hidden" onChange={handleUploadDocx} />
+            </label>
+            <button onClick={() => setActiveView('list')} className="text-blue-500 hover:text-blue-400">Cancel</button>
+          </div>
         </div>
         
         <div className="space-y-6">
@@ -254,6 +315,27 @@ export default function QuizManagement() {
                 <div>
                   <Label className="text-xs text-slate-400 block mb-1">Question Text</Label>
                   <Textarea value={q.text} onChange={(e) => updateQuestion(qIndex, 'text', e.target.value)} rows={2} />
+                </div>
+
+                {q.validationError && (
+                  <div className="bg-red-900/50 border border-red-500 text-red-200 px-4 py-2 rounded text-sm mt-2">
+                    ⚠️ Validation Error: {q.validationError}
+                  </div>
+                )}
+
+                {q.image && (
+                  <div className="mt-2">
+                    <img src={q.image} alt={`Question ${qIndex + 1}`} className="max-w-md max-h-64 object-contain rounded border border-slate-700" />
+                  </div>
+                )}
+
+                <div className="mt-2">
+                  <label className="text-xs text-blue-400 cursor-pointer hover:text-blue-300">
+                    + {q.image ? 'Change Image' : 'Upload Image'}
+                    <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+                      if (e.target.files?.[0]) handleImageUpload(qIndex, e.target.files[0]);
+                    }} />
+                  </label>
                 </div>
 
                 <div className="flex gap-4">

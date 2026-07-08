@@ -1,3 +1,11 @@
+// Polyfills for Electron Node 18 environment
+if (!(process as any).getBuiltinModule) {
+  (process as any).getBuiltinModule = (name: string) => require(name);
+}
+if (!globalThis.crypto) {
+  globalThis.crypto = require('crypto').webcrypto;
+}
+
 import * as dotenv from 'dotenv';
 dotenv.config();
 
