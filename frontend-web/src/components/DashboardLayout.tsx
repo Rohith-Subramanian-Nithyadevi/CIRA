@@ -32,8 +32,8 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
       {/* Sidebar */}
       <aside className="w-64 border-r border-border-soft bg-white flex flex-col hidden md:flex">
         <div className="h-16 flex items-center px-6 border-b border-border-soft">
-          <span className="w-8 h-8 rounded bg-maroon text-white mr-3 flex items-center justify-center text-sm font-bold">C</span>
-          <span className="font-bold tracking-tight text-ink">Workspace</span>
+          <img src="/img/favicon.ico" alt="CIRA Logo" className="w-8 h-8 mr-3 object-contain" />
+          <span className="font-bold tracking-tight text-ink">CIRA Workspace</span>
         </div>
         
         <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
