@@ -81,7 +81,7 @@ export default function CoreIdeologyCanvas() {
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-start gap-4">
                 <a href="/login" className="w-full sm:w-auto px-8 py-3.5 bg-maroon hover:bg-maroon-deep text-white text-center rounded-full font-sans font-bold text-base transition-all shadow-md hover:scale-105 active:scale-95">
-                  Get Started
+                  Login
                 </a>
                 <a href="#how-it-helps" className="w-full sm:w-auto px-8 py-3.5 bg-white hover:bg-cream border border-border-soft text-ink text-center rounded-full font-sans font-bold text-base transition-all shadow-sm hover:scale-105 active:scale-95">
                   How It Helps
