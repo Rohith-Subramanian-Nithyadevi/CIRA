@@ -1,6 +1,6 @@
 import { useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { BrainCircuit, ShieldCheck, TrendingUp } from 'lucide-react';
+
 import DotField from './ui/DotField';
 
 export default function CoreIdeologyCanvas() {
@@ -42,7 +42,7 @@ export default function CoreIdeologyCanvas() {
     <div className="w-full">
       {/* Hero Section */}
       <section 
-        className="relative overflow-hidden py-20 md:py-32 border-b border-border-soft"
+        className="relative overflow-hidden min-h-[calc(100vh-4rem)] flex items-center py-12 border-b border-border-soft"
         style={{ background: 'radial-gradient(circle, var(--bg-cream) 0%, var(--bg-cream-edge) 100%)' }}
       >
         {/* Background DotField */}
@@ -63,7 +63,7 @@ export default function CoreIdeologyCanvas() {
           />
         </div>
 
-        <div className="max-w-7xl mx-auto px-6 relative z-10">
+        <div className="max-w-7xl mx-auto px-6 relative z-10 w-full">
           <motion.div 
             className="grid md:grid-cols-[55fr_45fr] gap-12 md:gap-16 items-center"
             variants={containerVariants}
@@ -119,51 +119,7 @@ export default function CoreIdeologyCanvas() {
         </div>
       </section>
 
-      {/* Feature Grid Section */}
-      <section id="how-it-helps" className="bg-cream-edge py-24 md:py-32 scroll-mt-16">
-        <div className="max-w-7xl mx-auto px-6">
-          <motion.div 
-            variants={containerVariants} 
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: "-100px" }}
-            className="grid md:grid-cols-3 gap-8"
-          >
-            {/* Feature 1 */}
-            <motion.div variants={itemVariants} className="bg-white p-8 rounded-xl border border-border-soft shadow-[0_20px_40px_rgba(0,0,0,0.06)] flex flex-col items-start text-left">
-              <div className="w-12 h-12 rounded-lg bg-chip-peach text-maroon flex items-center justify-center mb-6">
-                <ShieldCheck className="w-6 h-6" />
-              </div>
-              <h3 className="text-xl font-bold font-sans text-ink mb-3">Secure Evaluations</h3>
-              <p className="text-gray-body text-sm leading-relaxed font-sans">
-                Military-grade encrypted environments ensuring absolute academic integrity during diagnostic assessments.
-              </p>
-            </motion.div>
 
-            {/* Feature 2 */}
-            <motion.div variants={itemVariants} className="bg-white p-8 rounded-xl border border-border-soft shadow-[0_20px_40px_rgba(0,0,0,0.06)] flex flex-col items-start text-left">
-              <div className="w-12 h-12 rounded-lg bg-chip-peach text-maroon flex items-center justify-center mb-6">
-                <TrendingUp className="w-6 h-6" />
-              </div>
-              <h3 className="text-xl font-bold font-sans text-ink mb-3">Deep Monitoring</h3>
-              <p className="text-gray-body text-sm leading-relaxed font-sans">
-                Real-time telemetry tracking and predictive analytics calculating the Industry Readiness Index.
-              </p>
-            </motion.div>
-
-            {/* Feature 3 */}
-            <motion.div variants={itemVariants} className="bg-white p-8 rounded-xl border border-border-soft shadow-[0_20px_40px_rgba(0,0,0,0.06)] flex flex-col items-start text-left">
-              <div className="w-12 h-12 rounded-lg bg-chip-peach text-maroon flex items-center justify-center mb-6">
-                <BrainCircuit className="w-6 h-6" />
-              </div>
-              <h3 className="text-xl font-bold font-sans text-ink mb-3">NLP Remediation</h3>
-              <p className="text-gray-body text-sm leading-relaxed font-sans">
-                Semantic algorithms automatically matching student deficiencies to adaptive assignments.
-              </p>
-            </motion.div>
-          </motion.div>
-        </div>
-      </section>
     </div>
   );
 }

@@ -1,7 +1,15 @@
 
 import CoreIdeologyCanvas from '../components/CoreIdeologyCanvas';
 import DistributionHub from '../components/DistributionHub';
+import FlowingMenu from '../components/ui/FlowingMenu';
 import TargetCursor from '../components/ui/TargetCursor';
+
+const flowingMenuItems = [
+  { link: '#how-it-helps', text: 'Secure Evaluations', image: 'https://picsum.photos/600/400?random=10' },
+  { link: '#how-it-helps', text: 'Deep Monitoring', image: 'https://picsum.photos/600/400?random=11' },
+  { link: '#how-it-helps', text: 'NLP Remediation', image: 'https://picsum.photos/600/400?random=12' },
+  { link: '#how-it-helps', text: 'Industry Readiness', image: 'https://picsum.photos/600/400?random=13' },
+];
 
 export default function LandingPage() {
   return (
@@ -35,6 +43,22 @@ export default function LandingPage() {
       {/* Main Content */}
       <main className="pt-16">
         <CoreIdeologyCanvas />
+
+        {/* Flowing Menu – Hover to reveal marquee details */}
+        <section className="border-t border-border-soft">
+          <div style={{ height: '260px', position: 'relative' }}>
+            <FlowingMenu
+              items={flowingMenuItems}
+              speed={15}
+              textColor="var(--ink)"
+              bgColor="var(--bg-cream-edge)"
+              marqueeBgColor="var(--maroon)"
+              marqueeTextColor="var(--bg-cream)"
+              borderColor="var(--border-soft)"
+            />
+          </div>
+        </section>
+
         <DistributionHub />
       </main>
 
