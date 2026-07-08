@@ -1,10 +1,29 @@
 import { motion } from 'framer-motion';
 import { Download } from 'lucide-react';
+import DotField from './ui/DotField';
 
 export default function DistributionHub() {
   return (
-    <section id="download-client" className="py-24 bg-cream border-t border-border-soft">
-      <div className="max-w-6xl mx-auto px-6">
+    <section id="download-client" className="py-24 bg-cream border-t border-border-soft relative overflow-hidden">
+      {/* Background DotField */}
+      <div className="absolute inset-0 z-0 opacity-40 pointer-events-none">
+        <DotField
+          dotRadius={1.5}
+          dotSpacing={14}
+          bulgeStrength={32}
+          glowRadius={140}
+          sparkle={false}
+          waveAmplitude={0}
+          cursorRadius={400}
+          cursorForce={0.1}
+          bulgeOnly
+          gradientFrom="#9B2242"
+          gradientTo="#8A1E3A"
+          glowColor="rgba(245, 227, 210, 0.4)"
+        />
+      </div>
+
+      <div className="max-w-6xl mx-auto px-6 relative z-10">
         <div className="text-center mb-12">
           <h2 className="font-serif text-3xl font-bold mb-4 text-ink">Working On Anti-Plagiarism (Ongoing)</h2>
           <p className="text-gray-body max-w-2xl mx-auto font-sans leading-relaxed">
