@@ -46,8 +46,8 @@ export default function LandingPage() {
             CIRA
           </div>
           <div className="text-center text-xs text-gray-body">
+            <p className="mt-1">CIRA - CIR Industry Readiness Accelerator</p><br></br>
             <p>© {new Date().getFullYear()} Amrita Vishwa Vidyapeetham Chennai Campus. All rights reserved.</p>
-            <p className="mt-1">CIRA Adaptive Assessment Engine & Telemetry Infrastructure.</p>
           </div>
           <div className="flex gap-6 text-sm">
             <a href="#" className="text-gray-body hover:text-maroon transition-colors">Privacy Policy</a>
