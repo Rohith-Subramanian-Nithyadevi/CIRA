@@ -45,7 +45,7 @@ export default function LandingPage() {
         <CoreIdeologyCanvas />
 
         {/* Flowing Menu – Hover to reveal marquee details */}
-        <section className="border-t border-border-soft">
+        <section id="how-it-helps" className="border-t border-border-soft scroll-mt-16">
           <div style={{ height: '260px', position: 'relative' }}>
             <FlowingMenu
               items={flowingMenuItems}
