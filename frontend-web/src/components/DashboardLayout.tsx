@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, BookOpen, LogOut, FileText, CheckSquare, Settings, User } from 'lucide-react';
+import { LayoutDashboard, Users, BookOpen, LogOut, FileText, CheckSquare, Settings, User, Home } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import React from 'react';
 
@@ -51,8 +51,8 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
 
           {role === 'FACULTY' && (
             <>
-              <button onClick={() => onTabChange('tower')} className={`flex items-center w-full px-3 py-2 rounded-lg transition-colors ${activeTab === 'tower' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}>
-                <LayoutDashboard className="w-5 h-5 mr-3" /> Control Tower
+              <button onClick={() => onTabChange('home')} className={`flex items-center w-full px-3 py-2 rounded-lg transition-colors ${activeTab === 'home' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}>
+                <Home className="w-5 h-5 mr-3" /> Home
               </button>
               <button onClick={() => onTabChange('reports')} className={`flex items-center w-full px-3 py-2 rounded-lg transition-colors ${activeTab === 'reports' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}>
                 <Users className="w-5 h-5 mr-3" /> Student Reports
