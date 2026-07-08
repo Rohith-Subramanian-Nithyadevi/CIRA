@@ -26,7 +26,7 @@ export default function LandingPage() {
           <div className="flex items-center gap-6">
             <a href="#download-client" className="text-sm font-medium text-gray-body hover:text-maroon transition-colors">Test portal</a>
             <a href="/login" className="px-6 py-2.5 bg-maroon hover:bg-maroon-deep text-white rounded-full transition-all text-sm font-semibold shadow-sm hover:scale-105 active:scale-95">
-              Get Started
+              Login
             </a>
           </div>
         </div>
