@@ -247,7 +247,7 @@ export default function Login() {
 
       <div className="relative z-10 w-full max-w-xl border border-border-soft bg-white shadow-[0_20px_40px_rgba(0,0,0,0.06)] text-ink rounded-xl p-8 sm:p-10">
         <div className="text-center pb-6 pt-2 flex flex-col items-center">
-          <img src="/favicon.svg" alt="CIRA Logo" className="w-14 h-14 mb-4" />
+          <img src="/img/qq.jpeg" alt="CIRA Logo" className="w-14 h-14 mb-4 object-contain rounded" />
           <h2 className="text-3xl font-serif font-bold text-ink leading-tight">Centralized Access Portal</h2>
         </div>
         <div>

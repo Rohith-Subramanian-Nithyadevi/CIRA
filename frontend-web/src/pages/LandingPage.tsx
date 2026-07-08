@@ -1,6 +1,5 @@
 
 import CoreIdeologyCanvas from '../components/CoreIdeologyCanvas';
-import PortalGateway from '../components/PortalGateway';
 import DistributionHub from '../components/DistributionHub';
 
 export default function LandingPage() {
@@ -10,7 +9,7 @@ export default function LandingPage() {
       <header className="fixed top-0 inset-x-0 z-50 bg-white/92 backdrop-blur-md border-b border-border-soft h-16 flex items-center shadow-md">
         <div className="max-w-7xl mx-auto w-full px-6 flex items-center justify-between">
           <div className="font-sans font-semibold text-xl tracking-tight text-ink flex items-center">
-            <img src="/favicon.svg" alt="CIRA Logo" className="w-8 h-8 mr-3" />
+            <img src="/img/favicon.ico" alt="CIRA Logo" className="w-8 h-8 mr-3 object-contain" />
             CIRA
           </div>
           <div className="flex items-center gap-6">
@@ -25,7 +24,6 @@ export default function LandingPage() {
       {/* Main Content */}
       <main className="pt-16">
         <CoreIdeologyCanvas />
-        <PortalGateway />
         <DistributionHub />
       </main>
 
@@ -33,7 +31,7 @@ export default function LandingPage() {
       <footer className="py-12 bg-white border-t border-border-soft">
         <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="font-sans font-semibold text-lg text-ink flex items-center">
-            <img src="/favicon.svg" alt="CIRA Logo" className="w-6 h-6 mr-2" />
+            <img src="/img/favicon.ico" alt="CIRA Logo" className="w-6 h-6 mr-2 object-contain" />
             CIRA
           </div>
           <div className="text-center text-xs text-gray-body">
