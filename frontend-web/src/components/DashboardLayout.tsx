@@ -19,31 +19,39 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
     navigate('/');
   };
 
+  const getNavClass = (tab: string) => {
+    return `flex items-center w-full px-3 py-2 rounded-lg transition-colors font-medium text-sm ${
+      activeTab === tab 
+        ? 'bg-maroon/10 text-maroon font-semibold' 
+        : 'text-gray-body hover:text-ink hover:bg-cream-edge/30'
+    }`;
+  };
+
   return (
-    <div className="min-h-screen bg-slate-950 flex text-slate-50 font-sans">
+    <div className="min-h-screen bg-cream flex text-ink font-sans">
       {/* Sidebar */}
-      <aside className="w-64 border-r border-slate-800 bg-slate-900/50 flex flex-col hidden md:flex">
-        <div className="h-16 flex items-center px-6 border-b border-slate-800">
-          <span className="w-8 h-8 rounded bg-gradient-to-br from-blue-500 to-purple-600 mr-3 flex items-center justify-center text-sm font-bold">C</span>
-          <span className="font-bold tracking-tight">Workspace</span>
+      <aside className="w-64 border-r border-border-soft bg-white flex flex-col hidden md:flex">
+        <div className="h-16 flex items-center px-6 border-b border-border-soft">
+          <img src="/img/favicon.ico" alt="CIRA Logo" className="w-8 h-8 mr-3 object-contain" />
+          <span className="font-bold tracking-tight text-ink">CIRA Workspace</span>
         </div>
         
         <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
           {role === 'ADMIN' && (
             <>
-              <button onClick={() => onTabChange('hub')} className={`flex items-center w-full px-3 py-2 rounded-lg transition-colors ${activeTab === 'hub' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}>
+              <button onClick={() => onTabChange('hub')} className={getNavClass('hub')}>
                 <LayoutDashboard className="w-5 h-5 mr-3" /> Admin Hub
               </button>
-              <button onClick={() => onTabChange('faculty')} className={`flex items-center w-full px-3 py-2 rounded-lg transition-colors ${activeTab === 'faculty' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}>
+              <button onClick={() => onTabChange('faculty')} className={getNavClass('faculty')}>
                 <CheckSquare className="w-5 h-5 mr-3" /> Faculty Approvals
               </button>
-              <button onClick={() => onTabChange('users')} className={`flex items-center w-full px-3 py-2 rounded-lg transition-colors ${activeTab === 'users' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}>
+              <button onClick={() => onTabChange('users')} className={getNavClass('users')}>
                 <Users className="w-5 h-5 mr-3" /> User Management
               </button>
-              <button onClick={() => onTabChange('departments')} className={`flex items-center w-full px-3 py-2 rounded-lg transition-colors ${activeTab === 'departments' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}>
+              <button onClick={() => onTabChange('departments')} className={getNavClass('departments')}>
                 <Settings className="w-5 h-5 mr-3" /> Departments
               </button>
-              <button onClick={() => onTabChange('profile')} className={`flex items-center w-full px-3 py-2 rounded-lg transition-colors ${activeTab === 'profile' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}>
+              <button onClick={() => onTabChange('profile')} className={getNavClass('profile')}>
                 <User className="w-5 h-5 mr-3" /> My Profile
               </button>
             </>
@@ -51,19 +59,19 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
 
           {role === 'FACULTY' && (
             <>
-              <button onClick={() => onTabChange('home')} className={`flex items-center w-full px-3 py-2 rounded-lg transition-colors ${activeTab === 'home' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}>
+              <button onClick={() => onTabChange('home')} className={getNavClass('home')}>
                 <Home className="w-5 h-5 mr-3" /> Home
               </button>
-              <button onClick={() => onTabChange('reports')} className={`flex items-center w-full px-3 py-2 rounded-lg transition-colors ${activeTab === 'reports' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}>
+              <button onClick={() => onTabChange('reports')} className={getNavClass('reports')}>
                 <Users className="w-5 h-5 mr-3" /> Student Reports
               </button>
-              <button onClick={() => onTabChange('quizzes')} className={`flex items-center w-full px-3 py-2 rounded-lg transition-colors ${activeTab === 'quizzes' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}>
+              <button onClick={() => onTabChange('quizzes')} className={getNavClass('quizzes')}>
                 <BookOpen className="w-5 h-5 mr-3" /> Quizzes
               </button>
-              <button onClick={() => onTabChange('assignments')} className={`flex items-center w-full px-3 py-2 rounded-lg transition-colors ${activeTab === 'assignments' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}>
+              <button onClick={() => onTabChange('assignments')} className={getNavClass('assignments')}>
                 <FileText className="w-5 h-5 mr-3" /> Assignments
               </button>
-              <button onClick={() => onTabChange('profile')} className={`flex items-center w-full px-3 py-2 rounded-lg transition-colors ${activeTab === 'profile' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}>
+              <button onClick={() => onTabChange('profile')} className={getNavClass('profile')}>
                 <User className="w-5 h-5 mr-3" /> My Profile
               </button>
             </>
@@ -71,26 +79,26 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
 
           {role === 'STUDENT' && (
             <>
-              <button onClick={() => onTabChange('progress')} className={`flex items-center w-full px-3 py-2 rounded-lg transition-colors ${activeTab === 'progress' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}>
+              <button onClick={() => onTabChange('progress')} className={getNavClass('progress')}>
                 <LayoutDashboard className="w-5 h-5 mr-3" /> My Progress
               </button>
-              <button onClick={() => onTabChange('assignments')} className={`flex items-center w-full px-3 py-2 rounded-lg transition-colors ${activeTab === 'assignments' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}>
+              <button onClick={() => onTabChange('assignments')} className={getNavClass('assignments')}>
                 <FileText className="w-5 h-5 mr-3" /> Assignments
               </button>
-              <button onClick={() => onTabChange('quizzes')} className={`flex items-center w-full px-3 py-2 rounded-lg transition-colors ${activeTab === 'quizzes' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}>
+              <button onClick={() => onTabChange('quizzes')} className={getNavClass('quizzes')}>
                 <BookOpen className="w-5 h-5 mr-3" /> Quizzes
               </button>
-              <button onClick={() => onTabChange('profile')} className={`flex items-center w-full px-3 py-2 rounded-lg transition-colors ${activeTab === 'profile' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}>
+              <button onClick={() => onTabChange('profile')} className={getNavClass('profile')}>
                 <User className="w-5 h-5 mr-3" /> My Profile
               </button>
             </>
           )}
         </nav>
 
-        <div className="p-4 border-t border-slate-800">
+        <div className="p-4 border-t border-border-soft">
           <button 
             onClick={handleLogout}
-            className="flex items-center w-full px-3 py-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors"
+            className="flex items-center w-full px-3 py-2 text-gray-body hover:text-ink hover:bg-cream-edge/30 rounded-lg transition-colors font-medium text-sm"
           >
             <LogOut className="w-5 h-5 mr-3" /> Sign Out
           </button>
@@ -99,17 +107,17 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
-        <div className="h-16 shrink-0 flex items-center justify-between px-8 border-b border-slate-800 bg-slate-900/20 backdrop-blur-md">
-          <h2 className="text-xl font-bold">{title}</h2>
+        <div className="h-16 shrink-0 flex items-center justify-between px-8 border-b border-border-soft bg-white/80 backdrop-blur-md">
+          <h2 className="text-xl font-serif font-bold text-ink">{title}</h2>
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center">
-              <span className="text-xs font-bold text-slate-400">
+            <div className="w-8 h-8 rounded-full bg-cream border border-border-soft flex items-center justify-center">
+              <span className="text-xs font-bold text-maroon">
                 {role === 'ADMIN' ? 'AD' : role === 'FACULTY' ? 'FA' : 'ST'}
               </span>
             </div>
             <div className="text-sm">
-              <p className="font-medium">{user.name || 'User'}</p>
-              <p className="text-slate-500 text-xs">{role}</p>
+              <p className="font-semibold text-ink leading-none">{user.name || 'User'}</p>
+              <p className="text-gray-body text-xs mt-1 leading-none">{role}</p>
             </div>
           </div>
         </div>
