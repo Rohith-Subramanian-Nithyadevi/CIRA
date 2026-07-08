@@ -1,7 +1,12 @@
-const { app, BrowserWindow, globalShortcut } = require('electron');
+const { app, BrowserWindow, globalShortcut, ipcMain } = require('electron');
 const path = require('path');
+const { fork } = require('child_process');
+const fs = require('fs');
 
-function createWindow() {
+let isSafeExit = false;
+
+async function createWindow() {
+
   const mainWindow = new BrowserWindow({
     width: 800,
     height: 600,
@@ -15,6 +20,14 @@ function createWindow() {
     }
   });
 
+  // Prevent screenshots and screen recording
+  mainWindow.setContentProtection(true);
+
+  // Block any attempt to open a new window (e.g. target="_blank" links or window.open)
+  mainWindow.webContents.setWindowOpenHandler(() => {
+    return { action: 'deny' };
+  });
+
   // PRD: Browser & Copy-Paste Blocking (partially handled by disabling devtools and shortcuts)
   mainWindow.webContents.on('before-input-event', (event, input) => {
     if (input.control && ['c', 'v', 'x'].includes(input.key.toLowerCase())) {
@@ -22,13 +35,23 @@ function createWindow() {
     }
   });
 
-  // Prevent closing without admin password (simulated here by ignoring close if not authorized)
+  // Only allow exit if the explicit "Exit App" button was clicked
   mainWindow.on('close', (e) => {
-    // e.preventDefault();
-    // In a real scenario, require a proctor password to exit
+    if (!isSafeExit) {
+      e.preventDefault();
+      console.log('Blocked attempt to close window without clicking exit');
+    }
   });
 
-  mainWindow.loadFile('index.html');
+  mainWindow.webContents.on('did-fail-load', (e, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    if (isMainFrame) {
+      console.error('Failed to load frontend:', errorDescription);
+      mainWindow.loadFile(path.join(__dirname, 'error.html'));
+    }
+  });
+
+  // Load the local wrapper which contains the exit button and iframe
+  mainWindow.loadFile(path.join(__dirname, 'index.html'));
 }
 
 app.whenReady().then(() => {
@@ -36,13 +59,13 @@ app.whenReady().then(() => {
 
   // Disable common exit shortcuts
   globalShortcut.register('CommandOrControl+Q', () => {
-    console.log('User attempted to quit');
+    console.log('Blocked User attempt to quit (Cmd+Q)');
   });
   globalShortcut.register('Alt+F4', () => {
-    console.log('User attempted to close window');
+    console.log('Blocked User attempt to close window (Alt+F4)');
   });
   globalShortcut.register('CommandOrControl+Tab', () => {
-     console.log('User attempted to switch app');
+     console.log('Blocked User attempt to switch app (Cmd+Tab)');
   });
 
   app.on('activate', function () {
@@ -50,6 +73,19 @@ app.whenReady().then(() => {
   });
 });
 
+// Block force-quitting from the OS menu bar or dock
+app.on('before-quit', (e) => {
+  if (!isSafeExit) {
+    e.preventDefault();
+    console.log('Blocked OS-level quit request');
+  }
+});
+
 app.on('window-all-closed', function () {
   if (process.platform !== 'darwin') app.quit();
+});
+
+ipcMain.on('quit-app', () => {
+  isSafeExit = true; // Authorize the exit
+  app.quit();
 });
