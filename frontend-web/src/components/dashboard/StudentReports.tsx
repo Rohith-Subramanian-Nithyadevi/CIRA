@@ -78,7 +78,7 @@ const generateStudents = () => {
 const studentsData = generateStudents();
 
 export const StudentReports = () => {
-  const [selectedYear, setSelectedYear] = useState(mockData.years[1]);
+  const [selectedYear] = useState(mockData.years[1]);
   const [selectedDept, setSelectedDept] = useState<string | null>(null);
   const [selectedSection, setSelectedSection] = useState<string | null>(null);
   const [selectedQuiz, setSelectedQuiz] = useState<string | null>(null);
@@ -411,7 +411,7 @@ export const StudentReports = () => {
                       paddingAngle={5}
                       dataKey="value"
                     >
-                      {quizDetails.pieData.map((entry, index) => (
+                      {quizDetails.pieData.map((_, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
