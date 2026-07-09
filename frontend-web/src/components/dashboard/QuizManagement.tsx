@@ -20,6 +20,18 @@ export default function QuizManagement() {
     targetDepartments: [] as string[], targetSections: [] as string[],
   });
 
+  // Template Config State
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [templateConfig, setTemplateConfig] = useState({
+    totalQuestions: 10,
+    isMixedTypes: false,
+    mcqCount: 10,
+    numericalCount: 0,
+    shortCount: 0,
+    longCount: 0,
+    matchingCount: 0
+  });
+
   // Questions State
   const [activeQuizId, setActiveQuizId] = useState<string | null>(null);
   const [questions, setQuestions] = useState<any[]>([{ type: 'MCQ', text: '', marks: 1, options: ['', '', '', ''], answerKey: '' }]);
@@ -29,7 +41,8 @@ export default function QuizManagement() {
   const [activeAttempt, setActiveAttempt] = useState<any>(null);
   const [evaluations, setEvaluations] = useState<Record<string, number>>({});
   const [facultyFeedback, setFacultyFeedback] = useState('');
-
+  const [parsedTotalMarks, setParsedTotalMarks] = useState(0);
+  const [parsedTotalQuestions, setParsedTotalQuestions] = useState(0);
   const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
   const token = localStorage.getItem('cira_token');
 
@@ -64,61 +77,33 @@ export default function QuizManagement() {
     } catch (err) { console.error(err); }
   };
 
-  const handleCreateQuiz = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
+  const downloadTemplate = async () => {
     try {
-      const payload = { ...formData };
-      if (payload.startDate) payload.startDate = new Date(payload.startDate).toISOString();
-      if (payload.endDate) payload.endDate = new Date(payload.endDate).toISOString();
-
-      const res = await fetch(`${baseUrl}/api/v1/faculty/quiz/create`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-      if (data?.status === 'success') {
-        toast.success('Quiz created successfully! Now add questions.');
-        setActiveQuizId(data.data.id);
-        setActiveView('add_questions');
-        fetchQuizzes();
-      } else toast.error('Failed to create quiz: ' + data.message);
-    } catch (err) { console.error(err); } finally { setLoading(false); }
-  };
-
-  const handleSaveQuestions = async () => {
-    if (!activeQuizId) return;
-    setLoading(true);
-    // Sanitize matching options
-    const sanitizedQuestions = questions.map(q => {
-      if (q.type === 'MATCHING') {
-        return { ...q, answerKey: q.options }; // option array acts as the correct pair key
+      let query = `count=${templateConfig.totalQuestions}`;
+      if (templateConfig.isMixedTypes) {
+        query += `&mcq=${templateConfig.mcqCount}&numerical=${templateConfig.numericalCount}&short=${templateConfig.shortCount}&long=${templateConfig.longCount}&matching=${templateConfig.matchingCount}`;
       }
-      return q;
-    });
-
-    try {
-      const res = await fetch(`${baseUrl}/api/v1/faculty/quiz/${activeQuizId}/questions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ questions: sanitizedQuestions })
+      const res = await fetch(`${baseUrl}/api/v1/faculty/quiz/template?${query}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
       });
-      const data = await res.json();
-      if (data?.status === 'success') {
-        toast.success('Questions saved successfully!');
-        setActiveView('list');
-        fetchQuizzes();
-      } else toast.error('Failed to save questions: ' + data.message);
-    } catch (err) { console.error(err); } finally { setLoading(false); }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'Quiz_Template.docx';
+      a.click();
+      setShowTemplateModal(false);
+    } catch (err) {
+      toast.error('Failed to download template');
+    }
   };
 
-  const handleUploadDocx = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUploadDocxForCreation = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     
-    const formData = new FormData();
-    formData.append('file', file);
+    const uploadData = new FormData();
+    uploadData.append('file', file);
     
     setLoading(true);
     toast.info('Parsing DOCX... this might take a moment.');
@@ -126,12 +111,23 @@ export default function QuizManagement() {
       const res = await fetch(`${baseUrl}/api/v1/faculty/quiz/upload-docx`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
-        body: formData
+        body: uploadData
       });
       const data = await res.json();
       if (data?.status === 'success' && data.data) {
-        toast.success('DOCX parsed successfully! Please review the questions.');
-        setQuestions(data.data);
+        toast.success('Document parsed successfully! Please review the quiz.');
+        
+        setQuestions(data.data.questions);
+        setFormData(prev => ({
+          ...prev,
+          title: data.data.metadata.title || '',
+          subject: data.data.metadata.subject || '',
+          description: data.data.metadata.instructions || '',
+          totalMarks: data.data.metadata.totalMarks?.toString() || '0'
+        }));
+        setParsedTotalMarks(Number(data.data.metadata.totalMarks) || 0);
+        setParsedTotalQuestions(Number(data.data.metadata.totalQuestions) || 0);
+        setActiveView('add_questions');
       } else {
         toast.error('Failed to parse DOCX: ' + data.message);
       }
@@ -144,16 +140,106 @@ export default function QuizManagement() {
     }
   };
 
+  const validateQuestions = () => {
+    let isValid = true;
+    const newQs = [...questions];
+    
+    // Check Total Marks
+    const currentSum = newQs.reduce((acc, q) => acc + (Number(q.marks) || 0), 0);
+    
+    if (parsedTotalMarks && currentSum !== parsedTotalMarks) {
+      toast.error(`Total Marks Mismatch: Document states ${parsedTotalMarks} marks, but questions sum to ${currentSum}.`);
+      return false;
+    }
+    
+    // Check Total Questions Count
+    if (parsedTotalQuestions && newQs.length !== parsedTotalQuestions) {
+      toast.error(`Question Count Mismatch: Document states ${parsedTotalQuestions} questions, but found ${newQs.length}.`);
+      return false;
+    }
+
+    // Check Completeness
+    newQs.forEach((q) => {
+      q.validationError = null;
+      if (!q.text && !q.hasImagePlaceholder && !q.image) {
+        q.validationError = "Question must have either text or an image.";
+        isValid = false;
+      } else if (!q.answerKey && !['SHORT_WRITTEN', 'LONG_WRITTEN', 'MATCHING'].includes(q.type)) {
+        q.validationError = "Answer key is required.";
+        isValid = false;
+      }
+    });
+
+    if (!isValid) {
+      setQuestions(newQs);
+      toast.error('Validation failed. Please correct the highlighted questions.');
+    }
+    return isValid;
+  };
+
+  const handleSaveQuizAndQuestions = async () => {
+    if (!validateQuestions()) return;
+
+    setLoading(true);
+    
+    try {
+      const payload = { ...formData };
+      if (payload.startDate) payload.startDate = new Date(payload.startDate).toISOString();
+      if (payload.endDate) payload.endDate = new Date(payload.endDate).toISOString();
+
+      let quizIdToUse = activeQuizId;
+
+      if (!quizIdToUse) {
+        const res = await fetch(`${baseUrl}/api/v1/faculty/quiz/create`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data?.status === 'success') {
+          quizIdToUse = data.data.id;
+        } else {
+          throw new Error('Failed to create quiz: ' + data.message);
+        }
+      }
+
+      const sanitizedQuestions = questions.map(q => {
+        if (q.type === 'MATCHING') return { ...q, answerKey: q.options };
+        return q;
+      });
+
+      const qRes = await fetch(`${baseUrl}/api/v1/faculty/quiz/${quizIdToUse}/questions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ questions: sanitizedQuestions })
+      });
+      const qData = await qRes.json();
+
+      if (qData?.status === 'success') {
+        toast.success('Quiz and Questions published successfully!');
+        setActiveView('list');
+        fetchQuizzes();
+      } else {
+         throw new Error('Failed to save questions: ' + qData.message);
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || 'An error occurred while saving.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleImageUpload = async (qIndex: number, file: File) => {
-    const formData = new FormData();
-    formData.append('file', file);
+    const formDataUpload = new FormData();
+    formDataUpload.append('file', file);
     
     toast.info('Uploading image...');
     try {
       const res = await fetch(`${baseUrl}/api/v1/faculty/quiz/upload-image`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
-        body: formData
+        body: formDataUpload
       });
       const data = await res.json();
       if (data?.status === 'success' && data.data?.url) {
@@ -237,42 +323,18 @@ export default function QuizManagement() {
 
   if (activeView === 'create') {
     return (
+      <>
       <Card className="bg-white border border-border-soft text-ink shadow-sm rounded-xl">
         <CardContent className="p-6">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-serif font-bold text-ink">Create New Quiz</h2>
-            <button onClick={() => setActiveView('list')} className="text-maroon hover:text-maroon-deep font-semibold text-sm">Cancel</button>
+            <h2 className="text-xl font-serif font-bold text-ink">Schedule New Quiz</h2>
+            <div className="flex justify-end gap-3 mt-8">
+              <Button variant="outline" onClick={() => setShowTemplateModal(true)} className="border-border-soft hover:bg-cream/40">Download Template</Button>
+              <Button onClick={() => setActiveView('list')} variant="ghost">Cancel</Button>
+            </div>
           </div>
           
-          <form onSubmit={handleCreateQuiz} className="space-y-6 max-w-2xl">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-ink font-semibold">Quiz Title</Label>
-                <Input required value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} type="text" className="bg-white border-border-soft text-ink focus:border-maroon focus:ring-1 focus:ring-maroon" />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-ink font-semibold">Subject</Label>
-                <Input value={formData.subject} onChange={e => setFormData({...formData, subject: e.target.value})} type="text" className="bg-white border-border-soft text-ink focus:border-maroon focus:ring-1 focus:ring-maroon" />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-ink font-semibold">Instructions</Label>
-              <Textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} rows={3} className="bg-white border-border-soft text-ink focus:border-maroon focus:ring-1 focus:ring-maroon" />
-            </div>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label className="text-ink font-semibold">Total Marks</Label>
-                <Input value={formData.totalMarks} onChange={e => setFormData({...formData, totalMarks: e.target.value})} type="number" className="bg-white border-border-soft text-ink focus:border-maroon focus:ring-1 focus:ring-maroon" />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-ink font-semibold">Passing Marks</Label>
-                <Input value={formData.passingMarks} onChange={e => setFormData({...formData, passingMarks: e.target.value})} type="number" className="bg-white border-border-soft text-ink focus:border-maroon focus:ring-1 focus:ring-maroon" />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-ink font-semibold">Duration (mins)</Label>
-                <Input value={formData.durationMinutes} onChange={e => setFormData({...formData, durationMinutes: e.target.value})} type="number" className="bg-white border-border-soft text-ink focus:border-maroon focus:ring-1 focus:ring-maroon" />
-              </div>
-            </div>
+          <div className="space-y-6 max-w-2xl">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-ink font-semibold">Start Time</Label>
@@ -283,6 +345,12 @@ export default function QuizManagement() {
                 <Input value={formData.endDate} onChange={e => setFormData({...formData, endDate: e.target.value})} type="datetime-local" className="bg-white border-border-soft text-ink focus:border-maroon focus:ring-1 focus:ring-maroon" />
               </div>
             </div>
+            
+            <div className="space-y-2">
+              <Label className="text-ink font-semibold">Duration (mins)</Label>
+              <Input value={formData.durationMinutes} onChange={e => setFormData({...formData, durationMinutes: e.target.value})} type="number" className="w-1/2 bg-white border-border-soft text-ink focus:border-maroon focus:ring-1 focus:ring-maroon" />
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2 p-4 bg-cream/40 rounded-xl border border-border-soft">
                 <Label className="block mb-2 text-ink font-semibold">Target Departments (Hold Ctrl)</Label>
@@ -297,45 +365,159 @@ export default function QuizManagement() {
                 </select>
               </div>
             </div>
-            <Button type="submit" disabled={loading} className="bg-maroon hover:bg-maroon-deep text-white font-bold h-10 px-6 rounded-full transition-all">{loading ? 'Creating...' : 'Save & Add Questions'}</Button>
-          </form>
+
+            <div className="mt-6 p-4 bg-yellow-50 rounded-xl border border-yellow-200">
+               <h3 className="font-semibold text-yellow-800 mb-2">Next Step: Upload DOCX</h3>
+               <p className="text-sm text-yellow-700 mb-4">Quiz Title, Subject, Instructions, and all Questions will be extracted automatically from your document.</p>
+               <label className="cursor-pointer px-6 py-3 bg-maroon hover:bg-maroon-deep text-white rounded-full font-bold transition-all shadow-sm block text-center">
+                {loading ? 'Processing...' : 'Upload DOCX & Continue'}
+                <input type="file" accept=".docx" className="hidden" onChange={handleUploadDocxForCreation} disabled={loading} />
+              </label>
+            </div>
+          </div>
         </CardContent>
       </Card>
+
+      {/* Template Configuration Modal */}
+      {showTemplateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-bold text-ink-dark mb-4">Template Configuration</h2>
+            
+            <div className="space-y-6">
+              <div>
+                <Label>Total Number of Questions</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={templateConfig.totalQuestions}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value) || 1;
+                    setTemplateConfig(prev => ({ ...prev, totalQuestions: val, mcqCount: prev.isMixedTypes ? prev.mcqCount : val }));
+                  }}
+                  className="mt-1"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input 
+                  type="checkbox" 
+                  id="mixed-types" 
+                  checked={templateConfig.isMixedTypes}
+                  onChange={(e) => setTemplateConfig(prev => ({ 
+                    ...prev, 
+                    isMixedTypes: e.target.checked,
+                    mcqCount: e.target.checked ? 0 : prev.totalQuestions,
+                    numericalCount: 0,
+                    shortCount: 0,
+                    longCount: 0,
+                    matchingCount: 0
+                  }))}
+                  className="rounded text-brand-500 focus:ring-brand-500"
+                />
+                <Label htmlFor="mixed-types">Mixed Question Types</Label>
+              </div>
+
+              {templateConfig.isMixedTypes && (
+                <div className="space-y-4 p-4 bg-cream/30 rounded-lg border border-border-soft">
+                  <div className="grid grid-cols-2 gap-4 items-center">
+                    <Label className="text-sm">Multiple Choice (MCQ)</Label>
+                    <Input type="number" min={0} value={templateConfig.mcqCount} onChange={e => setTemplateConfig(p => ({ ...p, mcqCount: parseInt(e.target.value) || 0 }))} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 items-center">
+                    <Label className="text-sm">Numerical</Label>
+                    <Input type="number" min={0} value={templateConfig.numericalCount} onChange={e => setTemplateConfig(p => ({ ...p, numericalCount: parseInt(e.target.value) || 0 }))} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 items-center">
+                    <Label className="text-sm">Short Answer</Label>
+                    <Input type="number" min={0} value={templateConfig.shortCount} onChange={e => setTemplateConfig(p => ({ ...p, shortCount: parseInt(e.target.value) || 0 }))} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 items-center">
+                    <Label className="text-sm">Long Answer</Label>
+                    <Input type="number" min={0} value={templateConfig.longCount} onChange={e => setTemplateConfig(p => ({ ...p, longCount: parseInt(e.target.value) || 0 }))} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 items-center">
+                    <Label className="text-sm">Match the Following</Label>
+                    <Input type="number" min={0} value={templateConfig.matchingCount} onChange={e => setTemplateConfig(p => ({ ...p, matchingCount: parseInt(e.target.value) || 0 }))} />
+                  </div>
+                  
+                  {(() => {
+                    const sum = templateConfig.mcqCount + templateConfig.numericalCount + templateConfig.shortCount + templateConfig.longCount + templateConfig.matchingCount;
+                    return (
+                      <div className={`text-sm font-medium ${sum !== templateConfig.totalQuestions ? 'text-red-500' : 'text-green-600'}`}>
+                        Sum: {sum} / {templateConfig.totalQuestions}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 mt-8">
+              <Button variant="ghost" onClick={() => setShowTemplateModal(false)}>Cancel</Button>
+              <Button 
+                onClick={downloadTemplate}
+                disabled={templateConfig.isMixedTypes && (templateConfig.mcqCount + templateConfig.numericalCount + templateConfig.shortCount + templateConfig.longCount + templateConfig.matchingCount) !== templateConfig.totalQuestions}
+                className="bg-brand-500 hover:bg-brand-600 text-white"
+              >
+                Generate Template
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      </>
     );
   }
 
   if (activeView === 'add_questions') {
+    const sumMarks = questions.reduce((acc, q) => acc + (Number(q.marks) || 0), 0);
+    const expectedMarks = Number(formData.totalMarks) || 0;
+    const isMismatch = sumMarks !== expectedMarks;
+
     return (
       <Card className="bg-white border border-border-soft text-ink shadow-sm rounded-xl">
         <CardContent className="p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-serif font-bold text-ink">Add Questions to Quiz</h2>
+          <div className="flex justify-between items-center mb-4">
+            <div>
+              <h2 className="text-2xl font-serif font-bold text-ink">{formData.title || 'Review Quiz'}</h2>
+              <p className="text-gray-body text-sm">{formData.subject} | {formData.durationMinutes} mins</p>
+            </div>
             <div className="flex items-center gap-4">
-              <label className="cursor-pointer px-4 py-2 bg-maroon hover:bg-maroon-deep text-white rounded-full text-xs font-bold transition-all shadow-sm">
-                Upload .docx
-                <input type="file" accept=".docx" className="hidden" onChange={handleUploadDocx} />
+              <label className="cursor-pointer px-4 py-2 bg-cream hover:bg-cream-dark text-maroon border border-border-soft rounded-full text-xs font-bold transition-all shadow-sm">
+                Re-upload .docx
+                <input type="file" accept=".docx" className="hidden" onChange={handleUploadDocxForCreation} />
               </label>
               <button onClick={() => setActiveView('list')} className="text-maroon hover:text-maroon-deep font-semibold text-sm">Cancel</button>
             </div>
           </div>
           
+          {isMismatch && (
+             <div className="mb-6 bg-red-50 text-red-700 border border-red-200 px-4 py-3 rounded-lg text-sm font-medium shadow-sm">
+                 ⚠️ Total Marks Mismatch! The quiz metadata specifies {expectedMarks} marks, but the questions sum up to {sumMarks} marks. You cannot save until this is resolved.
+             </div>
+          )}
+
           <div className="space-y-6">
             {questions.map((q, qIndex) => {
               if (q.type === 'MATCHING' && (!q.options || typeof q.options[0] !== 'object')) {
                 q.options = [{ left: '', right: '' }, { left: '', right: '' }];
               }
               return (
-                <div key={qIndex} className="p-5 bg-cream/30 rounded-xl border border-border-soft space-y-4">
+                <div key={qIndex} id={`question-${qIndex}`} className={`p-5 bg-cream/30 rounded-xl border ${q.validationError ? 'border-red-400 ring-2 ring-red-100' : 'border-border-soft'} space-y-4`}>
                   <div className="flex justify-between items-center">
                     <h3 className="font-bold text-ink">Question {qIndex + 1}</h3>
-                    <select value={q.type} onChange={(e) => updateQuestion(qIndex, 'type', e.target.value)} className="bg-white border border-border-soft rounded-lg px-3 py-1 text-xs text-ink focus:border-maroon outline-none font-semibold shadow-sm">
-                      <option value="MCQ">MCQ (Single)</option>
-                      <option value="MULTI_SELECT">MCQ (Multiple)</option>
-                      <option value="NUMERICAL">Numerical</option>
-                      <option value="SHORT_WRITTEN">Short Written</option>
-                      <option value="LONG_WRITTEN">Long Written</option>
-                      <option value="MATCHING">Match the Following</option>
-                    </select>
+                    <div className="flex gap-4">
+                      <select value={q.type} onChange={(e) => updateQuestion(qIndex, 'type', e.target.value)} className="bg-white border border-border-soft rounded-lg px-3 py-1 text-xs text-ink focus:border-maroon outline-none font-semibold shadow-sm">
+                        <option value="MCQ">MCQ (Single)</option>
+                        <option value="MULTI_SELECT">MCQ (Multiple)</option>
+                        <option value="NUMERICAL">Numerical</option>
+                        <option value="SHORT_WRITTEN">Short Written</option>
+                        <option value="LONG_WRITTEN">Long Written</option>
+                        <option value="MATCHING">Match the Following</option>
+                      </select>
+                      <button onClick={() => { const n = [...questions]; n.splice(qIndex, 1); setQuestions(n); }} className="text-red-500 text-xs font-bold hover:underline">Remove</button>
+                    </div>
                   </div>
                   
                   <div>
@@ -345,7 +527,7 @@ export default function QuizManagement() {
 
                   {q.validationError && (
                     <div className="bg-red-50 text-red-700 border border-red-200 px-4 py-2 rounded-lg text-sm mt-2 font-medium">
-                      ⚠️ Validation Error: {q.validationError}
+                      ⚠️ {q.validationError}
                     </div>
                   )}
 
@@ -427,7 +609,7 @@ export default function QuizManagement() {
             
             <div className="flex justify-between items-center border-t border-border-soft pt-6">
               <Button variant="outline" className="border-border-soft hover:bg-cream/40" onClick={handleAddQuestionRow}>+ Add Another Question</Button>
-              <Button onClick={handleSaveQuestions} disabled={loading} className="bg-maroon hover:bg-maroon-deep text-white font-bold h-10 px-6 rounded-full transition-all">{loading ? 'Saving...' : 'Save All Questions'}</Button>
+              <Button onClick={handleSaveQuizAndQuestions} disabled={loading || isMismatch} className="bg-maroon hover:bg-maroon-deep text-white font-bold h-10 px-6 rounded-full transition-all disabled:opacity-50">{loading ? 'Saving...' : 'Save & Publish Quiz'}</Button>
             </div>
           </div>
         </CardContent>

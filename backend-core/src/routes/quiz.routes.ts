@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { createQuiz, addQuestions, getSubmissions, evaluateAttempt, getQuizzes, getQuizById, deleteQuiz, uploadDocxParser, uploadImageHandler } from '../controllers/quiz.controller';
+import { downloadTemplate } from '../controllers/template.controller';
 import { authenticate, authorize } from '../middlewares/auth.middleware';
 
 import multer from 'multer';
@@ -10,6 +11,7 @@ const upload = multer({ dest: 'uploads/' });
 // Only FACULTY and ADMIN can manage quizzes
 router.use(authenticate, authorize(['FACULTY', 'ADMIN']));
 
+router.get('/template', downloadTemplate);
 router.get('/', getQuizzes);
 router.post('/create', createQuiz);
 router.post('/upload-docx', upload.single('file'), uploadDocxParser);

@@ -1,8 +1,33 @@
-import { Download, FileText } from 'lucide-react';
-
-const assignments: any[] = [];
+import { useState, useEffect } from 'react';
+import { Download, FileText, Loader2 } from 'lucide-react';
+import { 
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
+  Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis
+} from 'recharts';
 
 export default function StudentSpace() {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const res = await fetch('http://localhost:3000/api/v1/student/dashboard');
+        const json = await res.json();
+        if (json.success) {
+          setData(json.data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch dashboard data", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const { performanceTrajectory, knowledgeDeficits, assignments } = data || {};
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -13,8 +38,25 @@ export default function StudentSpace() {
             <span className="w-2 h-2 rounded-full bg-maroon mr-2"></span>
             Performance Trajectory
           </h3>
-          <div className="h-[300px] w-full flex items-center justify-center border border-dashed border-border-soft rounded-xl bg-cream/20">
-            <p className="text-gray-body text-sm italic">No performance data available yet.</p>
+          <div className="h-[300px] w-full flex items-center justify-center border border-dashed border-border-soft rounded-xl bg-cream/20 overflow-hidden">
+            {loading ? (
+              <Loader2 className="w-6 h-6 animate-spin text-gray-body" />
+            ) : performanceTrajectory && performanceTrajectory.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={performanceTrajectory} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="date" stroke="#64748b" fontSize={12} tickMargin={10} />
+                  <YAxis stroke="#64748b" fontSize={12} domain={[0, 100]} />
+                  <RechartsTooltip 
+                    contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', color: '#1e293b' }}
+                    itemStyle={{ color: '#0f172a' }}
+                  />
+                  <Line type="monotone" dataKey="score" stroke="#800000" strokeWidth={3} dot={{ r: 4, fill: '#800000' }} activeDot={{ r: 6 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-gray-body text-sm italic">No performance data available yet.</p>
+            )}
           </div>
         </div>
 
@@ -24,8 +66,24 @@ export default function StudentSpace() {
             <span className="w-2 h-2 rounded-full bg-maroon mr-2"></span>
             Knowledge Deficits
           </h3>
-          <div className="h-[300px] w-full flex items-center justify-center border border-dashed border-border-soft rounded-xl bg-cream/20">
-            <p className="text-gray-body text-sm italic">No analysis available.</p>
+          <div className="h-[300px] w-full flex items-center justify-center border border-dashed border-border-soft rounded-xl bg-cream/20 overflow-hidden">
+            {loading ? (
+               <Loader2 className="w-6 h-6 animate-spin text-gray-body" />
+            ) : knowledgeDeficits && knowledgeDeficits.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <RadarChart cx="50%" cy="50%" outerRadius="70%" data={knowledgeDeficits}>
+                  <PolarGrid stroke="#e2e8f0" />
+                  <PolarAngleAxis dataKey="subject" tick={{ fill: '#64748b', fontSize: 11 }} />
+                  <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                  <Radar name="Score" dataKey="score" stroke="#800000" fill="#800000" fillOpacity={0.4} />
+                  <RechartsTooltip 
+                    contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', color: '#1e293b' }}
+                  />
+                </RadarChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-gray-body text-sm italic">No analysis available.</p>
+            )}
           </div>
         </div>
       </div>
@@ -46,7 +104,13 @@ export default function StudentSpace() {
               </tr>
             </thead>
             <tbody>
-              {assignments.length > 0 ? assignments.map((item) => (
+              {loading ? (
+                <tr>
+                  <td colSpan={4} className="py-8 text-center">
+                    <Loader2 className="w-6 h-6 animate-spin text-gray-body mx-auto" />
+                  </td>
+                </tr>
+              ) : assignments && assignments.length > 0 ? assignments.map((item: any) => (
                 <tr key={item.id} className="border-b border-border-soft hover:bg-cream/20 transition-colors">
                   <td className="py-4 font-semibold text-ink">
                     <div className="flex items-center">

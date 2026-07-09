@@ -9,6 +9,7 @@ import departmentRoutes from './routes/department.routes';
 import adminRoutes from './routes/admin.routes';
 import quizRoutes from './routes/quiz.routes';
 import studentExamRoutes from './routes/student-exam.routes';
+import studentDashboardRoutes from './routes/student-dashboard.routes';
 import { errorHandler } from './middlewares/error.middleware';
 
 const app: Application = express();
@@ -29,6 +30,7 @@ app.use('/api/v1/analytics', analyticsRoutes);
 app.use('/api/v1/departments', departmentRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/student/exam', studentExamRoutes);
+app.use('/api/v1/student', studentDashboardRoutes);
 
 // SPA Catch-all Route: serve index.html for non-API requests
 app.use((req, res, next) => {
