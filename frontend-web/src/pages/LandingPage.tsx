@@ -1,20 +1,10 @@
 import CoreIdeologyCanvas from '../components/CoreIdeologyCanvas';
 import DistributionHub from '../components/DistributionHub';
-import TargetCursor from '../components/ui/TargetCursor';
 import { ShieldCheck, Activity, Cpu, Award } from 'lucide-react';
 
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-cream font-sans text-ink selection:bg-maroon/20">
-      <TargetCursor 
-        targetSelector="a, button, [role='button'], .cursor-target"
-        spinDuration={2}
-        hideDefaultCursor
-        parallaxOn
-        hoverDuration={0.2}
-        cursorColor="#ffffff"
-        cursorColorOnTarget="#B497CF"
-      />
       
       {/* Header */}
       <header className="fixed top-0 inset-x-0 z-50 bg-white/92 backdrop-blur-md border-b border-border-soft h-16 flex items-center shadow-md">
