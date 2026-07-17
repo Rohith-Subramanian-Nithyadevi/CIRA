@@ -12,6 +12,11 @@
     @apply font-sans;
   }
 
+  input[type="password"]::-ms-reveal,
+  input[type="password"]::-ms-clear {
+    display: none !important;
+  }
+
   body {
     @apply font-sans antialiased selection:bg-blue-500/30 bg-background text-foreground;
   }
