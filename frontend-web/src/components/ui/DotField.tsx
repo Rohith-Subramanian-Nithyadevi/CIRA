@@ -1,7 +1,6 @@
 import { useEffect, useRef, memo } from 'react';
 import './DotField.css';
 
-const TWO_PI = Math.PI * 2;
 
 interface Dot {
   ax: number;
