@@ -4,7 +4,8 @@ import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { generateToken } from '../utils/jwt';
 import { BadRequestError, UnauthorizedError, NotFoundError, ForbiddenError } from '../utils/errors';
-import { sendVerificationEmail } from '../utils/email';
+import { sendVerificationEmail, sendAdminApprovalRequestEmail, sendPasswordResetEmail } from '../utils/email';
+import { verifyFirebaseIdToken } from '../utils/firebase';
 
 const prisma = new PrismaClient();
 
@@ -61,6 +62,9 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
     }
 
     if (validatedData.role === 'FACULTY') {
+      if (!validatedData.email.toLowerCase().endsWith('@ch.amrita.edu')) {
+        throw new BadRequestError('Faculty email must end with @ch.amrita.edu');
+      }
       if (!validatedData.employeeId) throw new BadRequestError('Employee ID is required for faculty');
       if (!validatedData.subject) throw new BadRequestError('Subject is required for faculty');
 
@@ -136,6 +140,26 @@ export const verifyEmail = async (req: Request, res: Response, next: NextFunctio
     });
 
     if (updatedUser.approvalStatus === 'PENDING') {
+      // Notify admin(s)
+      try {
+        const admins = await prisma.user.findMany({ where: { role: 'ADMIN' } });
+        const adminEmails = admins.map(a => a.email);
+        if (adminEmails.length === 0) {
+          adminEmails.push('admin@amrita.edu');
+        }
+
+        for (const adminEmail of adminEmails) {
+          await sendAdminApprovalRequestEmail(adminEmail, {
+            name: updatedUser.name,
+            email: updatedUser.email,
+            employeeId: updatedUser.employeeId || 'N/A',
+            subject: updatedUser.subject || 'N/A',
+          });
+        }
+      } catch (err) {
+        console.error('Failed to notify admin about pending approval:', err);
+      }
+
       return res.status(200).json({
         status: 'success',
         message: 'Email verified! Your account is pending administrator approval.',
@@ -253,3 +277,146 @@ export const getMe = async (req: Request, res: Response, next: NextFunction) => 
     next(error);
   }
 };
+
+export const firebaseLogin = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { idToken, rollNumber, departmentId, sectionId } = req.body;
+    if (!idToken) throw new BadRequestError('Firebase ID token is required');
+
+    const projectId = process.env.FIREBASE_PROJECT_ID || 'cira-exam-portal';
+    const decodedToken = await verifyFirebaseIdToken(idToken, projectId);
+
+    const email = decodedToken.email.toLowerCase();
+    const name = decodedToken.name || 'Student';
+
+    // Verify student email domains
+    if (!email.endsWith('amrita.edu')) {
+      throw new ForbiddenError('Google sign-in is only allowed for amrita.edu email addresses.');
+    }
+
+    let user = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      if (!rollNumber || !departmentId || !sectionId) {
+        return res.status(200).json({
+          status: 'needs_registration',
+          message: 'Student record not found. Please complete your registration details.',
+          data: { email, name }
+        });
+      }
+
+      const existingRoll = await prisma.user.findUnique({ where: { rollNumber } });
+      if (existingRoll) throw new BadRequestError('Roll number already registered');
+
+      const randomPassword = Math.random().toString(36).slice(-10);
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(randomPassword, salt);
+
+      user = await prisma.user.create({
+        data: {
+          role: 'STUDENT',
+          name,
+          email,
+          personalEmail: email,
+          password: hashedPassword,
+          rollNumber,
+          departmentId,
+          sectionId,
+          approvalStatus: 'APPROVED',
+          isEmailVerified: true,
+        }
+      });
+    }
+
+    const token = generateToken({ userId: user.id, role: user.role });
+    res.status(200).json({
+      status: 'success',
+      data: {
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          rollNumber: user.rollNumber,
+          departmentId: user.departmentId,
+          sectionId: user.sectionId,
+        },
+        token,
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const forgotPassword = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { email } = req.body;
+    if (!email) throw new BadRequestError('Email is required');
+
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      return res.status(200).json({
+        status: 'success',
+        message: 'If the email matches a registered account, a reset code has been sent to your personal email.'
+      });
+    }
+
+    if (!user.personalEmail) {
+      throw new BadRequestError('No personal email configured for this account. Please contact an administrator.');
+    }
+
+    const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { verificationCode: resetCode }
+    });
+
+    await sendPasswordResetEmail(user.personalEmail, resetCode);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'If the email matches a registered account, a reset code has been sent to your personal email.'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const resetPassword = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { email, code, newPassword } = req.body;
+    if (!email || !code || !newPassword) {
+      throw new BadRequestError('Email, verification code, and new password are required');
+    }
+
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) throw new NotFoundError('User not found');
+
+    if (!user.verificationCode || user.verificationCode !== code) {
+      throw new BadRequestError('Invalid or expired verification code');
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        verificationCode: null
+      }
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Password reset successful. You can now login with your new password.'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

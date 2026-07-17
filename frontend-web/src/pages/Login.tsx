@@ -50,6 +50,201 @@ export default function Login() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // Google login states
+  const [needsGoogleRegister, setNeedsGoogleRegister] = useState(false);
+  const [firebaseIdToken, setFirebaseIdToken] = useState('');
+  
+  // Forgot password states
+  const [isForgotFlow, setIsForgotFlow] = useState(false);
+  const [forgotStep, setForgotStep] = useState<1 | 2>(1); // 1 = request code, 2 = reset password
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotCode, setForgotCode] = useState('');
+  const [newForgotPassword, setNewForgotPassword] = useState('');
+  const [confirmForgotPassword, setConfirmForgotPassword] = useState('');
+  const [showForgotNewPassword, setShowForgotNewPassword] = useState(false);
+  const [showForgotConfirmPassword, setShowForgotConfirmPassword] = useState(false);
+
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    try {
+      const { auth: firebaseAuth, googleProvider } = await import('../lib/firebase');
+      const { signInWithPopup } = await import('firebase/auth');
+      
+      const result = await signInWithPopup(firebaseAuth, googleProvider);
+      const idToken = await result.user.getIdToken();
+      setFirebaseIdToken(idToken);
+
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+      const response = await fetch(`${baseUrl}/api/v1/auth/firebase-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Google authentication failed.');
+      }
+
+      if (data.status === 'needs_registration') {
+        toast.info("Google verification successful. Please complete your registration details.");
+        setNeedsGoogleRegister(true);
+        return;
+      }
+
+      // Success login
+      localStorage.setItem('cira_token', data.data.token);
+      localStorage.setItem('cira_user', JSON.stringify(data.data.user));
+      toast.success('Logged in successfully!');
+      
+      const loggedInUserRole = data.data.user.role;
+      const urlParams = new URLSearchParams(window.location.search);
+      const isDesktopClient = urlParams.get('client') === 'desktop' || navigator.userAgent.toLowerCase().includes('electron');
+
+      if (isDesktopClient && loggedInUserRole === 'STUDENT') {
+        navigate('/exam-portal');
+      } else if (loggedInUserRole === 'ADMIN') {
+        navigate('/admin/dashboard');
+      } else if (loggedInUserRole === 'FACULTY') {
+        navigate('/faculty/dashboard');
+      } else {
+        navigate('/student/dashboard');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Google sign-in was cancelled or failed.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleRegisterSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!departmentId || !rollNumber || !sectionId) {
+      toast.error("Please fill in all student registration details.");
+      return;
+    }
+    setLoading(true);
+
+    try {
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+      const response = await fetch(`${baseUrl}/api/v1/auth/firebase-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          idToken: firebaseIdToken,
+          rollNumber,
+          departmentId,
+          sectionId,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Registration failed.');
+      }
+
+      localStorage.setItem('cira_token', data.data.token);
+      localStorage.setItem('cira_user', JSON.stringify(data.data.user));
+      toast.success('Registration and Login successful!');
+      setNeedsGoogleRegister(false);
+      
+      const urlParams = new URLSearchParams(window.location.search);
+      const isDesktopClient = urlParams.get('client') === 'desktop' || navigator.userAgent.toLowerCase().includes('electron');
+
+      if (isDesktopClient) {
+        navigate('/exam-portal');
+      } else {
+        navigate('/student/dashboard');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Completing registration failed.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPasswordRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!forgotEmail) {
+      toast.error("Please enter your college email address.");
+      return;
+    }
+    setLoading(true);
+
+    try {
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+      const response = await fetch(`${baseUrl}/api/v1/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to request password reset.');
+      }
+
+      toast.success("Verification code sent to your personal email.");
+      setForgotStep(2);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to request password reset.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePasswordResetSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!forgotCode || !newForgotPassword || !confirmForgotPassword) {
+      toast.error("Please fill in all fields.");
+      return;
+    }
+    if (newForgotPassword !== confirmForgotPassword) {
+      toast.error("Passwords do not match.");
+      return;
+    }
+    const passError = validatePassword(newForgotPassword);
+    if (passError) {
+      toast.error(passError);
+      return;
+    }
+    setLoading(true);
+
+    try {
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+      const response = await fetch(`${baseUrl}/api/v1/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: forgotEmail,
+          code: forgotCode,
+          newPassword: newForgotPassword,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Password reset failed.');
+      }
+
+      toast.success("Password reset successful. You can now login.");
+      setIsForgotFlow(false);
+      setForgotStep(1);
+      setForgotEmail('');
+      setForgotCode('');
+      setNewForgotPassword('');
+      setConfirmForgotPassword('');
+    } catch (err: any) {
+      toast.error(err.message || 'Password reset failed.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     // Fetch departments for dropdowns
     const fetchDepartments = async () => {
@@ -256,24 +451,130 @@ export default function Login() {
           <h2 className="text-3xl font-serif font-bold text-ink leading-tight">Centralized Access Portal</h2>
         </div>
         <div>
-          <div className="flex bg-cream-edge rounded-full p-1 mb-6 border border-border-soft">
-            <button 
-              type="button"
-              onClick={() => { setIsLogin(true); }}
-              className={`flex-1 rounded-full py-2.5 text-base transition-all duration-300 ${isLogin ? 'bg-maroon text-white shadow-sm font-bold' : 'text-gray-body hover:text-ink font-medium'}`}
-            >
-              Sign In
-            </button>
-            <button 
-              type="button"
-              onClick={() => { setIsLogin(false); }}
-              className={`flex-1 rounded-full py-2.5 text-base transition-all duration-300 ${!isLogin ? 'bg-maroon text-white shadow-sm font-bold' : 'text-gray-body hover:text-ink font-medium'}`}
-            >
-              Sign Up
-            </button>
-          </div>
+          {!needsGoogleRegister && !isForgotFlow && (
+            <div className="flex bg-cream-edge rounded-full p-1 mb-6 border border-border-soft">
+              <button 
+                type="button"
+                onClick={() => { setIsLogin(true); }}
+                className={`flex-1 rounded-full py-2.5 text-base transition-all duration-300 ${isLogin ? 'bg-maroon text-white shadow-sm font-bold' : 'text-gray-body hover:text-ink font-medium'}`}
+              >
+                Sign In
+              </button>
+              <button 
+                type="button"
+                onClick={() => { setIsLogin(false); }}
+                className={`flex-1 rounded-full py-2.5 text-base transition-all duration-300 ${!isLogin ? 'bg-maroon text-white shadow-sm font-bold' : 'text-gray-body hover:text-ink font-medium'}`}
+              >
+                Sign Up
+              </button>
+            </div>
+          )}
 
-          {isVerifying ? (
+          {needsGoogleRegister ? (
+            <form onSubmit={handleGoogleRegisterSubmit} className="space-y-5 text-left">
+              <h3 className="text-lg font-bold text-ink mb-2">Complete Student Details</h3>
+              <p className="text-sm text-gray-body mb-4">Please provide your student details to complete registration.</p>
+              
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="rollNumberGoogle" className="text-ink text-sm font-medium ml-1">Roll Number</Label>
+                  <Input id="rollNumberGoogle" type="text" required value={rollNumber} onChange={(e) => setRollNumber(e.target.value)} className="h-11 rounded-xl bg-white border border-border-soft focus-visible:ring-2 focus-visible:ring-maroon text-ink text-base px-4 placeholder:text-gray-body/50" placeholder="CH.EN.U4..." />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label className="text-ink text-sm font-medium ml-1">Department</Label>
+                  <Select value={departmentId} onValueChange={(val) => { setDepartmentId(val || ''); setSectionId(''); }} required>
+                    <SelectTrigger className="h-11 rounded-xl bg-white border border-border-soft focus:ring-maroon text-ink px-4">
+                      <SelectValue placeholder="Select Department">
+                        {departmentId ? departments.find(d => d.id === departmentId)?.name : "Select Department"}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent className="bg-white border border-border-soft text-ink rounded-xl shadow-xl">
+                      {departments.map(d => <SelectItem key={d.id} value={d.id} className="py-2.5 focus:bg-maroon focus:text-white cursor-pointer">{d.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-ink text-sm font-medium ml-1">Section</Label>
+                  <Select value={sectionId} onValueChange={(val) => setSectionId(val || '')} disabled={!departmentId} required>
+                    <SelectTrigger className="h-11 rounded-xl bg-white border border-border-soft focus:ring-maroon text-ink px-4 disabled:opacity-50">
+                      <SelectValue placeholder="Select Section">
+                        {sectionId ? selectedDepartment?.sections.find(s => s.id === sectionId)?.name : "Select Section"}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent className="bg-white border border-border-soft text-ink rounded-xl shadow-xl">
+                      {selectedDepartment?.sections.map(s => <SelectItem key={s.id} value={s.id} className="py-2.5 focus:bg-maroon focus:text-white cursor-pointer">{s.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <Button type="submit" disabled={loading} className="w-full h-12 text-base font-semibold rounded-full mt-6 bg-maroon hover:bg-maroon-deep text-white shadow-md transition-all hover:scale-[1.01] active:scale-[0.99]">
+                {loading ? 'Completing Registration...' : 'Complete Registration'}
+              </Button>
+              <button type="button" onClick={() => setNeedsGoogleRegister(false)} className="w-full h-12 rounded-full mt-2 text-gray-body hover:text-ink hover:bg-cream transition-colors text-base font-medium">
+                Cancel
+              </button>
+            </form>
+          ) : isForgotFlow ? (
+            forgotStep === 1 ? (
+              <form onSubmit={handleForgotPasswordRequest} className="space-y-5 text-left">
+                <h3 className="text-lg font-bold text-ink mb-2">Forgot Password</h3>
+                <p className="text-sm text-gray-body mb-4">Enter your college email address. We will send a verification code to your personal email address.</p>
+                <div className="space-y-2">
+                  <Label htmlFor="forgotEmail" className="text-ink text-sm font-medium ml-1">College Email Address</Label>
+                  <Input id="forgotEmail" type="email" required value={forgotEmail} onChange={(e) => setForgotEmail(e.target.value.toLowerCase())} className="h-11 rounded-xl bg-white border border-border-soft focus-visible:ring-2 focus-visible:ring-maroon text-ink text-base px-4 placeholder:text-gray-body/50" placeholder="user@university.edu" />
+                </div>
+                <Button type="submit" disabled={loading} className="w-full h-12 text-base font-semibold rounded-full mt-6 bg-maroon hover:bg-maroon-deep text-white shadow-md transition-all hover:scale-[1.01] active:scale-[0.99]">
+                  {loading ? 'Sending Code...' : 'Send Reset Code'}
+                </Button>
+                <button type="button" onClick={() => setIsForgotFlow(false)} className="w-full h-12 rounded-full mt-2 text-gray-body hover:text-ink hover:bg-cream transition-colors text-base font-medium">
+                  Back to Login
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handlePasswordResetSubmit} className="space-y-5 text-left">
+                <h3 className="text-lg font-bold text-ink mb-2">Reset Password</h3>
+                <p className="text-sm text-gray-body mb-4">A reset code has been sent to your personal email. Please enter the code and your new password.</p>
+                
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="forgotCode" className="text-ink text-sm font-medium ml-1">Reset Verification Code</Label>
+                    <Input id="forgotCode" type="text" required value={forgotCode} onChange={(e) => setForgotCode(e.target.value)} className="h-11 rounded-xl bg-white border border-border-soft focus-visible:ring-2 focus-visible:ring-maroon text-ink text-base px-4 placeholder:text-gray-body/50" placeholder="123456" />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="newForgotPassword" className="text-ink text-sm font-medium ml-1">New Password</Label>
+                    <div className="relative">
+                      <Input id="newForgotPassword" type={showForgotNewPassword ? "text" : "password"} required value={newForgotPassword} onChange={(e) => setNewForgotPassword(e.target.value)} className="h-11 rounded-xl bg-white border border-border-soft focus-visible:ring-2 focus-visible:ring-maroon text-ink text-base px-4 pr-10 font-mono tracking-wider placeholder:text-gray-body/50" placeholder="••••••••" />
+                      <button type="button" onClick={() => setShowForgotNewPassword(!showForgotNewPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-body hover:text-ink focus:outline-none">
+                        {showForgotNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-body ml-1">8+ chars, 1 uppercase, 1 number.</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="confirmForgotPassword" className="text-ink text-sm font-medium ml-1">Confirm New Password</Label>
+                    <div className="relative">
+                      <Input id="confirmForgotPassword" type={showForgotConfirmPassword ? "text" : "password"} required value={confirmForgotPassword} onChange={(e) => setConfirmForgotPassword(e.target.value)} className="h-11 rounded-xl bg-white border border-border-soft focus-visible:ring-2 focus-visible:ring-maroon text-ink text-base px-4 pr-10 font-mono tracking-wider placeholder:text-gray-body/50" placeholder="••••••••" />
+                      <button type="button" onClick={() => setShowForgotConfirmPassword(!showForgotConfirmPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-body hover:text-ink focus:outline-none">
+                        {showForgotConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <Button type="submit" disabled={loading} className="w-full h-12 text-base font-semibold rounded-full mt-6 bg-maroon hover:bg-maroon-deep text-white shadow-md transition-all hover:scale-[1.01] active:scale-[0.99]">
+                  {loading ? 'Resetting Password...' : 'Reset Password'}
+                </Button>
+                <button type="button" onClick={() => setForgotStep(1)} className="w-full h-12 rounded-full mt-2 text-gray-body hover:text-ink hover:bg-cream transition-colors text-base font-medium">
+                  Request New Code
+                </button>
+              </form>
+            )
+          ) : isVerifying ? (
             <form onSubmit={handleVerifySubmit} className="space-y-5 text-left">
               <div className="space-y-2">
                 <Label htmlFor="verificationCode" className="text-ink text-sm font-medium ml-1">Verification Code</Label>
@@ -405,7 +706,18 @@ export default function Login() {
 
             <div className={!isLogin ? "grid grid-cols-1 md:grid-cols-2 gap-4" : "space-y-2"}>
               <div className="space-y-2">
-                <Label htmlFor="password" className="text-ink text-sm font-medium ml-1">Password</Label>
+                <div className="flex justify-between items-center ml-1">
+                  <Label htmlFor="password" className="text-ink text-sm font-medium">Password</Label>
+                  {isLogin && (
+                    <button 
+                      type="button" 
+                      onClick={() => { setIsForgotFlow(true); setForgotStep(1); }} 
+                      className="text-xs text-maroon hover:text-maroon-deep transition-colors hover:underline font-semibold"
+                    >
+                      Forgot Password?
+                    </button>
+                  )}
+                </div>
                 <div className="relative">
                   <Input id="password" type={showPassword ? "text" : "password"} required value={password} onChange={(e) => setPassword(e.target.value)} className="h-11 rounded-xl bg-white border border-border-soft focus-visible:ring-2 focus-visible:ring-maroon text-ink text-base px-4 pr-10 font-mono tracking-wider placeholder:text-gray-body/50" placeholder="••••••••" />
                   <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-body hover:text-ink focus:outline-none">
@@ -430,6 +742,33 @@ export default function Login() {
             <Button type="submit" disabled={loading} className="w-full h-12 text-base font-semibold rounded-full mt-6 bg-maroon hover:bg-maroon-deep text-white shadow-md transition-all hover:scale-[1.01] active:scale-[0.99]">
               {loading ? 'Processing...' : (isLogin ? 'Secure Login' : 'Create Account')}
             </Button>
+
+            {(isLogin || role === 'STUDENT') && (
+              <>
+                <div className="relative flex items-center justify-center my-6">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-border-soft"></div>
+                  </div>
+                  <span className="relative px-3 bg-white text-xs text-gray-body uppercase tracking-wider">
+                    {isLogin ? 'Or student login via' : 'Or student sign up via'}
+                  </span>
+                </div>
+                <Button 
+                  type="button" 
+                  onClick={handleGoogleLogin} 
+                  disabled={loading} 
+                  className="w-full h-12 text-base font-semibold rounded-full border border-border-soft bg-white hover:bg-cream text-ink shadow-sm transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2"
+                >
+                  <svg className="w-5 h-5" viewBox="0 0 24 24">
+                    <path fill="#EA4335" d="M12 5.04c1.66 0 3.2.57 4.38 1.69l3.27-3.27C17.67 1.54 14.98 1 12 1 7.35 1 3.37 3.63 1.39 7.47l3.98 3.09C6.31 7.57 8.96 5.04 12 5.04z" />
+                    <path fill="#4285F4" d="M23.49 12.27c0-.81-.07-1.59-.2-2.36H12v4.51h6.47c-.29 1.48-1.14 2.73-2.4 3.58l3.76 2.91c2.2-2.03 3.66-5.02 3.66-8.64z" />
+                    <path fill="#FBBC05" d="M5.37 14.56c-.24-.72-.37-1.49-.37-2.28s.13-1.56.37-2.28L1.39 6.91C.5 8.7 0 10.7 0 12.8s.5 4.1 1.39 5.89l3.98-4.13z" />
+                    <path fill="#34A853" d="M12 23c3.24 0 5.97-1.07 7.96-2.91l-3.76-2.91c-1.1.74-2.51 1.18-4.2 1.18-3.04 0-5.69-2.53-6.61-5.52L1.39 16.91C3.37 20.75 7.35 23 12 23z" />
+                  </svg>
+                  {isLogin ? 'Sign in with Google' : 'Sign up with Google'}
+                </Button>
+              </>
+            )}
           </form>
           )}
 
