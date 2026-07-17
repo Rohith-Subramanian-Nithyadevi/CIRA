@@ -67,6 +67,13 @@ const DotField = memo(({
     if (!ctx) return;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     let resizeTimer: ReturnType<typeof setTimeout>;
+    let isLooping = false;
+
+    function startLoop() {
+      if (isLooping) return;
+      isLooping = true;
+      rafRef.current = requestAnimationFrame(tick);
+    }
 
     function resize() {
       clearTimeout(resizeTimer);
@@ -92,13 +99,22 @@ const DotField = memo(({
       };
 
       buildDots(w, h);
+      startLoop();
     }
 
     function buildDots(w: number, h: number) {
       const p = propsRef.current;
-      const step = (p.dotRadius as number) + (p.dotSpacing as number);
-      const cols = Math.floor(w / step);
-      const rows = Math.floor(h / step);
+      let step = (p.dotRadius as number) + (p.dotSpacing as number);
+      let cols = Math.floor(w / step);
+      let rows = Math.floor(h / step);
+      
+      // Dynamic constraint: limit total dots count to 3000 to prevent lagging on 4k/large monitors
+      if (cols * rows > 3000) {
+        step = Math.ceil(Math.sqrt((w * h) / 3000));
+        cols = Math.floor(w / step);
+        rows = Math.floor(h / step);
+      }
+
       const padX = (w % step) / 2;
       const padY = (h % step) / 2;
       const dots: Dot[] = new Array(rows * cols);
@@ -118,6 +134,7 @@ const DotField = memo(({
       const s = sizeRef.current;
       mouseRef.current.x = e.pageX - s.offsetX;
       mouseRef.current.y = e.pageY - s.offsetY;
+      startLoop();
     }
 
     function updateMouseSpeed() {
@@ -127,8 +144,14 @@ const DotField = memo(({
       const dist = Math.sqrt(dx * dx + dy * dy);
       m.speed += (dist - m.speed) * 0.5;
       if (m.speed < 0.001) m.speed = 0;
+      
+      const prevSpeed = m.speed;
       m.prevX = m.x;
       m.prevY = m.y;
+
+      if (dist > 0.5 || prevSpeed > 0.1) {
+        startLoop();
+      }
     }
 
     const speedInterval = setInterval(updateMouseSpeed, 20);
@@ -168,8 +191,10 @@ const DotField = memo(({
       const crSq = cr * cr;
       const rad = (p.dotRadius as number) / 2;
       const isBulge = p.bulgeOnly as boolean;
+      const hasWave = (p.waveAmplitude as number) > 0;
 
       ctx!.beginPath();
+      let anyMoved = false;
 
       for (let i = 0; i < len; i++) {
         const d = dots[i];
@@ -205,29 +230,29 @@ const DotField = memo(({
           d.sy += (d.y - d.sy) * 0.1;
         }
 
+        if (Math.abs(d.sx - d.ax) > 0.05 || Math.abs(d.sy - d.ay) > 0.05) {
+          anyMoved = true;
+        }
+
         let drawX = d.sx;
         let drawY = d.sy;
-        if ((p.waveAmplitude as number) > 0) {
+        if (hasWave) {
           drawY += Math.sin(d.ax * 0.03 + t) * (p.waveAmplitude as number);
           drawX += Math.cos(d.ay * 0.03 + t * 0.7) * (p.waveAmplitude as number) * 0.5;
         }
 
-        if (p.sparkle) {
-          const hash = ((i * 2654435761) ^ (frameCount >> 3)) >>> 0;
-          if ((hash % 100) < 3) {
-            ctx!.moveTo(drawX + rad * 1.8, drawY);
-            ctx!.arc(drawX, drawY, rad * 1.8, 0, TWO_PI);
-          } else {
-            ctx!.moveTo(drawX + rad, drawY);
-            ctx!.arc(drawX, drawY, rad, 0, TWO_PI);
-          }
-        } else {
-          ctx!.moveTo(drawX + rad, drawY);
-          ctx!.arc(drawX, drawY, rad, 0, TWO_PI);
-        }
+        const size = rad * 2;
+        ctx!.rect(drawX - rad, drawY - rad, size, size);
       }
 
       ctx!.fill();
+
+      // Sleep animation loop when idle
+      if (!anyMoved && eng < 0.01 && m.speed === 0 && !hasWave) {
+        isLooping = false;
+        rafRef.current = null;
+        return;
+      }
 
       rafRef.current = requestAnimationFrame(tick);
     }
@@ -235,7 +260,6 @@ const DotField = memo(({
     doResize();
     window.addEventListener('resize', resize);
     window.addEventListener('mousemove', onMouseMove, { passive: true });
-    rafRef.current = requestAnimationFrame(tick);
 
     rebuildRef.current = () => {
       const { w, h } = sizeRef.current;
