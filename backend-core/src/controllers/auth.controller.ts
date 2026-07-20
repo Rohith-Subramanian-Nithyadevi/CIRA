@@ -4,8 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { generateToken } from '../utils/jwt';
 import { BadRequestError, UnauthorizedError, NotFoundError, ForbiddenError } from '../utils/errors';
-import { sendVerificationEmail, sendAdminApprovalRequestEmail, sendPasswordResetEmail } from '../utils/email';
-import { verifyFirebaseIdToken } from '../utils/firebase';
+
 
 const prisma = new PrismaClient();
 
@@ -278,117 +277,7 @@ export const getMe = async (req: Request, res: Response, next: NextFunction) => 
   }
 };
 
-export const firebaseLogin = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { idToken, collegeEmail, rollNumber, departmentId, sectionId, name: reqName, phone } = req.body;
-    if (!idToken) throw new BadRequestError('Firebase ID token is required');
 
-    const projectId = process.env.FIREBASE_PROJECT_ID || 'cira-f5704';
-    let decodedToken;
-    try {
-      decodedToken = await verifyFirebaseIdToken(idToken, projectId);
-    } catch (err: any) {
-      throw new UnauthorizedError(err.message || 'Firebase token verification failed');
-    }
-
-    if (!decodedToken.email) {
-      throw new BadRequestError('No email associated with this Google account.');
-    }
-
-    const googleEmail = decodedToken.email.toLowerCase();
-    const name = decodedToken.name || 'Student';
-
-    // Find existing user by personalEmail OR college email
-    let user = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { personalEmail: googleEmail },
-          { email: googleEmail }
-        ]
-      }
-    });
-
-    if (user) {
-      // Check approval status for existing accounts
-      if (user.approvalStatus === 'PENDING') {
-        throw new ForbiddenError('Your account is pending administrator approval.', 'ERR_PENDING_APPROVAL');
-      }
-      if (user.approvalStatus === 'REJECTED') {
-        throw new ForbiddenError('Your account has been rejected by an administrator.', 'ERR_ACCOUNT_REJECTED');
-      }
-    } else {
-      if (!collegeEmail || !rollNumber || !departmentId || !sectionId) {
-        return res.status(200).json({
-          status: 'needs_registration',
-          message: 'Student record not found. Please complete your registration details.',
-          data: { googleEmail, name }
-        });
-      }
-
-      const formattedCollegeEmail = collegeEmail.toLowerCase().trim();
-
-      if (!formattedCollegeEmail.endsWith('amrita.edu')) {
-        throw new BadRequestError('College email must end with amrita.edu');
-      }
-
-      const existingUserByEmail = await prisma.user.findFirst({
-        where: {
-          OR: [
-            { email: formattedCollegeEmail },
-            { personalEmail: formattedCollegeEmail }
-          ]
-        }
-      });
-      if (existingUserByEmail) {
-        throw new BadRequestError('This college email is already registered.');
-      }
-
-      const existingRoll = await prisma.user.findUnique({ where: { rollNumber } });
-      if (existingRoll) throw new BadRequestError('Roll number already registered');
-
-      const randomPassword = Math.random().toString(36).slice(-10);
-      const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash(randomPassword, salt);
-
-      const finalName = reqName?.trim() || name;
-
-      user = await prisma.user.create({
-        data: {
-          role: 'STUDENT',
-          name: finalName,
-          email: formattedCollegeEmail,
-          personalEmail: googleEmail,
-          password: hashedPassword,
-          phone: phone || null,
-          rollNumber,
-          departmentId,
-          sectionId,
-          approvalStatus: 'APPROVED',
-          isEmailVerified: true,
-        }
-      });
-    }
-
-    const token = generateToken({ userId: user.id, role: user.role });
-    res.status(200).json({
-      status: 'success',
-      data: {
-        user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          rollNumber: user.rollNumber,
-          departmentId: user.departmentId,
-          sectionId: user.sectionId,
-        },
-        token,
-      }
-    });
-  } catch (error) {
-    next(error);
-  }
-};
 
 export const forgotPassword = async (req: Request, res: Response, next: NextFunction) => {
   try {
