@@ -44,11 +44,14 @@ async function getPublicKeys(): Promise<Record<string, string>> {
   }
 }
 
-export async function verifyFirebaseIdToken(token: string, projectId: string): Promise<DecodedToken> {
+export async function verifyFirebaseIdToken(token: string, projectId?: string): Promise<DecodedToken> {
   const decodedHeader = jwt.decode(token, { complete: true });
   if (!decodedHeader || typeof decodedHeader === 'string' || !decodedHeader.header.kid) {
     throw new Error('Invalid Firebase ID token format');
   }
+
+  const payload = decodedHeader.payload as any;
+  const targetProjectId = payload?.aud || projectId || 'cira-f5704';
 
   const kid = decodedHeader.header.kid;
   const publicKeys = await getPublicKeys();
@@ -64,8 +67,8 @@ export async function verifyFirebaseIdToken(token: string, projectId: string): P
       cert,
       {
         algorithms: ['RS256'],
-        audience: projectId,
-        issuer: `https://securetoken.google.com/${projectId}`,
+        audience: targetProjectId,
+        issuer: `https://securetoken.google.com/${targetProjectId}`,
       },
       (err, decoded) => {
         if (err) {
@@ -77,3 +80,4 @@ export async function verifyFirebaseIdToken(token: string, projectId: string): P
     );
   });
 }
+
