@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 
-const GOOGLE_CERT_URL = 'https://www.googleapis.com/robot/v1/metadata/x509/securetoken-system%40system.gserviceaccount.com';
+const GOOGLE_CERT_URL = 'https://www.googleapis.com/robot/v1/metadata/x509/securetoken-system@system.gserviceaccount.com';
 
 interface DecodedToken {
   iss: string;
