@@ -50,11 +50,6 @@ export default function Login() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Google login states
-  const [needsGoogleRegister, setNeedsGoogleRegister] = useState(false);
-  const [firebaseIdToken, setFirebaseIdToken] = useState('');
-  const [collegeEmailGoogle, setCollegeEmailGoogle] = useState('');
-  
   // Forgot password states
   const [isForgotFlow, setIsForgotFlow] = useState(false);
   const [forgotStep, setForgotStep] = useState<1 | 2>(1); // 1 = request code, 2 = reset password
@@ -64,126 +59,6 @@ export default function Login() {
   const [confirmForgotPassword, setConfirmForgotPassword] = useState('');
   const [showForgotNewPassword, setShowForgotNewPassword] = useState(false);
   const [showForgotConfirmPassword, setShowForgotConfirmPassword] = useState(false);
-
-  const handleGoogleLogin = async () => {
-    setLoading(true);
-    try {
-      const { auth: firebaseAuth, googleProvider } = await import('../lib/firebase');
-      const { signInWithPopup } = await import('firebase/auth');
-      
-      const result = await signInWithPopup(firebaseAuth, googleProvider);
-      const idToken = await result.user.getIdToken();
-      setFirebaseIdToken(idToken);
-
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-      const response = await fetch(`${baseUrl}/api/v1/auth/firebase-login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idToken }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Google authentication failed.');
-      }
-
-      if (data.status === 'needs_registration') {
-        toast.info("Google verification successful. Please complete your registration details.");
-        setNeedsGoogleRegister(true);
-        return;
-      }
-
-      // Success login
-      localStorage.setItem('cira_token', data.data.token);
-      localStorage.setItem('cira_user', JSON.stringify(data.data.user));
-      toast.success('Logged in successfully!');
-      
-      const loggedInUserRole = data.data.user.role;
-      const urlParams = new URLSearchParams(window.location.search);
-      const isDesktopClient = urlParams.get('client') === 'desktop' || navigator.userAgent.toLowerCase().includes('electron');
-
-      if (isDesktopClient && loggedInUserRole === 'STUDENT') {
-        navigate('/exam-portal');
-      } else if (loggedInUserRole === 'ADMIN') {
-        navigate('/admin/dashboard');
-      } else if (loggedInUserRole === 'FACULTY') {
-        navigate('/faculty/dashboard');
-      } else {
-        navigate('/student/dashboard');
-      }
-    } catch (err: any) {
-      if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
-        return;
-      }
-      toast.error(err.message || 'Google sign-in was cancelled or failed.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleGoogleRegisterSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!collegeEmailGoogle || !departmentId || !rollNumber || !sectionId) {
-      toast.error("Please fill in all student registration details including college email.");
-      return;
-    }
-    if (!collegeEmailGoogle.toLowerCase().endsWith('amrita.edu')) {
-      toast.error("College email must end with amrita.edu");
-      return;
-    }
-    setLoading(true);
-
-    try {
-      const { auth: firebaseAuth } = await import('../lib/firebase');
-      let activeToken = firebaseIdToken;
-      if (firebaseAuth.currentUser) {
-        try {
-          activeToken = await firebaseAuth.currentUser.getIdToken(true);
-        } catch {
-          // Fallback to cached state token if refresh fails
-        }
-      }
-
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-      const response = await fetch(`${baseUrl}/api/v1/auth/firebase-login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          idToken: activeToken,
-          collegeEmail: collegeEmailGoogle,
-          rollNumber,
-          departmentId,
-          sectionId,
-          phone,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Registration failed.');
-      }
-
-      localStorage.setItem('cira_token', data.data.token);
-      localStorage.setItem('cira_user', JSON.stringify(data.data.user));
-      toast.success('Registration and Login successful!');
-      setNeedsGoogleRegister(false);
-      
-      const urlParams = new URLSearchParams(window.location.search);
-      const isDesktopClient = urlParams.get('client') === 'desktop' || navigator.userAgent.toLowerCase().includes('electron');
-
-      if (isDesktopClient) {
-        navigate('/exam-portal');
-      } else {
-        navigate('/student/dashboard');
-      }
-    } catch (err: any) {
-      toast.error(err.message || 'Completing registration failed.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleForgotPasswordRequest = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -471,7 +346,7 @@ export default function Login() {
           <h2 className="text-3xl font-serif font-bold text-ink leading-tight">Centralized Access Portal</h2>
         </div>
         <div>
-          {!needsGoogleRegister && !isForgotFlow && (
+          {!isForgotFlow && (
             <div className="flex bg-cream-edge rounded-full p-1 mb-6 border border-border-soft">
               <button 
                 type="button"
@@ -490,71 +365,7 @@ export default function Login() {
             </div>
           )}
 
-          {needsGoogleRegister ? (
-            <form onSubmit={handleGoogleRegisterSubmit} className="space-y-5 text-left">
-              <h3 className="text-lg font-bold text-ink mb-2">Complete Student Details</h3>
-              <p className="text-sm text-gray-body mb-4">Please provide your student details to complete registration.</p>
-              
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="collegeEmailGoogle" className="text-ink text-sm font-medium ml-1">College Email Address (@amrita.edu)</Label>
-                  <Input id="collegeEmailGoogle" type="email" required value={collegeEmailGoogle} onChange={(e) => setCollegeEmailGoogle(e.target.value.toLowerCase())} className="h-11 rounded-xl bg-white border border-border-soft focus-visible:ring-2 focus-visible:ring-maroon text-ink text-base px-4 placeholder:text-gray-body/50" placeholder="user@ch.amrita.edu" />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="rollNumberGoogle" className="text-ink text-sm font-medium ml-1">Roll Number</Label>
-                  <Input id="rollNumberGoogle" type="text" required value={rollNumber} onChange={(e) => setRollNumber(e.target.value)} className="h-11 rounded-xl bg-white border border-border-soft focus-visible:ring-2 focus-visible:ring-maroon text-ink text-base px-4 placeholder:text-gray-body/50" placeholder="CH.EN.U4..." />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="phoneGoogle" className="text-ink text-sm font-medium ml-1">Phone Number</Label>
-                  <Input id="phoneGoogle" type="tel" value={phone} onChange={(e) => {
-                    const val = e.target.value;
-                    if (val.startsWith('+91')) {
-                      setPhone(val);
-                    } else {
-                      setPhone('+91 ' + val.replace(/^\+?9?1?\s*/, ''));
-                    }
-                  }} className="h-11 rounded-xl bg-white border border-border-soft focus-visible:ring-2 focus-visible:ring-maroon text-ink text-base px-4 placeholder:text-gray-body/50" placeholder="+91 9876543210" />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label className="text-ink text-sm font-medium ml-1">Department</Label>
-                  <Select value={departmentId} onValueChange={(val) => { setDepartmentId(val || ''); setSectionId(''); }} required>
-                    <SelectTrigger className="h-11 rounded-xl bg-white border border-border-soft focus:ring-maroon text-ink px-4">
-                      <SelectValue placeholder="Select Department">
-                        {departmentId ? departments.find(d => d.id === departmentId)?.name : "Select Department"}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent className="bg-white border border-border-soft text-ink rounded-xl shadow-xl">
-                      {departments.map(d => <SelectItem key={d.id} value={d.id} className="py-2.5 focus:bg-maroon focus:text-white cursor-pointer">{d.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-ink text-sm font-medium ml-1">Section</Label>
-                  <Select value={sectionId} onValueChange={(val) => setSectionId(val || '')} disabled={!departmentId} required>
-                    <SelectTrigger className="h-11 rounded-xl bg-white border border-border-soft focus:ring-maroon text-ink px-4 disabled:opacity-50">
-                      <SelectValue placeholder="Select Section">
-                        {sectionId ? selectedDepartment?.sections.find(s => s.id === sectionId)?.name : "Select Section"}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent className="bg-white border border-border-soft text-ink rounded-xl shadow-xl">
-                      {selectedDepartment?.sections.map(s => <SelectItem key={s.id} value={s.id} className="py-2.5 focus:bg-maroon focus:text-white cursor-pointer">{s.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <Button type="submit" disabled={loading} className="w-full h-12 text-base font-semibold rounded-full mt-6 bg-maroon hover:bg-maroon-deep text-white shadow-md transition-all hover:scale-[1.01] active:scale-[0.99]">
-                {loading ? 'Completing Registration...' : 'Complete Registration'}
-              </Button>
-              <button type="button" onClick={() => setNeedsGoogleRegister(false)} className="w-full h-12 rounded-full mt-2 text-gray-body hover:text-ink hover:bg-cream transition-colors text-base font-medium">
-                Cancel
-              </button>
-            </form>
-          ) : isForgotFlow ? (
+          {isForgotFlow ? (
             forgotStep === 1 ? (
               <form onSubmit={handleForgotPasswordRequest} className="space-y-5 text-left">
                 <h3 className="text-lg font-bold text-ink mb-2">Forgot Password</h3>
@@ -780,32 +591,6 @@ export default function Login() {
               {loading ? 'Processing...' : (isLogin ? 'Secure Login' : 'Create Account')}
             </Button>
 
-            {(isLogin || role === 'STUDENT') && (
-              <>
-                <div className="relative flex items-center justify-center my-6">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-border-soft"></div>
-                  </div>
-                  <span className="relative px-3 bg-white text-xs text-gray-body uppercase tracking-wider">
-                    {isLogin ? 'Or student login via' : 'Or student sign up via'}
-                  </span>
-                </div>
-                <Button 
-                  type="button" 
-                  onClick={handleGoogleLogin} 
-                  disabled={loading} 
-                  className="w-full h-12 text-base font-semibold rounded-full border border-border-soft bg-white hover:bg-cream text-ink shadow-sm transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2"
-                >
-                  <svg className="w-5 h-5" viewBox="0 0 24 24">
-                    <path fill="#EA4335" d="M12 5.04c1.66 0 3.2.57 4.38 1.69l3.27-3.27C17.67 1.54 14.98 1 12 1 7.35 1 3.37 3.63 1.39 7.47l3.98 3.09C6.31 7.57 8.96 5.04 12 5.04z" />
-                    <path fill="#4285F4" d="M23.49 12.27c0-.81-.07-1.59-.2-2.36H12v4.51h6.47c-.29 1.48-1.14 2.73-2.4 3.58l3.76 2.91c2.2-2.03 3.66-5.02 3.66-8.64z" />
-                    <path fill="#FBBC05" d="M5.37 14.56c-.24-.72-.37-1.49-.37-2.28s.13-1.56.37-2.28L1.39 6.91C.5 8.7 0 10.7 0 12.8s.5 4.1 1.39 5.89l3.98-4.13z" />
-                    <path fill="#34A853" d="M12 23c3.24 0 5.97-1.07 7.96-2.91l-3.76-2.91c-1.1.74-2.51 1.18-4.2 1.18-3.04 0-5.69-2.53-6.61-5.52L1.39 16.91C3.37 20.75 7.35 23 12 23z" />
-                  </svg>
-                  {isLogin ? 'Sign in with Google' : 'Sign up with Google'}
-                </Button>
-              </>
-            )}
           </form>
           )}
 
