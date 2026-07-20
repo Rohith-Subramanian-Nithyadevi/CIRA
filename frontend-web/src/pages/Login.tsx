@@ -655,16 +655,29 @@ export default function Login() {
                 {role === 'STUDENT' ? (
                   <div className="space-y-1">
                     <Label className="text-xs font-semibold text-ink">Department</Label>
-                    <Select value={departmentId} onValueChange={(val) => { setDepartmentId(val || ''); setSectionId(''); }}>
-                      <SelectTrigger className="h-9 rounded-lg bg-white border border-border-soft text-xs px-3"><SelectValue placeholder="Department" /></SelectTrigger>
+                    <Select value={departmentId} onValueChange={(val) => { setDepartmentId(val || ''); setSectionId(''); }} items={departments.map(d => ({ label: d.name, value: d.id }))}>
+                      <SelectTrigger className="h-9 rounded-lg bg-white border border-border-soft text-xs px-3">
+                        <SelectValue placeholder="Department">
+                          {(val) => departments.find(d => d.id === val)?.name || val}
+                        </SelectValue>
+                      </SelectTrigger>
                       <SelectContent className="bg-white border border-border-soft">{departments.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                 ) : (
                   <div className="space-y-1">
                     <Label className="text-xs font-semibold text-ink">Subject</Label>
-                    <Select value={subject} onValueChange={(val) => setSubject(val || '')}>
-                      <SelectTrigger className="h-9 rounded-lg bg-white border border-border-soft text-xs px-3"><SelectValue placeholder="Subject" /></SelectTrigger>
+                    <Select value={subject} onValueChange={(val) => setSubject(val || '')} items={[
+                      { label: 'Softskills', value: 'softskills' },
+                      { label: 'Verbal', value: 'verbal' },
+                      { label: 'Aptitude', value: 'aptitude' },
+                      { label: 'Trainee', value: 'trainee' },
+                    ]}>
+                      <SelectTrigger className="h-9 rounded-lg bg-white border border-border-soft text-xs px-3">
+                        <SelectValue placeholder="Subject">
+                          {(val) => ({ softskills: 'Softskills', verbal: 'Verbal', aptitude: 'Aptitude', trainee: 'Trainee' }[val as string] || val)}
+                        </SelectValue>
+                      </SelectTrigger>
                       <SelectContent className="bg-white border border-border-soft">
                         <SelectItem value="softskills">Softskills</SelectItem>
                         <SelectItem value="verbal">Verbal</SelectItem>
@@ -677,8 +690,12 @@ export default function Login() {
                 {role === 'STUDENT' && (
                   <div className="space-y-1 sm:col-span-2">
                     <Label className="text-xs font-semibold text-ink">Section</Label>
-                    <Select value={sectionId} onValueChange={(val) => setSectionId(val || '')} disabled={!departmentId}>
-                      <SelectTrigger className="h-9 rounded-lg bg-white border border-border-soft text-xs px-3"><SelectValue placeholder="Section" /></SelectTrigger>
+                    <Select value={sectionId} onValueChange={(val) => setSectionId(val || '')} disabled={!departmentId} items={selectedDepartment?.sections.map(s => ({ label: s.name, value: s.id })) || []}>
+                      <SelectTrigger className="h-9 rounded-lg bg-white border border-border-soft text-xs px-3">
+                        <SelectValue placeholder="Section">
+                          {(val) => selectedDepartment?.sections.find(s => s.id === val)?.name || val}
+                        </SelectValue>
+                      </SelectTrigger>
                       <SelectContent className="bg-white border border-border-soft">{selectedDepartment?.sections.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
@@ -748,16 +765,29 @@ export default function Login() {
                   {role === 'STUDENT' ? (
                     <div className="space-y-1">
                       <Label className="text-xs font-medium text-ink">Department</Label>
-                      <Select value={departmentId} onValueChange={(val) => { setDepartmentId(val || ''); setSectionId(''); }}>
-                        <SelectTrigger className="h-9 rounded-lg bg-white border border-border-soft text-xs px-3"><SelectValue placeholder="Department" /></SelectTrigger>
+                      <Select value={departmentId} onValueChange={(val) => { setDepartmentId(val || ''); setSectionId(''); }} items={departments.map(d => ({ label: d.name, value: d.id }))}>
+                        <SelectTrigger className="h-9 rounded-lg bg-white border border-border-soft text-xs px-3">
+                          <SelectValue placeholder="Department">
+                            {(val) => departments.find(d => d.id === val)?.name || val}
+                          </SelectValue>
+                        </SelectTrigger>
                         <SelectContent className="bg-white border border-border-soft">{departments.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
                   ) : (
                     <div className="space-y-1">
                       <Label className="text-xs font-medium text-ink">Subject</Label>
-                      <Select value={subject} onValueChange={(val) => setSubject(val || '')}>
-                        <SelectTrigger className="h-9 rounded-lg bg-white border border-border-soft text-xs px-3"><SelectValue placeholder="Subject" /></SelectTrigger>
+                      <Select value={subject} onValueChange={(val) => setSubject(val || '')} items={[
+                        { label: 'Softskills', value: 'softskills' },
+                        { label: 'Verbal', value: 'verbal' },
+                        { label: 'Aptitude', value: 'aptitude' },
+                        { label: 'Trainee', value: 'trainee' },
+                      ]}>
+                        <SelectTrigger className="h-9 rounded-lg bg-white border border-border-soft text-xs px-3">
+                          <SelectValue placeholder="Subject">
+                            {(val) => ({ softskills: 'Softskills', verbal: 'Verbal', aptitude: 'Aptitude', trainee: 'Trainee' }[val as string] || val)}
+                          </SelectValue>
+                        </SelectTrigger>
                         <SelectContent className="bg-white border border-border-soft">
                           <SelectItem value="softskills">Softskills</SelectItem>
                           <SelectItem value="verbal">Verbal</SelectItem>
@@ -770,8 +800,12 @@ export default function Login() {
                   {role === 'STUDENT' && (
                     <div className="space-y-1 sm:col-span-2">
                       <Label className="text-xs font-medium text-ink">Section</Label>
-                      <Select value={sectionId} onValueChange={(val) => setSectionId(val || '')} disabled={!departmentId}>
-                        <SelectTrigger className="h-9 rounded-lg bg-white border border-border-soft text-xs px-3"><SelectValue placeholder="Section" /></SelectTrigger>
+                      <Select value={sectionId} onValueChange={(val) => setSectionId(val || '')} disabled={!departmentId} items={selectedDepartment?.sections.map(s => ({ label: s.name, value: s.id })) || []}>
+                        <SelectTrigger className="h-9 rounded-lg bg-white border border-border-soft text-xs px-3">
+                          <SelectValue placeholder="Section">
+                            {(val) => selectedDepartment?.sections.find(s => s.id === val)?.name || val}
+                          </SelectValue>
+                        </SelectTrigger>
                         <SelectContent className="bg-white border border-border-soft">{selectedDepartment?.sections.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
@@ -791,7 +825,7 @@ export default function Login() {
                   value={email} 
                   onChange={(e) => setEmail(e.target.value.toLowerCase())} 
                   className="h-11 rounded-lg bg-white border border-border-soft focus:border-maroon focus:ring-1 focus:ring-maroon text-ink text-sm px-3.5 placeholder:text-gray-body/50" 
-                  placeholder={isLogin ? "Your username or email" : "username@ch.students.amrita.edu"} 
+                  placeholder={isLogin ? "Your username or email" : (role === 'STUDENT' ? "username@ch.students.amrita.edu" : "username@ch.amrita.edu")} 
                 />
               </div>
 
