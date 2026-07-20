@@ -422,7 +422,7 @@ export default function Login() {
                 </button>
               </form>
             )
-          : isVerifying ? (
+          ) : isVerifying ? (
             <form onSubmit={handleVerifySubmit} className="space-y-5 text-left">
               <div className="space-y-2">
                 <Label htmlFor="verificationCode" className="text-ink text-sm font-medium ml-1">Verification Code</Label>
