@@ -283,8 +283,13 @@ export const firebaseLogin = async (req: Request, res: Response, next: NextFunct
     const { idToken, rollNumber, departmentId, sectionId } = req.body;
     if (!idToken) throw new BadRequestError('Firebase ID token is required');
 
-    const projectId = process.env.FIREBASE_PROJECT_ID || 'cira-exam-portal';
-    const decodedToken = await verifyFirebaseIdToken(idToken, projectId);
+    const projectId = process.env.FIREBASE_PROJECT_ID || 'cira-f5704';
+    let decodedToken;
+    try {
+      decodedToken = await verifyFirebaseIdToken(idToken, projectId);
+    } catch (err: any) {
+      throw new UnauthorizedError(err.message || 'Firebase token verification failed');
+    }
 
     const email = decodedToken.email.toLowerCase();
     const name = decodedToken.name || 'Student';
