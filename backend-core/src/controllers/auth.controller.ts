@@ -4,9 +4,10 @@ import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { generateToken } from '../utils/jwt';
 import { BadRequestError, UnauthorizedError, NotFoundError, ForbiddenError } from '../utils/errors';
-
+import { sendVerificationEmail, sendAdminApprovalRequestEmail, sendPasswordResetEmail } from '../utils/email';
 
 const prisma = new PrismaClient();
+
 
 const registerSchema = z.object({
   role: z.enum(['STUDENT', 'FACULTY']),
