@@ -79,6 +79,7 @@ model User {
   email          String         @unique
   personalEmail  String?        @unique
   password       String
+  authProvider   String         @default("EMAIL")
   phone          String?
   rollNumber     String?        @unique
   employeeId     String?        @unique

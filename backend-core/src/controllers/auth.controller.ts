@@ -86,6 +86,7 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
         email: validatedData.email,
         personalEmail: validatedData.personalEmail,
         password: hashedPassword,
+        authProvider: 'EMAIL',
         phone: validatedData.phone,
         departmentId: validatedData.departmentId,
         rollNumber: validatedData.rollNumber,
@@ -294,6 +295,10 @@ export const forgotPassword = async (req: Request, res: Response, next: NextFunc
       });
     }
 
+    if ((user as any).authProvider === 'GOOGLE' || user.password?.includes('SSO_')) {
+      throw new BadRequestError('Password reset is not available for accounts created via Google Sign-In. Please log in using Google.', 'ERR_GOOGLE_AUTH_ACCOUNT');
+    }
+
     if (!user.personalEmail) {
       throw new BadRequestError('No personal email configured for this account. Please contact an administrator.');
     }
@@ -325,6 +330,10 @@ export const resetPassword = async (req: Request, res: Response, next: NextFunct
 
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) throw new NotFoundError('User not found');
+
+    if ((user as any).authProvider === 'GOOGLE' || user.password?.includes('SSO_')) {
+      throw new BadRequestError('Password reset is not available for accounts created via Google Sign-In.');
+    }
 
     if (!user.verificationCode || user.verificationCode !== code) {
       throw new BadRequestError('Invalid or expired verification code');
@@ -493,6 +502,7 @@ export const firebaseAuthRegister = async (req: Request, res: Response, next: Ne
         email: collegeEmail,
         personalEmail: googlePersonalEmail,
         password: dummyPassword,
+        authProvider: 'GOOGLE',
         phone,
         departmentId: role === 'STUDENT' ? departmentId : undefined,
         rollNumber: role === 'STUDENT' ? rollNumber : undefined,
