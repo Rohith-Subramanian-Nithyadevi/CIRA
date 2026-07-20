@@ -53,6 +53,7 @@ export default function Login() {
   // Google login states
   const [needsGoogleRegister, setNeedsGoogleRegister] = useState(false);
   const [firebaseIdToken, setFirebaseIdToken] = useState('');
+  const [collegeEmailGoogle, setCollegeEmailGoogle] = useState('');
   
   // Forgot password states
   const [isForgotFlow, setIsForgotFlow] = useState(false);
@@ -120,8 +121,12 @@ export default function Login() {
 
   const handleGoogleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!departmentId || !rollNumber || !sectionId) {
-      toast.error("Please fill in all student registration details.");
+    if (!collegeEmailGoogle || !departmentId || !rollNumber || !sectionId) {
+      toast.error("Please fill in all student registration details including college email.");
+      return;
+    }
+    if (!collegeEmailGoogle.toLowerCase().endsWith('amrita.edu')) {
+      toast.error("College email must end with amrita.edu");
       return;
     }
     setLoading(true);
@@ -133,6 +138,7 @@ export default function Login() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           idToken: firebaseIdToken,
+          collegeEmail: collegeEmailGoogle,
           rollNumber,
           departmentId,
           sectionId,
@@ -476,6 +482,11 @@ export default function Login() {
               <p className="text-sm text-gray-body mb-4">Please provide your student details to complete registration.</p>
               
               <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="collegeEmailGoogle" className="text-ink text-sm font-medium ml-1">College Email Address (@amrita.edu)</Label>
+                  <Input id="collegeEmailGoogle" type="email" required value={collegeEmailGoogle} onChange={(e) => setCollegeEmailGoogle(e.target.value.toLowerCase())} className="h-11 rounded-xl bg-white border border-border-soft focus-visible:ring-2 focus-visible:ring-maroon text-ink text-base px-4 placeholder:text-gray-body/50" placeholder="user@ch.amrita.edu" />
+                </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="rollNumberGoogle" className="text-ink text-sm font-medium ml-1">Roll Number</Label>
                   <Input id="rollNumberGoogle" type="text" required value={rollNumber} onChange={(e) => setRollNumber(e.target.value)} className="h-11 rounded-xl bg-white border border-border-soft focus-visible:ring-2 focus-visible:ring-maroon text-ink text-base px-4 placeholder:text-gray-body/50" placeholder="CH.EN.U4..." />
