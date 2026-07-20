@@ -280,7 +280,7 @@ export const getMe = async (req: Request, res: Response, next: NextFunction) => 
 
 export const firebaseLogin = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { idToken, collegeEmail, rollNumber, departmentId, sectionId } = req.body;
+    const { idToken, collegeEmail, rollNumber, departmentId, sectionId, name: reqName, phone } = req.body;
     if (!idToken) throw new BadRequestError('Firebase ID token is required');
 
     const projectId = process.env.FIREBASE_PROJECT_ID || 'cira-f5704';
@@ -308,7 +308,15 @@ export const firebaseLogin = async (req: Request, res: Response, next: NextFunct
       }
     });
 
-    if (!user) {
+    if (user) {
+      // Check approval status for existing accounts
+      if (user.approvalStatus === 'PENDING') {
+        throw new ForbiddenError('Your account is pending administrator approval.', 'ERR_PENDING_APPROVAL');
+      }
+      if (user.approvalStatus === 'REJECTED') {
+        throw new ForbiddenError('Your account has been rejected by an administrator.', 'ERR_ACCOUNT_REJECTED');
+      }
+    } else {
       if (!collegeEmail || !rollNumber || !departmentId || !sectionId) {
         return res.status(200).json({
           status: 'needs_registration',
@@ -342,13 +350,16 @@ export const firebaseLogin = async (req: Request, res: Response, next: NextFunct
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash(randomPassword, salt);
 
+      const finalName = reqName?.trim() || name;
+
       user = await prisma.user.create({
         data: {
           role: 'STUDENT',
-          name,
+          name: finalName,
           email: formattedCollegeEmail,
           personalEmail: googleEmail,
           password: hashedPassword,
+          phone: phone || null,
           rollNumber,
           departmentId,
           sectionId,

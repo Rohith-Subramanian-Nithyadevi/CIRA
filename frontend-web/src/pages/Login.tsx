@@ -113,6 +113,9 @@ export default function Login() {
         navigate('/student/dashboard');
       }
     } catch (err: any) {
+      if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
+        return;
+      }
       toast.error(err.message || 'Google sign-in was cancelled or failed.');
     } finally {
       setLoading(false);
@@ -132,16 +135,27 @@ export default function Login() {
     setLoading(true);
 
     try {
+      const { auth: firebaseAuth } = await import('../lib/firebase');
+      let activeToken = firebaseIdToken;
+      if (firebaseAuth.currentUser) {
+        try {
+          activeToken = await firebaseAuth.currentUser.getIdToken(true);
+        } catch {
+          // Fallback to cached state token if refresh fails
+        }
+      }
+
       const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
       const response = await fetch(`${baseUrl}/api/v1/auth/firebase-login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          idToken: firebaseIdToken,
+          idToken: activeToken,
           collegeEmail: collegeEmailGoogle,
           rollNumber,
           departmentId,
           sectionId,
+          phone,
         }),
       });
 
@@ -490,6 +504,18 @@ export default function Login() {
                 <div className="space-y-2">
                   <Label htmlFor="rollNumberGoogle" className="text-ink text-sm font-medium ml-1">Roll Number</Label>
                   <Input id="rollNumberGoogle" type="text" required value={rollNumber} onChange={(e) => setRollNumber(e.target.value)} className="h-11 rounded-xl bg-white border border-border-soft focus-visible:ring-2 focus-visible:ring-maroon text-ink text-base px-4 placeholder:text-gray-body/50" placeholder="CH.EN.U4..." />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="phoneGoogle" className="text-ink text-sm font-medium ml-1">Phone Number</Label>
+                  <Input id="phoneGoogle" type="tel" value={phone} onChange={(e) => {
+                    const val = e.target.value;
+                    if (val.startsWith('+91')) {
+                      setPhone(val);
+                    } else {
+                      setPhone('+91 ' + val.replace(/^\+?9?1?\s*/, ''));
+                    }
+                  }} className="h-11 rounded-xl bg-white border border-border-soft focus-visible:ring-2 focus-visible:ring-maroon text-ink text-base px-4 placeholder:text-gray-body/50" placeholder="+91 9876543210" />
                 </div>
                 
                 <div className="space-y-2">
