@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { generateToken } from '../utils/jwt';
 import { BadRequestError, UnauthorizedError, NotFoundError, ForbiddenError } from '../utils/errors';
 import { sendVerificationEmail, sendAdminApprovalRequestEmail, sendPasswordResetEmail } from '../utils/email';
+import { verifyFirebaseToken } from '../config/firebase';
 
 const prisma = new PrismaClient();
 
@@ -348,4 +349,183 @@ export const resetPassword = async (req: Request, res: Response, next: NextFunct
     next(error);
   }
 };
+
+export const firebaseAuthLogin = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { idToken } = req.body;
+    if (!idToken) {
+      throw new BadRequestError('Firebase ID token is required');
+    }
+
+    const decoded = await verifyFirebaseToken(idToken);
+    const googlePersonalEmail = decoded.email.toLowerCase();
+
+    // Look up user by personal email or primary email
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { personalEmail: googlePersonalEmail },
+          { email: googlePersonalEmail }
+        ]
+      },
+    });
+
+    if (!user) {
+      // User doesn't exist yet -> requires onboarding with college email & profile details
+      return res.status(200).json({
+        status: 'NEEDS_ONBOARDING',
+        message: 'Google authentication successful. Please enter your college email and profile details.',
+        data: {
+          personalEmail: googlePersonalEmail,
+          name: decoded.name || googlePersonalEmail.split('@')[0],
+        },
+      });
+    }
+
+    // Check approval status
+    if (user.approvalStatus === 'PENDING') {
+      throw new ForbiddenError('Your account is pending administrator approval.', 'ERR_PENDING_APPROVAL');
+    }
+    if (user.approvalStatus === 'REJECTED') {
+      throw new ForbiddenError('Your account has been rejected by an administrator.', 'ERR_ACCOUNT_REJECTED');
+    }
+
+    if (!user.isEmailVerified && user.role !== 'ADMIN') {
+      throw new ForbiddenError('Please verify your college email address first.', 'ERR_EMAIL_NOT_VERIFIED');
+    }
+
+    const token = generateToken({ userId: user.id, role: user.role });
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          phone: user.phone,
+          rollNumber: user.rollNumber,
+          employeeId: user.employeeId,
+          subject: user.subject,
+          departmentId: user.departmentId,
+        },
+        token,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const firebaseAuthRegister = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const {
+      idToken,
+      role,
+      name,
+      email, // College Email
+      phone,
+      departmentId,
+      rollNumber,
+      sectionId,
+      employeeId,
+      subject,
+    } = req.body;
+
+    if (!idToken) throw new BadRequestError('Firebase ID token is required');
+    if (!role || !['STUDENT', 'FACULTY'].includes(role)) throw new BadRequestError('Valid role (STUDENT or FACULTY) is required');
+    if (!name) throw new BadRequestError('Name is required');
+    if (!email) throw new BadRequestError('College email is required');
+
+    const decoded = await verifyFirebaseToken(idToken);
+    const googlePersonalEmail = decoded.email.toLowerCase();
+    const collegeEmail = email.toLowerCase();
+
+    // Domain validation on College Email
+    if (role === 'STUDENT' && !collegeEmail.endsWith('@ch.students.amrita.edu')) {
+      throw new BadRequestError('Student college email must end with @ch.students.amrita.edu');
+    }
+
+    if (role === 'FACULTY' && !collegeEmail.endsWith('@ch.amrita.edu') && !collegeEmail.endsWith('@ch.students.amrita.edu')) {
+      throw new BadRequestError('Faculty college email must end with @ch.amrita.edu');
+    }
+
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: collegeEmail },
+          { personalEmail: googlePersonalEmail }
+        ]
+      }
+    });
+
+    if (existingUser) {
+      throw new BadRequestError('User with this college or personal email already exists', 'ERR_USER_EXISTS');
+    }
+
+    // Role specific validations
+    if (role === 'STUDENT') {
+      if (!departmentId) throw new BadRequestError('Department is required for students');
+      if (!rollNumber) throw new BadRequestError('Roll number is required for students');
+      if (!sectionId) throw new BadRequestError('Section is required for students');
+
+      const existingRoll = await prisma.user.findUnique({ where: { rollNumber } });
+      if (existingRoll) throw new BadRequestError('Roll number already registered');
+    }
+
+    if (role === 'FACULTY') {
+      if (!employeeId) throw new BadRequestError('Employee ID is required for faculty');
+      if (!subject) throw new BadRequestError('Subject is required for faculty');
+
+      const existingEmp = await prisma.user.findUnique({ where: { employeeId } });
+      if (existingEmp) throw new BadRequestError('Employee ID already registered');
+    }
+
+    const dummyPassword = await bcrypt.hash(`SSO_${Math.random()}_${Date.now()}`, 10);
+    const approvalStatus = role === 'FACULTY' ? 'PENDING' : 'APPROVED';
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+    const user = await prisma.user.create({
+      data: {
+        role,
+        name,
+        email: collegeEmail,
+        personalEmail: googlePersonalEmail,
+        password: dummyPassword,
+        phone,
+        departmentId: role === 'STUDENT' ? departmentId : undefined,
+        rollNumber: role === 'STUDENT' ? rollNumber : undefined,
+        sectionId: role === 'STUDENT' ? sectionId : undefined,
+        employeeId: role === 'FACULTY' ? employeeId : undefined,
+        subject: role === 'FACULTY' ? subject : undefined,
+        approvalStatus,
+        isEmailVerified: false,
+        verificationCode,
+      },
+    });
+
+    // Send verification email to College Email via Resend/email util
+    await sendVerificationEmail(collegeEmail, verificationCode);
+
+    return res.status(201).json({
+      status: 'success',
+      message: `Registration successful. A verification code has been sent to your college email (${collegeEmail}).`,
+      data: {
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          personalEmail: user.personalEmail,
+          role: user.role,
+          isEmailVerified: user.isEmailVerified
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
 
