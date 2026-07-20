@@ -41,9 +41,9 @@ describe('Login', () => {
     renderLogin();
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
 
-    await userEvent.type(screen.getByLabelText(/college email address/i), 'student@amrita.edu');
-    await userEvent.type(screen.getByLabelText(/^password$/i), 'Password1');
-    await userEvent.click(screen.getByRole('button', { name: /secure login/i }));
+    await userEvent.type(screen.getByLabelText(/your username or email/i), 'student@amrita.edu');
+    await userEvent.type(screen.getByLabelText(/^your password$/i), 'Password1');
+    await userEvent.click(screen.getByRole('button', { name: /^log in$/i }));
 
     expect(await screen.findByRole('heading', { name: /student dashboard/i })).toBeInTheDocument();
     expect(localStorage.getItem('cira_token')).toBe('student-token');
@@ -67,9 +67,9 @@ describe('Login', () => {
     renderLogin();
     await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
 
-    await userEvent.type(screen.getByLabelText(/college email address/i), 'wrong@amrita.edu');
-    await userEvent.type(screen.getByLabelText(/^password$/i), 'Password1');
-    await userEvent.click(screen.getByRole('button', { name: /secure login/i }));
+    await userEvent.type(screen.getByLabelText(/your username or email/i), 'wrong@amrita.edu');
+    await userEvent.type(screen.getByLabelText(/^your password$/i), 'Password1');
+    await userEvent.click(screen.getByRole('button', { name: /^log in$/i }));
 
     await waitFor(() => {
       expect(screen.getByText(/invalid credentials/i)).toBeInTheDocument();
