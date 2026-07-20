@@ -280,7 +280,7 @@ export const getMe = async (req: Request, res: Response, next: NextFunction) => 
 
 export const firebaseLogin = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { idToken, rollNumber, departmentId, sectionId } = req.body;
+    const { idToken, collegeEmail, rollNumber, departmentId, sectionId } = req.body;
     if (!idToken) throw new BadRequestError('Firebase ID token is required');
 
     const projectId = process.env.FIREBASE_PROJECT_ID || 'cira-f5704';
@@ -291,25 +291,48 @@ export const firebaseLogin = async (req: Request, res: Response, next: NextFunct
       throw new UnauthorizedError(err.message || 'Firebase token verification failed');
     }
 
-    const email = decodedToken.email.toLowerCase();
-    const name = decodedToken.name || 'Student';
-
-    // Verify student email domains
-    if (!email.endsWith('amrita.edu')) {
-      throw new ForbiddenError('Google sign-in is only allowed for amrita.edu email addresses.');
+    if (!decodedToken.email) {
+      throw new BadRequestError('No email associated with this Google account.');
     }
 
-    let user = await prisma.user.findUnique({
-      where: { email },
+    const googleEmail = decodedToken.email.toLowerCase();
+    const name = decodedToken.name || 'Student';
+
+    // Find existing user by personalEmail OR college email
+    let user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { personalEmail: googleEmail },
+          { email: googleEmail }
+        ]
+      }
     });
 
     if (!user) {
-      if (!rollNumber || !departmentId || !sectionId) {
+      if (!collegeEmail || !rollNumber || !departmentId || !sectionId) {
         return res.status(200).json({
           status: 'needs_registration',
           message: 'Student record not found. Please complete your registration details.',
-          data: { email, name }
+          data: { googleEmail, name }
         });
+      }
+
+      const formattedCollegeEmail = collegeEmail.toLowerCase().trim();
+
+      if (!formattedCollegeEmail.endsWith('amrita.edu')) {
+        throw new BadRequestError('College email must end with amrita.edu');
+      }
+
+      const existingUserByEmail = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { email: formattedCollegeEmail },
+            { personalEmail: formattedCollegeEmail }
+          ]
+        }
+      });
+      if (existingUserByEmail) {
+        throw new BadRequestError('This college email is already registered.');
       }
 
       const existingRoll = await prisma.user.findUnique({ where: { rollNumber } });
@@ -323,8 +346,8 @@ export const firebaseLogin = async (req: Request, res: Response, next: NextFunct
         data: {
           role: 'STUDENT',
           name,
-          email,
-          personalEmail: email,
+          email: formattedCollegeEmail,
+          personalEmail: googleEmail,
           password: hashedPassword,
           rollNumber,
           departmentId,
