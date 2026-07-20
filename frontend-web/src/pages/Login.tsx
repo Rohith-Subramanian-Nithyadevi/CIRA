@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
+import { signInWithPopup } from 'firebase/auth';
+import { auth, googleProvider } from '../lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -34,9 +36,12 @@ export default function Login() {
   
   const [isVerifying, setIsVerifying] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
-  
+  const [isOnboarding, setIsOnboarding] = useState(false);
+  const [firebaseIdToken, setFirebaseIdToken] = useState('');
+
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
 
   // Student specific
   const [rollNumber, setRollNumber] = useState('');
@@ -166,7 +171,146 @@ export default function Login() {
 
   const selectedDepartment = departments.find(d => d.id === departmentId);
 
+  const handleGoogleSignIn = async () => {
+    setLoading(true);
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
+      const token = await user.getIdToken();
+      setFirebaseIdToken(token);
+
+      const googlePersonalEmail = (user.email || '').toLowerCase();
+      setPersonalEmail(googlePersonalEmail);
+
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+      const response = await fetch(`${baseUrl}/api/v1/auth/firebase-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken: token }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Google Sign-In failed.');
+      }
+
+      if (data.status === 'NEEDS_ONBOARDING') {
+        toast.info("Google authentication successful! Please enter your college email and profile details.");
+        if (data.data.name) setName(data.data.name);
+        setIsOnboarding(true);
+        return;
+      }
+
+      // Existing user signed in
+      localStorage.setItem('cira_token', data.data.token);
+      localStorage.setItem('cira_user', JSON.stringify(data.data.user));
+
+      const loggedInUserRole = data.data.user.role;
+      const urlParams = new URLSearchParams(window.location.search);
+      const isDesktopClient = urlParams.get('client') === 'desktop' || navigator.userAgent.toLowerCase().includes('electron');
+
+      if (isDesktopClient && loggedInUserRole === 'STUDENT') {
+        navigate('/exam-portal');
+      } else if (loggedInUserRole === 'ADMIN') {
+        navigate('/admin/dashboard');
+      } else if (loggedInUserRole === 'FACULTY') {
+        navigate('/faculty/dashboard');
+      } else {
+        navigate('/student/dashboard');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Google Sign-In failed.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOnboardingSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    if (!email) {
+      toast.error("Please enter your college email address.");
+      setLoading(false);
+      return;
+    }
+
+    if (role === 'STUDENT' && !email.toLowerCase().endsWith('@ch.students.amrita.edu')) {
+      toast.error("Student college email must end with @ch.students.amrita.edu");
+      setLoading(false);
+      return;
+    }
+
+    if (role === 'FACULTY' && !email.toLowerCase().endsWith('@ch.amrita.edu') && !email.toLowerCase().endsWith('@ch.students.amrita.edu')) {
+      toast.error("Faculty college email must end with @ch.amrita.edu");
+      setLoading(false);
+      return;
+    }
+
+    const phoneRegex = /^\+91\s?\d{10}$/;
+    if (!phoneRegex.test(phone.trim())) {
+      toast.error("Please enter a valid 10-digit phone number with +91 code.");
+      setLoading(false);
+      return;
+    }
+
+    if (role === 'STUDENT' && !departmentId) {
+      toast.error("Please select a department.");
+      setLoading(false);
+      return;
+    }
+    
+    if (role === 'FACULTY' && !subject) {
+      toast.error("Please select a subject.");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+      const payload: any = {
+        idToken: firebaseIdToken,
+        role,
+        name,
+        email: email.toLowerCase(), // College Email
+        phone,
+      };
+
+      if (role === 'STUDENT') {
+        payload.departmentId = departmentId;
+        payload.rollNumber = rollNumber;
+        payload.sectionId = sectionId;
+      } else {
+        payload.employeeId = employeeId;
+        payload.subject = subject;
+      }
+
+      const response = await fetch(`${baseUrl}/api/v1/auth/firebase-register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Registration failed.');
+      }
+
+      toast.success(data.message || 'Registration successful. Please verify your college email.');
+      setIsOnboarding(false);
+      setIsVerifying(true);
+    } catch (err: any) {
+      toast.error(err.message || 'An unexpected error occurred.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
   const handleSubmit = async (e: React.FormEvent) => {
+
     e.preventDefault();
     setLoading(true);
 
@@ -422,13 +566,127 @@ export default function Login() {
                 </button>
               </form>
             )
+          ) : isOnboarding ? (
+            <form onSubmit={handleOnboardingSubmit} className="space-y-4 text-left">
+              <div className="text-center mb-4">
+                <h3 className="text-xl font-bold text-ink">Complete Account Profile</h3>
+                <p className="text-xs text-gray-body mt-1">Google Auth Personal Email: <span className="font-semibold text-maroon">{personalEmail}</span></p>
+              </div>
+
+              <div className="flex justify-center mb-4">
+                <div className="flex bg-cream-edge rounded-full p-1 border border-border-soft w-full max-w-[280px]">
+                  <button 
+                    type="button"
+                    onClick={() => setRole('STUDENT')}
+                    className={`flex-1 rounded-full py-1.5 text-xs transition-all duration-300 ${role === 'STUDENT' ? 'bg-maroon text-white shadow-sm font-bold' : 'text-gray-body hover:text-ink font-medium'}`}
+                  >
+                    Student
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => setRole('FACULTY')}
+                    className={`flex-1 rounded-full py-1.5 text-xs transition-all duration-300 ${role === 'FACULTY' ? 'bg-maroon text-white shadow-sm font-bold' : 'text-gray-body hover:text-ink font-medium'}`}
+                  >
+                    Faculty
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="onboardingName" className="text-ink text-sm font-medium ml-1">Full Name</Label>
+                  <Input id="onboardingName" type="text" required value={name} onChange={(e) => setName(e.target.value)} className="h-11 rounded-xl bg-white border border-border-soft text-ink text-base px-4" placeholder="John Doe" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="onboardingPhone" className="text-ink text-sm font-medium ml-1">Phone Number</Label>
+                  <Input id="onboardingPhone" type="tel" required value={phone} onChange={(e) => {
+                    const val = e.target.value;
+                    if (val.startsWith('+91')) { setPhone(val); } else { setPhone('+91 ' + val.replace(/^\+?9?1?\s*/, '')); }
+                  }} className="h-11 rounded-xl bg-white border border-border-soft text-ink text-base px-4" placeholder="+91 9876543210" />
+                </div>
+                
+                {role === 'STUDENT' ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="onboardingRoll" className="text-ink text-sm font-medium ml-1">Roll Number</Label>
+                    <Input id="onboardingRoll" type="text" required value={rollNumber} onChange={(e) => setRollNumber(e.target.value)} className="h-11 rounded-xl bg-white border border-border-soft text-ink text-base px-4" placeholder="CH.EN.U4..." />
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label htmlFor="onboardingEmpId" className="text-ink text-sm font-medium ml-1">Employee ID</Label>
+                    <Input id="onboardingEmpId" type="text" required value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} className="h-11 rounded-xl bg-white border border-border-soft text-ink text-base px-4" placeholder="FAC123" />
+                  </div>
+                )}
+
+                {role === 'STUDENT' ? (
+                  <div className="space-y-2">
+                    <Label className="text-ink text-sm font-medium ml-1">Department</Label>
+                    <Select value={departmentId} onValueChange={(val) => { setDepartmentId(val || ''); setSectionId(''); }} required>
+                      <SelectTrigger className="h-11 rounded-xl bg-white border border-border-soft text-ink px-4">
+                        <SelectValue placeholder="Select Department">
+                          {departmentId ? departments.find(d => d.id === departmentId)?.name : "Select Department"}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent className="bg-white border border-border-soft text-ink rounded-xl shadow-xl">
+                        {departments.map(d => <SelectItem key={d.id} value={d.id} className="py-2.5 focus:bg-maroon focus:text-white cursor-pointer">{d.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label className="text-ink text-sm font-medium ml-1">Subject</Label>
+                    <Select value={subject} onValueChange={(val) => setSubject(val || '')} required>
+                      <SelectTrigger className="h-11 rounded-xl bg-white border border-border-soft text-ink px-4">
+                        <SelectValue placeholder="Select Subject">
+                          {subject ? subject.charAt(0).toUpperCase() + subject.slice(1) : "Select Subject"}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent className="bg-white border border-border-soft text-ink rounded-xl shadow-xl">
+                        <SelectItem value="softskills" className="py-2.5 focus:bg-maroon focus:text-white cursor-pointer">Softskills</SelectItem>
+                        <SelectItem value="verbal" className="py-2.5 focus:bg-maroon focus:text-white cursor-pointer">Verbal</SelectItem>
+                        <SelectItem value="aptitude" className="py-2.5 focus:bg-maroon focus:text-white cursor-pointer">Aptitude</SelectItem>
+                        <SelectItem value="trainee" className="py-2.5 focus:bg-maroon focus:text-white cursor-pointer">Trainee</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {role === 'STUDENT' && (
+                  <div className="space-y-2">
+                    <Label className="text-ink text-sm font-medium ml-1">Section</Label>
+                    <Select value={sectionId} onValueChange={(val) => setSectionId(val || '')} disabled={!departmentId} required>
+                      <SelectTrigger className="h-11 rounded-xl bg-white border border-border-soft text-ink px-4 disabled:opacity-50">
+                        <SelectValue placeholder="Select Section">
+                          {sectionId ? selectedDepartment?.sections.find((s: Section) => s.id === sectionId)?.name : "Select Section"}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent className="bg-white border border-border-soft text-ink rounded-xl shadow-xl">
+                        {selectedDepartment?.sections.map((s: Section) => <SelectItem key={s.id} value={s.id} className="py-2.5 focus:bg-maroon focus:text-white cursor-pointer">{s.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="onboardingCollegeEmail" className="text-ink text-sm font-medium ml-1">College Email Address (For Verification Code)</Label>
+                <Input id="onboardingCollegeEmail" type="email" required value={email} onChange={(e) => setEmail(e.target.value.toLowerCase())} className="h-11 rounded-xl bg-white border border-border-soft text-ink text-base px-4" placeholder={role === 'STUDENT' ? "user@ch.students.amrita.edu" : "user@ch.amrita.edu"} />
+              </div>
+
+              <Button type="submit" disabled={loading} className="w-full h-12 text-base font-semibold rounded-full mt-6 bg-maroon hover:bg-maroon-deep text-white shadow-md transition-all hover:scale-[1.01] active:scale-[0.99]">
+                {loading ? 'Submitting Details...' : 'Complete Registration'}
+              </Button>
+              <button type="button" onClick={() => setIsOnboarding(false)} className="w-full h-12 rounded-full mt-2 text-gray-body hover:text-ink hover:bg-cream transition-colors text-base font-medium">
+                Cancel
+              </button>
+            </form>
           ) : isVerifying ? (
             <form onSubmit={handleVerifySubmit} className="space-y-5 text-left">
               <div className="space-y-2">
                 <Label htmlFor="verificationCode" className="text-ink text-sm font-medium ml-1">Verification Code</Label>
                 <Input id="verificationCode" type="text" required value={verificationCode} onChange={(e) => setVerificationCode(e.target.value)} className="h-11 rounded-xl bg-white border border-border-soft focus-visible:ring-2 focus-visible:ring-maroon text-ink text-base px-4 placeholder:text-gray-body/50" placeholder="123456" />
-                <p className="text-sm text-gray-body ml-1">Sent to your Personal Email ({personalEmail}). <span className="text-gray-body/75 italic">Check spam if not found.</span></p>
+                <p className="text-sm text-gray-body ml-1">Sent to your College Email ({email}). <span className="text-gray-body/75 italic">Check spam if not found.</span></p>
               </div>
+
               <Button type="submit" disabled={loading} className="w-full h-12 text-base font-semibold rounded-full mt-6 bg-maroon hover:bg-maroon-deep text-white shadow-md transition-all hover:scale-[1.01] active:scale-[0.99]">
                 {loading ? 'Verifying...' : 'Verify Email'}
               </Button>
@@ -438,7 +696,31 @@ export default function Login() {
             </form>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4 text-left">
+              <div className="mb-4">
+                <Button
+                  type="button"
+                  onClick={handleGoogleSignIn}
+                  disabled={loading}
+                  variant="outline"
+                  className="w-full h-12 rounded-full border border-border-soft bg-white hover:bg-cream/40 text-ink font-semibold flex items-center justify-center gap-3 transition-all hover:shadow-sm"
+                >
+                  <svg className="w-5 h-5" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.1c-.22-.66-.35-1.36-.35-2.1s.13-1.44.35-2.1V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.62z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                  </svg>
+                  <span>Sign in with Google</span>
+                </Button>
+
+                <div className="relative flex items-center justify-center my-4">
+                  <div className="border-t border-border-soft w-full"></div>
+                  <span className="bg-white px-3 text-xs text-gray-body font-medium uppercase tracking-wider relative">Or continue with email</span>
+                </div>
+              </div>
+
             {!isLogin && (
+
               <div className="flex justify-center mb-6">
                 <div className="flex bg-cream-edge rounded-full p-1 border border-border-soft w-full max-w-[280px]">
                   <button 
@@ -528,11 +810,11 @@ export default function Login() {
                     <Select value={sectionId} onValueChange={(val) => setSectionId(val || '')} disabled={!departmentId} required>
                       <SelectTrigger className="h-11 rounded-xl bg-white border border-border-soft focus:ring-maroon text-ink px-4 disabled:opacity-50">
                         <SelectValue placeholder="Select Section">
-                          {sectionId ? selectedDepartment?.sections.find(s => s.id === sectionId)?.name : "Select Section"}
+                          {sectionId ? selectedDepartment?.sections.find((s: Section) => s.id === sectionId)?.name : "Select Section"}
                         </SelectValue>
                       </SelectTrigger>
                       <SelectContent className="bg-white border border-border-soft text-ink rounded-xl shadow-xl">
-                        {selectedDepartment?.sections.map(s => <SelectItem key={s.id} value={s.id} className="py-2.5 focus:bg-maroon focus:text-white cursor-pointer">{s.name}</SelectItem>)}
+                        {selectedDepartment?.sections.map((s: Section) => <SelectItem key={s.id} value={s.id} className="py-2.5 focus:bg-maroon focus:text-white cursor-pointer">{s.name}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>

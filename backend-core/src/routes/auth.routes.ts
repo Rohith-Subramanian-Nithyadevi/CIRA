@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { register, login, getMe, verifyEmail, forgotPassword, resetPassword } from '../controllers/auth.controller';
+import { register, login, getMe, verifyEmail, forgotPassword, resetPassword, firebaseAuthLogin, firebaseAuthRegister } from '../controllers/auth.controller';
 import { authenticate, authorize } from '../middlewares/auth.middleware';
 
 const router = Router();
@@ -10,6 +10,9 @@ router.post('/login', login);
 router.post('/verify-email', verifyEmail);
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
+router.post('/firebase-login', firebaseAuthLogin);
+router.post('/firebase-register', firebaseAuthRegister);
+
 
 
 // Protected routes
