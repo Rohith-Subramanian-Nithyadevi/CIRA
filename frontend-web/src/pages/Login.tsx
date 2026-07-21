@@ -454,11 +454,11 @@ export default function Login() {
   };
 
   return (
-    <div className="w-full h-screen overflow-hidden flex flex-col lg:flex-row font-sans text-ink bg-white selection:bg-maroon/20">
+    <div className="w-full min-h-screen flex flex-col lg:flex-row font-sans text-ink bg-white selection:bg-maroon/20 overflow-x-hidden">
       
-      {/* LEFT COLUMN - 60% Width Panel with Original #FAF5EE Cream Color & DotField */}
+      {/* LEFT COLUMN - 60% Width Panel with Original #FAF5EE Cream Color & DotField (Desktop Only) */}
       <div 
-        className="relative w-full lg:w-[60%] h-full flex flex-col justify-between p-8 sm:p-12 lg:p-14 overflow-hidden border-r border-border-soft"
+        className="hidden lg:flex relative lg:w-[55%] xl:w-[60%] h-screen sticky top-0 flex-col justify-between p-10 xl:p-14 overflow-hidden border-r border-border-soft"
         style={{ background: 'radial-gradient(circle, #FAF5EE 0%, #EFE5D8 100%)' }}
       >
         
@@ -508,26 +508,67 @@ export default function Login() {
       </div>
 
 
-      {/* RIGHT COLUMN - 40% Width Authentication Form (Pure White Background) */}
-      <div className="w-full lg:w-[40%] h-full flex flex-col justify-between p-8 sm:p-10 lg:p-12 overflow-y-auto bg-white border-l border-border-soft">
+      {/* RIGHT COLUMN - Authentication Form (Mobile & Desktop) */}
+      <div className="w-full lg:w-[45%] xl:w-[40%] min-h-screen flex flex-col justify-between p-6 sm:p-10 lg:p-12 overflow-y-auto bg-white border-l border-border-soft">
         
         {/* Mobile Header View */}
-        <div className="lg:hidden flex items-center gap-3 mb-6">
-          <img src="/img/favicon.ico" alt="CIRA Logo" className="w-8 h-8 rounded-md object-contain" />
-          <span className="text-ink font-bold text-lg">CIRA</span>
+        <div className="lg:hidden flex items-center justify-between pb-4 mb-4 border-b border-border-soft/60">
+          <div className="flex items-center gap-3">
+            <img 
+              src="/img/favicon.ico" 
+              alt="CIRA Logo" 
+              className="w-9 h-9 rounded-lg object-contain shadow-xs" 
+            />
+            <div>
+              <span className="text-ink font-bold text-xl tracking-tight leading-none block">CIRA</span>
+              <span className="text-[10px] text-gray-body font-semibold tracking-wider uppercase mt-0.5 block">Amrita CIRA Platform</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 bg-maroon/10 text-maroon font-semibold text-xs px-3 py-1.5 rounded-full border border-maroon/15">
+            <span className="w-1.5 h-1.5 rounded-full bg-maroon animate-pulse" />
+            {isLogin ? 'Log In' : 'Sign Up'}
+          </div>
         </div>
 
-        <div className="w-full max-w-md mx-auto my-auto space-y-6">
+        <div className="w-full max-w-md mx-auto my-auto space-y-6 py-2">
           
           {/* Main Title & Header */}
           {!isForgotFlow && !isOnboarding && !isVerifying && (
-            <div className="space-y-1.5">
-              <h2 className="text-3xl font-extrabold text-ink tracking-tight">
-                {isLogin ? 'Welcome back!' : 'Create an account'}
-              </h2>
-              <p className="text-xl font-bold text-maroon">
-                {isLogin ? 'Login to your account' : 'Join CIRA Community'}
-              </p>
+            <div className="space-y-4">
+              {/* Segmented Control Bar for instant switching */}
+              <div className="grid grid-cols-2 p-1.5 bg-[#FAF5EE] rounded-xl border border-border-soft">
+                <button
+                  type="button"
+                  onClick={() => setIsLogin(true)}
+                  className={`py-2 text-xs sm:text-sm font-bold rounded-lg transition-all duration-200 ${
+                    isLogin 
+                      ? 'bg-maroon text-white shadow-sm' 
+                      : 'text-gray-body hover:text-ink'
+                  }`}
+                >
+                  Log In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsLogin(false)}
+                  className={`py-2 text-xs sm:text-sm font-bold rounded-lg transition-all duration-200 ${
+                    !isLogin 
+                      ? 'bg-maroon text-white shadow-sm' 
+                      : 'text-gray-body hover:text-ink'
+                  }`}
+                >
+                  Sign Up
+                </button>
+              </div>
+
+              <div className="space-y-1 pt-1">
+                <h2 className="text-2xl sm:text-3xl font-extrabold text-ink tracking-tight">
+                  {isLogin ? 'Welcome back!' : 'Create your account'}
+                </h2>
+                <p className="text-xs sm:text-sm text-gray-body font-medium">
+                  {isLogin ? 'Login to your account to continue' : 'Join CIRA Community across Amrita'}
+                </p>
+              </div>
             </div>
           )}
 
@@ -735,9 +776,9 @@ export default function Login() {
             <form onSubmit={handleSubmit} className="space-y-3.5">
               
               {!isLogin && (
-                <div className="flex bg-cream-edge p-1 rounded-lg mb-2 border border-border-soft">
-                  <button type="button" onClick={() => setRole('STUDENT')} className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${role === 'STUDENT' ? 'bg-maroon text-white shadow-sm' : 'text-gray-body hover:text-ink'}`}>Student</button>
-                  <button type="button" onClick={() => setRole('FACULTY')} className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${role === 'FACULTY' ? 'bg-maroon text-white shadow-sm' : 'text-gray-body hover:text-ink'}`}>Faculty</button>
+                <div className="flex bg-[#FAF5EE] p-1.5 rounded-xl mb-3 border border-border-soft">
+                  <button type="button" onClick={() => setRole('STUDENT')} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${role === 'STUDENT' ? 'bg-maroon text-white shadow-sm' : 'text-gray-body hover:text-ink'}`}>Student</button>
+                  <button type="button" onClick={() => setRole('FACULTY')} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${role === 'FACULTY' ? 'bg-maroon text-white shadow-sm' : 'text-gray-body hover:text-ink'}`}>Faculty</button>
                 </div>
               )}
 
@@ -932,7 +973,7 @@ export default function Login() {
 
           {/* Toggle between Sign In and Sign Up */}
           {!isForgotFlow && !isOnboarding && !isVerifying && (
-            <div className="pt-2 text-center">
+            <div className="pt-1 text-center">
               <p className="text-xs text-gray-body font-medium">
                 {isLogin ? "Don't have an account? " : "Already have an account? "}
                 <button
@@ -949,8 +990,16 @@ export default function Login() {
         </div>
 
         {/* Footer info */}
-        <div className="text-center text-[11px] text-gray-body/70 pt-4">
-          Need help accessing your account? Contact <a href="mailto:support@cira.edu" className="underline hover:text-maroon">CIRA Support</a>
+        <div className="pt-6 border-t border-border-soft/60 text-center space-y-1.5">
+          <p className="text-xs text-gray-body/80 font-medium">
+            Need help accessing your account? Contact{' '}
+            <a href="mailto:support@cira.edu" className="text-maroon font-semibold hover:underline">
+              CIRA Support
+            </a>
+          </p>
+          <p className="lg:hidden text-[11px] text-gray-body/60 font-medium">
+            © {new Date().getFullYear()} CIRA - Amrita Vishwa Vidyapeetham
+          </p>
         </div>
 
       </div>
