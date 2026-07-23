@@ -1,0 +1,146 @@
+:root {
+  --folder-color: #9B2242;
+  --folder-back-color: #8A1E3A;
+  --paper-1: #ffffff;
+  --paper-2: #ffffff;
+  --paper-3: #ffffff;
+}
+
+.folder-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  perspective: 1000px;
+}
+
+.folder {
+  position: relative;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+}
+
+/* Hover preview animation (opens slightly) */
+.folder:not(.open):hover {
+  transform: translateY(-8px);
+}
+
+.folder:not(.open):hover .paper:nth-child(1) {
+  transform: translate(-50%, -25%) rotate(-3deg);
+}
+
+.folder:not(.open):hover .paper:nth-child(2) {
+  transform: translate(-50%, -35%) rotate(3deg);
+}
+
+.folder:not(.open):hover .folder__front {
+  transform: skew(8deg) scaleY(0.85);
+}
+
+.folder:not(.open):hover .right {
+  transform: skew(-8deg) scaleY(0.85);
+}
+
+/* Fully opened state */
+.folder.open {
+  transform: translateY(-4px);
+}
+
+.folder.open .paper:nth-child(1) {
+  transform: translate(-115%, -85%) rotate(-12deg);
+  box-shadow: 0 10px 20px rgba(0,0,0,0.12);
+}
+
+.folder.open .paper:nth-child(1):hover {
+  transform: translate(-115%, -92%) rotate(-12deg) scale(1.06);
+  z-index: 10;
+}
+
+.folder.open .paper:nth-child(2) {
+  transform: translate(15%, -85%) rotate(12deg);
+  box-shadow: 0 10px 20px rgba(0,0,0,0.12);
+}
+
+.folder.open .paper:nth-child(2):hover {
+  transform: translate(15%, -92%) rotate(12deg) scale(1.06);
+  z-index: 10;
+}
+
+/* Front flaps open downward and outwards */
+.folder.open .folder__front {
+  transform: skew(20deg) scaleY(0.4) rotateX(-20deg);
+  opacity: 0.9;
+  filter: brightness(0.9);
+}
+
+.folder.open .right {
+  transform: skew(-20deg) scaleY(0.4) rotateX(-20deg);
+}
+
+.folder__back {
+  position: relative;
+  width: 140px;
+  height: 100px;
+  background: var(--folder-back-color);
+  border-radius: 0px 12px 12px 12px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+}
+
+/* Folder tab */
+.folder__back::after {
+  position: absolute;
+  z-index: 0;
+  bottom: 98%;
+  left: 0;
+  content: '';
+  width: 45px;
+  height: 14px;
+  background: var(--folder-back-color);
+  border-radius: 6px 6px 0 0;
+}
+
+.paper {
+  position: absolute;
+  z-index: 2;
+  bottom: 12%;
+  left: 50%;
+  transform: translate(-50%, 0%);
+  width: 78%;
+  height: 85%;
+  background: #ffffff;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.1);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.06);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  will-change: transform;
+}
+
+.paper:nth-child(2) {
+  width: 78%;
+  height: 85%;
+}
+
+.folder__front {
+  position: absolute;
+  z-index: 5;
+  width: 100%;
+  height: 100%;
+  background: var(--folder-color);
+  border-radius: 6px 12px 12px 12px;
+  transform-origin: bottom;
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.15);
+  box-shadow: 0 -2px 10px rgba(0,0,0,0.1), 0 8px 16px rgba(0,0,0,0.15);
+}
+
+.folder:focus-visible {
+  outline: 2px solid var(--maroon);
+  outline-offset: 4px;
+  border-radius: 12px;
+}

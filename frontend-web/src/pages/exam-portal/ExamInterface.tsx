@@ -157,7 +157,7 @@ export default function ExamInterface() {
     }
   };
 
-  if (questions.length === 0) return <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">Loading...</div>;
+  if (questions.length === 0) return <div className="min-h-screen bg-[#FDFBF7] flex items-center justify-center"><div className="animate-spin h-8 w-8 border-4 border-maroon border-t-transparent rounded-full" /></div>;
 
   const currentQ = questions[currentQuestionIdx];
   const currentResp = responses[currentQ.id];
@@ -186,61 +186,65 @@ export default function ExamInterface() {
 
   const getStatusColor = (status?: QuestionStatus) => {
     switch (status) {
-      case 'ANSWERED': return 'bg-green-500';
-      case 'NOT_ANSWERED': return 'bg-red-500';
-      case 'MARKED_FOR_REVIEW': return 'bg-purple-500';
-      case 'ANSWERED_AND_MARKED_FOR_REVIEW': return 'bg-purple-500 border-2 border-green-400';
-      default: return 'bg-slate-300 text-slate-800'; // NOT_VISITED
+      case 'ANSWERED': return 'bg-green-600 text-white';
+      case 'NOT_ANSWERED': return 'bg-red-600 text-white';
+      case 'MARKED_FOR_REVIEW': return 'bg-purple-600 text-white';
+      case 'ANSWERED_AND_MARKED_FOR_REVIEW': return 'bg-purple-600 text-white border-2 border-green-500';
+      default: return 'bg-cream text-ink border border-border-soft';
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
-      <header className="bg-slate-900 text-white px-6 py-4 flex justify-between items-center shadow-md">
+    <div className="min-h-screen bg-[#FDFBF7] flex flex-col font-sans text-ink">
+      <header className="bg-white border-b border-border-soft px-6 py-4 flex justify-between items-center shadow-sm">
         <div>
-          <h1 className="text-xl font-bold">{quizDetails?.title || 'Examination'}</h1>
-          <div className="text-sm text-slate-400">Subject: {quizDetails?.subject || 'N/A'}</div>
+          <h1 className="text-xl font-serif font-bold text-ink">{quizDetails?.title || 'Examination'}</h1>
+          <div className="text-xs font-semibold text-gray-body mt-0.5">Subject: {quizDetails?.subject || 'N/A'}</div>
         </div>
         <div className="flex items-center space-x-6">
           <div className="flex items-center space-x-2">
             {saving ? (
-              <span className="text-yellow-400 text-sm flex items-center"><span className="animate-pulse w-2 h-2 bg-yellow-400 rounded-full mr-2"></span> Saving...</span>
+              <span className="text-yellow-700 text-sm font-semibold flex items-center">
+                <span className="animate-pulse w-2 h-2 bg-yellow-500 rounded-full mr-2"></span> Saving...
+              </span>
             ) : (
-              <span className="text-green-400 text-sm flex items-center"><span className="w-2 h-2 bg-green-400 rounded-full mr-2"></span> Saved</span>
+              <span className="text-green-700 text-sm font-semibold flex items-center">
+                <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span> Saved
+              </span>
             )}
           </div>
-          <div className="text-2xl font-mono font-bold text-red-400 bg-slate-800 px-4 py-2 rounded-lg border border-slate-700">
+          <div className="text-2xl font-mono font-bold text-maroon bg-cream px-4 py-2 rounded-xl border border-border-soft">
             {formatTime(timeLeft)}
           </div>
         </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        <div className="flex-1 flex flex-col border-r border-slate-200">
+        <div className="flex-1 flex flex-col border-r border-border-soft bg-white">
           <div className="flex-1 p-8 overflow-y-auto">
-            <div className="flex justify-between items-center border-b border-slate-200 pb-4 mb-6">
-              <h2 className="text-2xl font-bold text-slate-800">Question {currentQuestionIdx + 1}</h2>
-              <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+            <div className="flex justify-between items-center border-b border-border-soft pb-4 mb-6">
+              <h2 className="text-xl font-serif font-bold text-ink">Question {currentQuestionIdx + 1}</h2>
+              <span className="bg-maroon/10 text-maroon border border-maroon/20 px-3 py-1 rounded-full text-xs font-bold">
                 {currentQ.marks} Marks
               </span>
             </div>
             
-            <div className="prose max-w-none mb-8 text-slate-700 text-lg">
+            <div className="prose max-w-none mb-8 text-ink font-semibold text-lg leading-relaxed">
               {currentQ.text}
             </div>
 
             <div className="space-y-4">
               {currentQ.type === 'MCQ' && currentQ.options?.map((opt: string, idx: number) => (
-                <label key={idx} className={`block p-4 border rounded-lg cursor-pointer transition-colors ${currentResp?.data === opt ? 'bg-blue-50 border-blue-500' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
+                <label key={idx} className={`block p-4 border rounded-xl cursor-pointer transition-colors ${currentResp?.data === opt ? 'bg-maroon/5 border-maroon' : 'bg-white border-border-soft hover:bg-cream/20'}`}>
                   <div className="flex items-center space-x-3">
                     <input 
                       type="radio" 
                       name={`q-${currentQ.id}`} 
-                      className="w-5 h-5 text-blue-600 border-gray-300 focus:ring-blue-500 cursor-pointer"
+                      className="w-5 h-5 text-maroon border-border-soft focus:ring-maroon cursor-pointer accent-maroon"
                       checked={currentResp?.data === opt}
                       onChange={() => handleSaveResponse(currentQ.id, opt, 'ANSWERED')}
                     />
-                    <span className="text-slate-700 text-lg">{opt}</span>
+                    <span className="text-ink text-base font-semibold">{opt}</span>
                   </div>
                 </label>
               ))}
@@ -248,15 +252,15 @@ export default function ExamInterface() {
               {currentQ.type === 'MULTI_SELECT' && currentQ.options?.map((opt: string, idx: number) => {
                 const isSelected = Array.isArray(currentResp?.data) && currentResp.data.includes(opt);
                 return (
-                  <label key={idx} className={`block p-4 border rounded-lg cursor-pointer transition-colors ${isSelected ? 'bg-purple-50 border-purple-500' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
+                  <label key={idx} className={`block p-4 border rounded-xl cursor-pointer transition-colors ${isSelected ? 'bg-maroon/5 border-maroon' : 'bg-white border-border-soft hover:bg-cream/20'}`}>
                     <div className="flex items-center space-x-3">
                       <input 
                         type="checkbox" 
-                        className="w-5 h-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500 cursor-pointer"
+                        className="w-5 h-5 text-maroon border-border-soft rounded focus:ring-maroon cursor-pointer accent-maroon"
                         checked={isSelected}
                         onChange={() => handleToggleMultiSelect(opt)}
                       />
-                      <span className="text-slate-700 text-lg">{opt}</span>
+                      <span className="text-ink text-base font-semibold">{opt}</span>
                     </div>
                   </label>
                 );
@@ -264,7 +268,7 @@ export default function ExamInterface() {
 
               {(currentQ.type === 'SHORT_WRITTEN' || currentQ.type === 'LONG_WRITTEN') && (
                 <textarea 
-                  className={`w-full p-4 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none text-slate-700 ${currentQ.type === 'LONG_WRITTEN' ? 'h-64' : 'h-32'}`}
+                  className={`w-full p-4 border border-border-soft rounded-xl focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon resize-none text-ink bg-white text-base ${currentQ.type === 'LONG_WRITTEN' ? 'h-64' : 'h-32'}`}
                   placeholder="Type your answer here..."
                   value={currentResp?.data || ''}
                   onChange={(e) => handleSaveResponse(currentQ.id, e.target.value, 'ANSWERED')}
@@ -274,7 +278,7 @@ export default function ExamInterface() {
               {currentQ.type === 'NUMERICAL' && (
                 <input 
                   type="number"
-                  className="w-full p-4 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-700 text-lg"
+                  className="w-full p-4 border border-border-soft rounded-xl focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon text-ink bg-white text-base font-semibold"
                   placeholder="Enter the numerical value..."
                   value={currentResp?.data || ''}
                   onChange={(e) => handleSaveResponse(currentQ.id, Number(e.target.value), 'ANSWERED')}
@@ -287,11 +291,11 @@ export default function ExamInterface() {
                     const currentArr = Array.isArray(currentResp?.data) ? currentResp.data : [];
                     const selectedRight = currentArr.find(x => x.left === leftOpt)?.right || '';
                     return (
-                      <div key={idx} className="flex items-center space-x-4 p-4 bg-white border border-slate-200 rounded-lg">
-                        <div className="flex-1 text-slate-700 text-lg font-medium">{leftOpt}</div>
-                        <div className="text-slate-400">→</div>
+                      <div key={idx} className="flex items-center space-x-4 p-4 bg-cream/20 border border-border-soft rounded-xl">
+                        <div className="flex-1 text-ink text-base font-semibold">{leftOpt}</div>
+                        <div className="text-gray-body">→</div>
                         <select 
-                          className="flex-1 p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-700"
+                          className="flex-1 p-2 border border-border-soft rounded-lg bg-white focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon text-ink font-semibold text-sm shadow-sm"
                           value={selectedRight}
                           onChange={(e) => handleMatchingSelect(leftOpt, e.target.value)}
                         >
@@ -308,38 +312,38 @@ export default function ExamInterface() {
             </div>
           </div>
 
-          <div className="bg-white border-t border-slate-200 p-4 flex justify-between items-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+          <div className="bg-white border-t border-border-soft p-4 flex justify-between items-center shadow-sm">
             <div className="space-x-3">
-              <button onClick={handleMarkReview} className="px-5 py-2.5 border border-yellow-500 text-yellow-600 hover:bg-yellow-50 font-medium rounded-lg transition-colors">Mark for Review & Next</button>
-              <button onClick={handleClear} className="px-5 py-2.5 border border-slate-300 text-slate-600 hover:bg-slate-50 font-medium rounded-lg transition-colors">Clear Response</button>
+              <button onClick={handleMarkReview} className="px-5 py-2 border border-purple-600 text-purple-700 hover:bg-purple-50 font-bold text-sm rounded-full transition-all">Mark for Review & Next</button>
+              <button onClick={handleClear} className="px-5 py-2 border border-border-soft text-gray-body hover:bg-cream/40 font-bold text-sm rounded-full transition-all">Clear Response</button>
             </div>
             <div className="space-x-3 flex items-center">
-              <button onClick={handlePrevious} disabled={currentQuestionIdx === 0} className="px-5 py-2.5 bg-slate-100 text-slate-700 hover:bg-slate-200 disabled:opacity-50 font-medium rounded-lg transition-colors">Previous</button>
-              <button onClick={handleNext} disabled={currentQuestionIdx === questions.length - 1} className="px-5 py-2.5 bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 font-medium rounded-lg transition-colors">Save & Next</button>
+              <button onClick={handlePrevious} disabled={currentQuestionIdx === 0} className="px-5 py-2 bg-cream border border-border-soft text-ink hover:bg-cream-edge/30 disabled:opacity-50 font-bold text-sm rounded-full transition-all">Previous</button>
+              <button onClick={handleNext} disabled={currentQuestionIdx === questions.length - 1} className="px-5 py-2 bg-maroon text-white hover:bg-maroon-deep disabled:opacity-50 font-bold text-sm rounded-full transition-all">Save & Next</button>
               {currentQuestionIdx === questions.length - 1 && (
-                <button onClick={handleSubmit} className="px-6 py-2.5 bg-green-600 text-white hover:bg-green-700 font-bold rounded-lg transition-colors ml-4 shadow-md hover:shadow-lg">Submit</button>
+                <button onClick={handleSubmit} className="px-6 py-2 bg-green-700 text-white hover:bg-green-800 font-bold text-sm rounded-full transition-all ml-4 shadow-sm hover:scale-105 active:scale-95">Submit Exam</button>
               )}
             </div>
           </div>
         </div>
 
-        <div className="w-80 bg-white flex flex-col shadow-[-4px_0_6px_-1px_rgba(0,0,0,0.05)] z-10">
-          <div className="p-4 border-b border-slate-200 bg-slate-50">
-            <h3 className="font-bold text-slate-800 text-lg">Question Palette</h3>
+        <div className="w-80 bg-white flex flex-col border-l border-border-soft">
+          <div className="p-4 border-b border-border-soft bg-cream/20">
+            <h3 className="font-bold text-ink text-base font-serif">Question Palette</h3>
           </div>
           
-          <div className="p-4 border-b border-slate-200 text-sm space-y-3 bg-white">
+          <div className="p-4 border-b border-border-soft text-xs font-semibold space-y-3 bg-white text-gray-body">
             <div className="flex space-x-4">
-              <div className="flex items-center space-x-2"><div className="w-6 h-6 bg-green-500 rounded text-white flex items-center justify-center text-xs">1</div><span>Answered</span></div>
-              <div className="flex items-center space-x-2"><div className="w-6 h-6 bg-red-500 rounded text-white flex items-center justify-center text-xs">2</div><span>Not Answered</span></div>
+              <div className="flex items-center space-x-2"><div className="w-5 h-5 bg-green-600 rounded text-white flex items-center justify-center font-bold">✓</div><span>Answered</span></div>
+              <div className="flex items-center space-x-2"><div className="w-5 h-5 bg-red-600 rounded text-white flex items-center justify-center font-bold">✗</div><span>Not Answered</span></div>
             </div>
             <div className="flex space-x-4">
-              <div className="flex items-center space-x-2"><div className="w-6 h-6 bg-slate-300 rounded text-slate-800 flex items-center justify-center text-xs">3</div><span>Not Visited</span></div>
-              <div className="flex items-center space-x-2"><div className="w-6 h-6 bg-purple-500 rounded text-white flex items-center justify-center text-xs">4</div><span>Review</span></div>
+              <div className="flex items-center space-x-2"><div className="w-5 h-5 bg-cream border border-border-soft rounded text-ink flex items-center justify-center font-bold">•</div><span>Not Visited</span></div>
+              <div className="flex items-center space-x-2"><div className="w-5 h-5 bg-purple-600 rounded text-white flex items-center justify-center font-bold">?</div><span>Review</span></div>
             </div>
           </div>
 
-          <div className="p-6 flex-1 overflow-y-auto bg-slate-50">
+          <div className="p-6 flex-1 overflow-y-auto bg-cream/10">
             <div className="grid grid-cols-4 gap-3">
               {questions.map((q, idx) => {
                 const status = responses[q.id]?.status;
@@ -347,10 +351,9 @@ export default function ExamInterface() {
                   <button
                     key={q.id}
                     onClick={() => setCurrentQuestionIdx(idx)}
-                    className={`w-12 h-12 rounded-lg font-medium flex items-center justify-center transition-all shadow-sm hover:shadow-md
+                    className={`w-11 h-11 rounded-lg font-bold flex items-center justify-center transition-all shadow-sm hover:scale-105 active:scale-95 text-sm
                       ${getStatusColor(status)}
-                      ${currentQuestionIdx === idx ? 'ring-2 ring-blue-600 ring-offset-2 scale-110' : ''}
-                      ${status !== 'NOT_VISITED' && !status ? 'text-white' : ''}
+                      ${currentQuestionIdx === idx ? 'ring-2 ring-maroon ring-offset-2 scale-110' : ''}
                     `}
                   >
                     {idx + 1}
