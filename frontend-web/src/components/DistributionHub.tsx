@@ -71,7 +71,6 @@ export default function DistributionHub() {
             />
           </div>
         </div>
-        </div>
       </div>
     </section>
   );
