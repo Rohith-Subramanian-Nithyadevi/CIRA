@@ -12,6 +12,7 @@
   "build": {
     "appId": "com.cira.desktop",
     "productName": "CIRA Desktop Client",
+    "afterPack": "scripts/afterPack.js",
     "mac": {
       "target": ["dmg"]
     },
