@@ -7,7 +7,11 @@ const prisma = new PrismaClient();
 
 export const getAllDepartments = async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const { batchId } = req.query;
+    const whereClause = batchId ? { batchId: batchId as string } : {};
+    
     const departments = await prisma.department.findMany({
+      where: whereClause,
       include: {
         sections: true
       }
@@ -24,11 +28,11 @@ export const getAllDepartments = async (req: Request, res: Response, next: NextF
 
 export const createDepartment = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { name } = z.object({ name: z.string().min(1) }).parse(req.body);
-    const existing = await prisma.department.findUnique({ where: { name } });
-    if (existing) throw new BadRequestError('Department already exists');
+    const { name, batchId } = z.object({ name: z.string().min(1), batchId: z.string().min(1) }).parse(req.body);
+    const existing = await prisma.department.findUnique({ where: { name_batchId: { name, batchId } } });
+    if (existing) throw new BadRequestError('Department already exists in this batch');
 
-    const department = await prisma.department.create({ data: { name } });
+    const department = await prisma.department.create({ data: { name, batchId } });
     res.status(201).json({ status: 'success', data: { department } });
   } catch (error) {
     next(error);

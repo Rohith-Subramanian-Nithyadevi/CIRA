@@ -10,9 +10,16 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import DotField from '../components/ui/DotField';
 
+interface Batch {
+  id: string;
+  name: string;
+  startYear: number;
+}
+
 interface Department {
   id: string;
   name: string;
+  batchId: string;
   sections: Section[];
 }
 
@@ -48,6 +55,7 @@ export default function Login() {
 
   // Student specific
   const [rollNumber, setRollNumber] = useState('');
+  const [batchId, setBatchId] = useState('');
   const [departmentId, setDepartmentId] = useState('');
   const [sectionId, setSectionId] = useState('');
 
@@ -55,6 +63,7 @@ export default function Login() {
   const [employeeId, setEmployeeId] = useState('');
   const [subject, setSubject] = useState('');
 
+  const [batches, setBatches] = useState<Batch[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -69,10 +78,30 @@ export default function Login() {
   const [showForgotConfirmPassword, setShowForgotConfirmPassword] = useState(false);
 
   useEffect(() => {
+    const fetchBatches = async () => {
+      try {
+        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+        const res = await fetch(`${baseUrl}/api/v1/batches`);
+        const data = await res.json();
+        if (data?.data?.batches) {
+          setBatches(data.data.batches);
+        }
+      } catch (err) {
+        console.error("Failed to fetch batches", err);
+      }
+    };
+    fetchBatches();
+  }, []);
+
+  useEffect(() => {
+    if (!batchId) {
+      setDepartments([]);
+      return;
+    }
     const fetchDepartments = async () => {
       try {
         const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-        const res = await fetch(`${baseUrl}/api/v1/departments`);
+        const res = await fetch(`${baseUrl}/api/v1/departments?batchId=${batchId}`);
         const data = await res.json();
         if (data?.data?.departments) {
           setDepartments(data.data.departments);
@@ -82,7 +111,7 @@ export default function Login() {
       }
     };
     fetchDepartments();
-  }, []);
+  }, [batchId]);
 
   const validatePassword = (pass: string) => {
     if (pass.length < 8) return "Password must be at least 8 characters long.";
@@ -694,17 +723,30 @@ export default function Login() {
                   </div>
                 )}
                 {role === 'STUDENT' ? (
-                  <div className="space-y-1">
-                    <Label className="text-xs font-semibold text-ink">Department</Label>
-                    <Select value={departmentId} onValueChange={(val) => { setDepartmentId(val || ''); setSectionId(''); }} items={departments.map(d => ({ label: d.name, value: d.id }))}>
-                      <SelectTrigger className="h-9 rounded-lg bg-white border border-border-soft text-xs px-3">
-                        <SelectValue placeholder="Department">
-                          {(val) => departments.find(d => d.id === val)?.name || val}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent className="bg-white border border-border-soft">{departments.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </div>
+                  <>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold text-ink">Batch</Label>
+                      <Select value={batchId} onValueChange={(val) => { setBatchId(val || ''); setDepartmentId(''); setSectionId(''); }} items={batches.map(b => ({ label: b.name, value: b.id }))}>
+                        <SelectTrigger className="h-9 rounded-lg bg-white border border-border-soft text-xs px-3">
+                          <SelectValue placeholder="Batch">
+                            {(val) => batches.find(b => b.id === val)?.name || val}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent className="bg-white border border-border-soft">{batches.map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold text-ink">Department</Label>
+                      <Select value={departmentId} disabled={!batchId} onValueChange={(val) => { setDepartmentId(val || ''); setSectionId(''); }} items={departments.map(d => ({ label: d.name, value: d.id }))}>
+                        <SelectTrigger className="h-9 rounded-lg bg-white border border-border-soft text-xs px-3">
+                          <SelectValue placeholder="Department">
+                            {(val) => departments.find(d => d.id === val)?.name || val}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent className="bg-white border border-border-soft">{departments.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                  </>
                 ) : (
                   <div className="space-y-1">
                     <Label className="text-xs font-semibold text-ink">Subject</Label>
@@ -804,17 +846,30 @@ export default function Login() {
                     </div>
                   )}
                   {role === 'STUDENT' ? (
-                    <div className="space-y-1">
-                      <Label className="text-xs font-medium text-ink">Department</Label>
-                      <Select value={departmentId} onValueChange={(val) => { setDepartmentId(val || ''); setSectionId(''); }} items={departments.map(d => ({ label: d.name, value: d.id }))}>
-                        <SelectTrigger className="h-9 rounded-lg bg-white border border-border-soft text-xs px-3">
-                          <SelectValue placeholder="Department">
-                            {(val) => departments.find(d => d.id === val)?.name || val}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent className="bg-white border border-border-soft">{departments.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
-                      </Select>
-                    </div>
+                    <>
+                      <div className="space-y-1">
+                        <Label className="text-xs font-medium text-ink">Batch</Label>
+                        <Select value={batchId} onValueChange={(val) => { setBatchId(val || ''); setDepartmentId(''); setSectionId(''); }} items={batches.map(b => ({ label: b.name, value: b.id }))}>
+                          <SelectTrigger className="h-9 rounded-lg bg-white border border-border-soft text-xs px-3">
+                            <SelectValue placeholder="Batch">
+                              {(val) => batches.find(b => b.id === val)?.name || val}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent className="bg-white border border-border-soft">{batches.map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs font-medium text-ink">Department</Label>
+                        <Select value={departmentId} disabled={!batchId} onValueChange={(val) => { setDepartmentId(val || ''); setSectionId(''); }} items={departments.map(d => ({ label: d.name, value: d.id }))}>
+                          <SelectTrigger className="h-9 rounded-lg bg-white border border-border-soft text-xs px-3">
+                            <SelectValue placeholder="Department">
+                              {(val) => departments.find(d => d.id === val)?.name || val}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent className="bg-white border border-border-soft">{departments.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                    </>
                   ) : (
                     <div className="space-y-1">
                       <Label className="text-xs font-medium text-ink">Subject</Label>

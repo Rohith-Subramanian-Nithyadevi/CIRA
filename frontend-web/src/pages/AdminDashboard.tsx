@@ -22,7 +22,14 @@ interface User {
 interface Department {
   id: string;
   name: string;
+  batchId: string;
   sections: { id: string, name: string }[];
+}
+
+interface Batch {
+  id: string;
+  name: string;
+  startYear: number;
 }
 
 export default function AdminDashboard() {
@@ -30,9 +37,11 @@ export default function AdminDashboard() {
   const [facultyList, setFacultyList] = useState<Faculty[]>([]);
   const [userList, setUserList] = useState<User[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [batches, setBatches] = useState<Batch[]>([]);
   
   const [newDeptName, setNewDeptName] = useState('');
   const [newSectionName, setNewSectionName] = useState('');
+  const [selectedBatchId, setSelectedBatchId] = useState('');
   const [selectedDeptId, setSelectedDeptId] = useState('');
 
   useEffect(() => {
@@ -42,25 +51,46 @@ export default function AdminDashboard() {
         const token = localStorage.getItem('cira_token');
         const headers = { 'Authorization': `Bearer ${token}` };
 
-        const [facRes, userRes, deptRes] = await Promise.all([
+        const [facRes, userRes, batchRes] = await Promise.all([
           fetch(`${baseUrl}/api/v1/admin/faculty/all`, { headers }),
           fetch(`${baseUrl}/api/v1/admin/users`, { headers }),
-          fetch(`${baseUrl}/api/v1/departments`, { headers })
+          fetch(`${baseUrl}/api/v1/batches`, { headers })
         ]);
 
         const facData = await facRes.json();
         const userData = await userRes.json();
-        const deptData = await deptRes.json();
+        const batchData = await batchRes.json();
 
         if (facData.data?.faculty) setFacultyList(facData.data.faculty);
         if (userData.data?.users) setUserList(userData.data.users);
-        if (deptData.data?.departments) setDepartments(deptData.data.departments);
+        if (batchData.data?.batches) setBatches(batchData.data.batches);
       } catch (err) {
         console.error("Failed to fetch admin data", err);
       }
     };
     fetchAdminData();
   }, []);
+
+  useEffect(() => {
+    if (!selectedBatchId) {
+      setDepartments([]);
+      return;
+    }
+    const fetchDepartments = async () => {
+      try {
+        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+        const token = localStorage.getItem('cira_token');
+        const res = await fetch(`${baseUrl}/api/v1/departments?batchId=${selectedBatchId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (data.data?.departments) setDepartments(data.data.departments);
+      } catch (err) {
+        console.error("Failed to fetch departments", err);
+      }
+    };
+    fetchDepartments();
+  }, [selectedBatchId]);
 
   const handleApproval = async (id: string, status: 'APPROVED' | 'REJECTED') => {
     try {
@@ -98,14 +128,14 @@ export default function AdminDashboard() {
   };
 
   const handleCreateDepartment = async () => {
-    if (!newDeptName) return;
+    if (!newDeptName || !selectedBatchId) return;
     try {
       const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
       const token = localStorage.getItem('cira_token');
       const res = await fetch(`${baseUrl}/api/v1/departments`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newDeptName })
+        body: JSON.stringify({ name: newDeptName, batchId: selectedBatchId })
       });
       const data = await res.json();
       if (data.data?.department) {
@@ -273,47 +303,69 @@ export default function AdminDashboard() {
 
       {activeTab === 'departments' && (
         <div className="space-y-6">
-          <div className="p-6 bg-white rounded-xl border border-border-soft shadow-sm">
-            <h2 className="text-xl font-serif font-bold mb-4 text-ink">Create Department</h2>
-            <div className="flex gap-4">
-              <input type="text" value={newDeptName} onChange={e => setNewDeptName(e.target.value)} placeholder="Department Name (e.g. Mechanical Engineering)" className="flex-1 px-4 py-2.5 bg-white border border-border-soft rounded-lg focus:border-maroon focus:ring-1 focus:ring-maroon text-ink outline-none" />
-              <button onClick={handleCreateDepartment} className="px-6 py-2.5 bg-maroon hover:bg-maroon-deep text-white rounded-full font-bold transition-all hover:scale-105 active:scale-95 text-sm shadow-sm">Create</button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="p-6 bg-white rounded-xl border border-border-soft shadow-sm overflow-y-auto max-h-[500px]">
-              <h2 className="text-xl font-serif font-bold mb-4 text-ink">Departments List</h2>
-              {departments.map(d => (
-                <div key={d.id} className={`p-4 border rounded-xl mb-3 cursor-pointer transition-colors flex justify-between items-center ${selectedDeptId === d.id ? 'border-maroon bg-maroon/5' : 'border-border-soft hover:border-maroon/30 hover:bg-cream/40'}`} onClick={() => setSelectedDeptId(d.id)}>
-                  <div>
-                    <h3 className="font-bold text-ink">{d.name}</h3>
-                    <p className="text-xs text-gray-body">{d.sections.length} sections</p>
-                  </div>
-                  <button onClick={(e) => { e.stopPropagation(); handleDeleteDepartment(d.id); }} className="text-red-600 text-xs font-semibold hover:underline">Delete</button>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="p-6 bg-white rounded-xl border border-border-soft shadow-sm overflow-y-auto max-h-[600px] col-span-1">
+              <h2 className="text-xl font-serif font-bold mb-4 text-ink">Batches</h2>
+              {batches.map(b => (
+                <div key={b.id} className={`p-4 border rounded-xl mb-3 cursor-pointer transition-colors ${selectedBatchId === b.id ? 'border-maroon bg-maroon/5' : 'border-border-soft hover:border-maroon/30 hover:bg-cream/40'}`} onClick={() => { setSelectedBatchId(b.id); setSelectedDeptId(''); }}>
+                  <h3 className="font-bold text-ink text-lg">{b.name}</h3>
                 </div>
               ))}
             </div>
 
-            <div className="p-6 bg-white rounded-xl border border-border-soft shadow-sm">
-              <h2 className="text-xl font-serif font-bold mb-4 text-ink">Manage Sections</h2>
-              {!selectedDeptId ? (
-                <p className="text-gray-body italic text-sm">Select a department from the left to manage sections.</p>
-              ) : (
-                <div className="space-y-4">
-                  <h3 className="font-bold text-maroon">{departments.find(d => d.id === selectedDeptId)?.name}</h3>
-                  <div className="flex gap-2">
-                    <input type="text" value={newSectionName} onChange={e => setNewSectionName(e.target.value)} placeholder="Section Name (e.g. A, B, C)" className="w-48 px-4 py-2 bg-white border border-border-soft rounded-lg focus:border-maroon focus:ring-1 focus:ring-maroon text-ink outline-none text-sm" />
-                    <button onClick={handleCreateSection} className="px-6 py-2 bg-maroon hover:bg-maroon-deep text-white rounded-full font-bold transition-all text-sm shadow-sm">Add</button>
-                  </div>
-                  <div className="mt-4 space-y-2">
-                    {departments.find(d => d.id === selectedDeptId)?.sections.map(s => (
-                      <div key={s.id} className="p-3 bg-cream/40 border border-border-soft rounded-lg flex justify-between items-center text-sm text-ink">
-                        <span>Section {s.name}</span>
-                      </div>
-                    ))}
-                  </div>
+            <div className="col-span-2 space-y-6">
+              {!selectedBatchId ? (
+                <div className="p-6 bg-white rounded-xl border border-border-soft shadow-sm flex items-center justify-center h-full">
+                  <p className="text-gray-body italic">Select a batch to manage departments.</p>
                 </div>
+              ) : (
+                <>
+                  <div className="p-6 bg-white rounded-xl border border-border-soft shadow-sm">
+                    <h2 className="text-xl font-serif font-bold mb-4 text-ink">Create Department for {batches.find(b => b.id === selectedBatchId)?.name}</h2>
+                    <div className="flex gap-4">
+                      <input type="text" value={newDeptName} onChange={e => setNewDeptName(e.target.value)} placeholder="Department Name (e.g. Mechanical Engineering)" className="flex-1 px-4 py-2.5 bg-white border border-border-soft rounded-lg focus:border-maroon focus:ring-1 focus:ring-maroon text-ink outline-none" />
+                      <button onClick={handleCreateDepartment} className="px-6 py-2.5 bg-maroon hover:bg-maroon-deep text-white rounded-full font-bold transition-all hover:scale-105 active:scale-95 text-sm shadow-sm">Create</button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="p-6 bg-white rounded-xl border border-border-soft shadow-sm overflow-y-auto max-h-[400px]">
+                      <h2 className="text-lg font-serif font-bold mb-4 text-ink">Departments List</h2>
+                      {departments.length === 0 ? <p className="text-sm text-gray-body italic">No departments created.</p> : null}
+                      {departments.map(d => (
+                        <div key={d.id} className={`p-4 border rounded-xl mb-3 cursor-pointer transition-colors flex justify-between items-center ${selectedDeptId === d.id ? 'border-maroon bg-maroon/5' : 'border-border-soft hover:border-maroon/30 hover:bg-cream/40'}`} onClick={() => setSelectedDeptId(d.id)}>
+                          <div>
+                            <h3 className="font-bold text-ink">{d.name}</h3>
+                            <p className="text-xs text-gray-body">{d.sections.length} sections</p>
+                          </div>
+                          <button onClick={(e) => { e.stopPropagation(); handleDeleteDepartment(d.id); }} className="text-red-600 text-xs font-semibold hover:underline">Delete</button>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="p-6 bg-white rounded-xl border border-border-soft shadow-sm">
+                      <h2 className="text-lg font-serif font-bold mb-4 text-ink">Manage Sections</h2>
+                      {!selectedDeptId ? (
+                        <p className="text-gray-body italic text-sm">Select a department to manage sections.</p>
+                      ) : (
+                        <div className="space-y-4">
+                          <h3 className="font-bold text-maroon">{departments.find(d => d.id === selectedDeptId)?.name}</h3>
+                          <div className="flex gap-2">
+                            <input type="text" value={newSectionName} onChange={e => setNewSectionName(e.target.value)} placeholder="Section (e.g. A, B)" className="w-full px-4 py-2 bg-white border border-border-soft rounded-lg focus:border-maroon focus:ring-1 focus:ring-maroon text-ink outline-none text-sm" />
+                            <button onClick={handleCreateSection} className="px-6 py-2 bg-maroon hover:bg-maroon-deep text-white rounded-full font-bold transition-all text-sm shadow-sm">Add</button>
+                          </div>
+                          <div className="mt-4 space-y-2">
+                            {departments.find(d => d.id === selectedDeptId)?.sections.map(s => (
+                              <div key={s.id} className="p-3 bg-cream/40 border border-border-soft rounded-lg flex justify-between items-center text-sm text-ink">
+                                <span>Section {s.name}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
               )}
             </div>
           </div>
