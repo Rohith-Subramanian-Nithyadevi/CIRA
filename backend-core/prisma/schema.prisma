@@ -52,13 +52,25 @@ enum QuizAttemptStatus {
   EVALUATED
 }
 
+model Batch {
+  id          String       @id @default(uuid())
+  name        String       @unique
+  startYear   Int
+  departments Department[]
+  createdAt   DateTime     @default(now())
+}
+
 model Department {
   id        String    @id @default(uuid())
-  name      String    @unique
+  name      String
+  batchId   String
+  batch     Batch     @relation(fields: [batchId], references: [id], onDelete: Cascade)
   sections  Section[]
   users     User[]    @relation("UserDepartment")
   mappedFaculty FacultyDepartment[]
   quizAssignments QuizDepartment[]
+
+  @@unique([name, batchId])
 }
 
 model Section {
