@@ -198,6 +198,24 @@ export default function StudentDashboard() {
             </div>
           </section>
 
+          </div>
+          
+          <div className="p-6 bg-white rounded-xl border border-border-soft shadow-sm flex justify-between items-center">
+            <div>
+              <h2 className="text-xl font-serif font-bold text-ink mb-1">Active Examinations</h2>
+              <p className="text-gray-body text-sm mb-4">Access your active exams via the Secure Desktop Client.</p>
+              <div className="flex gap-3">
+                <a href="https://github.com/Rohith-Subramanian-Nithyadevi/CIRA/releases/latest" target="_blank" rel="noreferrer" className="bg-maroon hover:bg-maroon-dark text-white px-4 py-2 rounded-lg font-sans font-semibold text-xs transition-colors flex items-center shadow-sm">
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                  Download .exe
+                </a>
+                <a href="https://github.com/Rohith-Subramanian-Nithyadevi/CIRA/releases/latest" target="_blank" rel="noreferrer" className="bg-ink hover:bg-black text-white px-4 py-2 rounded-lg font-sans font-semibold text-xs transition-colors flex items-center shadow-sm">
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                  Download .dmg
+                </a>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </DashboardLayout>
