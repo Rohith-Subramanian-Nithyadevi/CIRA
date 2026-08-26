@@ -197,8 +197,6 @@ export default function StudentDashboard() {
               ))}
             </div>
           </section>
-
-          </div>
           
           <div className="p-6 bg-white rounded-xl border border-border-soft shadow-sm flex justify-between items-center">
             <div>
