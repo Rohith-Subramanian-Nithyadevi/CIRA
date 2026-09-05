@@ -170,6 +170,7 @@ export const addQuestions = async (req: Request, res: Response, next: NextFuncti
             answerKey: q.answerKey ?? undefined,
             explanation: q.explanation ?? undefined,
             image: q.image ?? undefined,
+            topic: q.topic ?? null,
           }
         })
       )
@@ -237,6 +238,32 @@ export const evaluateAttempt = async (req: Request, res: Response, next: NextFun
       }
     });
 
+    res.status(200).json({ status: 'success', data: updated });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const togglePublishAnswers = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const quizId = req.params.quizId as string;
+    const { publish } = req.body;
+    
+    const userId = (req as any).user?.userId || 'system';
+    const userRole = (req as any).user?.role;
+    
+    const quiz = await prisma.quiz.findUnique({ where: { id: quizId } });
+    if (!quiz) throw new BadRequestError('Quiz not found', 'NOT_FOUND');
+    
+    if (userRole !== 'ADMIN' && quiz.createdBy !== userId) {
+      throw new BadRequestError('Not authorized', 'UNAUTHORIZED');
+    }
+    
+    const updated = await prisma.quiz.update({
+      where: { id: quizId },
+      data: { answersPublished: Boolean(publish) }
+    });
+    
     res.status(200).json({ status: 'success', data: updated });
   } catch (error) {
     next(error);

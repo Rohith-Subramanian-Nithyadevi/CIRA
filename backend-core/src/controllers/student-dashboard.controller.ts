@@ -24,7 +24,7 @@ export const getDashboardData = async (req: Request, res: Response) => {
       orderBy: { startTime: 'asc' },
       include: {
         quiz: {
-          select: { title: true },
+          select: { id: true, title: true, answersPublished: true },
         },
       },
     });
@@ -66,6 +66,7 @@ export const getDashboardData = async (req: Request, res: Response) => {
       .filter(a => a.status === 'SUBMITTED' || a.status === 'EVALUATED')
       .map(a => ({
         id: a.id,
+        quizId: a.quiz.id,
         title: a.quiz.title,
         submittedAt: a.endTime?.toISOString().split('T')[0] || a.startTime.toISOString().split('T')[0],
         totalScore: a.totalScore,
@@ -74,6 +75,7 @@ export const getDashboardData = async (req: Request, res: Response) => {
         grade: a.finalGrade || null,
         facultyFeedback: a.facultyFeedback || null,
         performanceCategory: a.performanceCategory || null,
+        answersPublished: a.quiz.answersPublished,
       }));
 
     res.status(200).json({

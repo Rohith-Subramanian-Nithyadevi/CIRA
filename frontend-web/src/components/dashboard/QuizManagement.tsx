@@ -114,7 +114,8 @@ const parseMCQs = (rawText: string): any[] => {
       text: questionText.trim(),
       marks: 1,
       options: options,
-      answerKey: correctOptionText || ''
+      answerKey: correctOptionText || '',
+      topic: ''
     });
   }
 
@@ -184,7 +185,8 @@ const parseShortWritten = (rawText: string): any[] => {
       text: questionText.trim(),
       marks: 2,
       options: null,
-      answerKey: answerKey
+      answerKey: answerKey,
+      topic: ''
     });
   }
   return parsed;
@@ -247,7 +249,8 @@ const parseNumerical = (rawText: string): any[] => {
       text: questionText.trim(),
       marks: 1,
       options: null,
-      answerKey: answerKey ? Number(answerKey) : ''
+      answerKey: answerKey ? Number(answerKey) : '',
+      topic: ''
     });
   }
   return parsed;
@@ -316,7 +319,8 @@ const parseLongWritten = (rawText: string): any[] => {
       text: questionText.trim(),
       marks: 5,
       options: null,
-      answerKey: answerKey
+      answerKey: answerKey,
+      topic: ''
     });
   }
   return parsed;
@@ -349,7 +353,7 @@ export default function QuizManagement() {
 
   // Questions State
   const [activeQuizId, setActiveQuizId] = useState<string | null>(null);
-  const [questions, setQuestions] = useState<any[]>([{ type: 'MCQ', text: '', marks: 1, options: ['', '', '', ''], answerKey: '' }]);
+  const [questions, setQuestions] = useState<any[]>([{ type: 'MCQ', text: '', marks: 1, options: ['', '', '', ''], answerKey: '', topic: '' }]);
 
   // Bulk Import State
   const [showBulkImport, setShowBulkImport] = useState(false);
@@ -398,6 +402,21 @@ export default function QuizManagement() {
       const data = await res.json();
       if (data?.status === 'success') fetchQuizzes();
       else toast.error('Failed to delete quiz: ' + data.message);
+    } catch (err) { console.error(err); }
+  };
+
+  const handleTogglePublishAnswers = async (quizId: string, currentStatus: boolean) => {
+    try {
+      const res = await fetch(`${baseUrl}/api/v1/faculty/quiz/${quizId}/publish`, { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ publish: !currentStatus })
+      });
+      const data = await res.json();
+      if (data?.status === 'success') {
+        toast.success(`Answers ${!currentStatus ? 'published' : 'hidden'} successfully!`);
+        fetchQuizzes();
+      }
     } catch (err) { console.error(err); }
   };
 
@@ -491,6 +510,12 @@ export default function QuizManagement() {
       } else if (!q.answerKey && !['SHORT_WRITTEN', 'LONG_WRITTEN', 'MATCHING'].includes(q.type)) {
         q.validationError = "Answer key is required.";
         isValid = false;
+      } else if (!q.topic || q.topic.trim() === '') {
+        q.validationError = "Topic is mandatory for every question.";
+        isValid = false;
+      } else if (Number(q.marks) < 0) {
+        q.validationError = "Marks cannot be negative.";
+        isValid = false;
       }
     });
 
@@ -579,7 +604,7 @@ export default function QuizManagement() {
   };
 
   const handleAddQuestionRow = () => {
-    setQuestions([...questions, { type: 'MCQ', text: '', marks: 1, options: ['', '', '', ''], answerKey: '' }]);
+    setQuestions([...questions, { type: 'MCQ', text: '', marks: 1, options: ['', '', '', ''], answerKey: '', topic: '' }]);
   };
 
   const updateQuestion = (index: number, field: string, value: any) => {
@@ -1195,6 +1220,11 @@ export default function QuizManagement() {
                     <Textarea value={q.text} onChange={(e) => updateQuestion(qIndex, 'text', e.target.value)} rows={2} className="bg-white border-border-soft text-ink focus:border-maroon focus:ring-1 focus:ring-maroon" />
                   </div>
 
+                  <div>
+                    <Label className="text-xs text-maroon block mb-1 font-semibold">Topic *</Label>
+                    <Input type="text" value={q.topic || ''} onChange={(e) => updateQuestion(qIndex, 'topic', e.target.value)} placeholder="e.g. Graphs, Inheritance, Kinematics" className="bg-white border-border-soft text-ink focus:border-maroon focus:ring-1 focus:ring-maroon" />
+                  </div>
+
                   {q.validationError && (
                     <div className="bg-red-50 text-red-700 border border-red-200 px-4 py-2 rounded-lg text-sm mt-2 font-medium">
                       ⚠️ {q.validationError}
@@ -1219,7 +1249,7 @@ export default function QuizManagement() {
                   <div className="flex gap-4">
                     <div className="w-32">
                       <Label className="text-xs text-gray-body block mb-1">Marks</Label>
-                      <Input type="number" value={q.marks} onChange={(e) => updateQuestion(qIndex, 'marks', e.target.value)} className="bg-white border-border-soft text-ink focus:border-maroon focus:ring-1 focus:ring-maroon" />
+                      <Input type="number" min="0" value={q.marks} onChange={(e) => updateQuestion(qIndex, 'marks', e.target.value)} className="bg-white border-border-soft text-ink focus:border-maroon focus:ring-1 focus:ring-maroon" />
                     </div>
                   </div>
 
@@ -1478,6 +1508,9 @@ export default function QuizManagement() {
                     <TableCell className="text-gray-body">{quiz.startDate ? new Date(quiz.startDate).toLocaleDateString() : 'N/A'}</TableCell>
                     <TableCell className="text-ink font-mono text-sm">{quiz._count?.questions || 0}</TableCell>
                     <TableCell className="space-x-2 flex items-center">
+                      <Button variant="outline" size="sm" className="border-border-soft hover:bg-cream/40" onClick={() => handleTogglePublishAnswers(quiz.id, quiz.answersPublished)}>
+                        {quiz.answersPublished ? 'Hide Answers' : 'Publish Answers'}
+                      </Button>
                       <Button variant="outline" size="sm" className="border-border-soft hover:bg-cream/40" onClick={() => { setActiveQuizId(quiz.id); setActiveView('add_questions'); }}>Edit Questions</Button>
                       <Button variant="outline" size="sm" className="border-border-soft hover:bg-cream/40" onClick={() => handleOpenGradeView(quiz.id)}>Grade Submissions</Button>
                       <Button variant="destructive" size="sm" className="bg-red-50 text-red-600 hover:bg-red-100 border border-red-200" onClick={() => handleDeleteQuiz(quiz.id)}>Delete</Button>
