@@ -36,7 +36,7 @@ export const createTask = async (req: Request, res: Response) => {
 
 export const updateTask = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const facultyId = (req as any).user.id;
     const { completed } = req.body;
     
@@ -58,7 +58,7 @@ export const updateTask = async (req: Request, res: Response) => {
 
 export const deleteTask = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const facultyId = (req as any).user.id;
     
     const existing = await prisma.task.findUnique({ where: { id } });
@@ -107,7 +107,7 @@ export const createCalendarEvent = async (req: Request, res: Response) => {
 
 export const deleteCalendarEvent = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const facultyId = (req as any).user.id;
     
     const existing = await prisma.calendarEvent.findUnique({ where: { id } });
@@ -164,7 +164,7 @@ export const createAnnouncement = async (req: Request, res: Response) => {
 
 export const deleteAnnouncement = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const facultyId = (req as any).user.id;
     
     const existing = await prisma.announcement.findUnique({ where: { id } });
@@ -181,7 +181,7 @@ export const deleteAnnouncement = async (req: Request, res: Response) => {
 
 export const getAnnouncementResponses = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const facultyId = (req as any).user.id;
     
     const existing = await prisma.announcement.findUnique({ where: { id } });

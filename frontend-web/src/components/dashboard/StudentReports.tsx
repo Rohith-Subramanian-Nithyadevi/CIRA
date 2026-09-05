@@ -97,24 +97,27 @@ export const StudentReports = () => {
     }
   };
 
+  const uniqueSubjects = useMemo(() => Array.from(new Set(quizzes.map(q => q.subject).filter(Boolean))), [quizzes]);
+  const subjectsToShow = subjectFilter === 'All Subjects' ? uniqueSubjects : [subjectFilter];
+
   const yearData = useMemo(() => {
     const poorObj: any = { band: 'Poor' };
     const avgObj: any = { band: 'Average' };
     const excObj: any = { band: 'Excellent' };
 
-    quizzes.filter(q => subjectFilter === 'All Subjects' || q.subject === subjectFilter).forEach(quiz => {
+    subjectsToShow.forEach(subject => {
       // Mocked aggregation for display purposes
       const excellent = Math.floor(Math.random() * 50 + 20);
       const average = Math.floor(Math.random() * 60 + 30);
       const poor = Math.floor(Math.random() * 30 + 10);
       
-      poorObj[quiz.title] = poor;
-      avgObj[quiz.title] = average;
-      excObj[quiz.title] = excellent;
+      poorObj[subject] = poor;
+      avgObj[subject] = average;
+      excObj[subject] = excellent;
     });
 
     return [poorObj, avgObj, excObj];
-  }, [quizzes, subjectFilter]);
+  }, [subjectsToShow]);
 
   const activeDepartments = departments.filter(d => d.batchId === selectedBatch || !selectedBatch);
 
@@ -155,8 +158,6 @@ export const StudentReports = () => {
 
     return { pieData, leaderboard, topicAverages, title: quizMetadata?.title };
   }, [selectedDept, selectedSection, selectedQuiz, quizzes]);
-
-  const uniqueSubjects = Array.from(new Set(quizzes.map(q => q.subject).filter(Boolean)));
 
   if (loading) {
     return (
@@ -345,8 +346,8 @@ export const StudentReports = () => {
                     <RechartsTooltip cursor={{ fill: 'var(--cream)', opacity: 0.3 }} contentStyle={{ backgroundColor: '#ffffff', border: '1px solid var(--border-soft)', borderRadius: '8px', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }} itemStyle={{ fontWeight: 'bold', color: 'var(--ink)' }} />
                     <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: 12, fill: 'var(--ink)' }} />
                     
-                    {quizzes.filter(q => subjectFilter === 'All Subjects' || q.subject === subjectFilter).slice(0, 3).map((quiz, i) => (
-                      <Bar key={quiz.title} dataKey={quiz.title} fill={`url(#grad${(i % 3) + 1})`} radius={[4, 4, 0, 0]} />
+                    {subjectsToShow.slice(0, 3).map((sub, i) => (
+                      <Bar key={sub} dataKey={sub} fill={`url(#grad${(i % 3) + 1})`} radius={[4, 4, 0, 0]} />
                     ))}
                   </BarChart>
                 </ResponsiveContainer>
