@@ -17,9 +17,17 @@ function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
         
-        {/* Exam Portal Routes (Locked down UI for Desktop Client) */}
-        <Route path="/exam-portal" element={<ExamDashboard />} />
-        <Route path="/exam-portal/take/:quizId" element={<ExamInterface />} />
+        {/* Exam Portal Routes (Locked down UI for Web Client) */}
+        <Route path="/exam-portal" element={
+          <ProtectedRoute allowedRoles={['STUDENT']}>
+            <ExamDashboard />
+          </ProtectedRoute>
+        } />
+        <Route path="/exam-portal/take/:quizId" element={
+          <ProtectedRoute allowedRoles={['STUDENT']}>
+            <ExamInterface />
+          </ProtectedRoute>
+        } />
         
         {/* Protected Admin Routes */}
         <Route path="/admin/dashboard" element={
