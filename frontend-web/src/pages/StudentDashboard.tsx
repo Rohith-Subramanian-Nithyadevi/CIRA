@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { PlayCircle, Eye, CheckCircle2, XCircle, ChevronDown, ChevronUp, ArrowRight } from 'lucide-react';
+import { PlayCircle, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import StudentSpace from '../components/dashboard/StudentSpace';
@@ -7,7 +7,6 @@ import UserProfile from '../components/dashboard/UserProfile';
 
 export default function StudentDashboard() {
   const [activeTab, setActiveTab] = useState('progress');
-  const [expandedAnswerKey, setExpandedAnswerKey] = useState<number | null>(null);
   
   const [activeQuizzes, setActiveQuizzes] = useState<any[]>([]);
   const [pastQuizzes, setPastQuizzes] = useState<any[]>([]);
@@ -48,14 +47,6 @@ export default function StudentDashboard() {
       console.error(err);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const toggleAnswerKey = (id: number) => {
-    if (expandedAnswerKey === id) {
-      setExpandedAnswerKey(null);
-    } else {
-      setExpandedAnswerKey(id);
     }
   };
 
