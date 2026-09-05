@@ -125,7 +125,7 @@ export const getFacultyAssignments = async (req: Request, res: Response) => {
 
 export const deleteAssignment = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const facultyId = (req as any).user.id;
     
     const existing = await prisma.assignment.findUnique({ where: { id } });
