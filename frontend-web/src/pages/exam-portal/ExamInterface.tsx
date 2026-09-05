@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { useSecureExam } from '../../hooks/useSecureExam';
 
 type QuestionStatus = 'NOT_VISITED' | 'NOT_ANSWERED' | 'ANSWERED' | 'MARKED_FOR_REVIEW' | 'ANSWERED_AND_MARKED_FOR_REVIEW';
 
@@ -23,6 +24,20 @@ export default function ExamInterface() {
   const [saving, setSaving] = useState(false);
   const [attemptId, setAttemptId] = useState<string>('');
   const [quizDetails, setQuizDetails] = useState<any>(null);
+  const [hasStartedSecureExam, setHasStartedSecureExam] = useState(false);
+
+  const handleSecurityViolation = (count: number) => {
+    if (count >= 3) {
+      toast.error('Maximum security violations reached. Submitting exam automatically.');
+      handleSubmit();
+    }
+  };
+
+  const { isFullscreen, enterFullscreen, violationCount } = useSecureExam({
+    isActive: hasStartedSecureExam,
+    maxViolations: 3,
+    onViolation: handleSecurityViolation
+  });
 
   useEffect(() => {
     const fetchQuiz = async () => {
@@ -159,6 +174,35 @@ export default function ExamInterface() {
 
   if (questions.length === 0) return <div className="min-h-screen bg-[#FDFBF7] flex items-center justify-center"><div className="animate-spin h-8 w-8 border-4 border-maroon border-t-transparent rounded-full" /></div>;
 
+  if (!hasStartedSecureExam || !isFullscreen) {
+    return (
+      <div className="min-h-screen bg-[#0f172a] text-white flex flex-col items-center justify-center p-8">
+        <div className="max-w-2xl text-center space-y-6">
+          <h1 className="text-3xl font-bold text-red-500 mb-4">Secure Exam Environment</h1>
+          <div className="bg-red-500/20 border border-red-500 p-6 rounded-xl text-left space-y-4">
+            <h3 className="font-bold text-xl text-red-200">Important Instructions</h3>
+            <ul className="list-disc list-inside space-y-2 text-red-100">
+              <li>This exam requires Fullscreen mode.</li>
+              <li>Do not exit fullscreen or switch tabs.</li>
+              <li>Right-clicking, copying, and pasting are disabled.</li>
+              <li>Attempting to violate these rules will result in warnings.</li>
+              <li>After 3 warnings, your exam will be automatically submitted.</li>
+            </ul>
+          </div>
+          <button 
+            onClick={async () => {
+              await enterFullscreen();
+              setHasStartedSecureExam(true);
+            }}
+            className="px-8 py-4 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-lg shadow-lg transition-all hover:scale-105 active:scale-95"
+          >
+            Start Secure Exam
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const currentQ = questions[currentQuestionIdx];
   const currentResp = responses[currentQ.id];
 
@@ -211,6 +255,11 @@ export default function ExamInterface() {
               <span className="text-green-700 text-sm font-semibold flex items-center">
                 <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span> Saved
               </span>
+            )}
+            {violationCount > 0 && (
+              <div className="text-red-600 text-sm font-bold bg-red-100 px-3 py-1 rounded-full border border-red-200 animate-pulse">
+                Violations: {violationCount}/3
+              </div>
             )}
           </div>
           <div className="text-2xl font-mono font-bold text-maroon bg-cream px-4 py-2 rounded-xl border border-border-soft">
