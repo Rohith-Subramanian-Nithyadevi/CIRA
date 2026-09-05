@@ -6,7 +6,7 @@ const prisma = new PrismaClient();
 // Task Management
 export const getTasks = async (req: Request, res: Response) => {
   try {
-    const facultyId = (req as any).user.id;
+    const facultyId = (req as any).user.userId;
     const tasks = await prisma.task.findMany({
       where: { facultyId },
       orderBy: { date: 'asc' }
@@ -19,7 +19,7 @@ export const getTasks = async (req: Request, res: Response) => {
 
 export const createTask = async (req: Request, res: Response) => {
   try {
-    const facultyId = (req as any).user.id;
+    const facultyId = (req as any).user.userId;
     const { task, date } = req.body;
     const newTask = await prisma.task.create({
       data: {
@@ -37,7 +37,7 @@ export const createTask = async (req: Request, res: Response) => {
 export const updateTask = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
-    const facultyId = (req as any).user.id;
+    const facultyId = (req as any).user.userId;
     const { completed } = req.body;
     
     // verify ownership
@@ -59,7 +59,7 @@ export const updateTask = async (req: Request, res: Response) => {
 export const deleteTask = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
-    const facultyId = (req as any).user.id;
+    const facultyId = (req as any).user.userId;
     
     const existing = await prisma.task.findUnique({ where: { id } });
     if (!existing || existing.facultyId !== facultyId) {
@@ -77,7 +77,7 @@ export const deleteTask = async (req: Request, res: Response) => {
 // Calendar Management
 export const getCalendarEvents = async (req: Request, res: Response) => {
   try {
-    const facultyId = (req as any).user.id;
+    const facultyId = (req as any).user.userId;
     const events = await prisma.calendarEvent.findMany({
       where: { facultyId },
       orderBy: { date: 'asc' }
@@ -90,7 +90,7 @@ export const getCalendarEvents = async (req: Request, res: Response) => {
 
 export const createCalendarEvent = async (req: Request, res: Response) => {
   try {
-    const facultyId = (req as any).user.id;
+    const facultyId = (req as any).user.userId;
     const { title, date } = req.body;
     const newEvent = await prisma.calendarEvent.create({
       data: {
@@ -108,7 +108,7 @@ export const createCalendarEvent = async (req: Request, res: Response) => {
 export const deleteCalendarEvent = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
-    const facultyId = (req as any).user.id;
+    const facultyId = (req as any).user.userId;
     
     const existing = await prisma.calendarEvent.findUnique({ where: { id } });
     if (!existing || existing.facultyId !== facultyId) {
@@ -126,7 +126,7 @@ export const deleteCalendarEvent = async (req: Request, res: Response) => {
 // Announcement Management
 export const getAnnouncements = async (req: Request, res: Response) => {
   try {
-    const facultyId = (req as any).user.id;
+    const facultyId = (req as any).user.userId;
     const announcements = await prisma.announcement.findMany({
       where: { facultyId },
       orderBy: { date: 'desc' },
@@ -144,7 +144,7 @@ export const getAnnouncements = async (req: Request, res: Response) => {
 
 export const createAnnouncement = async (req: Request, res: Response) => {
   try {
-    const facultyId = (req as any).user.id;
+    const facultyId = (req as any).user.userId;
     const { title, content, isSurvey, audience, date } = req.body;
     const newAnn = await prisma.announcement.create({
       data: {
@@ -165,7 +165,7 @@ export const createAnnouncement = async (req: Request, res: Response) => {
 export const deleteAnnouncement = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
-    const facultyId = (req as any).user.id;
+    const facultyId = (req as any).user.userId;
     
     const existing = await prisma.announcement.findUnique({ where: { id } });
     if (!existing || existing.facultyId !== facultyId) {
@@ -182,7 +182,7 @@ export const deleteAnnouncement = async (req: Request, res: Response) => {
 export const getAnnouncementResponses = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
-    const facultyId = (req as any).user.id;
+    const facultyId = (req as any).user.userId;
     
     const existing = await prisma.announcement.findUnique({ where: { id } });
     if (!existing || existing.facultyId !== facultyId) {
