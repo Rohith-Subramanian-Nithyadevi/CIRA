@@ -169,9 +169,16 @@ export default function StudentDashboard() {
                       </div>
                       
                       {quiz.facultyFeedback && (
-                        <div className="border-t border-border-soft pt-3">
+                        <div className="border-t border-border-soft pt-3 mt-3">
                           <p className="text-xs font-bold text-ink mb-1">Faculty Feedback:</p>
                           <p className="text-sm text-gray-body italic leading-relaxed">"{quiz.facultyFeedback}"</p>
+                        </div>
+                      )}
+                      
+                      {quiz.answersPublished && (
+                        <div className="border-t border-border-soft pt-3 mt-3 flex justify-between items-center">
+                          <span className="text-xs text-gray-body font-medium">Answers have been published for this quiz.</span>
+                          <button onClick={() => navigate(`/exam-portal/review/${quiz.id}`)} className="text-maroon text-xs font-bold hover:underline">View Answers</button>
                         </div>
                       )}
                     </div>

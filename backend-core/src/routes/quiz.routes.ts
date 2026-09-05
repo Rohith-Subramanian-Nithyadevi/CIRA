@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createQuiz, addQuestions, getSubmissions, evaluateAttempt, getQuizzes, getQuizById, deleteQuiz, uploadDocxParser, uploadImageHandler } from '../controllers/quiz.controller';
+import { createQuiz, addQuestions, getSubmissions, evaluateAttempt, getQuizzes, getQuizById, deleteQuiz, uploadDocxParser, uploadImageHandler, togglePublishAnswers } from '../controllers/quiz.controller';
 import { downloadTemplate } from '../controllers/template.controller';
 import { authenticate, authorize } from '../middlewares/auth.middleware';
 
@@ -21,5 +21,6 @@ router.delete('/:quizId', deleteQuiz);
 router.post('/:quizId/questions', addQuestions);
 router.get('/:quizId/submissions', getSubmissions);
 router.post('/attempt/:attemptId/evaluate', evaluateAttempt);
+router.post('/:quizId/publish', togglePublishAnswers);
 
 export default router;

@@ -11,6 +11,8 @@ import batchRoutes from './routes/batch.routes';
 import quizRoutes from './routes/quiz.routes';
 import studentExamRoutes from './routes/student-exam.routes';
 import studentDashboardRoutes from './routes/student-dashboard.routes';
+import facultyDashboardRoutes from './routes/faculty-dashboard.routes';
+import assignmentRoutes from './routes/assignment.routes';
 import { errorHandler } from './middlewares/error.middleware';
 
 const app: Application = express();
@@ -26,7 +28,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/exams', examRoutes);
 app.use('/api/v1/faculty/quiz', quizRoutes);
+app.use('/api/v1/faculty/dashboard', facultyDashboardRoutes);
 app.use('/api/v1/faculty', facultyRoutes);
+app.use('/api/v1/assignments', assignmentRoutes);
 app.use('/api/v1/analytics', analyticsRoutes);
 app.use('/api/v1/departments', departmentRoutes);
 app.use('/api/v1/batches', batchRoutes);
