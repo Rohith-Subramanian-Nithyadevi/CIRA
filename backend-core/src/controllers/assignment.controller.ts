@@ -6,7 +6,7 @@ const prisma = new PrismaClient();
 // Create an assignment and automatically assign to all applicable users
 export const createAssignment = async (req: Request, res: Response) => {
   try {
-    const facultyId = (req as any).user.id;
+    const facultyId = (req as any).user.userId;
     const { title, description, targetBatches, targetDepartments, targetSections } = req.body;
 
     const assignment = await prisma.assignment.create({
@@ -70,7 +70,7 @@ export const createAssignment = async (req: Request, res: Response) => {
 // Get assignments for student
 export const getStudentAssignments = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = (req as any).user.userId;
     // We check AssignmentStudent and left join with AssignmentSubmission
     const assignments = await prisma.assignmentStudent.findMany({
       where: { userId },
@@ -102,7 +102,7 @@ export const getStudentAssignments = async (req: Request, res: Response) => {
 // Get faculty's created assignments
 export const getFacultyAssignments = async (req: Request, res: Response) => {
   try {
-    const facultyId = (req as any).user.id;
+    const facultyId = (req as any).user.userId;
     const assignments = await prisma.assignment.findMany({
       where: { createdBy: facultyId },
       include: {
@@ -126,7 +126,7 @@ export const getFacultyAssignments = async (req: Request, res: Response) => {
 export const deleteAssignment = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
-    const facultyId = (req as any).user.id;
+    const facultyId = (req as any).user.userId;
     
     const existing = await prisma.assignment.findUnique({ where: { id } });
     if (!existing || existing.createdBy !== facultyId) {
