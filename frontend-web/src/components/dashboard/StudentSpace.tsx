@@ -12,7 +12,13 @@ export default function StudentSpace() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const res = await fetch('http://localhost:3000/api/v1/student/dashboard');
+        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+        const token = localStorage.getItem('cira_token');
+        const res = await fetch(`${baseUrl}/api/v1/student/dashboard`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
         const json = await res.json();
         if (json.success) {
           setData(json.data);

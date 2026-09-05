@@ -5,20 +5,20 @@ const prisma = new PrismaClient();
 
 export const getDashboardData = async (req: Request, res: Response) => {
   try {
-    // In a real app, req.user would be populated by the auth middleware.
-    // For this demonstration, we'll extract the rollNumber from the user or assume the mock user.
-    // Since we're just visualizing it, let's try to get it from query params or fallback to the seed user
-    const user = await prisma.user.findFirst({
-      where: {
-        rollNumber: 'ch.sc.u4cse24141',
-      },
+    const userId = (req as any).user?.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Not authenticated' });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
     });
 
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    // 1. Performance Trajectory
+    // 1. Performance Trajectory — from actual quiz attempts
     const attempts = await prisma.quizAttempt.findMany({
       where: { userId: user.id },
       orderBy: { startTime: 'asc' },
@@ -31,22 +31,21 @@ export const getDashboardData = async (req: Request, res: Response) => {
 
     const performanceTrajectory = attempts.map(attempt => ({
       name: attempt.quiz.title,
-      score: attempt.score,
+      score: attempt.totalScore,
       date: attempt.startTime.toISOString().split('T')[0],
     }));
 
-    // 2. Knowledge Deficits
-    // Find the latest attempt that has metrics
-    const attemptWithMetrics = [...attempts].reverse().find(a => a.metrics && Object.keys(a.metrics).length > 0);
-    const metricsData = attemptWithMetrics?.metrics as Record<string, number> || {};
+    // 2. Knowledge Deficits — from the latest attempt that has metrics
+    const attemptWithMetrics = [...attempts].reverse().find(a => a.metrics && Object.keys(a.metrics as any).length > 0);
+    const metricsData = (attemptWithMetrics?.metrics as Record<string, number>) || {};
     
     const knowledgeDeficits = Object.entries(metricsData).map(([subject, score]) => ({
       subject,
       score,
-      fullMark: 100, // Assuming 100 is the max
+      fullMark: 100,
     }));
 
-    // 3. NLP-Generated Remediation Assignments
+    // 3. Remediation Assignments
     const submissions = await prisma.assignmentSubmission.findMany({
       where: { userId: user.id },
       orderBy: { submittedAt: 'desc' },
@@ -62,12 +61,28 @@ export const getDashboardData = async (req: Request, res: Response) => {
       status: sub.rating === 'POOR' ? 'Generated' : 'Completed',
     }));
 
+    // 4. Past quiz results — submitted/evaluated attempts with scores
+    const pastQuizzes = attempts
+      .filter(a => a.status === 'SUBMITTED' || a.status === 'EVALUATED')
+      .map(a => ({
+        id: a.id,
+        title: a.quiz.title,
+        submittedAt: a.endTime?.toISOString().split('T')[0] || a.startTime.toISOString().split('T')[0],
+        totalScore: a.totalScore,
+        objectiveScore: a.objectiveScore,
+        writtenScore: a.writtenScore,
+        grade: a.finalGrade || null,
+        facultyFeedback: a.facultyFeedback || null,
+        performanceCategory: a.performanceCategory || null,
+      }));
+
     res.status(200).json({
       success: true,
       data: {
         performanceTrajectory,
         knowledgeDeficits,
         assignments,
+        pastQuizzes,
       },
     });
   } catch (error) {
@@ -75,3 +90,4 @@ export const getDashboardData = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
+

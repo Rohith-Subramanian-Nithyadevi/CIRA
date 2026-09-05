@@ -272,8 +272,8 @@ export default function Login() {
       return;
     }
 
-    if (role === 'FACULTY' && !email.toLowerCase().endsWith('@ch.amrita.edu') && !email.toLowerCase().endsWith('@ch.students.amrita.edu')) {
-      toast.error("Faculty college email must end with @ch.amrita.edu");
+    if (role === 'FACULTY' && !email.toLowerCase().endsWith('@amrita.edu') && !email.toLowerCase().endsWith('@ch.students.amrita.edu')) {
+      toast.error("Faculty college email must end with @amrita.edu");
       setLoading(false);
       return;
     }
@@ -787,7 +787,7 @@ export default function Login() {
 
               <div className="space-y-1">
                 <Label htmlFor="onboardingCollegeEmail" className="text-xs font-semibold text-ink">College Email Address</Label>
-                <Input id="onboardingCollegeEmail" type="email" required value={email} onChange={(e) => setEmail(e.target.value.toLowerCase())} className="h-10 rounded-lg bg-white border border-border-soft text-xs px-3" placeholder={role === 'STUDENT' ? "username@ch.students.amrita.edu" : "username@ch.amrita.edu"} />
+                <Input id="onboardingCollegeEmail" type="email" required value={email} onChange={(e) => setEmail(e.target.value.toLowerCase())} className="h-10 rounded-lg bg-white border border-border-soft text-xs px-3" placeholder={role === 'STUDENT' ? "username@ch.students.amrita.edu" : "username@amrita.edu"} />
               </div>
 
               <Button type="submit" disabled={loading} className="w-full h-11 text-xs font-semibold rounded-lg bg-maroon hover:bg-maroon-deep text-white shadow-sm transition-all mt-2">
@@ -921,7 +921,7 @@ export default function Login() {
                   value={email} 
                   onChange={(e) => setEmail(e.target.value.toLowerCase())} 
                   className="h-11 rounded-lg bg-white border border-border-soft focus:border-maroon focus:ring-1 focus:ring-maroon text-ink text-sm px-3.5 placeholder:text-gray-body/50" 
-                  placeholder={isLogin ? "Your username or email" : (role === 'STUDENT' ? "username@ch.students.amrita.edu" : "username@ch.amrita.edu")} 
+                  placeholder={isLogin ? "Your username or email" : (role === 'STUDENT' ? "username@ch.students.amrita.edu" : "username@amrita.edu")} 
                 />
               </div>
 
