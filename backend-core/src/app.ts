@@ -12,6 +12,7 @@ import quizRoutes from './routes/quiz.routes';
 import studentExamRoutes from './routes/student-exam.routes';
 import studentDashboardRoutes from './routes/student-dashboard.routes';
 import facultyDashboardRoutes from './routes/faculty-dashboard.routes';
+import facultyReportsRoutes from './routes/faculty-reports.routes';
 import assignmentRoutes from './routes/assignment.routes';
 import { errorHandler } from './middlewares/error.middleware';
 
@@ -27,6 +28,7 @@ app.use(express.json());
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/exams', examRoutes);
 app.use('/api/v1/faculty/quiz', quizRoutes);
+app.use('/api/v1/faculty/reports', facultyReportsRoutes);
 app.use('/api/v1/faculty/dashboard', facultyDashboardRoutes);
 app.use('/api/v1/faculty', facultyRoutes);
 app.use('/api/v1/assignments', assignmentRoutes);

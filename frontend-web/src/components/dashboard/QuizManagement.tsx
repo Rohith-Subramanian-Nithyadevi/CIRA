@@ -6,7 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Card, CardContent } from '@/components/ui/card';
-import { Sparkles, Clipboard, Check, AlertCircle, Pencil } from 'lucide-react';
+import { Sparkles, Clipboard, Check, AlertCircle, Pencil, FileText } from 'lucide-react';
+import { EmptyState } from '@/components/ui/EmptyState';
 
 // Helper functions for parsing questions
 const parseMCQs = (rawText: string): any[] => {
@@ -338,6 +339,8 @@ export default function QuizManagement() {
   const [quizzes, setQuizzes] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
   
   // Create Form State
   const [formData, setFormData] = useState({
@@ -383,15 +386,28 @@ export default function QuizManagement() {
   const token = localStorage.getItem('cira_token');
 
   useEffect(() => {
-    fetchQuizzes();
+    fetchQuizzes(1);
     fetchDepartments();
   }, []);
 
-  const fetchQuizzes = async () => {
+  const fetchQuizzes = async (pageNumber = 1) => {
     try {
-      const res = await fetch(`${baseUrl}/api/v1/faculty/quiz`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await fetch(`${baseUrl}/api/v1/faculty/quiz?page=${pageNumber}&limit=10`, { headers: { 'Authorization': `Bearer ${token}` } });
       const data = await res.json();
-      if (data?.data) setQuizzes(data.data);
+      if (data?.data) {
+        const fetchedQuizzes = Array.isArray(data.data) ? data.data : data.data.items;
+        if (pageNumber === 1) {
+          setQuizzes(fetchedQuizzes);
+        } else {
+          setQuizzes(prev => [...prev, ...fetchedQuizzes]);
+        }
+        if (!Array.isArray(data.data)) {
+          setHasMore(data.data.hasMore);
+          setPage(data.data.page);
+        } else {
+          setHasMore(false);
+        }
+      }
     } catch (err) { console.error(err); }
   };
 
@@ -401,6 +417,60 @@ export default function QuizManagement() {
       const data = await res.json();
       if (data?.data?.departments) setDepartments(data.data.departments);
     } catch (err) { console.error(err); }
+  };
+
+  const handleEditQuiz = async (quizId: string, attemptsCount: number) => {
+    if (attemptsCount > 0) {
+      toast.error('Cannot edit a quiz that already has student submissions.');
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      const res = await fetch(`${baseUrl}/api/v1/faculty/quiz/${quizId}`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await res.json();
+      if (data?.status === 'success' && data.data) {
+        const quiz = data.data;
+        setFormData({
+          title: quiz.title || '',
+          subject: quiz.subject || '',
+          description: quiz.description || '',
+          totalMarks: quiz.totalMarks?.toString() || '',
+          passingMarks: quiz.passingMarks?.toString() || '',
+          durationMinutes: quiz.durationMinutes?.toString() || '60',
+          startDate: quiz.startDate ? new Date(quiz.startDate).toISOString().slice(0, 16) : '',
+          endDate: quiz.endDate ? new Date(quiz.endDate).toISOString().slice(0, 16) : '',
+          targetDepartments: quiz.targetDepartments?.map((d: any) => d.departmentId) || [],
+          targetSections: quiz.targetSections?.map((s: any) => s.sectionId) || [],
+        });
+        
+        let fetchedQuestions = quiz.questions;
+        if (!fetchedQuestions || fetchedQuestions.length === 0) {
+          fetchedQuestions = [{ type: 'MCQ', text: '', marks: 1, options: ['', '', '', ''], answerKey: '', topic: '' }];
+        } else {
+          // Ensure options are an array for MCQ/Multi-select
+          fetchedQuestions = fetchedQuestions.map((q: any) => {
+            if (!q.options) {
+              q.options = q.type === 'MATCHING' ? [{ left: '', right: '' }] : ['', '', '', ''];
+            }
+            return q;
+          });
+        }
+        
+        setQuestions(fetchedQuestions);
+        setParsedTotalMarks(Number(quiz.totalMarks) || 0);
+        setParsedTotalQuestions(quiz.questions ? quiz.questions.length : 0);
+        setActiveQuizId(quiz.id);
+        setActiveView('create');
+      } else {
+        toast.error('Failed to fetch quiz details for editing.');
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Error fetching quiz details.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleDeleteQuiz = async (quizId: string) => {
@@ -574,6 +644,11 @@ export default function QuizManagement() {
       if (payload.startDate) payload.startDate = new Date(payload.startDate).toISOString();
       if (payload.endDate) payload.endDate = new Date(payload.endDate).toISOString();
 
+      const sanitizedQuestions = questions.map(q => {
+        if (q.type === 'MATCHING') return { ...q, answerKey: q.options };
+        return q;
+      });
+
       if (editingQuizId) {
         const res = await fetch(`${baseUrl}/api/v1/faculty/quiz/${editingQuizId}`, {
           method: 'PUT',
@@ -589,40 +664,51 @@ export default function QuizManagement() {
         return;
       }
 
-      let quizIdToUse = activeQuizId;
-
-      if (!quizIdToUse) {
+      if (activeQuizId) {
+        // Edit flow
+        const res = await fetch(`${baseUrl}/api/v1/faculty/quiz/${activeQuizId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ ...payload, questions: sanitizedQuestions })
+        });
+        const data = await res.json();
+        
+        if (data?.status === 'success') {
+          toast.success('Quiz updated successfully!');
+          setActiveView('list');
+          fetchQuizzes();
+        } else {
+          throw new Error('Failed to update quiz: ' + data.message);
+        }
+      } else {
+        // Create flow
         const res = await fetch(`${baseUrl}/api/v1/faculty/quiz/create`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
           body: JSON.stringify(payload)
         });
         const data = await res.json();
+        let quizIdToUse = '';
         if (data?.status === 'success') {
           quizIdToUse = data.data.id;
         } else {
           throw new Error('Failed to create quiz: ' + data.message);
         }
-      }
 
-      const sanitizedQuestions = questions.map(q => {
-        if (q.type === 'MATCHING') return { ...q, answerKey: q.options };
-        return q;
-      });
+        const qRes = await fetch(`${baseUrl}/api/v1/faculty/quiz/${quizIdToUse}/questions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ questions: sanitizedQuestions })
+        });
+        const qData = await qRes.json();
 
-      const qRes = await fetch(`${baseUrl}/api/v1/faculty/quiz/${quizIdToUse}/questions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ questions: sanitizedQuestions })
-      });
-      const qData = await qRes.json();
-
-      if (qData?.status === 'success') {
-        toast.success('Quiz and Questions published successfully!');
-        setActiveView('list');
-        fetchQuizzes();
-      } else {
-         throw new Error('Failed to save questions: ' + qData.message);
+        if (qData?.status === 'success') {
+          toast.success('Quiz and Questions published successfully!');
+          setActiveView('list');
+          fetchQuizzes();
+        } else {
+           throw new Error('Failed to save questions: ' + qData.message);
+        }
       }
     } catch (err: any) {
       console.error(err);
@@ -1469,7 +1555,13 @@ export default function QuizManagement() {
               </TableHeader>
               <TableBody>
                 {submissions.length === 0 ? (
-                  <TableRow><TableCell colSpan={7} className="text-center text-gray-body italic py-8">No submissions found.</TableCell></TableRow>
+                  <TableRow>
+                    <TableCell colSpan={7} className="p-0 border-0">
+                      <div className="py-8">
+                        <EmptyState icon={<Clipboard className="w-8 h-8 text-maroon" />} title="No Submissions" description="There are no student submissions for this quiz yet." />
+                      </div>
+                    </TableCell>
+                  </TableRow>
                 ) : (
                   submissions.map((sub: any) => (
                     <TableRow key={sub.id} className={`border-b border-border-soft hover:bg-cream/20 transition-colors ${sub.violationReason ? 'bg-red-50/30' : sub.status === 'IN_PROGRESS' ? 'bg-yellow-50/30' : ''}`}>
@@ -1586,26 +1678,54 @@ export default function QuizManagement() {
       <CardContent className="p-6">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-serif font-bold text-ink">Quiz Management</h2>
-          <button onClick={() => { setEditingQuizId(null); setActiveQuizId(null); setFormData({ title: '', subject: '', description: '', totalMarks: '', passingMarks: '', durationMinutes: '60', startDate: '', endDate: '', targetDepartments: [], targetSections: [] }); setActiveView('create'); }} className="px-5 py-2 bg-maroon hover:bg-maroon-deep text-white rounded-full text-sm font-bold transition-all shadow-sm hover:scale-105 active:scale-95">
+          <button
+            onClick={() => {
+              setEditingQuizId(null);
+              setActiveQuizId(null);
+              setFormData({
+                title: '',
+                subject: '',
+                description: '',
+                totalMarks: '',
+                passingMarks: '',
+                durationMinutes: '60',
+                startDate: '',
+                endDate: '',
+                targetDepartments: [],
+                targetSections: [],
+              });
+              setQuestions([{ type: 'MCQ', text: '', marks: 1, options: ['', '', '', ''], answerKey: '', topic: '' }]);
+              setParsedTotalMarks(0);
+              setParsedTotalQuestions(0);
+              setActiveView('create');
+            }}
+            className="px-5 py-2 bg-maroon hover:bg-maroon-deep text-white rounded-full text-sm font-bold transition-all shadow-sm hover:scale-105 active:scale-95"
+          >
             + Create New Quiz
           </button>
         </div>
-        
+
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow className="border-b border-border-soft">
                 <TableHead className="text-gray-body font-semibold">Title</TableHead>
                 <TableHead className="text-gray-body font-semibold">Subject</TableHead>
-                  <TableHead className="text-gray-body font-semibold">Visible Schedule</TableHead>
-                  <TableHead className="text-gray-body font-semibold">Published To</TableHead>
+                <TableHead className="text-gray-body font-semibold">Visible Schedule</TableHead>
+                <TableHead className="text-gray-body font-semibold">Published To</TableHead>
                 <TableHead className="text-gray-body font-semibold">Questions</TableHead>
                 <TableHead className="text-gray-body font-semibold">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {quizzes.length === 0 ? (
-                <TableRow><TableCell colSpan={7} className="text-center text-gray-body italic py-8">No quizzes found.</TableCell></TableRow>
+                <TableRow>
+                  <TableCell colSpan={6} className="p-0 border-0">
+                    <div className="py-8">
+                      <EmptyState icon={<FileText className="w-8 h-8 text-maroon" />} title="No Quizzes" description="You haven't created any quizzes yet." />
+                    </div>
+                  </TableCell>
+                </TableRow>
               ) : (
                 quizzes.map((quiz) => (
                   <TableRow key={quiz.id} className="border-b border-border-soft hover:bg-cream/20 transition-colors">
@@ -1620,16 +1740,31 @@ export default function QuizManagement() {
                       <div className="text-ink/60">{quiz.targetSections?.length ? `Sections: ${quiz.targetSections.map((target: any) => target.section?.name).filter(Boolean).join(', ')}` : 'All sections'}</div>
                     </TableCell>
                     <TableCell className="text-ink font-mono text-sm">{quiz._count?.questions || 0}</TableCell>
-                    <TableCell className="space-x-2 flex items-center">
-                      <Button variant="outline" size="sm" className="border-border-soft hover:bg-cream/40" onClick={() => handleOpenEditQuiz(quiz.id)} title="Edit quiz details">
-                        <Pencil className="w-3.5 h-3.5 mr-1" /> Edit Details
+                    <TableCell className="space-x-2 flex items-center flex-wrap gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="border-border-soft hover:bg-cream/40"
+                        onClick={() => handleEditQuiz(quiz.id, quiz._count?.attempts || 0)}
+                        title="Edit quiz details"
+                      >
+                        <Pencil className="w-3.5 h-3.5 mr-1" /> Edit
+                      </Button>
+                      <Button variant="outline" size="sm" className="border-border-soft hover:bg-cream/40" onClick={() => handleOpenEditQuiz(quiz.id)}>
+                        Edit Details
                       </Button>
                       <Button variant="outline" size="sm" className="border-border-soft hover:bg-cream/40" onClick={() => handleTogglePublishAnswers(quiz.id, quiz.answersPublished)}>
                         {quiz.answersPublished ? 'Hide Answers' : 'Publish Answers'}
                       </Button>
-                      <Button variant="outline" size="sm" className="border-border-soft hover:bg-cream/40" onClick={() => { setActiveQuizId(quiz.id); setActiveView('add_questions'); }}>Edit Questions</Button>
-                      <Button variant="outline" size="sm" className="border-border-soft hover:bg-cream/40" onClick={() => handleOpenGradeView(quiz.id)}>View Submissions</Button>
-                      <Button variant="destructive" size="sm" className="bg-red-50 text-red-600 hover:bg-red-100 border border-red-200" onClick={() => handleDeleteQuiz(quiz.id)}>Delete</Button>
+                      <Button variant="outline" size="sm" className="border-border-soft hover:bg-cream/40" onClick={() => { setActiveQuizId(quiz.id); setActiveView('add_questions'); }}>
+                        Edit Questions
+                      </Button>
+                      <Button variant="outline" size="sm" className="border-border-soft hover:bg-cream/40" onClick={() => handleOpenGradeView(quiz.id)}>
+                        Grade Submissions
+                      </Button>
+                      <Button variant="destructive" size="sm" className="bg-red-50 text-red-600 hover:bg-red-100 border border-red-200" onClick={() => handleDeleteQuiz(quiz.id)}>
+                        Delete
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))
@@ -1637,6 +1772,14 @@ export default function QuizManagement() {
             </TableBody>
           </Table>
         </div>
+
+        {hasMore && (
+          <div className="mt-6 flex justify-center">
+            <Button variant="outline" onClick={() => fetchQuizzes(page + 1)} className="border-maroon text-maroon hover:bg-maroon hover:text-white rounded-full px-8 py-2 font-bold transition-all shadow-sm">
+              Load More
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

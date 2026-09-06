@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getDashboardData } from '../controllers/student-dashboard.controller';
+import { getDashboardData, submitAnnouncementResponse } from '../controllers/student-dashboard.controller';
 import { authenticate, authorize } from '../middlewares/auth.middleware';
 
 const router = Router();
@@ -8,5 +8,6 @@ const router = Router();
 router.use(authenticate, authorize(['STUDENT']));
 
 router.get('/dashboard', getDashboardData);
+router.post('/announcements/respond', submitAnnouncementResponse);
 
 export default router;

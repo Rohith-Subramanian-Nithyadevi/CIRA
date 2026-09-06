@@ -10,22 +10,69 @@ export const getQuizzes = async (req: Request, res: Response, next: NextFunction
     const userId = (req as any).user?.userId || 'system';
     const userRole = (req as any).user?.role;
 
-    // Faculty sees only their quizzes, Admins see all
-    const whereClause = userRole === 'ADMIN' ? {} : { createdBy: userId };
+    // Faculty sees only their quizzes, Admins see all.
+    const whereClause: any = userRole === 'ADMIN' ? {} : { createdBy: userId };
+    const filters: any[] = [];
+    if (req.query.posted === 'true') {
+      filters.push({ OR: [
+        { targetDepartments: { some: {} } },
+        { targetSections: { some: {} } },
+        { targetStudents: { some: {} } }
+      ] });
+    }
 
-    const quizzes = await prisma.quiz.findMany({
-      where: whereClause,
-      include: {
-        _count: {
-          select: { questions: true, attempts: true }
-        },
-        targetDepartments: { include: { department: { select: { id: true, name: true } } } },
-        targetSections: { include: { section: { select: { id: true, name: true } } } }
+    const departmentId = req.query.departmentId as string | undefined;
+    const sectionId = req.query.sectionId as string | undefined;
+    if (sectionId) {
+      filters.push({ OR: [
+        { targetSections: { some: { sectionId } } },
+        ...(departmentId ? [{ targetDepartments: { some: { departmentId } } }] : [])
+      ] });
+    } else if (departmentId) {
+      filters.push({ targetDepartments: { some: { departmentId } } });
+    }
+    if (filters.length > 0) {
+      whereClause.AND = filters;
+    }
+
+    const hasPagination = req.query.page !== undefined || req.query.limit !== undefined;
+
+    const includeOptions = {
+      _count: {
+        select: { questions: true, attempts: true }
       },
-      orderBy: { createdAt: 'desc' }
-    });
+      targetDepartments: { include: { department: { select: { id: true, name: true } } } },
+      targetSections: { include: { section: { select: { id: true, name: true } } } },
+      targetStudents: { select: { userId: true } }
+    };
 
-    res.status(200).json({ status: 'success', data: quizzes });
+    if (hasPagination) {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      const skip = (page - 1) * limit;
+
+      const [total, quizzes] = await prisma.$transaction([
+        prisma.quiz.count({ where: whereClause }),
+        prisma.quiz.findMany({
+          where: whereClause,
+          include: includeOptions,
+          orderBy: { createdAt: 'desc' },
+          skip,
+          take: limit
+        })
+      ]);
+
+      const hasMore = skip + quizzes.length < total;
+      res.status(200).json({ status: 'success', data: { items: quizzes, total, page, hasMore } });
+    } else {
+      const quizzes = await prisma.quiz.findMany({
+        where: whereClause,
+        include: includeOptions,
+        orderBy: { createdAt: 'desc' }
+      });
+
+      res.status(200).json({ status: 'success', data: quizzes });
+    }
   } catch (error) {
     next(error);
   }

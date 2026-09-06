@@ -83,6 +83,7 @@ model Section {
   users        User[]     @relation("UserSection")
   quizAssignments QuizSection[]
   assignmentTargets AssignmentSection[]
+  mappedFaculty FacultySection[]
 
   @@unique([name, departmentId])
 }
@@ -110,6 +111,7 @@ model User {
   section        Section?       @relation("UserSection", fields: [sectionId], references: [id], onDelete: SetNull)
   
   mappedDepartments FacultyDepartment[]
+  mappedSections    FacultySection[]
 
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
@@ -123,6 +125,7 @@ model User {
   announcements          Announcement[]  @relation("FacultyAnnouncements")
   announcementResponses  AnnouncementResponse[]
   assignmentTargets      AssignmentStudent[]
+  notifications          Notification[]  @relation("FacultyNotifications")
 }
 
 model FacultyDepartment {
@@ -133,6 +136,16 @@ model FacultyDepartment {
   department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
 
   @@id([userId, departmentId])
+}
+
+model FacultySection {
+  userId    String
+  sectionId String
+
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  section   Section @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, sectionId])
 }
 
 model Quiz {
@@ -255,6 +268,7 @@ model Assignment {
   title        String
   description  String?
   createdBy    String
+  maxMarks     Float    @default(100)
   createdAt    DateTime @default(now())
   
   submissions  AssignmentSubmission[]
@@ -270,6 +284,9 @@ model AssignmentSubmission {
   userId       String
   assignmentId String
   rating       PerformanceRating?
+  grade        Float?
+  fileUrl      String?
+  submissionText String?
   feedback     String?
   submittedAt  DateTime           @default(now())
 
@@ -389,4 +406,15 @@ model AnnouncementResponse {
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([announcementId, userId])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  facultyId String
+  type      String
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  faculty   User     @relation("FacultyNotifications", fields: [facultyId], references: [id], onDelete: Cascade)
 }

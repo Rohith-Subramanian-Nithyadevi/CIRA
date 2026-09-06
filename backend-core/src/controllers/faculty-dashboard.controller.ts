@@ -127,16 +127,43 @@ export const deleteCalendarEvent = async (req: Request, res: Response) => {
 export const getAnnouncements = async (req: Request, res: Response) => {
   try {
     const facultyId = (req as any).user.userId;
-    const announcements = await prisma.announcement.findMany({
-      where: { facultyId },
-      orderBy: { date: 'desc' },
-      include: {
-        _count: {
-          select: { responses: true }
+    
+    const hasPagination = req.query.page !== undefined || req.query.limit !== undefined;
+
+    if (hasPagination) {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      const skip = (page - 1) * limit;
+
+      const [total, announcements] = await prisma.$transaction([
+        prisma.announcement.count({ where: { facultyId } }),
+        prisma.announcement.findMany({
+          where: { facultyId },
+          orderBy: { date: 'desc' },
+          include: {
+            _count: {
+              select: { responses: true }
+            }
+          },
+          skip,
+          take: limit
+        })
+      ]);
+
+      const hasMore = skip + announcements.length < total;
+      res.json({ success: true, data: { items: announcements, total, page, hasMore } });
+    } else {
+      const announcements = await prisma.announcement.findMany({
+        where: { facultyId },
+        orderBy: { date: 'desc' },
+        include: {
+          _count: {
+            select: { responses: true }
+          }
         }
-      }
-    });
-    res.json({ success: true, data: announcements });
+      });
+      res.json({ success: true, data: announcements });
+    }
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server error' });
   }
@@ -196,6 +223,38 @@ export const getAnnouncementResponses = async (req: Request, res: Response) => {
       }
     });
     res.json({ success: true, data: responses });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// Notifications
+export const getNotifications = async (req: Request, res: Response) => {
+  try {
+    const facultyId = (req as any).user.userId;
+    const notifications = await prisma.notification.findMany({
+      where: { facultyId },
+      orderBy: { createdAt: 'desc' },
+      take: 50
+    });
+    res.json({ success: true, data: notifications });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+export const markNotificationRead = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const facultyId = (req as any).user.userId;
+
+    const existing = await prisma.notification.findUnique({ where: { id } });
+    if (!existing || existing.facultyId !== facultyId) {
+      return res.status(403).json({ success: false, message: 'Unauthorized' });
+    }
+
+    await prisma.notification.update({ where: { id }, data: { read: true } });
+    res.json({ success: true });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server error' });
   }
