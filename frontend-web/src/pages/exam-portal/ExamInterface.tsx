@@ -25,6 +25,8 @@ export default function ExamInterface() {
   const [attemptId, setAttemptId] = useState<string>('');
   const [quizDetails, setQuizDetails] = useState<any>(null);
   const [hasStartedSecureExam, setHasStartedSecureExam] = useState(false);
+  const submittingRef = React.useRef(false);
+  const attemptIdRef = React.useRef('');
 
   // Zero tolerance: any violation = instant auto-submit with reason logged
   const handleSecurityViolation = async (reason: string) => {
@@ -45,7 +47,7 @@ export default function ExamInterface() {
     }
   };
 
-  const { isFullscreen, enterFullscreen, violationCount } = useSecureExam({
+  const { isFullscreen, enterFullscreen } = useSecureExam({
     isActive: hasStartedSecureExam,
     onViolation: handleSecurityViolation
   });
@@ -66,11 +68,12 @@ export default function ExamInterface() {
         });
         const data = await res.json();
         
-        if (data.status === 'success') {
+        if (data.status === 'success' && data.data?.attempt && data.data?.quiz) {
           const { attempt, quiz } = data.data;
           setQuizDetails(quiz);
           setQuestions(quiz.questions || []);
           setAttemptId(attempt.id);
+          attemptIdRef.current = attempt.id;
           
           const loadedResponses: Record<string, { data: any, status: QuestionStatus }> = {};
           if (attempt.responses) {
@@ -85,8 +88,8 @@ export default function ExamInterface() {
           const elapsedSec = Math.floor((Date.now() - startTime) / 1000);
           const remaining = Math.max(0, durationSec - elapsedSec);
           setTimeLeft(remaining);
-        } else {
-           toast.error('Error starting exam: ' + data.message);
+          } else {
+            toast.error('Error starting exam: ' + (data.message || 'Invalid exam response'));
            navigate('/exam-portal', { replace: true });
         }
       } catch(err) {
@@ -166,25 +169,35 @@ export default function ExamInterface() {
   };
 
   const handleSubmit = async () => {
+    const currentAttemptId = attemptIdRef.current || attemptId;
+    if (!currentAttemptId || submittingRef.current) return;
+
+    submittingRef.current = true;
     try {
         const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
         const token = localStorage.getItem('cira_token');
-        const res = await fetch(`${baseUrl}/api/v1/student/exam/attempt/${attemptId}/submit`, {
+        const res = await fetch(`${baseUrl}/api/v1/student/exam/attempt/${currentAttemptId}/submit`, {
           method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({})
         });
         const data = await res.json();
-        if (data.status === 'success') {
+        if (res.ok && data.status === 'success') {
           toast.success('Examination Submitted Successfully!');
           navigate('/exam-portal', { replace: true });
         } else {
-          toast.error('Error submitting: ' + data.message);
+          toast.error('Error submitting: ' + (data.message || 'Request failed'));
           navigate('/exam-portal', { replace: true });
         }
     } catch(e) {
         console.error(e);
         toast.error('Error submitting examination');
         navigate('/exam-portal', { replace: true });
+    } finally {
+        submittingRef.current = false;
     }
   };
 

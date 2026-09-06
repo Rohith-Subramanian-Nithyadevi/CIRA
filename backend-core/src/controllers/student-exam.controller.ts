@@ -36,6 +36,12 @@ export const getEligibleQuizzes = async (req: Request, res: Response, next: Next
               { endDate: null },
               { endDate: { gte: now } }
             ]
+          },
+          {
+            OR: [
+              { startDate: null },
+              { startDate: { lte: now } }
+            ]
           }
         ]
       },
@@ -175,7 +181,7 @@ export const saveResponse = async (req: Request, res: Response, next: NextFuncti
 export const submitExam = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const attemptId = req.params.attemptId as string;
-    const { violationReason } = req.body; // Optional: if submitted due to violation
+    const { violationReason } = req.body ?? {}; // Optional: if submitted due to violation
     
     const attempt = await prisma.quizAttempt.findUnique({
       where: { id: attemptId },

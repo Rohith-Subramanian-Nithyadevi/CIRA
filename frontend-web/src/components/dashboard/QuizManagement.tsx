@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Card, CardContent } from '@/components/ui/card';
-import { Sparkles, Clipboard, Check, AlertCircle } from 'lucide-react';
+import { Sparkles, Clipboard, Check, AlertCircle, Pencil } from 'lucide-react';
 
 // Helper functions for parsing questions
 const parseMCQs = (rawText: string): any[] => {
@@ -256,6 +256,13 @@ const parseNumerical = (rawText: string): any[] => {
   return parsed;
 };
 
+const formatDateTimeLocal = (value: string | null | undefined) => {
+  if (!value) return '';
+  const date = new Date(value);
+  const pad = (part: number) => part.toString().padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
 const parseLongWritten = (rawText: string): any[] => {
   if (!rawText.trim()) return [];
   const rawLines = rawText.split(/\r?\n/);
@@ -353,6 +360,7 @@ export default function QuizManagement() {
 
   // Questions State
   const [activeQuizId, setActiveQuizId] = useState<string | null>(null);
+  const [editingQuizId, setEditingQuizId] = useState<string | null>(null);
   const [questions, setQuestions] = useState<any[]>([{ type: 'MCQ', text: '', marks: 1, options: ['', '', '', ''], answerKey: '', topic: '' }]);
 
   // Bulk Import State
@@ -418,6 +426,36 @@ export default function QuizManagement() {
         fetchQuizzes();
       }
     } catch (err) { console.error(err); }
+  };
+
+  const handleOpenEditQuiz = async (quizId: string) => {
+    try {
+      const res = await fetch(`${baseUrl}/api/v1/faculty/quiz/${quizId}`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await res.json();
+      if (data?.status !== 'success' || !data.data) {
+        toast.error('Unable to load quiz details: ' + (data?.message || 'Unknown error'));
+        return;
+      }
+
+      const quiz = data.data;
+      setFormData({
+        title: quiz.title || '',
+        subject: quiz.subject || '',
+        description: quiz.description || '',
+        totalMarks: quiz.totalMarks?.toString() || '',
+        passingMarks: quiz.passingMarks?.toString() || '',
+        durationMinutes: quiz.durationMinutes?.toString() || '60',
+        startDate: formatDateTimeLocal(quiz.startDate),
+        endDate: formatDateTimeLocal(quiz.endDate),
+        targetDepartments: quiz.targetDepartments?.map((target: any) => target.departmentId) || [],
+        targetSections: quiz.targetSections?.map((target: any) => target.sectionId) || []
+      });
+      setEditingQuizId(quizId);
+      setActiveView('create');
+    } catch (err) {
+      console.error(err);
+      toast.error('Unable to load quiz details');
+    }
   };
 
   const downloadTemplate = async () => {
@@ -527,7 +565,7 @@ export default function QuizManagement() {
   };
 
   const handleSaveQuizAndQuestions = async () => {
-    if (!validateQuestions()) return;
+    if (!editingQuizId && !validateQuestions()) return;
 
     setLoading(true);
     
@@ -535,6 +573,21 @@ export default function QuizManagement() {
       const payload = { ...formData };
       if (payload.startDate) payload.startDate = new Date(payload.startDate).toISOString();
       if (payload.endDate) payload.endDate = new Date(payload.endDate).toISOString();
+
+      if (editingQuizId) {
+        const res = await fetch(`${baseUrl}/api/v1/faculty/quiz/${editingQuizId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data?.status !== 'success') throw new Error('Failed to update quiz: ' + data.message);
+        toast.success('Quiz details updated successfully!');
+        setEditingQuizId(null);
+        setActiveView('list');
+        fetchQuizzes();
+        return;
+      }
 
       let quizIdToUse = activeQuizId;
 
@@ -742,8 +795,8 @@ export default function QuizManagement() {
         <CardContent className="p-6">
           <div className="flex justify-between items-center mb-6 pb-4 border-b border-border-soft">
             <div>
-              <h2 className="text-2xl font-serif font-bold text-ink">Schedule & Create Quiz</h2>
-              <p className="text-gray-body text-xs mt-1">Configure metadata and add questions via direct paste, DOCX, or manual builder.</p>
+              <h2 className="text-2xl font-serif font-bold text-ink">{editingQuizId ? 'Edit Quiz Details' : 'Schedule & Create Quiz'}</h2>
+              <p className="text-gray-body text-xs mt-1">{editingQuizId ? 'Update the quiz name, timing, marks, or publication targets.' : 'Configure metadata and add questions via direct paste, DOCX, or manual builder.'}</p>
             </div>
             <div className="flex justify-end gap-3">
               <Button variant="outline" onClick={() => setShowTemplateModal(true)} className="border-border-soft hover:bg-cream/40 text-xs font-semibold">Download DOCX Template</Button>
@@ -801,6 +854,14 @@ export default function QuizManagement() {
                 </select>
               </div>
             </div>
+
+            {editingQuizId && (
+              <div className="flex justify-end border-t border-border-soft pt-5">
+                <Button onClick={handleSaveQuizAndQuestions} disabled={loading} className="bg-maroon hover:bg-maroon-deep text-white font-bold rounded-full px-7">
+                  {loading ? 'Updating...' : 'Update Quiz Details'}
+                </Button>
+              </div>
+            )}
 
             {/* Question Creation Options Tabs */}
             <div className="border-t border-border-soft pt-6 mt-6">
@@ -1525,7 +1586,7 @@ export default function QuizManagement() {
       <CardContent className="p-6">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-serif font-bold text-ink">Quiz Management</h2>
-          <button onClick={() => setActiveView('create')} className="px-5 py-2 bg-maroon hover:bg-maroon-deep text-white rounded-full text-sm font-bold transition-all shadow-sm hover:scale-105 active:scale-95">
+          <button onClick={() => { setEditingQuizId(null); setActiveQuizId(null); setFormData({ title: '', subject: '', description: '', totalMarks: '', passingMarks: '', durationMinutes: '60', startDate: '', endDate: '', targetDepartments: [], targetSections: [] }); setActiveView('create'); }} className="px-5 py-2 bg-maroon hover:bg-maroon-deep text-white rounded-full text-sm font-bold transition-all shadow-sm hover:scale-105 active:scale-95">
             + Create New Quiz
           </button>
         </div>
@@ -1536,22 +1597,33 @@ export default function QuizManagement() {
               <TableRow className="border-b border-border-soft">
                 <TableHead className="text-gray-body font-semibold">Title</TableHead>
                 <TableHead className="text-gray-body font-semibold">Subject</TableHead>
-                <TableHead className="text-gray-body font-semibold">Starts At</TableHead>
+                  <TableHead className="text-gray-body font-semibold">Visible Schedule</TableHead>
+                  <TableHead className="text-gray-body font-semibold">Published To</TableHead>
                 <TableHead className="text-gray-body font-semibold">Questions</TableHead>
                 <TableHead className="text-gray-body font-semibold">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {quizzes.length === 0 ? (
-                <TableRow><TableCell colSpan={5} className="text-center text-gray-body italic py-8">No quizzes found.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center text-gray-body italic py-8">No quizzes found.</TableCell></TableRow>
               ) : (
                 quizzes.map((quiz) => (
                   <TableRow key={quiz.id} className="border-b border-border-soft hover:bg-cream/20 transition-colors">
                     <TableCell className="font-semibold text-ink">{quiz.title}</TableCell>
                     <TableCell className="text-gray-body">{quiz.subject}</TableCell>
-                    <TableCell className="text-gray-body">{quiz.startDate ? new Date(quiz.startDate).toLocaleDateString() : 'N/A'}</TableCell>
+                    <TableCell className="text-gray-body text-xs whitespace-nowrap">
+                      <div>From: {quiz.startDate ? new Date(quiz.startDate).toLocaleString() : 'Immediately'}</div>
+                      <div>Until: {quiz.endDate ? new Date(quiz.endDate).toLocaleString() : 'No end time'}</div>
+                    </TableCell>
+                    <TableCell className="text-gray-body text-xs min-w-[170px]">
+                      <div>{quiz.targetDepartments?.length ? quiz.targetDepartments.map((target: any) => target.department?.name).filter(Boolean).join(', ') : 'All departments'}</div>
+                      <div className="text-ink/60">{quiz.targetSections?.length ? `Sections: ${quiz.targetSections.map((target: any) => target.section?.name).filter(Boolean).join(', ')}` : 'All sections'}</div>
+                    </TableCell>
                     <TableCell className="text-ink font-mono text-sm">{quiz._count?.questions || 0}</TableCell>
                     <TableCell className="space-x-2 flex items-center">
+                      <Button variant="outline" size="sm" className="border-border-soft hover:bg-cream/40" onClick={() => handleOpenEditQuiz(quiz.id)} title="Edit quiz details">
+                        <Pencil className="w-3.5 h-3.5 mr-1" /> Edit Details
+                      </Button>
                       <Button variant="outline" size="sm" className="border-border-soft hover:bg-cream/40" onClick={() => handleTogglePublishAnswers(quiz.id, quiz.answersPublished)}>
                         {quiz.answersPublished ? 'Hide Answers' : 'Publish Answers'}
                       </Button>

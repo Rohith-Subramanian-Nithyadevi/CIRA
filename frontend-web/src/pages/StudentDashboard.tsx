@@ -178,7 +178,7 @@ export default function StudentDashboard() {
                       {quiz.answersPublished && (
                         <div className="border-t border-border-soft pt-3 mt-3 flex justify-between items-center">
                           <span className="text-xs text-gray-body font-medium">Answers have been published for this quiz.</span>
-                          <button onClick={() => navigate(`/exam-portal/review/${quiz.id}`)} className="text-maroon text-xs font-bold hover:underline">View Answers</button>
+                          <button onClick={() => navigate(`/exam-portal/results/${quiz.quizId}`)} className="text-maroon text-xs font-bold hover:underline">View Answers</button>
                         </div>
                       )}
                     </div>
