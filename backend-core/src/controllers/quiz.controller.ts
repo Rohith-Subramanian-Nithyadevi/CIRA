@@ -13,19 +13,43 @@ export const getQuizzes = async (req: Request, res: Response, next: NextFunction
     // Faculty sees only their quizzes, Admins see all
     const whereClause = userRole === 'ADMIN' ? {} : { createdBy: userId };
 
-    const quizzes = await prisma.quiz.findMany({
-      where: whereClause,
-      include: {
-        _count: {
-          select: { questions: true, attempts: true }
-        },
-        targetDepartments: { include: { department: { select: { id: true, name: true } } } },
-        targetSections: { include: { section: { select: { id: true, name: true } } } }
-      },
-      orderBy: { createdAt: 'desc' }
-    });
+    const hasPagination = req.query.page !== undefined || req.query.limit !== undefined;
 
-    res.status(200).json({ status: 'success', data: quizzes });
+    const includeOptions = {
+      _count: {
+        select: { questions: true, attempts: true }
+      },
+      targetDepartments: { include: { department: { select: { id: true, name: true } } } },
+      targetSections: { include: { section: { select: { id: true, name: true } } } }
+    };
+
+    if (hasPagination) {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      const skip = (page - 1) * limit;
+
+      const [total, quizzes] = await prisma.$transaction([
+        prisma.quiz.count({ where: whereClause }),
+        prisma.quiz.findMany({
+          where: whereClause,
+          include: includeOptions,
+          orderBy: { createdAt: 'desc' },
+          skip,
+          take: limit
+        })
+      ]);
+
+      const hasMore = skip + quizzes.length < total;
+      res.status(200).json({ status: 'success', data: { items: quizzes, total, page, hasMore } });
+    } else {
+      const quizzes = await prisma.quiz.findMany({
+        where: whereClause,
+        include: includeOptions,
+        orderBy: { createdAt: 'desc' }
+      });
+
+      res.status(200).json({ status: 'success', data: quizzes });
+    }
   } catch (error) {
     next(error);
   }

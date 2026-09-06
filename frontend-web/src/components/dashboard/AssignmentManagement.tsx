@@ -1,21 +1,21 @@
 import { useState, useEffect } from 'react';
 import { Trash2, FileText } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
-
-interface Batch { id: string; name: string; }
-interface Department { id: string; name: string; batchId: string; sections: Section[] }
-interface Section { id: string; name: string; }
+import { EmptyState } from '@/components/ui/EmptyState';
+import { useBatches, useDepartments } from '@/hooks/useReferenceData';
+import AssignmentSubmissionsView from './AssignmentSubmissionsView';
 
 export default function AssignmentManagement() {
   const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
   const token = localStorage.getItem('cira_token');
 
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
   const [assignments, setAssignments] = useState<any[]>([]);
   const [isCreating, setIsCreating] = useState(false);
-
-  const [batches, setBatches] = useState<Batch[]>([]);
-  const [departments, setDepartments] = useState<Department[]>([]);
+  const [activeAssignmentId, setActiveAssignmentId] = useState<string | null>(null);
+  const [selectedAssignmentForSubmissions, setSelectedAssignmentForSubmissions] = useState<string | null>(null);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -23,45 +23,36 @@ export default function AssignmentManagement() {
   const [targetDeptId, setTargetDeptId] = useState<string>('all');
   const [targetSectionId, setTargetSectionId] = useState<string>('all');
 
+  // Cached Reference Data
+  const { batches } = useBatches();
+  const { departments } = useDepartments(targetBatchId, { enabled: targetBatchId !== 'all' });
+
   useEffect(() => {
-    fetchAssignments();
-    fetchBatches();
+    fetchAssignments(1);
   }, []);
 
-  const fetchAssignments = async () => {
+  const fetchAssignments = async (pageNumber = 1) => {
     try {
-      const res = await fetch(`${baseUrl}/api/v1/assignments/faculty`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await fetch(`${baseUrl}/api/v1/assignments/faculty?page=${pageNumber}&limit=10`, { headers: { 'Authorization': `Bearer ${token}` } });
       const data = await res.json();
-      if (data?.success) setAssignments(data.data);
+      if (data?.success) {
+        const fetchedAssignments = Array.isArray(data.data) ? data.data : data.data.items;
+        if (pageNumber === 1) {
+          setAssignments(fetchedAssignments);
+        } else {
+          setAssignments(prev => [...prev, ...fetchedAssignments]);
+        }
+        if (!Array.isArray(data.data)) {
+          setHasMore(data.data.hasMore);
+          setPage(data.data.page);
+        } else {
+          setHasMore(false);
+        }
+      }
     } catch (err) {} finally { setLoading(false); }
   };
 
-  const fetchBatches = async () => {
-    try {
-      const res = await fetch(`${baseUrl}/api/v1/batches`);
-      const data = await res.json();
-      if (data?.data?.batches) setBatches(data.data.batches);
-    } catch (err) {}
-  };
-
-  useEffect(() => {
-    if (targetBatchId === 'all') {
-      setDepartments([]);
-      setTargetDeptId('all');
-      setTargetSectionId('all');
-      return;
-    }
-    const fetchDepartments = async () => {
-      try {
-        const res = await fetch(`${baseUrl}/api/v1/departments?batchId=${targetBatchId}`);
-        const data = await res.json();
-        if (data?.data?.departments) setDepartments(data.data.departments);
-      } catch (err) {}
-    };
-    fetchDepartments();
-  }, [targetBatchId]);
-
-  const handleCreate = async (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title) return;
     
@@ -74,17 +65,52 @@ export default function AssignmentManagement() {
     };
 
     try {
-      const res = await fetch(`${baseUrl}/api/v1/assignments/faculty`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(payload)
-      });
+      let res;
+      if (activeAssignmentId) {
+        res = await fetch(`${baseUrl}/api/v1/assignments/faculty/${activeAssignmentId}`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify(payload)
+        });
+      } else {
+        res = await fetch(`${baseUrl}/api/v1/assignments/faculty`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify(payload)
+        });
+      }
+      
       const data = await res.json();
       if (data?.success) {
-        setAssignments([data.data, ...assignments]);
+        if (activeAssignmentId) {
+          setAssignments(assignments.map(a => a.id === activeAssignmentId ? { ...a, ...payload } : a));
+          // Refresh fully to get updated target counts
+          fetchAssignments();
+        } else {
+          setAssignments([data.data, ...assignments]);
+        }
         setIsCreating(false);
+        setActiveAssignmentId(null);
         setTitle(''); setDescription(''); setTargetBatchId('all'); setTargetDeptId('all'); setTargetSectionId('all');
+      } else {
+         alert(data.message || 'Failed to save assignment');
       }
     } catch (err) {}
+  };
+
+  const handleEdit = (assignment: any) => {
+    if (assignment._count?.submissions > 0) {
+      alert('Cannot edit an assignment that already has student submissions.');
+      return;
+    }
+    
+    setTitle(assignment.title || '');
+    setDescription(assignment.description || '');
+    
+    setTargetBatchId(assignment.targetBatches?.[0]?.batchId || 'all');
+    setTargetDeptId(assignment.targetDepartments?.[0]?.departmentId || 'all');
+    setTargetSectionId(assignment.targetSections?.[0]?.sectionId || 'all');
+    
+    setActiveAssignmentId(assignment.id);
+    setIsCreating(true);
   };
 
   const handleDelete = async (id: string) => {
@@ -94,13 +120,26 @@ export default function AssignmentManagement() {
     } catch (err) {}
   };
 
+  if (selectedAssignmentForSubmissions) {
+    return (
+      <AssignmentSubmissionsView 
+        assignmentId={selectedAssignmentForSubmissions} 
+        onBack={() => setSelectedAssignmentForSubmissions(null)} 
+      />
+    );
+  }
+
   return (
     <Card className="bg-white border border-border-soft text-ink shadow-sm rounded-xl">
       <CardContent className="p-6">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-serif font-bold text-ink">Assignment Management</h2>
           {!isCreating && (
-            <button onClick={() => setIsCreating(true)} className="px-5 py-2 bg-maroon hover:bg-maroon-deep text-white rounded-full text-sm font-bold transition-all shadow-sm">
+            <button onClick={() => {
+              setActiveAssignmentId(null);
+              setTitle(''); setDescription(''); setTargetBatchId('all'); setTargetDeptId('all'); setTargetSectionId('all');
+              setIsCreating(true);
+            }} className="px-5 py-2 bg-maroon hover:bg-maroon-deep text-white rounded-full text-sm font-bold transition-all shadow-sm">
               + Create Assignment
             </button>
           )}
@@ -108,8 +147,8 @@ export default function AssignmentManagement() {
 
         {isCreating && (
           <div className="bg-cream/30 p-5 rounded-xl border border-border-soft mb-8">
-            <h3 className="font-bold mb-4 text-ink">New Assignment</h3>
-            <form onSubmit={handleCreate} className="space-y-4">
+            <h3 className="font-bold mb-4 text-ink">{activeAssignmentId ? 'Edit Assignment' : 'New Assignment'}</h3>
+            <form onSubmit={handleSave} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-gray-body mb-1">Title</label>
                 <input required type="text" value={title} onChange={e => setTitle(e.target.value)} className="w-full px-3 py-2 border border-border-soft rounded-lg text-sm" placeholder="Assignment Title" />
@@ -141,15 +180,15 @@ export default function AssignmentManagement() {
                     <label className="block text-xs font-semibold text-gray-body mb-1">Target Section</label>
                     <select value={targetSectionId} onChange={e => setTargetSectionId(e.target.value)} className="w-full px-3 py-2 border border-border-soft rounded-lg text-sm">
                       <option value="all">All Sections in Department</option>
-                      {departments.find(d => d.id === targetDeptId)?.sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                      {departments.find(d => d.id === targetDeptId)?.sections?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                     </select>
                   </div>
                 )}
               </div>
               
               <div className="flex justify-end gap-3 pt-4 border-t border-border-soft">
-                <button type="button" onClick={() => setIsCreating(false)} className="px-4 py-2 border border-border-soft rounded-lg text-sm font-semibold hover:bg-gray-50">Cancel</button>
-                <button type="submit" className="px-4 py-2 bg-maroon text-white rounded-lg text-sm font-semibold hover:bg-maroon-deep">Publish Assignment</button>
+                <button type="button" onClick={() => { setIsCreating(false); setActiveAssignmentId(null); }} className="px-4 py-2 border border-border-soft rounded-lg text-sm font-semibold hover:bg-gray-50">Cancel</button>
+                <button type="submit" className="px-4 py-2 bg-maroon text-white rounded-lg text-sm font-semibold hover:bg-maroon-deep">{activeAssignmentId ? 'Save Changes' : 'Publish Assignment'}</button>
               </div>
             </form>
           </div>
@@ -159,7 +198,7 @@ export default function AssignmentManagement() {
           {loading ? (
              Array.from({length: 3}).map((_, i) => <div key={i} className="h-20 bg-cream/40 rounded-xl animate-pulse" />)
           ) : assignments.length === 0 ? (
-            <div className="text-center py-10 text-gray-body italic border border-dashed rounded-xl border-border-soft bg-cream/10">No assignments created.</div>
+            <EmptyState icon={<FileText className="w-8 h-8 text-maroon" />} title="No Assignments" description="You haven't created any assignments yet." />
           ) : (
             assignments.map(a => (
               <div key={a.id} className="p-5 border border-border-soft rounded-xl hover:bg-cream/20 flex justify-between items-start group transition-colors">
@@ -169,16 +208,33 @@ export default function AssignmentManagement() {
                     <h4 className="font-bold text-ink">{a.title}</h4>
                   </div>
                   <p className="text-sm text-gray-body mb-3">{a.description}</p>
-                  <div className="flex items-center gap-4 text-xs font-semibold">
+                  <div className="flex items-center gap-4 text-xs font-semibold mt-3">
                     <span className="text-maroon bg-maroon/10 px-2 py-1 rounded-md">Assigned: {new Date(a.createdAt).toLocaleDateString()}</span>
-                    <span className="text-gray-body border border-border-soft px-2 py-1 rounded-md bg-white">Submissions: {a._count?.submissions || 0}</span>
+                    <button 
+                      onClick={() => setSelectedAssignmentForSubmissions(a.id)}
+                      className="text-gray-body border border-border-soft hover:bg-cream hover:text-ink px-3 py-1 rounded-md bg-white transition-colors flex items-center gap-2"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      View Submissions ({a._count?.submissions || 0})
+                    </button>
                   </div>
                 </div>
-                <button onClick={() => handleDelete(a.id)} className="text-red-500 opacity-0 group-hover:opacity-100 p-2 hover:bg-red-50 rounded transition-all"><Trash2 className="w-5 h-5"/></button>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => handleEdit(a)} className="text-gray-body opacity-0 group-hover:opacity-100 p-2 hover:bg-cream rounded transition-all">Edit</button>
+                  <button onClick={() => handleDelete(a.id)} className="text-red-500 opacity-0 group-hover:opacity-100 p-2 hover:bg-red-50 rounded transition-all"><Trash2 className="w-5 h-5"/></button>
+                </div>
               </div>
             ))
           )}
         </div>
+        
+        {hasMore && (
+          <div className="mt-6 flex justify-center">
+            <button onClick={() => fetchAssignments(page + 1)} className="border border-maroon text-maroon hover:bg-maroon hover:text-white rounded-full px-8 py-2 font-bold transition-all shadow-sm text-sm">
+              Load More
+            </button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

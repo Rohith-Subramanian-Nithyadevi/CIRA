@@ -94,3 +94,59 @@ export const getDashboardData = async (req: Request, res: Response) => {
   }
 };
 
+// Submit a survey response for an announcement
+export const submitAnnouncementResponse = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user?.userId;
+    if (!userId) return res.status(401).json({ success: false, message: 'Not authenticated' });
+
+    const { announcementId, response } = req.body;
+    if (!announcementId || !response) {
+      return res.status(400).json({ success: false, message: 'announcementId and response are required' });
+    }
+
+    // Verify announcement exists
+    const announcement = await prisma.announcement.findUnique({
+      where: { id: announcementId },
+      select: { id: true, title: true, facultyId: true, isSurvey: true }
+    });
+
+    if (!announcement) {
+      return res.status(404).json({ success: false, message: 'Announcement not found' });
+    }
+    if (!announcement.isSurvey) {
+      return res.status(400).json({ success: false, message: 'This announcement does not accept responses' });
+    }
+
+    // Upsert response (student may update their answer)
+    const savedResponse = await prisma.announcementResponse.upsert({
+      where: { announcementId_userId: { announcementId, userId } },
+      update: { response, submittedAt: new Date() },
+      create: { announcementId, userId, response }
+    });
+
+    // Fire a notification to the faculty who posted the announcement
+    try {
+      const student = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { name: true, rollNumber: true }
+      });
+      if (student) {
+        await prisma.notification.create({
+          data: {
+            facultyId: announcement.facultyId,
+            type: 'SURVEY_RESPONSE',
+            message: `${student.name} (${student.rollNumber || 'N/A'}) responded to your survey "${announcement.title}"`
+          }
+        });
+      }
+    } catch (_notifErr) {
+      console.error('Notification creation failed:', _notifErr);
+    }
+
+    res.json({ success: true, data: savedResponse });
+  } catch (error) {
+    console.error('Error submitting survey response:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
