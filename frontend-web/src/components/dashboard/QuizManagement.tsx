@@ -689,6 +689,7 @@ export default function QuizManagement() {
     setActiveView('add_questions');
   };
 
+
   const handleOpenGradeView = async (quizId: string) => {
     setActiveQuizId(quizId);
     setActiveView('grade_submissions');
@@ -1363,11 +1364,33 @@ export default function QuizManagement() {
   }
 
   if (activeView === 'grade_submissions') {
+    const handleAllowRestart = async (attemptId: string) => {
+      if (!confirm('Are you sure you want to allow this student to retake the exam? Their current attempt and all responses will be deleted.')) return;
+      try {
+        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+        const token = localStorage.getItem('cira_token');
+        const res = await fetch(`${baseUrl}/api/v1/faculty/quiz/attempt/${attemptId}/allow-restart`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (data?.status === 'success') {
+          toast.success('Student can now retake the exam.');
+          setSubmissions(prev => prev.filter(s => s.id !== attemptId));
+        } else {
+          toast.error('Failed to allow restart: ' + (data?.message || 'Unknown error'));
+        }
+      } catch (err) {
+        console.error(err);
+        toast.error('Failed to allow restart.');
+      }
+    };
+
     return (
       <Card className="bg-white border border-border-soft text-ink shadow-sm rounded-xl">
         <CardContent className="p-6">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-serif font-bold text-ink">Grade Submissions</h2>
+            <h2 className="text-xl font-serif font-bold text-ink">View Submissions</h2>
             <button onClick={() => setActiveView('list')} className="text-maroon hover:text-maroon-deep font-semibold text-sm">Back to Quizzes</button>
           </div>
           <div className="overflow-x-auto">
@@ -1379,26 +1402,47 @@ export default function QuizManagement() {
                   <TableHead className="text-gray-body font-semibold">Auto-Score</TableHead>
                   <TableHead className="text-gray-body font-semibold">Written Score</TableHead>
                   <TableHead className="text-gray-body font-semibold">Status</TableHead>
+                  <TableHead className="text-gray-body font-semibold">Violation</TableHead>
                   <TableHead className="text-gray-body font-semibold">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {submissions.length === 0 ? (
-                  <TableRow><TableCell colSpan={6} className="text-center text-gray-body italic py-8">No submissions found.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} className="text-center text-gray-body italic py-8">No submissions found.</TableCell></TableRow>
                 ) : (
                   submissions.map((sub: any) => (
-                    <TableRow key={sub.id} className="border-b border-border-soft hover:bg-cream/20 transition-colors">
+                    <TableRow key={sub.id} className={`border-b border-border-soft hover:bg-cream/20 transition-colors ${sub.violationReason ? 'bg-red-50/30' : sub.status === 'IN_PROGRESS' ? 'bg-yellow-50/30' : ''}`}>
                       <TableCell className="py-4 font-semibold text-ink">{sub.user?.name}</TableCell>
                       <TableCell className="font-mono text-xs text-gray-body">{sub.user?.rollNumber || 'N/A'}</TableCell>
                       <TableCell className="text-ink">{sub.objectiveScore}</TableCell>
                       <TableCell className="text-ink">{sub.writtenScore}</TableCell>
                       <TableCell>
                         <span className={`px-2 py-0.5 text-xs font-semibold rounded-full border ${
-                          sub.status === 'EVALUATED' ? 'bg-green-50/10 text-green-700 border-green-200' : 'bg-yellow-50/10 text-yellow-700 border-yellow-200'
-                        }`}>{sub.status}</span>
+                          sub.status === 'EVALUATED' ? 'bg-green-50/10 text-green-700 border-green-200' 
+                          : sub.status === 'IN_PROGRESS' ? 'bg-orange-50 text-orange-700 border-orange-200'
+                          : 'bg-yellow-50/10 text-yellow-700 border-yellow-200'
+                        }`}>{sub.status === 'IN_PROGRESS' ? 'ABANDONED' : sub.status}</span>
+                      </TableCell>
+                      <TableCell className="max-w-[400px]">
+                        {sub.violationReason ? (
+                          <div className="px-3 py-2 text-sm font-semibold rounded-lg bg-red-50 text-red-700 border border-red-200">
+                            <span className="font-bold">⚠ Violation:</span> {sub.violationReason}
+                          </div>
+                        ) : sub.status === 'IN_PROGRESS' ? (
+                          <div className="px-3 py-2 text-sm font-semibold rounded-lg bg-orange-50 text-orange-700 border border-orange-200">
+                            Student left the exam without submitting
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-body/50">—</span>
+                        )}
                       </TableCell>
                       <TableCell>
-                        <Button variant="outline" size="sm" className="border-border-soft hover:bg-cream/40" onClick={() => handleOpenAttempt(sub)}>Review Attempt</Button>
+                        <div className="flex items-center space-x-2">
+                          <Button variant="outline" size="sm" className="border-border-soft hover:bg-cream/40" onClick={() => handleOpenAttempt(sub)}>Grade Submission</Button>
+                          {(sub.violationReason || sub.status === 'IN_PROGRESS') && (
+                            <Button variant="outline" size="sm" className="border-green-300 text-green-700 hover:bg-green-50 hover:border-green-400" onClick={() => handleAllowRestart(sub.id)}>Allow Restart</Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -1512,7 +1556,7 @@ export default function QuizManagement() {
                         {quiz.answersPublished ? 'Hide Answers' : 'Publish Answers'}
                       </Button>
                       <Button variant="outline" size="sm" className="border-border-soft hover:bg-cream/40" onClick={() => { setActiveQuizId(quiz.id); setActiveView('add_questions'); }}>Edit Questions</Button>
-                      <Button variant="outline" size="sm" className="border-border-soft hover:bg-cream/40" onClick={() => handleOpenGradeView(quiz.id)}>Grade Submissions</Button>
+                      <Button variant="outline" size="sm" className="border-border-soft hover:bg-cream/40" onClick={() => handleOpenGradeView(quiz.id)}>View Submissions</Button>
                       <Button variant="destructive" size="sm" className="bg-red-50 text-red-600 hover:bg-red-100 border border-red-200" onClick={() => handleDeleteQuiz(quiz.id)}>Delete</Button>
                     </TableCell>
                   </TableRow>

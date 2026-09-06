@@ -225,6 +225,7 @@ model QuizAttempt {
   finalGrade          String?
   performanceCategory PerformanceRating?
   facultyFeedback     String?
+  violationReason     String?            // Reason exam was auto-terminated (e.g. "Pressed key: Alt")
   
   metrics             Json?
   createdAt           DateTime           @default(now())
