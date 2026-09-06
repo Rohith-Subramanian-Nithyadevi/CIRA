@@ -1557,17 +1557,13 @@ export default function QuizManagement() {
               </TableHeader>
               <TableBody>
                 {submissions.length === 0 ? (
-<<<<<<< Updated upstream
-                  <TableRow><TableCell colSpan={7} className="text-center text-gray-body italic py-8">No submissions found.</TableCell></TableRow>
-=======
                   <TableRow>
-                    <TableCell colSpan={6} className="p-0 border-0">
+                    <TableCell colSpan={7} className="p-0 border-0">
                       <div className="py-8">
                         <EmptyState icon={<Clipboard className="w-8 h-8 text-maroon" />} title="No Submissions" description="There are no student submissions for this quiz yet." />
                       </div>
                     </TableCell>
                   </TableRow>
->>>>>>> Stashed changes
                 ) : (
                   submissions.map((sub: any) => (
                     <TableRow key={sub.id} className={`border-b border-border-soft hover:bg-cream/20 transition-colors ${sub.violationReason ? 'bg-red-50/30' : sub.status === 'IN_PROGRESS' ? 'bg-yellow-50/30' : ''}`}>
