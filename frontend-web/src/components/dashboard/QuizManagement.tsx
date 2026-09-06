@@ -664,8 +664,6 @@ export default function QuizManagement() {
         return;
       }
 
-      let quizIdToUse = activeQuizId;
-
       if (activeQuizId) {
         // Edit flow
         const res = await fetch(`${baseUrl}/api/v1/faculty/quiz/${activeQuizId}`, {
@@ -1680,51 +1678,54 @@ export default function QuizManagement() {
       <CardContent className="p-6">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-serif font-bold text-ink">Quiz Management</h2>
-<<<<<<< Updated upstream
-          <button onClick={() => { setEditingQuizId(null); setActiveQuizId(null); setFormData({ title: '', subject: '', description: '', totalMarks: '', passingMarks: '', durationMinutes: '60', startDate: '', endDate: '', targetDepartments: [], targetSections: [] }); setActiveView('create'); }} className="px-5 py-2 bg-maroon hover:bg-maroon-deep text-white rounded-full text-sm font-bold transition-all shadow-sm hover:scale-105 active:scale-95">
-=======
-          <button onClick={() => {
-            setActiveQuizId(null);
-            setFormData({
-              title: '', subject: '', description: '', totalMarks: '', passingMarks: '',
-              durationMinutes: '60', startDate: '', endDate: '',
-              targetDepartments: [], targetSections: [],
-            });
-            setQuestions([{ type: 'MCQ', text: '', marks: 1, options: ['', '', '', ''], answerKey: '', topic: '' }]);
-            setParsedTotalMarks(0);
-            setParsedTotalQuestions(0);
-            setActiveView('create');
-          }} className="px-5 py-2 bg-maroon hover:bg-maroon-deep text-white rounded-full text-sm font-bold transition-all shadow-sm hover:scale-105 active:scale-95">
->>>>>>> Stashed changes
+          <button
+            onClick={() => {
+              setEditingQuizId(null);
+              setActiveQuizId(null);
+              setFormData({
+                title: '',
+                subject: '',
+                description: '',
+                totalMarks: '',
+                passingMarks: '',
+                durationMinutes: '60',
+                startDate: '',
+                endDate: '',
+                targetDepartments: [],
+                targetSections: [],
+              });
+              setQuestions([{ type: 'MCQ', text: '', marks: 1, options: ['', '', '', ''], answerKey: '', topic: '' }]);
+              setParsedTotalMarks(0);
+              setParsedTotalQuestions(0);
+              setActiveView('create');
+            }}
+            className="px-5 py-2 bg-maroon hover:bg-maroon-deep text-white rounded-full text-sm font-bold transition-all shadow-sm hover:scale-105 active:scale-95"
+          >
             + Create New Quiz
           </button>
         </div>
-        
+
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow className="border-b border-border-soft">
                 <TableHead className="text-gray-body font-semibold">Title</TableHead>
                 <TableHead className="text-gray-body font-semibold">Subject</TableHead>
-                  <TableHead className="text-gray-body font-semibold">Visible Schedule</TableHead>
-                  <TableHead className="text-gray-body font-semibold">Published To</TableHead>
+                <TableHead className="text-gray-body font-semibold">Visible Schedule</TableHead>
+                <TableHead className="text-gray-body font-semibold">Published To</TableHead>
                 <TableHead className="text-gray-body font-semibold">Questions</TableHead>
                 <TableHead className="text-gray-body font-semibold">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {quizzes.length === 0 ? (
-<<<<<<< Updated upstream
-                <TableRow><TableCell colSpan={7} className="text-center text-gray-body italic py-8">No quizzes found.</TableCell></TableRow>
-=======
                 <TableRow>
-                  <TableCell colSpan={5} className="p-0 border-0">
+                  <TableCell colSpan={6} className="p-0 border-0">
                     <div className="py-8">
                       <EmptyState icon={<FileText className="w-8 h-8 text-maroon" />} title="No Quizzes" description="You haven't created any quizzes yet." />
                     </div>
                   </TableCell>
                 </TableRow>
->>>>>>> Stashed changes
               ) : (
                 quizzes.map((quiz) => (
                   <TableRow key={quiz.id} className="border-b border-border-soft hover:bg-cream/20 transition-colors">
@@ -1739,21 +1740,31 @@ export default function QuizManagement() {
                       <div className="text-ink/60">{quiz.targetSections?.length ? `Sections: ${quiz.targetSections.map((target: any) => target.section?.name).filter(Boolean).join(', ')}` : 'All sections'}</div>
                     </TableCell>
                     <TableCell className="text-ink font-mono text-sm">{quiz._count?.questions || 0}</TableCell>
-                    <TableCell className="space-x-2 flex items-center">
-                      <Button variant="outline" size="sm" className="border-border-soft hover:bg-cream/40" onClick={() => handleOpenEditQuiz(quiz.id)} title="Edit quiz details">
-                        <Pencil className="w-3.5 h-3.5 mr-1" /> Edit Details
+                    <TableCell className="space-x-2 flex items-center flex-wrap gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="border-border-soft hover:bg-cream/40"
+                        onClick={() => handleEditQuiz(quiz.id, quiz._count?.attempts || 0)}
+                        title="Edit quiz details"
+                      >
+                        <Pencil className="w-3.5 h-3.5 mr-1" /> Edit
+                      </Button>
+                      <Button variant="outline" size="sm" className="border-border-soft hover:bg-cream/40" onClick={() => handleOpenEditQuiz(quiz.id)}>
+                        Edit Details
                       </Button>
                       <Button variant="outline" size="sm" className="border-border-soft hover:bg-cream/40" onClick={() => handleTogglePublishAnswers(quiz.id, quiz.answersPublished)}>
                         {quiz.answersPublished ? 'Hide Answers' : 'Publish Answers'}
                       </Button>
-<<<<<<< Updated upstream
-                      <Button variant="outline" size="sm" className="border-border-soft hover:bg-cream/40" onClick={() => { setActiveQuizId(quiz.id); setActiveView('add_questions'); }}>Edit Questions</Button>
-                      <Button variant="outline" size="sm" className="border-border-soft hover:bg-cream/40" onClick={() => handleOpenGradeView(quiz.id)}>View Submissions</Button>
-=======
-                      <Button variant="outline" size="sm" className="border-border-soft hover:bg-cream/40" onClick={() => handleEditQuiz(quiz.id, quiz._count?.attempts || 0)}>Edit</Button>
-                      <Button variant="outline" size="sm" className="border-border-soft hover:bg-cream/40" onClick={() => handleOpenGradeView(quiz.id)}>Grade Submissions</Button>
->>>>>>> Stashed changes
-                      <Button variant="destructive" size="sm" className="bg-red-50 text-red-600 hover:bg-red-100 border border-red-200" onClick={() => handleDeleteQuiz(quiz.id)}>Delete</Button>
+                      <Button variant="outline" size="sm" className="border-border-soft hover:bg-cream/40" onClick={() => { setActiveQuizId(quiz.id); setActiveView('add_questions'); }}>
+                        Edit Questions
+                      </Button>
+                      <Button variant="outline" size="sm" className="border-border-soft hover:bg-cream/40" onClick={() => handleOpenGradeView(quiz.id)}>
+                        Grade Submissions
+                      </Button>
+                      <Button variant="destructive" size="sm" className="bg-red-50 text-red-600 hover:bg-red-100 border border-red-200" onClick={() => handleDeleteQuiz(quiz.id)}>
+                        Delete
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))
@@ -1761,7 +1772,7 @@ export default function QuizManagement() {
             </TableBody>
           </Table>
         </div>
-        
+
         {hasMore && (
           <div className="mt-6 flex justify-center">
             <Button variant="outline" onClick={() => fetchQuizzes(page + 1)} className="border-maroon text-maroon hover:bg-maroon hover:text-white rounded-full px-8 py-2 font-bold transition-all shadow-sm">

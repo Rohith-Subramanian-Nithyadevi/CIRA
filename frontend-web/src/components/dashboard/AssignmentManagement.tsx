@@ -1,9 +1,44 @@
 import { useState, useEffect } from 'react';
+import { EditorContent, useEditor } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import Link from '@tiptap/extension-link';
+import DOMPurify from 'dompurify';
 import { Trash2, FileText } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useBatches, useDepartments } from '@/hooks/useReferenceData';
 import AssignmentSubmissionsView from './AssignmentSubmissionsView';
+
+const sanitizeHtml = (value: string) => DOMPurify.sanitize(value || '', { ALLOWED_TAGS: ['b', 'strong', 'i', 'em', 'u', 's', 'strike', 'ol', 'ul', 'li', 'a', 'p', 'br'], ALLOWED_ATTR: ['href', 'target', 'rel'] });
+
+function RichTextEditor({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      Link.configure({
+        openOnClick: false,
+        autolink: true,
+        HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' },
+      }),
+    ],
+    content: value || '<p></p>',
+    immediatelyRender: false,
+    editorProps: {
+      attributes: {
+        class: 'min-h-[120px] w-full rounded-lg border border-border-soft bg-white px-3 py-2 text-sm focus:outline-none prose prose-sm max-w-none',
+      },
+    },
+    onUpdate: ({ editor }) => onChange(editor.getHTML()),
+  });
+
+  useEffect(() => {
+    if (editor && value !== editor.getHTML()) {
+      editor.commands.setContent(value || '<p></p>', { emitUpdate: false });
+    }
+  }, [editor, value]);
+
+  return <EditorContent editor={editor} />;
+}
 
 export default function AssignmentManagement() {
   const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
@@ -55,10 +90,16 @@ export default function AssignmentManagement() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title) return;
+
+    const cleanDescription = sanitizeHtml(description).trim();
+    if (!cleanDescription) {
+      alert('Assignment description is required.');
+      return;
+    }
     
     const payload = {
       title,
-      description,
+      description: cleanDescription,
       targetBatches: targetBatchId !== 'all' ? [targetBatchId] : [],
       targetDepartments: targetDeptId !== 'all' ? [targetDeptId] : [],
       targetSections: targetSectionId !== 'all' ? [targetSectionId] : []
@@ -155,7 +196,7 @@ export default function AssignmentManagement() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-body mb-1">Description</label>
-                <textarea value={description} onChange={e => setDescription(e.target.value)} className="w-full px-3 py-2 border border-border-soft rounded-lg text-sm" placeholder="Details/Instructions" rows={3}></textarea>
+                <RichTextEditor value={description} onChange={setDescription} />
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -207,7 +248,10 @@ export default function AssignmentManagement() {
                     <FileText className="w-4 h-4 text-maroon" />
                     <h4 className="font-bold text-ink">{a.title}</h4>
                   </div>
-                  <p className="text-sm text-gray-body mb-3">{a.description}</p>
+                  <div
+                    className="text-sm text-gray-body mb-3 rich-text-content"
+                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(a.description) || '<p>No description provided.</p>' }}
+                  />
                   <div className="flex items-center gap-4 text-xs font-semibold mt-3">
                     <span className="text-maroon bg-maroon/10 px-2 py-1 rounded-md">Assigned: {new Date(a.createdAt).toLocaleDateString()}</span>
                     <button 

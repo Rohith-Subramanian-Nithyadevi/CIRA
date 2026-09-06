@@ -19,11 +19,16 @@ import {
   GraduationCap,
   Check,
   ArrowLeft,
-  RotateCcw,
   AlertTriangle, 
   Loader2, 
   RefreshCw, 
-  Download 
+  Download,
+  BookOpen,
+  Lightbulb,
+  Target,
+  Users,
+  TrendingUp,
+  Info
 } from 'lucide-react';
 import { useBatches, useDepartments } from '../../hooks/useReferenceData';
 import StudentProfileView from './StudentProfileView';
@@ -92,15 +97,31 @@ export const StudentReports = () => {
   const fetchInitialData = async () => {
     try {
       setLoading(true);
-      const quizRes = await fetch(`${baseUrl}/api/v1/faculty/quiz`, { headers: { 'Authorization': `Bearer ${token}` } });
-      const quizData = await quizRes.json();
-      if (quizData?.data) setQuizzes(quizData.data);
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
   };
+
+  const fetchPostedQuizzes = async () => {
+    try {
+      const params = new URLSearchParams({ posted: 'true' });
+      if (selectedDept) params.set('departmentId', selectedDept);
+      if (selectedSection) params.set('sectionId', selectedSection);
+      const res = await fetch(`${baseUrl}/api/v1/faculty/quiz?${params.toString()}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data?.data) setQuizzes(data.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    fetchPostedQuizzes();
+  }, [selectedDept, selectedSection]);
 
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -149,9 +170,6 @@ export const StudentReports = () => {
     }
   };
 
-  const uniqueSubjects = useMemo(() => Array.from(new Set(quizzes.map(q => q.subject).filter(Boolean))), [quizzes]);
-  const subjectsToShow = subjectFilter === 'All Subjects' ? uniqueSubjects : [subjectFilter];
-
   const exportToCSV = (data: any[], filename: string) => {
     if (!data || data.length === 0) return;
     
@@ -187,6 +205,11 @@ export const StudentReports = () => {
   // API-backed states for real performance band analytics
   const [reportsLoading, setReportsLoading] = useState(false);
   const [reportsError, setReportsError] = useState<string | null>(null);
+  const [reportSummary, setReportSummary] = useState<any>(null);
+  const [reportSubjects, setReportSubjects] = useState<string[]>([]);
+  const [quizAnalytics, setQuizAnalytics] = useState<any>(null);
+  const [quizAnalyticsLoading, setQuizAnalyticsLoading] = useState(false);
+  const [quizAnalyticsError, setQuizAnalyticsError] = useState<string | null>(null);
   const [yearData, setYearData] = useState<any[]>([
     { band: 'Poor' },
     { band: 'Average' },
@@ -219,6 +242,8 @@ export const StudentReports = () => {
 
       const json = await res.json();
       if (json?.data) {
+        setReportSummary(json.data.summary || null);
+        setReportSubjects(json.data.subjects || []);
         if (json.data.yearData && json.data.yearData.length > 0) {
           setYearData(json.data.yearData);
         } else {
@@ -240,33 +265,66 @@ export const StudentReports = () => {
     }
   }, [selectedBatch, selectedDept, selectedSection]);
 
+  useEffect(() => {
+    if (!selectedQuiz) {
+      setQuizAnalytics(null);
+      return;
+    }
+
+    const fetchQuizAnalytics = async () => {
+      try {
+        setQuizAnalyticsLoading(true);
+        setQuizAnalyticsError(null);
+        const res = await fetch(`${baseUrl}/api/v1/faculty/reports/quiz/${selectedQuiz}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.message || 'Failed to load quiz analytics.');
+        setQuizAnalytics(json.data || null);
+      } catch (err: any) {
+        setQuizAnalytics(null);
+        setQuizAnalyticsError(err.message || 'Failed to load quiz analytics.');
+      } finally {
+        setQuizAnalyticsLoading(false);
+      }
+    };
+
+    fetchQuizAnalytics();
+  }, [selectedQuiz]);
+
   const activeDepartments = departments.filter(d => d.batchId === selectedBatch || !selectedBatch);
+  const subjectsToShow = subjectFilter === 'All Subjects' ? reportSubjects : [subjectFilter];
+  const selectedBatchName = batches.find(b => b.id === selectedBatch)?.name || 'your selected batch';
+  const summaryPercentages = reportSummary?.percentages || { poor: 0, average: 0, excellent: 0 };
+  const reportHasData = (reportSummary?.totalAttempts || 0) > 0;
+  const primaryInsight = !reportHasData
+    ? 'There are no completed quiz attempts in this scope yet.'
+    : summaryPercentages.poor >= 40
+      ? 'A large group is below 60%. Prioritise a targeted revision session and a short re-check assessment.'
+      : summaryPercentages.excellent >= 50
+        ? 'Most completed attempts are above 80%. Extend the strongest learners with application-level questions.'
+        : 'The cohort is mixed. Use the topic and section views below to target support where it will have the most impact.';
 
   const quizDetails = useMemo(() => {
     if (!selectedDept || !selectedSection || !selectedQuiz) return null;
     
     const quizMetadata = quizzes.find(q => q.id === selectedQuiz);
     
+    const analytics = quizAnalytics?.quiz?.id === selectedQuiz ? quizAnalytics : null;
     const pieData = [
-      { name: 'Excellent (>80)', value: 45 },
-      { name: 'Average (60-80)', value: 35 },
-      { name: 'Poor (<60)', value: 20 },
+      { name: 'Excellent (80+)', value: analytics?.distribution?.excellent || 0 },
+      { name: 'Average (60-79)', value: analytics?.distribution?.average || 0 },
+      { name: 'Needs support (<60)', value: analytics?.distribution?.poor || 0 },
     ];
 
-    const leaderboard = [
-      { name: 'Alice Smith', roll: 'CB.EN.U4CS23001', score: 95, band: 'Excellent' },
-      { name: 'Bob Johnson', roll: 'CB.EN.U4CS23002', score: 88, band: 'Excellent' },
-      { name: 'Charlie Davis', roll: 'CB.EN.U4CS23003', score: 76, band: 'Average' }
-    ];
-
-    const topicAverages = [
-      { topic: 'Basic Concepts', avg: 85 },
-      { topic: 'Advanced Logic', avg: 62 },
-      { topic: 'Application', avg: 70 }
-    ];
-
-    return { pieData, leaderboard, topicAverages, title: quizMetadata?.title };
-  }, [selectedDept, selectedSection, selectedQuiz, quizzes]);
+    return {
+      pieData,
+      leaderboard: analytics?.leaderboard || [],
+      topicAverages: analytics?.topicAverages || [],
+      summary: analytics?.summary,
+      title: quizMetadata?.title
+    };
+  }, [selectedDept, selectedSection, selectedQuiz, quizzes, quizAnalytics]);
 
   if (loading) {
     return (
@@ -428,6 +486,62 @@ export const StudentReports = () => {
 
       {!selectedDept && (
         <div className="space-y-6 animate-in fade-in duration-500">
+          <section className="overflow-hidden rounded-2xl border border-maroon/20 bg-[linear-gradient(120deg,#fffaf2_0%,#ffffff_55%,#f8eee7_100%)] shadow-sm">
+            <div className="border-b border-maroon/10 px-6 py-5 md:px-8">
+              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                <div className="max-w-2xl">
+                  <div className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-maroon">
+                    <TrendingUp className="h-4 w-4" />
+                    Faculty briefing
+                  </div>
+                  <h2 className="font-serif text-2xl font-bold text-ink md:text-3xl">What is happening in {selectedBatchName}?</h2>
+                  <p className="mt-2 text-sm leading-6 text-gray-body">
+                    This view summarises completed quiz attempts. Start with the reading below, then use departments and sections to locate the learners who need attention.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 rounded-xl border border-white/80 bg-white/80 px-3 py-2 text-xs font-semibold text-gray-body shadow-xs">
+                  <Info className="h-4 w-4 text-maroon" />
+                  {reportHasData ? 'Based on live evaluated attempts' : 'Waiting for evaluated attempts'}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-px bg-maroon/10 md:grid-cols-4">
+              {[
+                { label: 'Average score', value: reportHasData ? `${reportSummary.averageScore}%` : '--', icon: Target, tone: 'text-maroon' },
+                { label: 'Learners evaluated', value: reportHasData ? reportSummary.evaluatedStudents : '--', icon: Users, tone: 'text-emerald-700' },
+                { label: 'Completed attempts', value: reportHasData ? reportSummary.totalAttempts : '--', icon: BookOpen, tone: 'text-amber-700' },
+                { label: 'Need support', value: reportHasData ? `${summaryPercentages.poor}%` : '--', icon: AlertTriangle, tone: 'text-red-700' }
+              ].map(({ label, value, icon: Icon, tone }) => (
+                <div key={label} className="bg-white/75 px-4 py-4 md:px-6">
+                  <Icon className={`mb-3 h-5 w-5 ${tone}`} />
+                  <p className="text-2xl font-bold text-ink">{value}</p>
+                  <p className="mt-1 text-[11px] font-bold uppercase tracking-wider text-gray-body">{label}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid gap-5 px-6 py-5 md:grid-cols-[1.2fr_1fr] md:px-8">
+              <div className="rounded-xl border border-border-soft bg-white/75 p-4">
+                <div className="mb-3 flex items-center gap-2 text-sm font-bold text-ink"><Lightbulb className="h-4 w-4 text-amber-600" />Plain-language reading</div>
+                <p className="text-sm leading-6 text-gray-body">{primaryInsight}</p>
+              </div>
+              <div className="rounded-xl border border-border-soft bg-white/75 p-4">
+                <p className="mb-3 text-sm font-bold text-ink">How to read the bands</p>
+                <div className="grid grid-cols-3 gap-2 text-center text-[11px] font-semibold">
+                  <div className="rounded-lg bg-red-50 px-2 py-2 text-red-700"><strong className="block text-base">{summaryPercentages.poor}%</strong>Needs support<br />below 60</div>
+                  <div className="rounded-lg bg-amber-50 px-2 py-2 text-amber-700"><strong className="block text-base">{summaryPercentages.average}%</strong>Developing<br />60 to 79</div>
+                  <div className="rounded-lg bg-emerald-50 px-2 py-2 text-emerald-700"><strong className="block text-base">{summaryPercentages.excellent}%</strong>Ready<br />80 and above</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3 border-t border-maroon/10 px-6 py-4 text-xs text-gray-body md:flex-row md:items-center md:justify-between md:px-8">
+              <span className="flex items-center gap-2"><Target className="h-4 w-4 text-maroon" />Recommended next step: {reportHasData ? 'open a department, then compare its sections' : 'publish and evaluate a quiz to begin the analysis'}.</span>
+              <span className="font-semibold text-maroon">Counts are attempts, not unique questions</span>
+            </div>
+          </section>
+
           <h2 className="text-xl font-serif font-bold text-ink">Department Overview</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {activeDepartments.map(dept => (
@@ -438,10 +552,10 @@ export const StudentReports = () => {
               >
                 <h3 className="text-lg font-bold text-ink mb-1">{dept.name}</h3>
                 <p className="text-xs text-gray-body mb-4">Click to view section details</p>
-                <div className="w-full bg-cream rounded-full h-2 mb-2">
-                  <div className="bg-maroon h-2 rounded-full" style={{width: '75%'}}></div>
+                <div className="flex items-center justify-between border-t border-border-soft pt-3 text-xs">
+                  <span className="text-gray-body">Completed attempts</span>
+                  <span className="font-bold text-maroon">{reportHasData ? reportSummary.totalAttempts : '--'}</span>
                 </div>
-                <p className="text-xs text-right text-maroon font-semibold">75% Avg Readiness</p>
               </div>
             ))}
             {activeDepartments.length === 0 && (
@@ -461,7 +575,7 @@ export const StudentReports = () => {
                   className="px-3 py-1.5 border border-border-soft rounded-lg text-sm bg-white font-medium text-ink focus:border-maroon outline-none"
                 >
                   <option value="All Subjects">All Subjects</option>
-                  {uniqueSubjects.map(sub => (
+                  {reportSubjects.map(sub => (
                     <option key={sub} value={sub}>{sub}</option>
                   ))}
                 </select>
@@ -494,8 +608,8 @@ export const StudentReports = () => {
                     <span>Retry</span>
                   </button>
                 </div>
-              ) : quizzes.filter(q => subjectFilter === 'All Subjects' || q.subject === subjectFilter).length === 0 ? (
-                <EmptyState icon={<AlertTriangle className="w-8 h-8 text-maroon" />} title="No Data" description="No data available for the selected subject." />
+              ) : reportSubjects.length === 0 || (subjectFilter !== 'All Subjects' && !reportSubjects.includes(subjectFilter)) ? (
+                <EmptyState icon={<AlertTriangle className="w-8 h-8 text-maroon" />} title="No evaluated data" description="Complete and evaluate a quiz in this scope to populate subject performance." />
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={yearData} margin={{ top: 20, right: 10, left: -20, bottom: 0 }} barSize={30}>
@@ -660,6 +774,15 @@ export const StudentReports = () => {
                   </div>
                 </div>
              ))}
+             {quizzes.length === 0 && (
+               <div className="col-span-full">
+                 <EmptyState
+                   icon={<BookOpen className="w-8 h-8 text-maroon" />}
+                   title="No assessments posted here"
+                   description="This department or section has no posted quizzes. Drafts and assessments assigned to other departments are excluded."
+                 />
+               </div>
+             )}
            </div>
         </div>
       )}
@@ -672,6 +795,14 @@ export const StudentReports = () => {
               <p className="text-xs text-gray-body mt-0.5">
                 Detailed assessment analytics, topic strengths & leaderboard
               </p>
+              {quizDetails.summary && (
+                <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-semibold text-gray-body">
+                  <span className="rounded-lg border border-border-soft bg-white px-3 py-1.5">Attended: {quizDetails.summary.attended}</span>
+                  <span className="rounded-lg border border-border-soft bg-white px-3 py-1.5">Evaluated: {quizDetails.summary.evaluated}</span>
+                  <span className="rounded-lg border border-border-soft bg-white px-3 py-1.5">Average: {quizDetails.summary.averageScore}%</span>
+                </div>
+              )}
+              {quizAnalyticsError && <p className="mt-3 text-xs font-semibold text-red-700">{quizAnalyticsError}</p>}
             </div>
             <div className="flex items-center space-x-2 self-start sm:self-auto">
               <button
@@ -736,7 +867,11 @@ export const StudentReports = () => {
             <div className="bg-white border border-border-soft rounded-xl p-6 lg:col-span-2 shadow-sm">
                <h3 className="text-base font-bold text-ink mb-6 font-serif">Topic-wise Class Average</h3>
                <div className="h-64 mt-2">
-                <ResponsiveContainer width="100%" height="100%">
+                {quizAnalyticsLoading ? (
+                  <div className="flex h-full items-center justify-center text-xs font-semibold text-gray-body"><Loader2 className="mr-2 h-4 w-4 animate-spin text-maroon" />Loading topic analysis...</div>
+                ) : quizDetails.topicAverages.length === 0 ? (
+                  <div className="flex h-full items-center justify-center px-8 text-center text-xs text-gray-body">Topic averages will appear after responses have been marked and the questions include topic labels.</div>
+                ) : <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={quizDetails.topicAverages} layout="vertical" margin={{ top: 10, right: 30, left: 40, bottom: 0 }} barSize={24}>
                     <defs>
                       <linearGradient id="barGood" x1="0" y1="0" x2="1" y2="0">
@@ -757,12 +892,12 @@ export const StudentReports = () => {
                     <YAxis dataKey="topic" type="category" stroke="var(--gray-body)" axisLine={false} tickLine={false} tick={{ fill: 'var(--ink)', fontSize: 11 }} />
                     <RechartsTooltip cursor={{fill: 'var(--cream)', opacity: 0.3}} contentStyle={{ backgroundColor: '#ffffff', border: '1px solid var(--border-soft)', borderRadius: '8px', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }} itemStyle={{ fontWeight: 'bold', color: 'var(--ink)' }} />
                     <Bar dataKey="avg" radius={[0, 6, 6, 0]}>
-                      {quizDetails.topicAverages.map((entry, index) => (
+                      {quizDetails.topicAverages.map((entry: { avg: number }, index: number) => (
                         <Cell key={`cell-${index}`} fill={entry.avg < 60 ? 'url(#barPoor)' : entry.avg < 75 ? 'url(#barAvg)' : 'url(#barGood)'} />
                       ))}
                     </Bar>
                   </BarChart>
-                </ResponsiveContainer>
+                </ResponsiveContainer>}
               </div>
             </div>
           </div>
@@ -789,10 +924,15 @@ export const StudentReports = () => {
                       <th className="px-4 py-3 font-semibold">Name</th>
                       <th className="px-4 py-3 font-semibold">Score</th>
                       <th className="px-4 py-3 rounded-tr-lg font-semibold">Band</th>
+                      <th className="px-4 py-3 font-semibold">Attempt</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {quizDetails.leaderboard.map((student, idx) => (
+                    {quizAnalyticsLoading ? (
+                      <tr><td colSpan={6} className="px-4 py-8 text-center text-xs text-gray-body"><Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin text-maroon" />Loading attended students...</td></tr>
+                    ) : quizDetails.leaderboard.length === 0 ? (
+                      <tr><td colSpan={6} className="px-4 py-8 text-center text-xs text-gray-body">No submitted or evaluated student attempts were found for this assessment.</td></tr>
+                    ) : quizDetails.leaderboard.map((student: any, idx: number) => (
                       <tr 
                         key={student.roll} 
                         onClick={() => { setSearchTerm(student.roll); handleSearch({preventDefault: () => {}} as React.FormEvent, student.roll); }}
@@ -811,6 +951,7 @@ export const StudentReports = () => {
                             {student.band}
                           </span>
                         </td>
+                        <td className="px-4 py-3 text-xs font-semibold text-gray-body">{student.status === 'EVALUATED' ? 'Evaluated' : 'Submitted'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -821,17 +962,19 @@ export const StudentReports = () => {
             <div className="bg-white border border-border-soft rounded-xl p-6 shadow-sm">
               <h3 className="text-base font-bold text-ink mb-4 flex items-center font-serif"><AlertTriangle className="w-5 h-5 text-yellow-600 mr-2"/> Actionable Insights</h3>
               <div className="space-y-4">
-                {quizDetails.topicAverages.filter(t => t.avg < 65).length > 0 ? (
-                  quizDetails.topicAverages.filter(t => t.avg < 65).map(weakTopic => (
+                {quizAnalyticsLoading ? (
+                  <div className="rounded-xl border border-border-soft bg-cream/30 p-4 text-xs text-gray-body">Preparing insights from attended student responses...</div>
+                ) : quizDetails.topicAverages.filter((t: { avg: number }) => t.avg < 65).length > 0 ? (
+                  quizDetails.topicAverages.filter((t: { avg: number }) => t.avg < 65).map((weakTopic: { topic: string; avg: number }) => (
                     <div key={weakTopic.topic} className="bg-red-50 border border-red-200 rounded-xl p-4">
                       <h4 className="text-red-700 font-bold text-sm mb-1">Low Performance in {weakTopic.topic}</h4>
                       <p className="text-gray-body text-xs leading-relaxed">Class average is {weakTopic.avg}%. Consider scheduling a remedial session for this topic.</p>
                     </div>
                   ))
                 ) : (
-                  <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-                    <h4 className="text-green-700 font-bold text-sm mb-1">Excellent Overall Performance</h4>
-                    <p className="text-gray-body text-xs leading-relaxed">No critical weak topics identified for this assessment.</p>
+                  <div className="bg-cream/40 border border-border-soft rounded-xl p-4">
+                    <h4 className="text-ink font-bold text-sm mb-1">No weak topics detected</h4>
+                    <p className="text-gray-body text-xs leading-relaxed">This is based only on marked responses with topic labels.</p>
                   </div>
                 )}
                 <button className="w-full mt-4 py-2.5 bg-maroon hover:bg-maroon-deep text-white rounded-full transition-all font-bold text-xs shadow-sm hover:scale-105 active:scale-95">

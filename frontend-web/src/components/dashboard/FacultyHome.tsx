@@ -1,4 +1,8 @@
 import { useState, useEffect } from 'react';
+import { EditorContent, useEditor } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import Link from '@tiptap/extension-link';
+import DOMPurify from 'dompurify';
 import { 
   Calendar as CalendarIcon, 
   CheckCircle2, 
@@ -15,6 +19,37 @@ import {
 } from 'lucide-react';
 import { useBatches, useDepartments } from '@/hooks/useReferenceData';
 import { EmptyState } from '@/components/ui/EmptyState';
+
+const sanitizeHtml = (value: string) => DOMPurify.sanitize(value || '', { ALLOWED_TAGS: ['b', 'strong', 'i', 'em', 'u', 's', 'strike', 'ol', 'ul', 'li', 'a', 'p', 'br'], ALLOWED_ATTR: ['href', 'target', 'rel'] });
+
+function RichTextEditor({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      Link.configure({
+        openOnClick: false,
+        autolink: true,
+        HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' },
+      }),
+    ],
+    content: value || '<p></p>',
+    immediatelyRender: false,
+    editorProps: {
+      attributes: {
+        class: 'min-h-[120px] w-full rounded-lg border border-border-soft bg-white px-3 py-2 text-sm focus:outline-none prose prose-sm max-w-none',
+      },
+    },
+    onUpdate: ({ editor }) => onChange(editor.getHTML()),
+  });
+
+  useEffect(() => {
+    if (editor && value !== editor.getHTML()) {
+      editor.commands.setContent(value || '<p></p>', { emitUpdate: false });
+    }
+  }, [editor, value]);
+
+  return <EditorContent editor={editor} />;
+}
 
 interface Task { id: string; task: string; completed: boolean; date: string; }
 interface CalendarEvent { id: string; title: string; date: string; }
@@ -220,7 +255,13 @@ export default function FacultyHome() {
   // --- ANNOUNCEMENTS LOGIC ---
   const handlePostAnnouncement = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newAnnouncement.title || !newAnnouncement.content) return;
+    if (!newAnnouncement.title) return;
+
+    const cleanedContent = sanitizeHtml(newAnnouncement.content).trim();
+    if (!cleanedContent) {
+      alert('Announcement message is required.');
+      return;
+    }
     
     let audienceStr = 'All Students';
     if (newAnnouncement.batch !== 'All Batches') {
@@ -231,7 +272,7 @@ export default function FacultyHome() {
 
     const payload = {
       title: newAnnouncement.title,
-      content: newAnnouncement.content,
+      content: cleanedContent,
       isSurvey: newAnnouncement.isSurvey,
       audience: audienceStr,
       date: new Date().toISOString()
@@ -361,57 +402,70 @@ export default function FacultyHome() {
               </div>
             </div>
             
-            <div className="grid grid-cols-7 gap-2 mb-2">
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => <div key={day} className="text-center text-xs font-semibold text-gray-body uppercase py-2">{day}</div>)}
-            </div>
-            
-            <div className="grid grid-cols-7 gap-2">
-              {Array.from({ length: firstDayOfMonth }).map((_, i) => <div key={`empty-${i}`} className="h-14 rounded-lg" />)}
-              
-              {Array.from({ length: daysInMonth }).map((_, i) => {
-                const day = i + 1;
-                const dateObj = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
-                const dateStr = getLocalDateString(dateObj);
-                const dayEvents = calendarEvents.filter(e => e.date === dateStr);
-                const hasEvents = dayEvents.length > 0;
+            {loadingCalendar ? (
+              <div className="space-y-2">
+                <div className="grid grid-cols-7 gap-2">
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => <div key={day} className="text-center text-xs font-semibold text-gray-body uppercase py-2">{day}</div>)}
+                </div>
+                <div className="grid grid-cols-7 gap-2">
+                  {Array.from({ length: 35 }).map((_, i) => <div key={i} className="h-14 rounded-lg bg-cream/40 animate-pulse" />)}
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-7 gap-2 mb-2">
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => <div key={day} className="text-center text-xs font-semibold text-gray-body uppercase py-2">{day}</div>)}
+                </div>
                 
-                const isPast = dateObj < today;
-                const isToday = dateObj.getTime() === today.getTime();
-                const isSelected = selectedDate && selectedDate.getTime() === dateObj.getTime();
-                
-                return (
-                  <div 
-                    key={day} 
-                    onClick={() => { if(!isPast) setSelectedDate(selectedDate?.getTime() === dateObj.getTime() ? null : dateObj); setShowEventForm(false); }} 
-                    className={`relative h-14 p-1.5 rounded-lg flex flex-col items-center justify-center transition-all border ${
-                      isPast 
-                        ? 'bg-gray-50/40 border-transparent opacity-40 cursor-not-allowed' 
-                        : 'cursor-pointer'
-                    } ${
-                      isSelected 
-                        ? 'border-maroon bg-maroon/5 ring-1 ring-maroon shadow-2xs' 
-                        : isToday 
-                        ? 'border-maroon/50 bg-maroon/5'
-                        : 'bg-white border-border-soft/70 hover:border-maroon/40 hover:bg-cream/20'
-                    }`}
-                  >
-                    {/* Event dot in the top right corner of the date box */}
-                    {hasEvents && (
-                      <span 
-                        className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-maroon" 
-                        title={`${dayEvents.length} event${dayEvents.length > 1 ? 's' : ''}`}
-                      />
-                    )}
+                <div className="grid grid-cols-7 gap-2">
+                  {Array.from({ length: firstDayOfMonth }).map((_, i) => <div key={`empty-${i}`} className="h-14 rounded-lg" />)}
+                  
+                  {Array.from({ length: daysInMonth }).map((_, i) => {
+                    const day = i + 1;
+                    const dateObj = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+                    const dateStr = getLocalDateString(dateObj);
+                    const dayEvents = calendarEvents.filter(e => e.date === dateStr);
+                    const hasEvents = dayEvents.length > 0;
+                    
+                    const isPast = dateObj < today;
+                    const isToday = dateObj.getTime() === today.getTime();
+                    const isSelected = selectedDate && selectedDate.getTime() === dateObj.getTime();
+                    
+                    return (
+                      <div 
+                        key={day} 
+                        onClick={() => { if(!isPast) setSelectedDate(selectedDate?.getTime() === dateObj.getTime() ? null : dateObj); setShowEventForm(false); }} 
+                        className={`relative h-14 p-1.5 rounded-lg flex flex-col items-center justify-center transition-all border ${
+                          isPast 
+                            ? 'bg-gray-50/40 border-transparent opacity-40 cursor-not-allowed' 
+                            : 'cursor-pointer'
+                        } ${
+                          isSelected 
+                            ? 'border-maroon bg-maroon/5 ring-1 ring-maroon shadow-2xs' 
+                            : isToday 
+                            ? 'border-maroon/50 bg-maroon/5'
+                            : 'bg-white border-border-soft/70 hover:border-maroon/40 hover:bg-cream/20'
+                        }`}
+                      >
+                        {/* Event dot in the top right corner of the date box */}
+                        {hasEvents && (
+                          <span 
+                            className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-maroon" 
+                            title={`${dayEvents.length} event${dayEvents.length > 1 ? 's' : ''}`}
+                          />
+                        )}
 
-                    <span className={`text-xs ${
-                      isToday || isSelected ? 'font-bold text-maroon' : 'font-medium text-ink'
-                    }`}>
-                      {day}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+                        <span className={`text-xs ${
+                          isToday || isSelected ? 'font-bold text-maroon' : 'font-medium text-ink'
+                        }`}>
+                          {day}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
             
             {selectedDate && (
               <div className="mt-6 p-4 bg-cream/30 rounded-xl border border-border-soft flex flex-col gap-3">
@@ -508,7 +562,10 @@ export default function FacultyHome() {
                   </select>
                 )}
               </div>
-              <textarea required placeholder="Message..." rows={4} className="w-full px-3 py-2 bg-white border rounded-lg text-sm resize-none" value={newAnnouncement.content} onChange={e => setNewAnnouncement({...newAnnouncement, content: e.target.value})} />
+              <RichTextEditor
+                value={newAnnouncement.content}
+                onChange={(value) => setNewAnnouncement({ ...newAnnouncement, content: value })}
+              />
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" className="w-4 h-4 rounded text-maroon" checked={newAnnouncement.isSurvey} onChange={e => setNewAnnouncement({...newAnnouncement, isSurvey: e.target.checked})} />
                 <span className="text-sm font-medium text-ink">Mark as Survey / Feedback Request</span>
@@ -535,7 +592,10 @@ export default function FacultyHome() {
                   </div>
                   <span className="text-xs font-medium text-gray-body shrink-0">{new Date(ann.date).toLocaleDateString()}</span>
                 </div>
-                <p className="text-sm text-ink/80 mb-4">{ann.content}</p>
+                <div
+                  className="text-sm text-ink/80 mb-4 rich-text-content"
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(ann.content) || '<p>No announcement content.</p>' }}
+                />
                 <div className="flex items-center justify-between border-t border-border-soft/60 pt-3 mt-3">
                   <span className="text-xs font-medium text-gray-body">Posted by <span className="text-ink">{ann.author || 'Faculty'}</span></span>
                   {ann.isSurvey && (

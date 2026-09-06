@@ -10,8 +10,30 @@ export const getQuizzes = async (req: Request, res: Response, next: NextFunction
     const userId = (req as any).user?.userId || 'system';
     const userRole = (req as any).user?.role;
 
-    // Faculty sees only their quizzes, Admins see all
-    const whereClause = userRole === 'ADMIN' ? {} : { createdBy: userId };
+    // Faculty sees only their quizzes, Admins see all.
+    const whereClause: any = userRole === 'ADMIN' ? {} : { createdBy: userId };
+    const filters: any[] = [];
+    if (req.query.posted === 'true') {
+      filters.push({ OR: [
+        { targetDepartments: { some: {} } },
+        { targetSections: { some: {} } },
+        { targetStudents: { some: {} } }
+      ] });
+    }
+
+    const departmentId = req.query.departmentId as string | undefined;
+    const sectionId = req.query.sectionId as string | undefined;
+    if (sectionId) {
+      filters.push({ OR: [
+        { targetSections: { some: { sectionId } } },
+        ...(departmentId ? [{ targetDepartments: { some: { departmentId } } }] : [])
+      ] });
+    } else if (departmentId) {
+      filters.push({ targetDepartments: { some: { departmentId } } });
+    }
+    if (filters.length > 0) {
+      whereClause.AND = filters;
+    }
 
     const hasPagination = req.query.page !== undefined || req.query.limit !== undefined;
 
@@ -20,7 +42,8 @@ export const getQuizzes = async (req: Request, res: Response, next: NextFunction
         select: { questions: true, attempts: true }
       },
       targetDepartments: { include: { department: { select: { id: true, name: true } } } },
-      targetSections: { include: { section: { select: { id: true, name: true } } } }
+      targetSections: { include: { section: { select: { id: true, name: true } } } },
+      targetStudents: { select: { userId: true } }
     };
 
     if (hasPagination) {
