@@ -34,6 +34,11 @@ function App() {
             <ExamResults />
           </ProtectedRoute>
         } />
+        <Route path="/exam-portal/review/:quizId" element={
+          <ProtectedRoute allowedRoles={['STUDENT']}>
+            <ExamResults />
+          </ProtectedRoute>
+        } />
         
         {/* Protected Admin Routes */}
         <Route path="/admin/dashboard" element={

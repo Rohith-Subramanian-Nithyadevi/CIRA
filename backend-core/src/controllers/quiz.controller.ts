@@ -18,7 +18,9 @@ export const getQuizzes = async (req: Request, res: Response, next: NextFunction
       include: {
         _count: {
           select: { questions: true, attempts: true }
-        }
+        },
+        targetDepartments: { include: { department: { select: { id: true, name: true } } } },
+        targetSections: { include: { section: { select: { id: true, name: true } } } }
       },
       orderBy: { createdAt: 'desc' }
     });
@@ -40,8 +42,8 @@ export const getQuizById = async (req: Request, res: Response, next: NextFunctio
       where: { id: quizId },
       include: {
         questions: true,
-        targetDepartments: true,
-        targetSections: true
+        targetDepartments: { include: { department: { select: { id: true, name: true } } } },
+        targetSections: { include: { section: { select: { id: true, name: true } } } }
       }
     });
 
@@ -140,6 +142,78 @@ export const createQuiz = async (req: Request, res: Response, next: NextFunction
     });
 
     res.status(201).json({ status: 'success', data: quiz });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Update quiz metadata and publication targets without changing its questions.
+export const updateQuiz = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const quizId = req.params.quizId as string;
+    const userId = (req as any).user?.userId || 'system';
+    const userRole = (req as any).user?.role;
+    const {
+      title,
+      subject,
+      description,
+      instructions,
+      totalMarks,
+      passingMarks,
+      startDate,
+      endDate,
+      durationMinutes,
+      allowLateJoin,
+      autoSubmit,
+      performanceBands,
+      targetDepartments = [],
+      targetSections = [],
+      targetStudents = []
+    } = req.body;
+
+    const existing = await prisma.quiz.findUnique({ where: { id: quizId } });
+    if (!existing) throw new BadRequestError('Quiz not found', 'NOT_FOUND');
+    if (userRole !== 'ADMIN' && existing.createdBy !== userId) {
+      throw new BadRequestError('Not authorized to edit this quiz', 'UNAUTHORIZED');
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const quiz = await tx.quiz.update({
+        where: { id: quizId },
+        data: {
+          title,
+          subject,
+          description,
+          instructions,
+          totalMarks: Number(totalMarks) || 0,
+          passingMarks: Number(passingMarks) || 0,
+          startDate: startDate ? new Date(startDate) : null,
+          endDate: endDate ? new Date(endDate) : null,
+          durationMinutes: Number(durationMinutes) || 60,
+          allowLateJoin: Boolean(allowLateJoin),
+          autoSubmit,
+          performanceBands
+        }
+      });
+
+      await tx.quizDepartment.deleteMany({ where: { quizId } });
+      await tx.quizSection.deleteMany({ where: { quizId } });
+      await tx.quizStudent.deleteMany({ where: { quizId } });
+
+      if (Array.isArray(targetDepartments) && targetDepartments.length) {
+        await tx.quizDepartment.createMany({ data: targetDepartments.map((departmentId: string) => ({ quizId, departmentId })) });
+      }
+      if (Array.isArray(targetSections) && targetSections.length) {
+        await tx.quizSection.createMany({ data: targetSections.map((sectionId: string) => ({ quizId, sectionId })) });
+      }
+      if (Array.isArray(targetStudents) && targetStudents.length) {
+        await tx.quizStudent.createMany({ data: targetStudents.map((userId: string) => ({ quizId, userId })) });
+      }
+
+      return quiz;
+    });
+
+    res.status(200).json({ status: 'success', data: updated });
   } catch (error) {
     next(error);
   }
