@@ -87,9 +87,10 @@ export const getDashboardData = async (req: Request, res: Response) => {
         pastQuizzes,
       },
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching dashboard data:', error);
-    res.status(500).json({ success: false, message: 'Server Error' });
+    require('fs').writeFileSync('dashboard_error.log', error.stack || error.toString());
+    res.status(500).json({ success: false, message: 'Server Error', details: error.message });
   }
 };
 

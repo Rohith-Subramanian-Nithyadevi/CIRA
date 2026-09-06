@@ -188,11 +188,12 @@ export const getSubmissions = async (req: Request, res: Response, next: NextFunc
     const quizId = req.params.quizId as string;
     
     const attempts = await prisma.quizAttempt.findMany({
-      where: { quizId, status: { in: ['SUBMITTED', 'EVALUATED'] } },
+      where: { quizId },
       include: {
         user: { select: { name: true, rollNumber: true, email: true } },
         responses: { include: { question: true } }
-      }
+      },
+      orderBy: { createdAt: 'desc' }
     });
 
     res.status(200).json({ status: 'success', data: attempts });
@@ -489,3 +490,5 @@ export const uploadImageHandler = async (req: Request, res: Response, next: Next
     next(error);
   }
 };
+
+

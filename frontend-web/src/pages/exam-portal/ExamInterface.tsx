@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useSecureExam } from '../../hooks/useSecureExam';
@@ -26,22 +26,38 @@ export default function ExamInterface() {
   const [quizDetails, setQuizDetails] = useState<any>(null);
   const [hasStartedSecureExam, setHasStartedSecureExam] = useState(false);
 
-  const handleSecurityViolation = (count: number) => {
-    if (count >= 3) {
-      toast.error('Maximum security violations reached. Submitting exam automatically.');
-      handleSubmit();
+  // Zero tolerance: any violation = instant auto-submit with reason logged
+  const handleSecurityViolation = async (reason: string) => {
+    if (!attemptId) return;
+    try {
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+      const token = localStorage.getItem('cira_token');
+      await fetch(`${baseUrl}/api/v1/student/exam/attempt/${attemptId}/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ violationReason: reason })
+      });
+      toast.error(`Exam terminated: ${reason}`);
+      navigate('/exam-portal', { replace: true });
+    } catch (e) {
+      console.error('Failed to submit violation:', e);
+      navigate('/exam-portal', { replace: true });
     }
   };
 
   const { isFullscreen, enterFullscreen, violationCount } = useSecureExam({
     isActive: hasStartedSecureExam,
-    maxViolations: 3,
     onViolation: handleSecurityViolation
   });
 
+  const hasFetched = React.useRef(false);
+
   useEffect(() => {
+    if (hasFetched.current) return;
+    
     const fetchQuiz = async () => {
       try {
+        hasFetched.current = true;
         const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
         const token = localStorage.getItem('cira_token');
         const res = await fetch(`${baseUrl}/api/v1/student/exam/start/${quizId}`, {
@@ -71,7 +87,7 @@ export default function ExamInterface() {
           setTimeLeft(remaining);
         } else {
            toast.error('Error starting exam: ' + data.message);
-           navigate('/exam-portal');
+           navigate('/exam-portal', { replace: true });
         }
       } catch(err) {
          console.error(err);
@@ -160,15 +176,15 @@ export default function ExamInterface() {
         const data = await res.json();
         if (data.status === 'success') {
           toast.success('Examination Submitted Successfully!');
-          navigate('/exam-portal');
+          navigate('/exam-portal', { replace: true });
         } else {
           toast.error('Error submitting: ' + data.message);
-          navigate('/exam-portal');
+          navigate('/exam-portal', { replace: true });
         }
     } catch(e) {
         console.error(e);
         toast.error('Error submitting examination');
-        navigate('/exam-portal');
+        navigate('/exam-portal', { replace: true });
     }
   };
 
@@ -176,27 +192,52 @@ export default function ExamInterface() {
 
   if (!hasStartedSecureExam || !isFullscreen) {
     return (
-      <div className="min-h-screen bg-[#0f172a] text-white flex flex-col items-center justify-center p-8">
-        <div className="max-w-2xl text-center space-y-6">
-          <h1 className="text-3xl font-bold text-red-500 mb-4">Secure Exam Environment</h1>
-          <div className="bg-red-500/20 border border-red-500 p-6 rounded-xl text-left space-y-4">
-            <h3 className="font-bold text-xl text-red-200">Important Instructions</h3>
-            <ul className="list-disc list-inside space-y-2 text-red-100">
-              <li>This exam requires Fullscreen mode.</li>
-              <li>Do not exit fullscreen or switch tabs.</li>
-              <li>Right-clicking, copying, and pasting are disabled.</li>
-              <li>Attempting to violate these rules will result in warnings.</li>
-              <li>After 3 warnings, your exam will be automatically submitted.</li>
+      <div className="min-h-screen bg-[#FDFBF7] text-ink flex flex-col items-center justify-center p-8 font-sans">
+        <div className="max-w-2xl w-full text-center space-y-8">
+          <div className="space-y-2">
+            <h1 className="text-4xl font-serif font-bold text-ink">Secure Exam Environment</h1>
+            <p className="text-gray-body text-lg">Please read the instructions carefully before proceeding.</p>
+          </div>
+          
+          <div className="bg-white border border-maroon/30 shadow-sm p-8 rounded-2xl text-left space-y-6">
+            <div className="flex items-center space-x-3 text-maroon">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+              <h3 className="font-bold text-xl font-serif">Important Instructions</h3>
+            </div>
+            
+            <ul className="space-y-4 text-ink font-semibold">
+              <li className="flex items-start">
+                <span className="text-maroon mr-3">•</span>
+                This exam requires <span className="font-bold ml-1">Fullscreen mode</span>.
+              </li>
+              <li className="flex items-start">
+                <span className="text-maroon mr-3">•</span>
+                Do not exit fullscreen or switch tabs.
+              </li>
+              <li className="flex items-start">
+                <span className="text-maroon mr-3">•</span>
+                Right-clicking, copying, and pasting are disabled.
+              </li>
+              <li className="flex items-start">
+                <span className="text-maroon mr-3">•</span>
+                Attempting to violate these rules will result in warnings.
+              </li>
+              <li className="flex items-start">
+                <span className="text-maroon mr-3">•</span>
+                After <span className="font-bold mx-1 text-red-600">3 warnings</span>, your exam will be automatically submitted.
+              </li>
             </ul>
           </div>
+
           <button 
             onClick={async () => {
               await enterFullscreen();
               setHasStartedSecureExam(true);
             }}
-            className="px-8 py-4 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-lg shadow-lg transition-all hover:scale-105 active:scale-95"
+            className="px-10 py-4 bg-maroon hover:bg-maroon-deep text-white font-bold rounded-full text-lg shadow-sm transition-all hover:scale-105 active:scale-95 flex items-center justify-center mx-auto space-x-2"
           >
-            Start Secure Exam
+            <span>Start Secure Exam</span>
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
           </button>
         </div>
       </div>
@@ -255,11 +296,6 @@ export default function ExamInterface() {
               <span className="text-green-700 text-sm font-semibold flex items-center">
                 <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span> Saved
               </span>
-            )}
-            {violationCount > 0 && (
-              <div className="text-red-600 text-sm font-bold bg-red-100 px-3 py-1 rounded-full border border-red-200 animate-pulse">
-                Violations: {violationCount}/3
-              </div>
             )}
           </div>
           <div className="text-2xl font-mono font-bold text-maroon bg-cream px-4 py-2 rounded-xl border border-border-soft">
@@ -326,11 +362,18 @@ export default function ExamInterface() {
 
               {currentQ.type === 'NUMERICAL' && (
                 <input 
-                  type="number"
+                  type="text"
+                  inputMode="decimal"
                   className="w-full p-4 border border-border-soft rounded-xl focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon text-ink bg-white text-base font-semibold"
                   placeholder="Enter the numerical value..."
                   value={currentResp?.data || ''}
-                  onChange={(e) => handleSaveResponse(currentQ.id, Number(e.target.value), 'ANSWERED')}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    // Only allow digits and a single decimal point
+                    if (/^[0-9]*\.?[0-9]*$/.test(val)) {
+                      handleSaveResponse(currentQ.id, val, 'ANSWERED');
+                    }
+                  }}
                 />
               )}
 

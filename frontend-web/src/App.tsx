@@ -8,6 +8,7 @@ import StudentDashboard from './pages/StudentDashboard';
 import ProtectedRoute from './components/ProtectedRoute';
 import ExamDashboard from './pages/exam-portal/ExamDashboard';
 import ExamInterface from './pages/exam-portal/ExamInterface';
+import ExamResults from './pages/exam-portal/ExamResults';
 
 function App() {
   return (
@@ -26,6 +27,11 @@ function App() {
         <Route path="/exam-portal/take/:quizId" element={
           <ProtectedRoute allowedRoles={['STUDENT']}>
             <ExamInterface />
+          </ProtectedRoute>
+        } />
+        <Route path="/exam-portal/results/:quizId" element={
+          <ProtectedRoute allowedRoles={['STUDENT']}>
+            <ExamResults />
           </ProtectedRoute>
         } />
         

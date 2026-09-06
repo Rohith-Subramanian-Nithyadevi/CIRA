@@ -93,8 +93,22 @@ export const startExam = async (req: Request, res: Response, next: NextFunction)
       });
     }
 
-    if (attempt.status !== 'IN_PROGRESS') {
-      throw new BadRequestError('Exam already submitted', 'FORBIDDEN');
+    if (attempt) {
+      if (attempt.status !== 'IN_PROGRESS') {
+        throw new BadRequestError('Exam already submitted', 'FORBIDDEN');
+      }
+
+      // Prevent resuming: if the attempt was created more than 60 seconds ago,
+      // it means they left the portal and are trying to resume.
+      // We block this and auto-submit the exam to enforce the strict "no re-entry" rule.
+      const ageInSeconds = (new Date().getTime() - new Date(attempt.startTime).getTime()) / 1000;
+      if (ageInSeconds > 60) {
+        await prisma.quizAttempt.update({
+          where: { id: attempt.id },
+          data: { status: 'SUBMITTED', endTime: new Date() }
+        });
+        throw new BadRequestError('You left the secure exam environment. Your exam has been automatically submitted and cannot be resumed.', 'FORBIDDEN');
+      }
     }
 
     // Fetch quiz questions (without answers if we want to be secure, but we'll fetch full for simplicity in this MVP)
@@ -161,6 +175,7 @@ export const saveResponse = async (req: Request, res: Response, next: NextFuncti
 export const submitExam = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const attemptId = req.params.attemptId as string;
+    const { violationReason } = req.body; // Optional: if submitted due to violation
     
     const attempt = await prisma.quizAttempt.findUnique({
       where: { id: attemptId },
@@ -225,11 +240,55 @@ export const submitExam = async (req: Request, res: Response, next: NextFunction
         status: 'SUBMITTED',
         endTime: new Date(),
         objectiveScore,
-        totalScore: objectiveScore // Written score is 0 until graded
+        totalScore: objectiveScore, // Written score is 0 until graded
+        violationReason: violationReason || null
       }
     });
 
     res.status(200).json({ status: 'success', data: updated });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Faculty: Allow a student to restart an exam (deletes their attempt)
+export const allowRestart = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const attemptId = req.params.attemptId as string;
+
+    const attempt = await prisma.quizAttempt.findUnique({ where: { id: attemptId } });
+    if (!attempt) throw new BadRequestError('Attempt not found', 'NOT_FOUND');
+
+    // Delete the attempt and all its responses (cascade)
+    await prisma.quizAttempt.delete({ where: { id: attemptId } });
+
+    res.status(200).json({ status: 'success', message: 'Student can now retake the exam.' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Fetch published quiz result for student
+export const getQuizResult = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const quizId = req.params.quizId as string;
+    const userId = (req as any).user?.userId;
+
+    const quiz = await prisma.quiz.findUnique({ where: { id: quizId } });
+    if (!quiz) throw new BadRequestError('Quiz not found', 'NOT_FOUND');
+    if (!quiz.answersPublished) throw new BadRequestError('Results are not published yet', 'FORBIDDEN');
+
+    const attempt = await prisma.quizAttempt.findFirst({
+      where: { quizId, userId, status: { in: ['SUBMITTED', 'EVALUATED'] } },
+      include: {
+        responses: true,
+        quiz: { include: { questions: true } }
+      }
+    });
+
+    if (!attempt) throw new BadRequestError('Attempt not found', 'NOT_FOUND');
+
+    res.status(200).json({ status: 'success', data: attempt });
   } catch (error) {
     next(error);
   }
