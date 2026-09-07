@@ -79,8 +79,17 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
 
           {role === 'STUDENT' && (
             <>
-              <button aria-current={activeTab === 'progress' ? 'page' : undefined} onClick={() => onTabChange('progress')} className={getNavClass('progress')}>
-                <LayoutDashboard className="w-5 h-5 mr-3" /> My Progress
+              <button aria-current={activeTab === 'overview' ? 'page' : undefined} onClick={() => onTabChange('overview')} className={getNavClass('overview')}>
+                <LayoutDashboard className="w-5 h-5 mr-3" /> Overview
+              </button>
+              <button aria-current={activeTab === 'todo' ? 'page' : undefined} onClick={() => onTabChange('todo')} className={getNavClass('todo')}>
+                <CheckSquare className="w-5 h-5 mr-3" /> Action Plan
+              </button>
+              <button aria-current={activeTab === 'analytics' ? 'page' : undefined} onClick={() => onTabChange('analytics')} className={getNavClass('analytics')}>
+                <BookOpen className="w-5 h-5 mr-3" /> Analytics
+              </button>
+              <button aria-current={activeTab === 'resources' ? 'page' : undefined} onClick={() => onTabChange('resources')} className={getNavClass('resources')}>
+                <FileText className="w-5 h-5 mr-3" /> Resource Hub
               </button>
               <button aria-current={activeTab === 'assignments' ? 'page' : undefined} onClick={() => onTabChange('assignments')} className={getNavClass('assignments')}>
                 <FileText className="w-5 h-5 mr-3" /> Assignments

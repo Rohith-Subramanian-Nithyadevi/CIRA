@@ -72,7 +72,7 @@ export default function StudentSpace() {
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={performanceTrajectory} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="date" stroke="#64748b" fontSize={12} tickMargin={10} />
+                  <XAxis dataKey="name" stroke="#64748b" fontSize={12} tickMargin={10} />
                   <YAxis stroke="#64748b" fontSize={12} domain={[0, 100]} />
                   <RechartsTooltip 
                     contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', color: '#1e293b' }}

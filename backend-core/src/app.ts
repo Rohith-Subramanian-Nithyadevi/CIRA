@@ -11,6 +11,7 @@ import batchRoutes from './routes/batch.routes';
 import quizRoutes from './routes/quiz.routes';
 import studentExamRoutes from './routes/student-exam.routes';
 import studentDashboardRoutes from './routes/student-dashboard.routes';
+import studentFeaturesRoutes from './routes/student.routes';
 import facultyDashboardRoutes from './routes/faculty-dashboard.routes';
 import facultyReportsRoutes from './routes/faculty-reports.routes';
 import assignmentRoutes from './routes/assignment.routes';
@@ -38,6 +39,7 @@ app.use('/api/v1/batches', batchRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/student/exam', studentExamRoutes);
 app.use('/api/v1/student', studentDashboardRoutes);
+app.use('/api/v1/student-features', studentFeaturesRoutes);
 
 // Health check route for the root
 app.get('/', (req, res) => {

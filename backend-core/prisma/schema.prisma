@@ -112,6 +112,10 @@ model User {
   
   mappedDepartments FacultyDepartment[]
   mappedSections    FacultySection[]
+  studentTasks      StudentTask[]  @relation("StudentTasks")
+
+  streak             Int       @default(0)
+  lastCompletedDate  DateTime?
 
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
@@ -417,4 +421,25 @@ model Notification {
   createdAt DateTime @default(now())
 
   faculty   User     @relation("FacultyNotifications", fields: [facultyId], references: [id], onDelete: Cascade)
+}
+
+model StudentTask {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  date        DateTime
+  completed Boolean  @default(false)
+  userId    String
+  user      User     @relation("StudentTasks", fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
+model Resource {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  url         String
+  category    String   // e.g., "DSA", "APTITUDE", "SOFT_SKILLS", "VERBAL", "CORE"
+  topic       String?
+  createdAt   DateTime @default(now())
 }
