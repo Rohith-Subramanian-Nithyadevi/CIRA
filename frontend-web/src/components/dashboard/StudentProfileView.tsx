@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, User, Loader2, AlertTriangle, CheckCircle2, Circle, Clock, FileText, Clipboard } from 'lucide-react';
+import { ArrowLeft, User, AlertTriangle, CheckCircle2, Circle, Clock, FileText, Clipboard } from 'lucide-react';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { apiClient } from '@/lib/apiClient';
 
@@ -41,20 +41,33 @@ export default function StudentProfileView({ studentId, onBack }: StudentProfile
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-20">
-        <Loader2 className="w-8 h-8 animate-spin text-maroon mb-4" />
-        <p className="text-gray-body font-semibold">Loading full profile...</p>
+      <div className="space-y-6 animate-in fade-in duration-300">
+        <div className="h-5 w-36 rounded-lg bg-cream/70 animate-pulse" />
+        <div className="rounded-2xl border border-border-soft bg-white/90 p-6 shadow-sm backdrop-blur-sm">
+          <div className="flex items-center gap-5">
+            <div className="h-20 w-20 rounded-full bg-cream/70 animate-pulse" />
+            <div className="flex-1 space-y-3">
+              <div className="h-7 w-56 rounded-lg bg-cream/70 animate-pulse" />
+              <div className="h-4 w-44 rounded-lg bg-cream/70 animate-pulse" />
+              <div className="h-7 w-72 rounded-lg bg-cream/70 animate-pulse" />
+            </div>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, index) => <div key={index} className="h-32 rounded-xl border border-border-soft bg-cream/40 animate-pulse" />)}
+        </div>
+        <div className="h-80 rounded-2xl border border-border-soft bg-white/80 animate-pulse" />
       </div>
     );
   }
 
   if (error || !data) {
     return (
-      <div className="bg-red-50 border border-red-200 p-8 rounded-xl text-center">
+      <div className="rounded-2xl border border-red-200 bg-red-50/90 p-8 text-center shadow-sm backdrop-blur-sm">
         <AlertTriangle className="w-10 h-10 text-red-500 mx-auto mb-4" />
         <h3 className="text-lg font-bold text-red-700 mb-2">Error Loading Profile</h3>
         <p className="text-red-600 mb-6">{error || 'Student profile data could not be loaded.'}</p>
-        <button onClick={onBack} className="px-4 py-2 bg-white border border-red-200 text-red-700 rounded-lg font-semibold hover:bg-red-100">
+        <button onClick={onBack} className="rounded-lg border border-red-200 bg-white px-4 py-2 font-semibold text-red-700 transition-colors hover:bg-red-100">
           Go Back
         </button>
       </div>
@@ -78,9 +91,9 @@ export default function StudentProfileView({ studentId, onBack }: StudentProfile
       </button>
 
       {/* Profile Header */}
-      <div className="bg-white rounded-xl p-6 border border-border-soft shadow-sm mb-6 flex flex-col md:flex-row items-center justify-between gap-6">
+      <div className="mb-6 flex flex-col items-center justify-between gap-6 rounded-2xl border border-border-soft bg-white/90 p-6 shadow-sm backdrop-blur-sm transition-shadow hover:shadow-md md:flex-row">
         <div className="flex items-center gap-6">
-          <div className="h-24 w-24 bg-maroon/10 border-2 border-maroon/20 rounded-full flex items-center justify-center shrink-0">
+          <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-full border-2 border-maroon/20 bg-maroon/10 shadow-inner">
             <User className="w-12 h-12 text-maroon" />
           </div>
           <div>
@@ -89,9 +102,9 @@ export default function StudentProfileView({ studentId, onBack }: StudentProfile
               Roll Number: <span className="text-ink font-mono font-bold">{student.rollNumber}</span>
             </p>
             <div className="flex flex-wrap gap-2 text-xs font-semibold">
-              <span className="bg-cream border border-border-soft px-2.5 py-1 rounded-md">Batch: {student.batchName}</span>
-              <span className="bg-cream border border-border-soft px-2.5 py-1 rounded-md">Dept: {student.departmentName}</span>
-              <span className="bg-cream border border-border-soft px-2.5 py-1 rounded-md">Sec: {student.sectionName}</span>
+              <span className="rounded-lg border border-border-soft bg-cream/70 px-2.5 py-1">Batch: {student.batchName}</span>
+              <span className="rounded-lg border border-border-soft bg-cream/70 px-2.5 py-1">Dept: {student.departmentName}</span>
+              <span className="rounded-lg border border-border-soft bg-cream/70 px-2.5 py-1">Sec: {student.sectionName}</span>
             </div>
           </div>
         </div>
@@ -99,7 +112,7 @@ export default function StudentProfileView({ studentId, onBack }: StudentProfile
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <div className="bg-white border border-border-soft rounded-xl p-5 shadow-sm">
+        <div className="rounded-xl border border-border-soft bg-white/90 p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
           <h3 className="text-xs font-bold text-gray-body uppercase tracking-wider mb-2">Quiz Performance</h3>
           <div className="flex items-end gap-2">
             <span className="text-3xl font-bold text-ink">{avgQuizScore}%</span>
@@ -108,7 +121,7 @@ export default function StudentProfileView({ studentId, onBack }: StudentProfile
           <p className="text-xs text-gray-body mt-2">Across {quizHistory.length} completed assessments</p>
         </div>
 
-        <div className="bg-white border border-border-soft rounded-xl p-5 shadow-sm">
+        <div className="rounded-xl border border-border-soft bg-white/90 p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
           <h3 className="text-xs font-bold text-gray-body uppercase tracking-wider mb-2">Assignment Completion</h3>
           <div className="flex items-end gap-2">
             <span className="text-3xl font-bold text-ink">{assignmentCompletion.completed}/{assignmentCompletion.total}</span>
@@ -121,9 +134,9 @@ export default function StudentProfileView({ studentId, onBack }: StudentProfile
           </div>
         </div>
 
-        <div className="bg-white border border-border-soft rounded-xl p-5 shadow-sm relative overflow-hidden">
+        <div className="relative overflow-hidden rounded-xl border border-border-soft bg-white/90 p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
           <h3 className="text-xs font-bold text-gray-body uppercase tracking-wider mb-2">Attendance</h3>
-          <div className="flex items-center justify-center h-16 border border-dashed border-gray-300 bg-gray-50 rounded-lg">
+          <div className="flex h-16 items-center justify-center rounded-lg border border-dashed border-border-soft bg-cream/30">
             <p className="text-sm font-semibold text-gray-body flex items-center">
               <AlertTriangle className="w-4 h-4 mr-2 text-gray-400" />
               Data Not Available
@@ -133,8 +146,8 @@ export default function StudentProfileView({ studentId, onBack }: StudentProfile
       </div>
 
       {/* Detailed Tabs */}
-      <div className="bg-white border border-border-soft rounded-xl shadow-sm overflow-hidden">
-        <div className="flex border-b border-border-soft bg-cream/20 px-4">
+      <div className="overflow-hidden rounded-2xl border border-border-soft bg-white/90 shadow-sm backdrop-blur-sm">
+        <div className="flex border-b border-border-soft bg-cream/30 px-4">
           <button 
             onClick={() => setActiveTab('quizzes')}
             className={`px-6 py-4 text-sm font-bold transition-colors border-b-2 ${activeTab === 'quizzes' ? 'border-maroon text-maroon' : 'border-transparent text-gray-body hover:text-ink'}`}
@@ -151,7 +164,7 @@ export default function StudentProfileView({ studentId, onBack }: StudentProfile
 
         <div className="p-0">
           {activeTab === 'quizzes' && (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto animate-in fade-in duration-300">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-cream/10 text-xs text-gray-body uppercase tracking-wider border-b border-border-soft">
@@ -173,7 +186,7 @@ export default function StudentProfileView({ studentId, onBack }: StudentProfile
                     </tr>
                   ) : (
                     quizHistory.map((q: any) => (
-                      <tr key={q.quizId} className="border-b border-border-soft hover:bg-cream/10">
+                      <tr key={q.quizId} className="border-b border-border-soft transition-colors hover:bg-cream/30">
                         <td className="p-4 font-bold text-ink">{q.title}</td>
                         <td className="p-4 text-sm text-gray-body">{new Date(q.date).toLocaleDateString()}</td>
                         <td className="p-4 font-bold text-ink">{q.score}%</td>
@@ -205,7 +218,7 @@ export default function StudentProfileView({ studentId, onBack }: StudentProfile
           )}
 
           {activeTab === 'assignments' && (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto animate-in fade-in duration-300">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-cream/10 text-xs text-gray-body uppercase tracking-wider border-b border-border-soft">
@@ -226,7 +239,7 @@ export default function StudentProfileView({ studentId, onBack }: StudentProfile
                     </tr>
                   ) : (
                     assignmentCompletion.items.map((a: any) => (
-                      <tr key={a.assignmentId} className="border-b border-border-soft hover:bg-cream/10">
+                      <tr key={a.assignmentId} className="border-b border-border-soft transition-colors hover:bg-cream/30">
                         <td className="p-4">
                           <div className="flex items-center gap-2">
                             <FileText className="w-4 h-4 text-maroon" />

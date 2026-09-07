@@ -36,22 +36,22 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
           <span className="font-bold tracking-tight text-ink">CIRA Workspace</span>
         </div>
         
-        <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
+        <nav aria-label="Primary navigation" className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
           {role === 'ADMIN' && (
             <>
-              <button onClick={() => onTabChange('hub')} className={getNavClass('hub')}>
+              <button aria-current={activeTab === 'hub' ? 'page' : undefined} onClick={() => onTabChange('hub')} className={getNavClass('hub')}>
                 <LayoutDashboard className="w-5 h-5 mr-3" /> Admin Hub
               </button>
-              <button onClick={() => onTabChange('faculty')} className={getNavClass('faculty')}>
+              <button aria-current={activeTab === 'faculty' ? 'page' : undefined} onClick={() => onTabChange('faculty')} className={getNavClass('faculty')}>
                 <CheckSquare className="w-5 h-5 mr-3" /> Faculty Approvals
               </button>
-              <button onClick={() => onTabChange('users')} className={getNavClass('users')}>
+              <button aria-current={activeTab === 'users' ? 'page' : undefined} onClick={() => onTabChange('users')} className={getNavClass('users')}>
                 <Users className="w-5 h-5 mr-3" /> User Management
               </button>
-              <button onClick={() => onTabChange('departments')} className={getNavClass('departments')}>
+              <button aria-current={activeTab === 'departments' ? 'page' : undefined} onClick={() => onTabChange('departments')} className={getNavClass('departments')}>
                 <Settings className="w-5 h-5 mr-3" /> Departments
               </button>
-              <button onClick={() => onTabChange('profile')} className={getNavClass('profile')}>
+              <button aria-current={activeTab === 'profile' ? 'page' : undefined} onClick={() => onTabChange('profile')} className={getNavClass('profile')}>
                 <User className="w-5 h-5 mr-3" /> My Profile
               </button>
             </>
@@ -59,16 +59,16 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
 
           {role === 'FACULTY' && (
             <>
-              <button onClick={() => onTabChange('home')} className={getNavClass('home')}>
+              <button aria-current={activeTab === 'home' ? 'page' : undefined} onClick={() => onTabChange('home')} className={getNavClass('home')}>
                 <Home className="w-5 h-5 mr-3" /> Home
               </button>
-              <button onClick={() => onTabChange('reports')} className={getNavClass('reports')}>
+              <button aria-current={activeTab === 'reports' ? 'page' : undefined} onClick={() => onTabChange('reports')} className={getNavClass('reports')}>
                 <Users className="w-5 h-5 mr-3" /> Student Reports
               </button>
-              <button onClick={() => onTabChange('quizzes')} className={getNavClass('quizzes')}>
+              <button aria-current={activeTab === 'quizzes' ? 'page' : undefined} onClick={() => onTabChange('quizzes')} className={getNavClass('quizzes')}>
                 <BookOpen className="w-5 h-5 mr-3" /> Quizzes
               </button>
-              <button onClick={() => onTabChange('assignments')} className={getNavClass('assignments')}>
+              <button aria-current={activeTab === 'assignments' ? 'page' : undefined} onClick={() => onTabChange('assignments')} className={getNavClass('assignments')}>
                 <FileText className="w-5 h-5 mr-3" /> Assignments
               </button>
               <button onClick={() => onTabChange('profile')} className={getNavClass('profile')}>
@@ -79,16 +79,16 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
 
           {role === 'STUDENT' && (
             <>
-              <button onClick={() => onTabChange('progress')} className={getNavClass('progress')}>
+              <button aria-current={activeTab === 'progress' ? 'page' : undefined} onClick={() => onTabChange('progress')} className={getNavClass('progress')}>
                 <LayoutDashboard className="w-5 h-5 mr-3" /> My Progress
               </button>
-              <button onClick={() => onTabChange('assignments')} className={getNavClass('assignments')}>
+              <button aria-current={activeTab === 'assignments' ? 'page' : undefined} onClick={() => onTabChange('assignments')} className={getNavClass('assignments')}>
                 <FileText className="w-5 h-5 mr-3" /> Assignments
               </button>
-              <button onClick={() => onTabChange('quizzes')} className={getNavClass('quizzes')}>
+              <button aria-current={activeTab === 'quizzes' ? 'page' : undefined} onClick={() => onTabChange('quizzes')} className={getNavClass('quizzes')}>
                 <BookOpen className="w-5 h-5 mr-3" /> Quizzes
               </button>
-              <button onClick={() => onTabChange('profile')} className={getNavClass('profile')}>
+              <button aria-current={activeTab === 'profile' ? 'page' : undefined} onClick={() => onTabChange('profile')} className={getNavClass('profile')}>
                 <User className="w-5 h-5 mr-3" /> My Profile
               </button>
             </>
@@ -122,7 +122,7 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
           </div>
         </div>
         
-        <div className="flex-1 overflow-y-auto p-8">
+        <div id="main-content" className="flex-1 overflow-y-auto p-8">
           {children}
         </div>
       </main>
