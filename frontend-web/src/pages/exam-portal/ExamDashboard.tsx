@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { apiClient } from '../../lib/apiClient';
 
 export default function ExamDashboard() {
   const [quizzes, setQuizzes] = useState<any[]>([]);
@@ -9,11 +10,7 @@ export default function ExamDashboard() {
   useEffect(() => {
     const fetchQuizzes = async () => {
       try {
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-        const token = localStorage.getItem('cira_token');
-        const res = await fetch(`${baseUrl}/api/v1/student/exam/eligible`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const res = await apiClient.fetch('/api/v1/student/exam/eligible');
         const data = await res.json();
         if (data?.data) {
           setQuizzes(data.data);

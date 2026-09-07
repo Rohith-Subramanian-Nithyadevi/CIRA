@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
+import { apiClient } from '@/lib/apiClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -382,9 +383,6 @@ export default function QuizManagement() {
   const [facultyFeedback, setFacultyFeedback] = useState('');
   const [parsedTotalMarks, setParsedTotalMarks] = useState(0);
   const [parsedTotalQuestions, setParsedTotalQuestions] = useState(0);
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-  const token = localStorage.getItem('cira_token');
-
   useEffect(() => {
     fetchQuizzes(1);
     fetchDepartments();
@@ -392,7 +390,7 @@ export default function QuizManagement() {
 
   const fetchQuizzes = async (pageNumber = 1) => {
     try {
-      const res = await fetch(`${baseUrl}/api/v1/faculty/quiz?page=${pageNumber}&limit=10`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await apiClient.fetch(`/api/v1/faculty/quiz?page=${pageNumber}&limit=10`);
       const data = await res.json();
       if (data?.data) {
         const fetchedQuizzes = Array.isArray(data.data) ? data.data : data.data.items;
@@ -413,7 +411,7 @@ export default function QuizManagement() {
 
   const fetchDepartments = async () => {
     try {
-      const res = await fetch(`${baseUrl}/api/v1/departments`);
+      const res = await apiClient.fetch('/api/v1/departments');
       const data = await res.json();
       if (data?.data?.departments) setDepartments(data.data.departments);
     } catch (err) { console.error(err); }
@@ -427,7 +425,7 @@ export default function QuizManagement() {
     
     try {
       setLoading(true);
-      const res = await fetch(`${baseUrl}/api/v1/faculty/quiz/${quizId}`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await apiClient.fetch(`/api/v1/faculty/quiz/${quizId}`);
       const data = await res.json();
       if (data?.status === 'success' && data.data) {
         const quiz = data.data;
@@ -476,7 +474,7 @@ export default function QuizManagement() {
   const handleDeleteQuiz = async (quizId: string) => {
     if (!window.confirm('Are you sure you want to delete this quiz?')) return;
     try {
-      const res = await fetch(`${baseUrl}/api/v1/faculty/quiz/${quizId}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await apiClient.fetch(`/api/v1/faculty/quiz/${quizId}`, { method: 'DELETE' });
       const data = await res.json();
       if (data?.status === 'success') fetchQuizzes();
       else toast.error('Failed to delete quiz: ' + data.message);
@@ -485,9 +483,9 @@ export default function QuizManagement() {
 
   const handleTogglePublishAnswers = async (quizId: string, currentStatus: boolean) => {
     try {
-      const res = await fetch(`${baseUrl}/api/v1/faculty/quiz/${quizId}/publish`, { 
+      const res = await apiClient.fetch(`/api/v1/faculty/quiz/${quizId}/publish`, {
         method: 'POST', 
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ publish: !currentStatus })
       });
       const data = await res.json();
@@ -500,7 +498,7 @@ export default function QuizManagement() {
 
   const handleOpenEditQuiz = async (quizId: string) => {
     try {
-      const res = await fetch(`${baseUrl}/api/v1/faculty/quiz/${quizId}`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await apiClient.fetch(`/api/v1/faculty/quiz/${quizId}`);
       const data = await res.json();
       if (data?.status !== 'success' || !data.data) {
         toast.error('Unable to load quiz details: ' + (data?.message || 'Unknown error'));
@@ -534,9 +532,7 @@ export default function QuizManagement() {
       if (templateConfig.isMixedTypes) {
         query += `&mcq=${templateConfig.mcqCount}&numerical=${templateConfig.numericalCount}&short=${templateConfig.shortCount}&long=${templateConfig.longCount}&matching=${templateConfig.matchingCount}`;
       }
-      const res = await fetch(`${baseUrl}/api/v1/faculty/quiz/template?${query}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const res = await apiClient.fetch(`/api/v1/faculty/quiz/template?${query}`);
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -559,9 +555,8 @@ export default function QuizManagement() {
     setLoading(true);
     toast.info('Parsing DOCX... this might take a moment.');
     try {
-      const res = await fetch(`${baseUrl}/api/v1/faculty/quiz/upload-docx`, {
+      const res = await apiClient.fetch('/api/v1/faculty/quiz/upload-docx', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
         body: uploadData
       });
       const data = await res.json();
@@ -650,9 +645,9 @@ export default function QuizManagement() {
       });
 
       if (editingQuizId) {
-        const res = await fetch(`${baseUrl}/api/v1/faculty/quiz/${editingQuizId}`, {
+        const res = await apiClient.fetch(`/api/v1/faculty/quiz/${editingQuizId}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
         const data = await res.json();
@@ -666,9 +661,9 @@ export default function QuizManagement() {
 
       if (activeQuizId) {
         // Edit flow
-        const res = await fetch(`${baseUrl}/api/v1/faculty/quiz/${activeQuizId}`, {
+        const res = await apiClient.fetch(`/api/v1/faculty/quiz/${activeQuizId}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ...payload, questions: sanitizedQuestions })
         });
         const data = await res.json();
@@ -682,9 +677,9 @@ export default function QuizManagement() {
         }
       } else {
         // Create flow
-        const res = await fetch(`${baseUrl}/api/v1/faculty/quiz/create`, {
+        const res = await apiClient.fetch('/api/v1/faculty/quiz/create', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
         const data = await res.json();
@@ -695,9 +690,9 @@ export default function QuizManagement() {
           throw new Error('Failed to create quiz: ' + data.message);
         }
 
-        const qRes = await fetch(`${baseUrl}/api/v1/faculty/quiz/${quizIdToUse}/questions`, {
+        const qRes = await apiClient.fetch(`/api/v1/faculty/quiz/${quizIdToUse}/questions`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ questions: sanitizedQuestions })
         });
         const qData = await qRes.json();
@@ -724,9 +719,8 @@ export default function QuizManagement() {
     
     toast.info('Uploading image...');
     try {
-      const res = await fetch(`${baseUrl}/api/v1/faculty/quiz/upload-image`, {
+      const res = await apiClient.fetch('/api/v1/faculty/quiz/upload-image', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
         body: formDataUpload
       });
       const data = await res.json();
@@ -833,9 +827,7 @@ export default function QuizManagement() {
     setActiveQuizId(quizId);
     setActiveView('grade_submissions');
     try {
-      const res = await fetch(`${baseUrl}/api/v1/faculty/quiz/${quizId}/submissions`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const res = await apiClient.fetch(`/api/v1/faculty/quiz/${quizId}/submissions`);
       const data = await res.json();
       if (data?.status === 'success') setSubmissions(data.data);
     } catch (err) { console.error(err); }
@@ -856,9 +848,9 @@ export default function QuizManagement() {
     try {
       setLoading(true);
       const evalsArray = Object.keys(evaluations).map(respId => ({ responseId: respId, marks: evaluations[respId] }));
-      const res = await fetch(`${baseUrl}/api/v1/faculty/quiz/attempt/${activeAttempt.id}/evaluate`, {
+      const res = await apiClient.fetch(`/api/v1/faculty/quiz/attempt/${activeAttempt.id}/evaluate`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ evaluations: evalsArray, facultyFeedback })
       });
       const data = await res.json();
@@ -1514,12 +1506,7 @@ export default function QuizManagement() {
     const handleAllowRestart = async (attemptId: string) => {
       if (!confirm('Are you sure you want to allow this student to retake the exam? Their current attempt and all responses will be deleted.')) return;
       try {
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-        const token = localStorage.getItem('cira_token');
-        const res = await fetch(`${baseUrl}/api/v1/faculty/quiz/attempt/${attemptId}/allow-restart`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const res = await apiClient.fetch(`/api/v1/faculty/quiz/attempt/${attemptId}/allow-restart`, { method: 'POST' });
         const data = await res.json();
         if (data?.status === 'success') {
           toast.success('Student can now retake the exam.');

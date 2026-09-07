@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
 import { CheckCircle2, Trash2, Loader2 } from 'lucide-react';
 import { useBatches, useDepartments } from '@/hooks/useReferenceData';
+import { apiClient, getApiErrorMessage } from '@/lib/apiClient';
 
 export default function UserProfile() {
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-  const token = localStorage.getItem('cira_token');
   const user = JSON.parse(localStorage.getItem('cira_user') || '{}');
   const role = user.role || 'STUDENT';
 
@@ -30,10 +29,8 @@ export default function UserProfile() {
 
   // Fetch already-enrolled departments on mount
   useEffect(() => {
-    if (role === 'FACULTY' && token) {
-      fetch(`${baseUrl}/api/v1/faculty/departments`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
+    if (role === 'FACULTY') {
+      apiClient.fetch('/api/v1/faculty/departments')
         .then(res => res.json())
         .then(data => {
           if (data?.data?.departments) setEnrolledDepartments(data.data.departments);
@@ -67,12 +64,12 @@ export default function UserProfile() {
         payload.sectionId = enrollSectionId;
       }
 
-      const res = await fetch(`${baseUrl}/api/v1/faculty/enroll`, {
+      const res = await apiClient.fetch('/api/v1/faculty/enroll', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      const data = await res.json();
+      await res.json();
       if (res.ok) {
         const dept = deptsByBatch.find(d => d.id === enrollDeptId);
         const batch = batches.find(b => b.id === enrollBatchId);
@@ -89,11 +86,9 @@ export default function UserProfile() {
         setSuccess('Successfully enrolled!');
         setEnrollSectionId('');
         setTimeout(() => setSuccess(''), 3000);
-      } else {
-        setError(data?.message || data?.status || 'Enrollment failed. You may already be enrolled.');
       }
     } catch (err) {
-      setError('Network error. Please try again.');
+      setError(getApiErrorMessage(err, 'Enrollment failed. You may already be enrolled.'));
     } finally {
       setEnrolling(false);
     }
@@ -102,11 +97,8 @@ export default function UserProfile() {
   const handleUnenroll = async (id: string, type: 'department' | 'section') => {
     try {
       const endpoint = type === 'department' ? `/api/v1/faculty/enroll/${id}` : `/api/v1/faculty/enroll/section/${id}`;
-      const res = await fetch(`${baseUrl}${endpoint}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
+      await apiClient.fetch(endpoint, { method: 'DELETE' });
+      {
         if (type === 'department') {
           setEnrolledDepartments(prev => prev.filter(d => d.id !== id));
         } else {
@@ -116,7 +108,7 @@ export default function UserProfile() {
         setTimeout(() => setSuccess(''), 3000);
       }
     } catch (err) {
-      setError('Failed to unenroll. Please try again.');
+      setError(getApiErrorMessage(err, 'Failed to unenroll. Please try again.'));
     }
   };
 

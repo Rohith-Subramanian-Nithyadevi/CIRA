@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { apiClient } from '@/lib/apiClient';
 
 export interface Batch {
   id: string;
@@ -19,18 +20,14 @@ export interface Department {
   sections?: Section[];
 }
 
-const getBaseUrl = () => import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-
 /**
  * Fetch all academic batches with 5-minute cache
  */
 export const useBatches = () => {
-  const baseUrl = getBaseUrl();
-
   const query = useQuery({
     queryKey: ['batches'],
     queryFn: async (): Promise<Batch[]> => {
-      const res = await fetch(`${baseUrl}/api/v1/batches`);
+      const res = await apiClient.fetch('/api/v1/batches');
       if (!res.ok) {
         throw new Error('Failed to fetch batches');
       }
@@ -52,16 +49,14 @@ export const useBatches = () => {
  * Fetch all departments (optionally filtered by batchId) with 5-minute cache
  */
 export const useDepartments = (batchId?: string, options?: { enabled?: boolean }) => {
-  const baseUrl = getBaseUrl();
-
   const query = useQuery({
     queryKey: ['departments', batchId || 'all'],
     queryFn: async (): Promise<Department[]> => {
-      const url = batchId && batchId !== 'all' && batchId !== 'All Batches'
-        ? `${baseUrl}/api/v1/departments?batchId=${encodeURIComponent(batchId)}`
-        : `${baseUrl}/api/v1/departments`;
+      const path = batchId && batchId !== 'all' && batchId !== 'All Batches'
+        ? `/api/v1/departments?batchId=${encodeURIComponent(batchId)}`
+        : '/api/v1/departments';
 
-      const res = await fetch(url);
+      const res = await apiClient.fetch(path);
       if (!res.ok) {
         throw new Error('Failed to fetch departments');
       }

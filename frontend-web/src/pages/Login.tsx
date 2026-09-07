@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { apiClient } from '../lib/apiClient';
 import DotField from '../components/ui/DotField';
 
 interface Batch {
@@ -80,8 +81,7 @@ export default function Login() {
   useEffect(() => {
     const fetchBatches = async () => {
       try {
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-        const res = await fetch(`${baseUrl}/api/v1/batches`);
+        const res = await apiClient.fetch('/api/v1/batches');
         const data = await res.json();
         if (data?.data?.batches) {
           setBatches(data.data.batches);
@@ -100,8 +100,7 @@ export default function Login() {
     }
     const fetchDepartments = async () => {
       try {
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-        const res = await fetch(`${baseUrl}/api/v1/departments?batchId=${batchId}`);
+        const res = await apiClient.fetch(`/api/v1/departments?batchId=${batchId}`);
         const data = await res.json();
         if (data?.data?.departments) {
           setDepartments(data.data.departments);
@@ -131,8 +130,7 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-      const response = await fetch(`${baseUrl}/api/v1/auth/forgot-password`, {
+      const response = await apiClient.fetch('/api/v1/auth/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: forgotEmail.toLowerCase() }),
@@ -171,8 +169,7 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-      const response = await fetch(`${baseUrl}/api/v1/auth/reset-password`, {
+      const response = await apiClient.fetch('/api/v1/auth/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -213,8 +210,7 @@ export default function Login() {
       const googlePersonalEmail = (user.email || '').toLowerCase();
       setPersonalEmail(googlePersonalEmail);
 
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-      const response = await fetch(`${baseUrl}/api/v1/auth/firebase-login`, {
+      const response = await apiClient.fetch('/api/v1/auth/firebase-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ idToken: token }),
@@ -298,7 +294,6 @@ export default function Login() {
     }
 
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
       const payload: any = {
         idToken: firebaseIdToken,
         role,
@@ -316,7 +311,7 @@ export default function Login() {
         payload.subject = subject;
       }
 
-      const response = await fetch(`${baseUrl}/api/v1/auth/firebase-register`, {
+      const response = await apiClient.fetch('/api/v1/auth/firebase-register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -382,7 +377,6 @@ export default function Login() {
     }
 
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
       const endpoint = isLogin ? '/api/v1/auth/login' : '/api/v1/auth/register';
       
       const payload: any = isLogin ? { email, password } : { 
@@ -398,7 +392,7 @@ export default function Login() {
         payload.subject = subject;
       }
 
-      const response = await fetch(`${baseUrl}${endpoint}`, {
+      const response = await apiClient.fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -449,8 +443,7 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-      const response = await fetch(`${baseUrl}/api/v1/auth/verify-email`, {
+      const response = await apiClient.fetch('/api/v1/auth/verify-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, code: verificationCode }),

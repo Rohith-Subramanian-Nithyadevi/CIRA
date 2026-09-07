@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import DashboardLayout from '../components/DashboardLayout';
 import UserProfile from '../components/dashboard/UserProfile';
+import { apiClient } from '@/lib/apiClient';
 
 interface Faculty {
   id: string;
@@ -47,14 +48,10 @@ export default function AdminDashboard() {
   useEffect(() => {
     const fetchAdminData = async () => {
       try {
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-        const token = localStorage.getItem('cira_token');
-        const headers = { 'Authorization': `Bearer ${token}` };
-
         const [facRes, userRes, batchRes] = await Promise.all([
-          fetch(`${baseUrl}/api/v1/admin/faculty/all`, { headers }),
-          fetch(`${baseUrl}/api/v1/admin/users`, { headers }),
-          fetch(`${baseUrl}/api/v1/batches`, { headers })
+          apiClient.fetch('/api/v1/admin/faculty/all'),
+          apiClient.fetch('/api/v1/admin/users'),
+          apiClient.fetch('/api/v1/batches')
         ]);
 
         const facData = await facRes.json();
@@ -78,11 +75,7 @@ export default function AdminDashboard() {
     }
     const fetchDepartments = async () => {
       try {
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-        const token = localStorage.getItem('cira_token');
-        const res = await fetch(`${baseUrl}/api/v1/departments?batchId=${selectedBatchId}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const res = await apiClient.fetch(`/api/v1/departments?batchId=${selectedBatchId}`);
         const data = await res.json();
         if (data.data?.departments) setDepartments(data.data.departments);
       } catch (err) {
@@ -94,14 +87,9 @@ export default function AdminDashboard() {
 
   const handleApproval = async (id: string, status: 'APPROVED' | 'REJECTED') => {
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-      const token = localStorage.getItem('cira_token');
-      await fetch(`${baseUrl}/api/v1/admin/faculty/${id}/approve`, {
+      await apiClient.fetch(`/api/v1/admin/faculty/${id}/approve`, {
         method: 'PUT',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status })
       });
       setFacultyList(prev => prev.map(f => f.id === id ? { ...f, approvalStatus: status } : f));
@@ -114,12 +102,7 @@ export default function AdminDashboard() {
   const handleDeleteUser = async (id: string) => {
     if (!window.confirm('Are you sure you want to delete this user?')) return;
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-      const token = localStorage.getItem('cira_token');
-      await fetch(`${baseUrl}/api/v1/admin/users/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      await apiClient.fetch(`/api/v1/admin/users/${id}`, { method: 'DELETE' });
       setUserList(prev => prev.filter(u => u.id !== id));
       setFacultyList(prev => prev.filter(f => f.id !== id));
     } catch (err) {
@@ -130,11 +113,9 @@ export default function AdminDashboard() {
   const handleCreateDepartment = async () => {
     if (!newDeptName || !selectedBatchId) return;
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-      const token = localStorage.getItem('cira_token');
-      const res = await fetch(`${baseUrl}/api/v1/departments`, {
+      const res = await apiClient.fetch('/api/v1/departments', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newDeptName, batchId: selectedBatchId })
       });
       const data = await res.json();
@@ -148,11 +129,9 @@ export default function AdminDashboard() {
   const handleCreateSection = async () => {
     if (!newSectionName || !selectedDeptId) return;
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-      const token = localStorage.getItem('cira_token');
-      const res = await fetch(`${baseUrl}/api/v1/departments/sections`, {
+      const res = await apiClient.fetch('/api/v1/departments/sections', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newSectionName, departmentId: selectedDeptId })
       });
       const data = await res.json();
@@ -168,12 +147,7 @@ export default function AdminDashboard() {
   const handleDeleteDepartment = async (id: string) => {
     if (!window.confirm('Delete department? All sections inside will be lost.')) return;
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-      const token = localStorage.getItem('cira_token');
-      await fetch(`${baseUrl}/api/v1/departments/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      await apiClient.fetch(`/api/v1/departments/${id}`, { method: 'DELETE' });
       setDepartments(prev => prev.filter(d => d.id !== id));
       if (selectedDeptId === id) setSelectedDeptId('');
     } catch (err) { console.error(err); }

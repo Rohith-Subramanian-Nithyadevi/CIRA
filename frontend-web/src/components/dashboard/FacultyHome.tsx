@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useBatches, useDepartments } from '@/hooks/useReferenceData';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { apiClient } from '@/lib/apiClient';
 
 const sanitizeHtml = (value: string) => DOMPurify.sanitize(value || '', { ALLOWED_TAGS: ['b', 'strong', 'i', 'em', 'u', 's', 'strike', 'ol', 'ul', 'li', 'a', 'p', 'br'], ALLOWED_ATTR: ['href', 'target', 'rel'] });
 
@@ -58,9 +59,6 @@ interface AnnouncementResponse { id: string; response: string; submittedAt: stri
 interface Notification { id: string; type: string; message: string; createdAt: string; read: boolean; }
 
 export default function FacultyHome() {
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-  const token = localStorage.getItem('cira_token');
-
   // Loading States
   const [loadingTasks, setLoadingTasks] = useState(true);
   const [loadingCalendar, setLoadingCalendar] = useState(true);
@@ -101,6 +99,7 @@ export default function FacultyHome() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [notifLoading, setNotifLoading] = useState(false);
+  const notificationRequestInFlight = useRef(false);
   
   const [viewingResponsesFor, setViewingResponsesFor] = useState<string | null>(null);
   const [announcementResponses, setAnnouncementResponses] = useState<AnnouncementResponse[]>([]);
@@ -127,7 +126,7 @@ export default function FacultyHome() {
 
   const fetchTasks = async () => {
     try {
-      const res = await fetch(`${baseUrl}/api/v1/faculty/dashboard/tasks`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await apiClient.fetch('/api/v1/faculty/dashboard/tasks');
       const data = await res.json();
       if (data?.success) setTodos(data.data);
     } catch (err) {} finally { setLoadingTasks(false); }
@@ -135,7 +134,7 @@ export default function FacultyHome() {
 
   const fetchCalendarEvents = async () => {
     try {
-      const res = await fetch(`${baseUrl}/api/v1/faculty/dashboard/calendar`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await apiClient.fetch('/api/v1/faculty/dashboard/calendar');
       const data = await res.json();
       if (data?.success) setCalendarEvents(data.data.map((e: any) => ({ ...e, date: getLocalDateString(e.date) })));
     } catch (err) {} finally { setLoadingCalendar(false); }
@@ -143,7 +142,7 @@ export default function FacultyHome() {
 
   const fetchAnnouncements = async (pageNumber = 1) => {
     try {
-      const res = await fetch(`${baseUrl}/api/v1/faculty/dashboard/announcements?page=${pageNumber}&limit=10`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await apiClient.fetch(`/api/v1/faculty/dashboard/announcements?page=${pageNumber}&limit=10`);
       const data = await res.json();
       if (data?.success) {
         const fetchedAnnouncements = Array.isArray(data.data) ? data.data : data.data.items;
@@ -164,15 +163,18 @@ export default function FacultyHome() {
   };
 
   const fetchNotifications = async () => {
+    if (notificationRequestInFlight.current) return;
+    notificationRequestInFlight.current = true;
     try {
       setNotifLoading(true);
-      const res = await fetch(`${baseUrl}/api/v1/faculty/dashboard/notifications`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await apiClient.fetch('/api/v1/faculty/dashboard/notifications');
       if (!res.ok) return; // Fail silently
       const data = await res.json();
       if (data?.success) setNotifications(data.data);
     } catch (_err) {
       // Fail silently — do not crash dashboard if notifications fail
     } finally {
+      notificationRequestInFlight.current = false;
       setNotifLoading(false);
     }
   };
@@ -186,9 +188,8 @@ export default function FacultyHome() {
       setNotifications(prev => prev.map(n => ({ ...n, read: true })));
       // Persist to backend (fire-and-forget)
       unread.forEach(n => {
-        fetch(`${baseUrl}/api/v1/faculty/dashboard/notifications/${n.id}/read`, {
+        apiClient.fetch(`/api/v1/faculty/dashboard/notifications/${n.id}/read`, {
           method: 'PATCH',
-          headers: { 'Authorization': `Bearer ${token}` }
         }).catch(() => {});
       });
     }
@@ -200,8 +201,8 @@ export default function FacultyHome() {
     const t = newTaskText;
     setNewTaskText(''); setIsAddingTask(false);
     try {
-      const res = await fetch(`${baseUrl}/api/v1/faculty/dashboard/tasks`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      const res = await apiClient.fetch('/api/v1/faculty/dashboard/tasks', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ task: t, date: new Date().toISOString() })
       });
       const data = await res.json();
@@ -212,8 +213,8 @@ export default function FacultyHome() {
   const toggleTodo = async (id: string, currentStatus: boolean) => {
     setTodos(todos.map(t => t.id === id ? { ...t, completed: !currentStatus } : t));
     try {
-      await fetch(`${baseUrl}/api/v1/faculty/dashboard/tasks/${id}`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      await apiClient.fetch(`/api/v1/faculty/dashboard/tasks/${id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ completed: !currentStatus })
       });
     } catch (err) {}
@@ -223,7 +224,7 @@ export default function FacultyHome() {
     e.stopPropagation();
     setTodos(todos.filter(t => t.id !== id));
     try {
-      await fetch(`${baseUrl}/api/v1/faculty/dashboard/tasks/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+      await apiClient.fetch(`/api/v1/faculty/dashboard/tasks/${id}`, { method: 'DELETE' });
     } catch (err) {}
   };
 
@@ -236,8 +237,8 @@ export default function FacultyHome() {
     const date = `${localDateStr}T12:00:00.000Z`;
     setNewEventTitle(''); setShowEventForm(false);
     try {
-      const res = await fetch(`${baseUrl}/api/v1/faculty/dashboard/calendar`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      const res = await apiClient.fetch('/api/v1/faculty/dashboard/calendar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title, date })
       });
       const data = await res.json();
@@ -248,7 +249,7 @@ export default function FacultyHome() {
   const deleteCalendarEvent = async (id: string) => {
     setCalendarEvents(calendarEvents.filter(e => e.id !== id));
     try {
-      await fetch(`${baseUrl}/api/v1/faculty/dashboard/calendar/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+      await apiClient.fetch(`/api/v1/faculty/dashboard/calendar/${id}`, { method: 'DELETE' });
     } catch (err) {}
   };
 
@@ -281,8 +282,8 @@ export default function FacultyHome() {
     setNewAnnouncement({ title: '', content: '', isSurvey: false, batch: 'All Batches', department: 'All Departments', section: 'All Sections' });
     
     try {
-      const res = await fetch(`${baseUrl}/api/v1/faculty/dashboard/announcements`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      const res = await apiClient.fetch('/api/v1/faculty/dashboard/announcements', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
       const data = await res.json();
@@ -293,7 +294,7 @@ export default function FacultyHome() {
   const deleteAnnouncement = async (id: string) => {
     setAnnouncements(announcements.filter(a => a.id !== id));
     try {
-      await fetch(`${baseUrl}/api/v1/faculty/dashboard/announcements/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+      await apiClient.fetch(`/api/v1/faculty/dashboard/announcements/${id}`, { method: 'DELETE' });
     } catch (err) {}
   };
 
@@ -301,7 +302,7 @@ export default function FacultyHome() {
     setViewingResponsesFor(id);
     setLoadingResponses(true);
     try {
-      const res = await fetch(`${baseUrl}/api/v1/faculty/dashboard/announcements/${id}/responses`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await apiClient.fetch(`/api/v1/faculty/dashboard/announcements/${id}/responses`);
       const data = await res.json();
       if (data?.success) setAnnouncementResponses(data.data);
     } catch (err) {} finally { setLoadingResponses(false); }
@@ -320,11 +321,11 @@ export default function FacultyHome() {
   return (
     <div className="space-y-6 relative">
       {viewingResponsesFor && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col">
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" role="presentation">
+          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col" role="dialog" aria-modal="true" aria-labelledby="survey-responses-title">
             <div className="p-4 border-b border-border-soft flex justify-between items-center">
-              <h3 className="font-bold font-serif text-ink">Survey Responses</h3>
-              <button onClick={() => setViewingResponsesFor(null)}><X className="w-5 h-5 text-gray-body" /></button>
+              <h3 id="survey-responses-title" className="font-bold font-serif text-ink">Survey Responses</h3>
+              <button aria-label="Close survey responses" onClick={() => setViewingResponsesFor(null)}><X className="w-5 h-5 text-gray-body" /></button>
             </div>
             <div className="p-4 overflow-y-auto flex-1">
               {loadingResponses ? (
@@ -356,12 +357,12 @@ export default function FacultyHome() {
       <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-border-soft shadow-sm">
         <h2 className="text-xl font-serif font-bold text-ink">Dashboard</h2>
         <div className="relative">
-          <button onClick={handleOpenNotifications} className="p-2 hover:bg-cream rounded-full relative transition-colors">
+          <button aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`} aria-expanded={showNotifications} aria-controls="faculty-notifications" onClick={handleOpenNotifications} className="p-2 hover:bg-cream rounded-full relative transition-colors">
             <Bell className="w-5 h-5 text-ink" />
             {unreadCount > 0 && <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>}
           </button>
           {showNotifications && (
-            <div className="absolute right-0 top-12 w-80 bg-white border border-border-soft rounded-xl shadow-xl z-50 overflow-hidden">
+            <div id="faculty-notifications" role="region" aria-label="Notifications" className="absolute right-0 top-12 w-80 bg-white border border-border-soft rounded-xl shadow-xl z-50 overflow-hidden">
               <div className="px-4 py-3 border-b border-border-soft flex justify-between items-center">
                 <h4 className="font-bold text-sm text-ink">Notifications</h4>
                 {notifLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-body" />}
@@ -507,14 +508,14 @@ export default function FacultyHome() {
                 <EmptyState icon={<ListTodo className="w-8 h-8 text-maroon" />} title="No tasks" description="You have no tasks created yet. Add one below!" />
               ) : todos.map(todo => (
                 <div key={todo.id} className={`p-3 rounded-lg border transition-colors flex gap-3 group ${todo.completed ? 'bg-green-50/5 border-green-500/20 text-gray-body/70' : 'bg-cream/20 border-border-soft text-ink hover:border-maroon/20 hover:bg-cream/40'}`}>
-                  <div className="mt-0.5 shrink-0 cursor-pointer" onClick={() => toggleTodo(todo.id, todo.completed)}>
+                  <button type="button" aria-label={`${todo.completed ? 'Mark incomplete' : 'Mark complete'}: ${todo.task}`} className="mt-0.5 shrink-0" onClick={() => toggleTodo(todo.id, todo.completed)}>
                     {todo.completed ? <CheckCircle2 className="w-4 h-4 text-green-600" /> : <Circle className="w-4 h-4 text-gray-body/60" />}
-                  </div>
-                  <div className="flex-1 cursor-pointer" onClick={() => toggleTodo(todo.id, todo.completed)}>
+                  </button>
+                  <button type="button" aria-label={`Toggle task: ${todo.task}`} className="flex-1 text-left" onClick={() => toggleTodo(todo.id, todo.completed)}>
                     <p className={`text-sm ${todo.completed ? 'line-through text-gray-body/60' : 'font-medium text-ink'}`}>{todo.task}</p>
                     <p className="text-[10px] text-gray-body mt-1 uppercase tracking-wider">{new Date(todo.date).toLocaleDateString()}</p>
-                  </div>
-                  <button onClick={(e) => deleteTask(todo.id, e)} className="text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-50 rounded"><Trash2 className="w-4 h-4" /></button>
+                  </button>
+                  <button aria-label={`Delete task: ${todo.task}`} onClick={(e) => deleteTask(todo.id, e)} className="text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-50 rounded"><Trash2 className="w-4 h-4" /></button>
                 </div>
               ))}
             </div>

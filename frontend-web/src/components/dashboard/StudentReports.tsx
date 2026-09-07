@@ -33,11 +33,9 @@ import {
 import { useBatches, useDepartments } from '../../hooks/useReferenceData';
 import StudentProfileView from './StudentProfileView';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { apiClient } from '@/lib/apiClient';
 
 export const StudentReports = () => {
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-  const token = localStorage.getItem('cira_token');
-
   // Shared Reference Data (cached with TanStack Query)
   const { batches } = useBatches();
   const { departments } = useDepartments();
@@ -109,9 +107,7 @@ export const StudentReports = () => {
       const params = new URLSearchParams({ posted: 'true' });
       if (selectedDept) params.set('departmentId', selectedDept);
       if (selectedSection) params.set('sectionId', selectedSection);
-      const res = await fetch(`${baseUrl}/api/v1/faculty/quiz?${params.toString()}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const res = await apiClient.fetch(`/api/v1/faculty/quiz?${params.toString()}`);
       const data = await res.json();
       if (data?.data) setQuizzes(data.data);
     } catch (err) {
@@ -135,11 +131,7 @@ export const StudentReports = () => {
       setSearchLoading(true);
       setSearchError(null);
 
-      const res = await fetch(`${baseUrl}/api/v1/faculty/students/search?rollNumber=${encodeURIComponent(queryRoll)}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const res = await apiClient.fetch(`/api/v1/faculty/students/search?rollNumber=${encodeURIComponent(queryRoll)}`);
 
       const json = await res.json();
 
@@ -227,11 +219,7 @@ export const StudentReports = () => {
       if (selectedDept) params.append('departmentId', selectedDept);
       if (selectedSection) params.append('sectionId', selectedSection);
 
-      const res = await fetch(`${baseUrl}/api/v1/faculty/reports/performance-bands?${params.toString()}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const res = await apiClient.fetch(`/api/v1/faculty/reports/performance-bands?${params.toString()}`);
 
       if (!res.ok) {
         if (res.status === 403) {
@@ -275,9 +263,7 @@ export const StudentReports = () => {
       try {
         setQuizAnalyticsLoading(true);
         setQuizAnalyticsError(null);
-        const res = await fetch(`${baseUrl}/api/v1/faculty/reports/quiz/${selectedQuiz}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const res = await apiClient.fetch(`/api/v1/faculty/reports/quiz/${selectedQuiz}`);
         const json = await res.json();
         if (!res.ok) throw new Error(json.message || 'Failed to load quiz analytics.');
         setQuizAnalytics(json.data || null);
@@ -354,6 +340,9 @@ export const StudentReports = () => {
             <button
               type="button"
               onClick={() => setIsBatchDropdownOpen(prev => !prev)}
+              aria-haspopup="listbox"
+              aria-expanded={isBatchDropdownOpen}
+              aria-label={`Batch: ${batches.find(b => b.id === selectedBatch)?.name || 'Select Batch'}`}
               className="flex items-center space-x-2.5 bg-white hover:bg-cream/70 border border-border-soft hover:border-maroon/50 shadow-xs px-3.5 py-2 rounded-xl transition-all cursor-pointer group"
               title="Click to switch or return to any batch"
             >
@@ -371,7 +360,7 @@ export const StudentReports = () => {
 
             {/* Dropdown Menu Popover */}
             {isBatchDropdownOpen && (
-              <div className="absolute left-0 mt-2 w-64 bg-white border border-border-soft rounded-2xl shadow-xl z-50 p-2 animate-in fade-in slide-in-from-top-2 duration-150">
+              <div role="listbox" aria-label="Available batches" className="absolute left-0 mt-2 w-64 bg-white border border-border-soft rounded-2xl shadow-xl z-50 p-2 animate-in fade-in slide-in-from-top-2 duration-150">
                 <div className="px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-gray-body border-b border-border-soft/60 mb-1 flex items-center justify-between">
                   <span>Available Batches</span>
                   <span className="bg-cream text-maroon text-[10px] font-bold px-2 py-0.5 rounded-full border border-border-soft/60">
@@ -386,6 +375,8 @@ export const StudentReports = () => {
                         key={batch.id}
                         type="button"
                         onClick={() => handleSelectBatch(batch.id)}
+                        role="option"
+                        aria-selected={isCurrent}
                         className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-left text-sm transition-all cursor-pointer ${
                           isCurrent 
                             ? 'bg-maroon text-white font-bold shadow-xs' 
@@ -545,10 +536,10 @@ export const StudentReports = () => {
           <h2 className="text-xl font-serif font-bold text-ink">Department Overview</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {activeDepartments.map(dept => (
-              <div 
-                key={dept.id} 
+              <button
+                key={dept.id}
                 onClick={() => setSelectedDept(dept.id)}
-                className="bg-white border border-border-soft rounded-xl p-6 hover:border-maroon/40 cursor-pointer transition-all hover:-translate-y-1 hover:shadow-sm"
+                className="w-full text-left bg-white border border-border-soft rounded-xl p-6 hover:border-maroon/40 transition-all hover:-translate-y-1 hover:shadow-sm"
               >
                 <h3 className="text-lg font-bold text-ink mb-1">{dept.name}</h3>
                 <p className="text-xs text-gray-body mb-4">Click to view section details</p>
@@ -556,7 +547,7 @@ export const StudentReports = () => {
                   <span className="text-gray-body">Completed attempts</span>
                   <span className="font-bold text-maroon">{reportHasData ? reportSummary.totalAttempts : '--'}</span>
                 </div>
-              </div>
+              </button>
             ))}
             {activeDepartments.length === 0 && (
               <div className="col-span-3">
@@ -656,14 +647,14 @@ export const StudentReports = () => {
            </div>
            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
              {departments.find(d => d.id === selectedDept)?.sections?.map((sec: any) => (
-                <div 
+                <button
                   key={sec.id} 
                   onClick={() => setSelectedSection(sec.id)}
-                  className="bg-white border border-border-soft rounded-xl p-5 hover:border-maroon/40 cursor-pointer transition-all flex items-center justify-between shadow-sm"
+                  className="w-full bg-white border border-border-soft rounded-xl p-5 text-left hover:border-maroon/40 transition-all flex items-center justify-between shadow-sm"
                 >
                   <span className="text-base font-semibold text-ink">Section {sec.name}</span>
                   <ChevronRight className="w-5 h-5 text-gray-body" />
-                </div>
+                </button>
              ))}
            </div>
            
@@ -761,10 +752,10 @@ export const StudentReports = () => {
            </div>
            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
              {quizzes.map(quiz => (
-                <div 
-                  key={quiz.id} 
+                <button
+                  key={quiz.id}
                   onClick={() => setSelectedQuiz(quiz.id)}
-                  className="bg-white border border-border-soft rounded-xl p-6 hover:border-maroon/40 cursor-pointer transition-all shadow-sm group relative overflow-hidden"
+                  className="w-full text-left bg-white border border-border-soft rounded-xl p-6 hover:border-maroon/40 transition-all shadow-sm group relative overflow-hidden"
                 >
                   <div className="absolute top-0 right-0 w-32 h-32 bg-maroon/5 rounded-full blur-3xl group-hover:bg-maroon/10 transition-all"></div>
                   <h3 className="text-lg font-bold text-ink mb-1 relative z-10">{quiz.title}</h3>
@@ -772,7 +763,7 @@ export const StudentReports = () => {
                   <div className="flex items-center text-maroon text-xs font-bold relative z-10">
                     View detailed analytics <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
                   </div>
-                </div>
+                </button>
              ))}
              {quizzes.length === 0 && (
                <div className="col-span-full">
