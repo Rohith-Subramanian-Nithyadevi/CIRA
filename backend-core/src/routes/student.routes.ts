@@ -5,6 +5,13 @@ import {
   createTask,
   toggleTask,
   deleteTask,
+  getHabits,
+  createHabit,
+  toggleHabit,
+  deleteHabit,
+  getCalendarEvents,
+  createCalendarEvent,
+  deleteCalendarEvent,
   getResources,
   getTimeline,
   getStrengthsWeaknesses,
@@ -22,6 +29,17 @@ router.get('/tasks', getTasks);
 router.post('/tasks', createTask);
 router.patch('/tasks/:id', toggleTask);
 router.delete('/tasks/:id', deleteTask);
+
+// Habits
+router.get('/habits', getHabits);
+router.post('/habits', createHabit);
+router.patch('/habits/:id', toggleHabit);
+router.delete('/habits/:id', deleteHabit);
+
+// Calendar
+router.get('/calendar', getCalendarEvents);
+router.post('/calendar', createCalendarEvent);
+router.delete('/calendar/:id', deleteCalendarEvent);
 
 // Resources
 router.get('/resources', getResources);

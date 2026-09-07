@@ -24,7 +24,7 @@ export const getTasks = async (req: Request, res: Response) => {
 export const createTask = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user?.userId;
-    const { title, description, date } = req.body;
+    const { title, description, date, estimatedTime } = req.body;
     
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
@@ -32,6 +32,7 @@ export const createTask = async (req: Request, res: Response) => {
       data: {
         title,
         description: description || null,
+        estimatedTime: estimatedTime || null,
         date: new Date(date),
         userId
       }
@@ -94,6 +95,117 @@ export const deleteTask = async (req: Request, res: Response) => {
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete task' });
+  }
+};
+
+// ----------------------------------------------------
+// DAILY CORE HABITS
+// ----------------------------------------------------
+
+export const getHabits = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const habits = await (prisma.studentHabit as any).findMany({
+      where: { userId },
+      orderBy: { createdAt: 'asc' }
+    });
+    res.json(habits);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch habits' });
+  }
+};
+
+export const createHabit = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    const { title } = req.body;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const habit = await (prisma.studentHabit as any).create({
+      data: { title, userId, completedDates: [] }
+    });
+    res.status(201).json(habit);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create habit' });
+  }
+};
+
+export const toggleHabit = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { date } = req.body; // format 'YYYY-MM-DD'
+    const habit = await (prisma.studentHabit as any).findUnique({ where: { id } });
+    if (!habit) return res.status(404).json({ error: 'Not found' });
+    
+    let dates: string[] = Array.isArray(habit.completedDates) ? habit.completedDates : [];
+    if (dates.includes(date)) {
+      dates = dates.filter(d => d !== date);
+    } else {
+      dates.push(date);
+    }
+    const updated = await (prisma.studentHabit as any).update({
+      where: { id },
+      data: { completedDates: dates }
+    });
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to toggle habit' });
+  }
+};
+
+export const deleteHabit = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    await (prisma.studentHabit as any).delete({ where: { id } });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete habit' });
+  }
+};
+
+// ----------------------------------------------------
+// CALENDAR EVENTS
+// ----------------------------------------------------
+
+export const getCalendarEvents = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const events = await (prisma.studentCalendarEvent as any).findMany({
+      where: { userId },
+      orderBy: { date: 'asc' }
+    });
+    res.json({ success: true, data: events });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to fetch calendar events' });
+  }
+};
+
+export const createCalendarEvent = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    const { title, date } = req.body;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const newEvent = await (prisma.studentCalendarEvent as any).create({
+      data: {
+        title,
+        date: new Date(date),
+        userId
+      }
+    });
+    res.status(201).json({ success: true, data: newEvent });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to create calendar event' });
+  }
+};
+
+export const deleteCalendarEvent = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    await (prisma.studentCalendarEvent as any).delete({ where: { id } });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to delete calendar event' });
   }
 };
 
