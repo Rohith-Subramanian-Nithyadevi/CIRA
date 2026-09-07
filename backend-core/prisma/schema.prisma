@@ -52,13 +52,27 @@ enum QuizAttemptStatus {
   EVALUATED
 }
 
+model Batch {
+  id          String       @id @default(uuid())
+  name        String       @unique
+  startYear   Int
+  departments Department[]
+  assignmentTargets AssignmentBatch[]
+  createdAt   DateTime     @default(now())
+}
+
 model Department {
   id        String    @id @default(uuid())
-  name      String    @unique
+  name      String
+  batchId   String
+  batch     Batch     @relation(fields: [batchId], references: [id], onDelete: Cascade)
   sections  Section[]
   users     User[]    @relation("UserDepartment")
   mappedFaculty FacultyDepartment[]
   quizAssignments QuizDepartment[]
+  assignmentTargets AssignmentDepartment[]
+
+  @@unique([name, batchId])
 }
 
 model Section {
@@ -68,6 +82,8 @@ model Section {
   department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
   users        User[]     @relation("UserSection")
   quizAssignments QuizSection[]
+  assignmentTargets AssignmentSection[]
+  mappedFaculty FacultySection[]
 
   @@unique([name, departmentId])
 }
@@ -95,6 +111,7 @@ model User {
   section        Section?       @relation("UserSection", fields: [sectionId], references: [id], onDelete: SetNull)
   
   mappedDepartments FacultyDepartment[]
+  mappedSections    FacultySection[]
 
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
@@ -103,6 +120,12 @@ model User {
   quizAttempts           QuizAttempt[]
   assignmentSubmissions  AssignmentSubmission[]
   quizAssignments        QuizStudent[]
+  calendarEvents         CalendarEvent[] @relation("FacultyCalendarEvents")
+  tasks                  Task[]          @relation("FacultyTasks")
+  announcements          Announcement[]  @relation("FacultyAnnouncements")
+  announcementResponses  AnnouncementResponse[]
+  assignmentTargets      AssignmentStudent[]
+  notifications          Notification[]  @relation("FacultyNotifications")
 }
 
 model FacultyDepartment {
@@ -113,6 +136,16 @@ model FacultyDepartment {
   department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
 
   @@id([userId, departmentId])
+}
+
+model FacultySection {
+  userId    String
+  sectionId String
+
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  section   Section @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, sectionId])
 }
 
 model Quiz {
@@ -129,6 +162,7 @@ model Quiz {
   durationMinutes  Int           @default(60)
   allowLateJoin    Boolean       @default(false)
   autoSubmit       Boolean       @default(true)
+  answersPublished Boolean       @default(false)
 
   performanceBands Json?         // e.g., { "EXCELLENT": { min: 90, max: 100 }, ... }
   
@@ -147,6 +181,7 @@ model Question {
   quizId        String
   type          QuestionType
   text          String
+  topic         String?
   marks         Float
   negativeMarks Float        @default(0)
   options       Json?        // Array of options for MCQ/Multi-select
@@ -203,6 +238,7 @@ model QuizAttempt {
   finalGrade          String?
   performanceCategory PerformanceRating?
   facultyFeedback     String?
+  violationReason     String?            // Reason exam was auto-terminated (e.g. "Pressed key: Alt")
   
   metrics             Json?
   createdAt           DateTime           @default(now())
@@ -232,9 +268,15 @@ model Assignment {
   title        String
   description  String?
   createdBy    String
+  maxMarks     Float    @default(100)
   createdAt    DateTime @default(now())
   
   submissions  AssignmentSubmission[]
+  
+  targetBatches      AssignmentBatch[]
+  targetDepartments  AssignmentDepartment[]
+  targetSections     AssignmentSection[]
+  targetStudents     AssignmentStudent[]
 }
 
 model AssignmentSubmission {
@@ -242,6 +284,9 @@ model AssignmentSubmission {
   userId       String
   assignmentId String
   rating       PerformanceRating?
+  grade        Float?
+  fileUrl      String?
+  submissionText String?
   feedback     String?
   submittedAt  DateTime           @default(now())
 
@@ -275,4 +320,101 @@ model Result {
   assessment    Assessment @relation(fields: [assessment_id], references: [id])
 
   @@unique([user_id, assessment_id])
+}
+
+model AssignmentBatch {
+  assignmentId String
+  batchId      String
+
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  batch        Batch      @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@id([assignmentId, batchId])
+}
+
+model AssignmentDepartment {
+  assignmentId String
+  departmentId String
+
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  @@id([assignmentId, departmentId])
+}
+
+model AssignmentSection {
+  assignmentId String
+  sectionId    String
+
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  section      Section    @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@id([assignmentId, sectionId])
+}
+
+model AssignmentStudent {
+  assignmentId String
+  userId       String
+
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([assignmentId, userId])
+}
+
+model CalendarEvent {
+  id        String   @id @default(uuid())
+  title     String
+  date      DateTime
+  facultyId String
+  faculty   User     @relation("FacultyCalendarEvents", fields: [facultyId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
+model Task {
+  id        String   @id @default(uuid())
+  task      String
+  date      DateTime
+  completed Boolean  @default(false)
+  facultyId String
+  faculty   User     @relation("FacultyTasks", fields: [facultyId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
+model Announcement {
+  id        String   @id @default(uuid())
+  title     String
+  content   String
+  date      DateTime
+  isSurvey  Boolean  @default(false)
+  audience  String
+  facultyId String
+  faculty   User     @relation("FacultyAnnouncements", fields: [facultyId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  
+  responses AnnouncementResponse[]
+}
+
+model AnnouncementResponse {
+  id             String       @id @default(uuid())
+  announcementId String
+  userId         String
+  response       String
+  submittedAt    DateTime     @default(now())
+
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, userId])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  facultyId String
+  type      String
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  faculty   User     @relation("FacultyNotifications", fields: [facultyId], references: [id], onDelete: Cascade)
 }

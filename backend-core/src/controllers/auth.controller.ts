@@ -63,8 +63,8 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
     }
 
     if (validatedData.role === 'FACULTY') {
-      if (!validatedData.email.toLowerCase().endsWith('@ch.amrita.edu')) {
-        throw new BadRequestError('Faculty email must end with @ch.amrita.edu');
+      if (!validatedData.email.toLowerCase().endsWith('@amrita.edu')) {
+        throw new BadRequestError('Faculty email must end with @amrita.edu');
       }
       if (!validatedData.employeeId) throw new BadRequestError('Employee ID is required for faculty');
       if (!validatedData.subject) throw new BadRequestError('Subject is required for faculty');
@@ -456,8 +456,8 @@ export const firebaseAuthRegister = async (req: Request, res: Response, next: Ne
       throw new BadRequestError('Student college email must end with @ch.students.amrita.edu');
     }
 
-    if (role === 'FACULTY' && !collegeEmail.endsWith('@ch.amrita.edu') && !collegeEmail.endsWith('@ch.students.amrita.edu')) {
-      throw new BadRequestError('Faculty college email must end with @ch.amrita.edu');
+    if (role === 'FACULTY' && !collegeEmail.endsWith('@amrita.edu') && !collegeEmail.endsWith('@ch.students.amrita.edu')) {
+      throw new BadRequestError('Faculty college email must end with @amrita.edu');
     }
 
     const existingUser = await prisma.user.findFirst({

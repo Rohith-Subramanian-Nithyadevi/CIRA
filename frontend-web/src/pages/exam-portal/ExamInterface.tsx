@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { useSecureExam } from '../../hooks/useSecureExam';
+import { apiClient } from '../../lib/apiClient';
 
 type QuestionStatus = 'NOT_VISITED' | 'NOT_ANSWERED' | 'ANSWERED' | 'MARKED_FOR_REVIEW' | 'ANSWERED_AND_MARKED_FOR_REVIEW';
 
@@ -23,23 +25,51 @@ export default function ExamInterface() {
   const [saving, setSaving] = useState(false);
   const [attemptId, setAttemptId] = useState<string>('');
   const [quizDetails, setQuizDetails] = useState<any>(null);
+  const [hasStartedSecureExam, setHasStartedSecureExam] = useState(false);
+  const submittingRef = React.useRef(false);
+  const attemptIdRef = React.useRef('');
+
+  // Zero tolerance: any violation = instant auto-submit with reason logged
+  const handleSecurityViolation = async (reason: string) => {
+    if (!attemptId) return;
+    try {
+      await apiClient.fetch(`/api/v1/student/exam/attempt/${attemptId}/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ violationReason: reason })
+      });
+      toast.error(`Exam terminated: ${reason}`);
+      navigate('/exam-portal', { replace: true });
+    } catch (e) {
+      console.error('Failed to submit violation:', e);
+      navigate('/exam-portal', { replace: true });
+    }
+  };
+
+  const { isFullscreen, enterFullscreen } = useSecureExam({
+    isActive: hasStartedSecureExam,
+    onViolation: handleSecurityViolation
+  });
+
+  const hasFetched = React.useRef(false);
 
   useEffect(() => {
+    if (hasFetched.current) return;
+    
     const fetchQuiz = async () => {
       try {
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-        const token = localStorage.getItem('cira_token');
-        const res = await fetch(`${baseUrl}/api/v1/student/exam/start/${quizId}`, {
+        hasFetched.current = true;
+        const res = await apiClient.fetch(`/api/v1/student/exam/start/${quizId}`, {
           method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}` }
         });
         const data = await res.json();
         
-        if (data.status === 'success') {
+        if (data.status === 'success' && data.data?.attempt && data.data?.quiz) {
           const { attempt, quiz } = data.data;
           setQuizDetails(quiz);
           setQuestions(quiz.questions || []);
           setAttemptId(attempt.id);
+          attemptIdRef.current = attempt.id;
           
           const loadedResponses: Record<string, { data: any, status: QuestionStatus }> = {};
           if (attempt.responses) {
@@ -54,9 +84,9 @@ export default function ExamInterface() {
           const elapsedSec = Math.floor((Date.now() - startTime) / 1000);
           const remaining = Math.max(0, durationSec - elapsedSec);
           setTimeLeft(remaining);
-        } else {
-           toast.error('Error starting exam: ' + data.message);
-           navigate('/exam-portal');
+          } else {
+            toast.error('Error starting exam: ' + (data.message || 'Invalid exam response'));
+           navigate('/exam-portal', { replace: true });
         }
       } catch(err) {
          console.error(err);
@@ -83,11 +113,9 @@ export default function ExamInterface() {
     setResponses(prev => ({ ...prev, [questionId]: { data: answerData, status } }));
     setSaving(true);
     try {
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-        const token = localStorage.getItem('cira_token');
-        await fetch(`${baseUrl}/api/v1/student/exam/attempt/${attemptId}/save-response`, {
+        await apiClient.fetch(`/api/v1/student/exam/attempt/${attemptId}/save-response`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ questionId, answerData, status })
         });
     } catch(e) {
@@ -135,29 +163,88 @@ export default function ExamInterface() {
   };
 
   const handleSubmit = async () => {
+    const currentAttemptId = attemptIdRef.current || attemptId;
+    if (!currentAttemptId || submittingRef.current) return;
+
+    submittingRef.current = true;
     try {
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-        const token = localStorage.getItem('cira_token');
-        const res = await fetch(`${baseUrl}/api/v1/student/exam/attempt/${attemptId}/submit`, {
+        const res = await apiClient.fetch(`/api/v1/student/exam/attempt/${currentAttemptId}/submit`, {
           method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
         });
         const data = await res.json();
-        if (data.status === 'success') {
+        if (res.ok && data.status === 'success') {
           toast.success('Examination Submitted Successfully!');
-          navigate('/exam-portal');
+          navigate('/exam-portal', { replace: true });
         } else {
-          toast.error('Error submitting: ' + data.message);
-          navigate('/exam-portal');
+          toast.error('Error submitting: ' + (data.message || 'Request failed'));
+          navigate('/exam-portal', { replace: true });
         }
     } catch(e) {
         console.error(e);
         toast.error('Error submitting examination');
-        navigate('/exam-portal');
+        navigate('/exam-portal', { replace: true });
+    } finally {
+        submittingRef.current = false;
     }
   };
 
   if (questions.length === 0) return <div className="min-h-screen bg-[#FDFBF7] flex items-center justify-center"><div className="animate-spin h-8 w-8 border-4 border-maroon border-t-transparent rounded-full" /></div>;
+
+  if (!hasStartedSecureExam || !isFullscreen) {
+    return (
+      <div className="min-h-screen bg-[#FDFBF7] text-ink flex flex-col items-center justify-center p-8 font-sans">
+        <div className="max-w-2xl w-full text-center space-y-8">
+          <div className="space-y-2">
+            <h1 className="text-4xl font-serif font-bold text-ink">Secure Exam Environment</h1>
+            <p className="text-gray-body text-lg">Please read the instructions carefully before proceeding.</p>
+          </div>
+          
+          <div className="bg-white border border-maroon/30 shadow-sm p-8 rounded-2xl text-left space-y-6">
+            <div className="flex items-center space-x-3 text-maroon">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+              <h3 className="font-bold text-xl font-serif">Important Instructions</h3>
+            </div>
+            
+            <ul className="space-y-4 text-ink font-semibold">
+              <li className="flex items-start">
+                <span className="text-maroon mr-3">•</span>
+                This exam requires <span className="font-bold ml-1">Fullscreen mode</span>.
+              </li>
+              <li className="flex items-start">
+                <span className="text-maroon mr-3">•</span>
+                Do not exit fullscreen or switch tabs.
+              </li>
+              <li className="flex items-start">
+                <span className="text-maroon mr-3">•</span>
+                Right-clicking, copying, and pasting are disabled.
+              </li>
+              <li className="flex items-start">
+                <span className="text-maroon mr-3">•</span>
+                Attempting to violate these rules will result in warnings.
+              </li>
+              <li className="flex items-start">
+                <span className="text-maroon mr-3">•</span>
+                After <span className="font-bold mx-1 text-red-600">3 warnings</span>, your exam will be automatically submitted.
+              </li>
+            </ul>
+          </div>
+
+          <button 
+            onClick={async () => {
+              await enterFullscreen();
+              setHasStartedSecureExam(true);
+            }}
+            className="px-10 py-4 bg-maroon hover:bg-maroon-deep text-white font-bold rounded-full text-lg shadow-sm transition-all hover:scale-105 active:scale-95 flex items-center justify-center mx-auto space-x-2"
+          >
+            <span>Start Secure Exam</span>
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const currentQ = questions[currentQuestionIdx];
   const currentResp = responses[currentQ.id];
@@ -277,11 +364,18 @@ export default function ExamInterface() {
 
               {currentQ.type === 'NUMERICAL' && (
                 <input 
-                  type="number"
+                  type="text"
+                  inputMode="decimal"
                   className="w-full p-4 border border-border-soft rounded-xl focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon text-ink bg-white text-base font-semibold"
                   placeholder="Enter the numerical value..."
                   value={currentResp?.data || ''}
-                  onChange={(e) => handleSaveResponse(currentQ.id, Number(e.target.value), 'ANSWERED')}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    // Only allow digits and a single decimal point
+                    if (/^[0-9]*\.?[0-9]*$/.test(val)) {
+                      handleSaveResponse(currentQ.id, val, 'ANSWERED');
+                    }
+                  }}
                 />
               )}
 

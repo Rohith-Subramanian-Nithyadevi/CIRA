@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'sonner';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import LandingPage from './pages/LandingPage';
 import Login from './pages/Login';
 import AdminDashboard from './pages/AdminDashboard';
@@ -8,32 +9,48 @@ import StudentDashboard from './pages/StudentDashboard';
 import ProtectedRoute from './components/ProtectedRoute';
 import ExamDashboard from './pages/exam-portal/ExamDashboard';
 import ExamInterface from './pages/exam-portal/ExamInterface';
+import ExamResults from './pages/exam-portal/ExamResults';
 
-function ExitButton() {
-  if (!(window as any).secureExamAPI) return null;
-  return (
-    <button 
-      onClick={() => (window as any).secureExamAPI.quitApp()}
-      className="fixed bottom-4 right-4 z-[9999] bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-bold shadow-lg transition-colors flex items-center gap-2"
-    >
-      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-      Exit App
-    </button>
-  );
-}
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000,
+      refetchOnWindowFocus: false,
+      retry: 1
+    }
+  }
+});
 
 function App() {
   return (
-    <BrowserRouter>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
       <Toaster richColors position="top-right" />
-      <ExitButton />
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
         
-        {/* Exam Portal Routes (Locked down UI for Desktop Client) */}
-        <Route path="/exam-portal" element={<ExamDashboard />} />
-        <Route path="/exam-portal/take/:quizId" element={<ExamInterface />} />
+        {/* Exam Portal Routes (Locked down UI for Web Client) */}
+        <Route path="/exam-portal" element={
+          <ProtectedRoute allowedRoles={['STUDENT']}>
+            <ExamDashboard />
+          </ProtectedRoute>
+        } />
+        <Route path="/exam-portal/take/:quizId" element={
+          <ProtectedRoute allowedRoles={['STUDENT']}>
+            <ExamInterface />
+          </ProtectedRoute>
+        } />
+        <Route path="/exam-portal/results/:quizId" element={
+          <ProtectedRoute allowedRoles={['STUDENT']}>
+            <ExamResults />
+          </ProtectedRoute>
+        } />
+        <Route path="/exam-portal/review/:quizId" element={
+          <ProtectedRoute allowedRoles={['STUDENT']}>
+            <ExamResults />
+          </ProtectedRoute>
+        } />
         
         {/* Protected Admin Routes */}
         <Route path="/admin/dashboard" element={
@@ -60,6 +77,7 @@ function App() {
         <Route path="/dashboard" element={<ProtectedRoute allowedRoles={[]}><div /></ProtectedRoute>} />
       </Routes>
     </BrowserRouter>
+  </QueryClientProvider>
   );
 }
 

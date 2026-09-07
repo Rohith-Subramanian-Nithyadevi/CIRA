@@ -8,11 +8,19 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { apiClient } from '../lib/apiClient';
 import DotField from '../components/ui/DotField';
+
+interface Batch {
+  id: string;
+  name: string;
+  startYear: number;
+}
 
 interface Department {
   id: string;
   name: string;
+  batchId: string;
   sections: Section[];
 }
 
@@ -48,6 +56,7 @@ export default function Login() {
 
   // Student specific
   const [rollNumber, setRollNumber] = useState('');
+  const [batchId, setBatchId] = useState('');
   const [departmentId, setDepartmentId] = useState('');
   const [sectionId, setSectionId] = useState('');
 
@@ -55,6 +64,7 @@ export default function Login() {
   const [employeeId, setEmployeeId] = useState('');
   const [subject, setSubject] = useState('');
 
+  const [batches, setBatches] = useState<Batch[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -69,10 +79,28 @@ export default function Login() {
   const [showForgotConfirmPassword, setShowForgotConfirmPassword] = useState(false);
 
   useEffect(() => {
+    const fetchBatches = async () => {
+      try {
+        const res = await apiClient.fetch('/api/v1/batches');
+        const data = await res.json();
+        if (data?.data?.batches) {
+          setBatches(data.data.batches);
+        }
+      } catch (err) {
+        console.error("Failed to fetch batches", err);
+      }
+    };
+    fetchBatches();
+  }, []);
+
+  useEffect(() => {
+    if (!batchId) {
+      setDepartments([]);
+      return;
+    }
     const fetchDepartments = async () => {
       try {
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-        const res = await fetch(`${baseUrl}/api/v1/departments`);
+        const res = await apiClient.fetch(`/api/v1/departments?batchId=${batchId}`);
         const data = await res.json();
         if (data?.data?.departments) {
           setDepartments(data.data.departments);
@@ -82,7 +110,7 @@ export default function Login() {
       }
     };
     fetchDepartments();
-  }, []);
+  }, [batchId]);
 
   const validatePassword = (pass: string) => {
     if (pass.length < 8) return "Password must be at least 8 characters long.";
@@ -102,8 +130,7 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-      const response = await fetch(`${baseUrl}/api/v1/auth/forgot-password`, {
+      const response = await apiClient.fetch('/api/v1/auth/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: forgotEmail.toLowerCase() }),
@@ -142,8 +169,7 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-      const response = await fetch(`${baseUrl}/api/v1/auth/reset-password`, {
+      const response = await apiClient.fetch('/api/v1/auth/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -184,8 +210,7 @@ export default function Login() {
       const googlePersonalEmail = (user.email || '').toLowerCase();
       setPersonalEmail(googlePersonalEmail);
 
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-      const response = await fetch(`${baseUrl}/api/v1/auth/firebase-login`, {
+      const response = await apiClient.fetch('/api/v1/auth/firebase-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ idToken: token }),
@@ -243,8 +268,8 @@ export default function Login() {
       return;
     }
 
-    if (role === 'FACULTY' && !email.toLowerCase().endsWith('@ch.amrita.edu') && !email.toLowerCase().endsWith('@ch.students.amrita.edu')) {
-      toast.error("Faculty college email must end with @ch.amrita.edu");
+    if (role === 'FACULTY' && !email.toLowerCase().endsWith('@amrita.edu') && !email.toLowerCase().endsWith('@ch.students.amrita.edu')) {
+      toast.error("Faculty college email must end with @amrita.edu");
       setLoading(false);
       return;
     }
@@ -269,7 +294,6 @@ export default function Login() {
     }
 
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
       const payload: any = {
         idToken: firebaseIdToken,
         role,
@@ -287,7 +311,7 @@ export default function Login() {
         payload.subject = subject;
       }
 
-      const response = await fetch(`${baseUrl}/api/v1/auth/firebase-register`, {
+      const response = await apiClient.fetch('/api/v1/auth/firebase-register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -353,7 +377,6 @@ export default function Login() {
     }
 
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
       const endpoint = isLogin ? '/api/v1/auth/login' : '/api/v1/auth/register';
       
       const payload: any = isLogin ? { email, password } : { 
@@ -369,7 +392,7 @@ export default function Login() {
         payload.subject = subject;
       }
 
-      const response = await fetch(`${baseUrl}${endpoint}`, {
+      const response = await apiClient.fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -420,8 +443,7 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-      const response = await fetch(`${baseUrl}/api/v1/auth/verify-email`, {
+      const response = await apiClient.fetch('/api/v1/auth/verify-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, code: verificationCode }),
@@ -694,17 +716,30 @@ export default function Login() {
                   </div>
                 )}
                 {role === 'STUDENT' ? (
-                  <div className="space-y-1">
-                    <Label className="text-xs font-semibold text-ink">Department</Label>
-                    <Select value={departmentId} onValueChange={(val) => { setDepartmentId(val || ''); setSectionId(''); }} items={departments.map(d => ({ label: d.name, value: d.id }))}>
-                      <SelectTrigger className="h-9 rounded-lg bg-white border border-border-soft text-xs px-3">
-                        <SelectValue placeholder="Department">
-                          {(val) => departments.find(d => d.id === val)?.name || val}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent className="bg-white border border-border-soft">{departments.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </div>
+                  <>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold text-ink">Batch</Label>
+                      <Select value={batchId} onValueChange={(val) => { setBatchId(val || ''); setDepartmentId(''); setSectionId(''); }} items={batches.map(b => ({ label: b.name, value: b.id }))}>
+                        <SelectTrigger className="h-9 rounded-lg bg-white border border-border-soft text-xs px-3">
+                          <SelectValue placeholder="Batch">
+                            {(val) => batches.find(b => b.id === val)?.name || val}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent className="bg-white border border-border-soft">{batches.map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold text-ink">Department</Label>
+                      <Select value={departmentId} disabled={!batchId} onValueChange={(val) => { setDepartmentId(val || ''); setSectionId(''); }} items={departments.map(d => ({ label: d.name, value: d.id }))}>
+                        <SelectTrigger className="h-9 rounded-lg bg-white border border-border-soft text-xs px-3">
+                          <SelectValue placeholder="Department">
+                            {(val) => departments.find(d => d.id === val)?.name || val}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent className="bg-white border border-border-soft">{departments.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                  </>
                 ) : (
                   <div className="space-y-1">
                     <Label className="text-xs font-semibold text-ink">Subject</Label>
@@ -745,7 +780,7 @@ export default function Login() {
 
               <div className="space-y-1">
                 <Label htmlFor="onboardingCollegeEmail" className="text-xs font-semibold text-ink">College Email Address</Label>
-                <Input id="onboardingCollegeEmail" type="email" required value={email} onChange={(e) => setEmail(e.target.value.toLowerCase())} className="h-10 rounded-lg bg-white border border-border-soft text-xs px-3" placeholder={role === 'STUDENT' ? "username@ch.students.amrita.edu" : "username@ch.amrita.edu"} />
+                <Input id="onboardingCollegeEmail" type="email" required value={email} onChange={(e) => setEmail(e.target.value.toLowerCase())} className="h-10 rounded-lg bg-white border border-border-soft text-xs px-3" placeholder={role === 'STUDENT' ? "username@ch.students.amrita.edu" : "username@amrita.edu"} />
               </div>
 
               <Button type="submit" disabled={loading} className="w-full h-11 text-xs font-semibold rounded-lg bg-maroon hover:bg-maroon-deep text-white shadow-sm transition-all mt-2">
@@ -804,17 +839,30 @@ export default function Login() {
                     </div>
                   )}
                   {role === 'STUDENT' ? (
-                    <div className="space-y-1">
-                      <Label className="text-xs font-medium text-ink">Department</Label>
-                      <Select value={departmentId} onValueChange={(val) => { setDepartmentId(val || ''); setSectionId(''); }} items={departments.map(d => ({ label: d.name, value: d.id }))}>
-                        <SelectTrigger className="h-9 rounded-lg bg-white border border-border-soft text-xs px-3">
-                          <SelectValue placeholder="Department">
-                            {(val) => departments.find(d => d.id === val)?.name || val}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent className="bg-white border border-border-soft">{departments.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
-                      </Select>
-                    </div>
+                    <>
+                      <div className="space-y-1">
+                        <Label className="text-xs font-medium text-ink">Batch</Label>
+                        <Select value={batchId} onValueChange={(val) => { setBatchId(val || ''); setDepartmentId(''); setSectionId(''); }} items={batches.map(b => ({ label: b.name, value: b.id }))}>
+                          <SelectTrigger className="h-9 rounded-lg bg-white border border-border-soft text-xs px-3">
+                            <SelectValue placeholder="Batch">
+                              {(val) => batches.find(b => b.id === val)?.name || val}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent className="bg-white border border-border-soft">{batches.map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs font-medium text-ink">Department</Label>
+                        <Select value={departmentId} disabled={!batchId} onValueChange={(val) => { setDepartmentId(val || ''); setSectionId(''); }} items={departments.map(d => ({ label: d.name, value: d.id }))}>
+                          <SelectTrigger className="h-9 rounded-lg bg-white border border-border-soft text-xs px-3">
+                            <SelectValue placeholder="Department">
+                              {(val) => departments.find(d => d.id === val)?.name || val}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent className="bg-white border border-border-soft">{departments.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                    </>
                   ) : (
                     <div className="space-y-1">
                       <Label className="text-xs font-medium text-ink">Subject</Label>
@@ -866,7 +914,7 @@ export default function Login() {
                   value={email} 
                   onChange={(e) => setEmail(e.target.value.toLowerCase())} 
                   className="h-11 rounded-lg bg-white border border-border-soft focus:border-maroon focus:ring-1 focus:ring-maroon text-ink text-sm px-3.5 placeholder:text-gray-body/50" 
-                  placeholder={isLogin ? "Your username or email" : (role === 'STUDENT' ? "username@ch.students.amrita.edu" : "username@ch.amrita.edu")} 
+                  placeholder={isLogin ? "Your username or email" : (role === 'STUDENT' ? "username@ch.students.amrita.edu" : "username@amrita.edu")} 
                 />
               </div>
 

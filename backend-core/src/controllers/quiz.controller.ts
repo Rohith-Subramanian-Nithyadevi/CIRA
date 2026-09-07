@@ -10,20 +10,69 @@ export const getQuizzes = async (req: Request, res: Response, next: NextFunction
     const userId = (req as any).user?.userId || 'system';
     const userRole = (req as any).user?.role;
 
-    // Faculty sees only their quizzes, Admins see all
-    const whereClause = userRole === 'ADMIN' ? {} : { createdBy: userId };
+    // Faculty sees only their quizzes, Admins see all.
+    const whereClause: any = userRole === 'ADMIN' ? {} : { createdBy: userId };
+    const filters: any[] = [];
+    if (req.query.posted === 'true') {
+      filters.push({ OR: [
+        { targetDepartments: { some: {} } },
+        { targetSections: { some: {} } },
+        { targetStudents: { some: {} } }
+      ] });
+    }
 
-    const quizzes = await prisma.quiz.findMany({
-      where: whereClause,
-      include: {
-        _count: {
-          select: { questions: true, attempts: true }
-        }
+    const departmentId = req.query.departmentId as string | undefined;
+    const sectionId = req.query.sectionId as string | undefined;
+    if (sectionId) {
+      filters.push({ OR: [
+        { targetSections: { some: { sectionId } } },
+        ...(departmentId ? [{ targetDepartments: { some: { departmentId } } }] : [])
+      ] });
+    } else if (departmentId) {
+      filters.push({ targetDepartments: { some: { departmentId } } });
+    }
+    if (filters.length > 0) {
+      whereClause.AND = filters;
+    }
+
+    const hasPagination = req.query.page !== undefined || req.query.limit !== undefined;
+
+    const includeOptions = {
+      _count: {
+        select: { questions: true, attempts: true }
       },
-      orderBy: { createdAt: 'desc' }
-    });
+      targetDepartments: { include: { department: { select: { id: true, name: true } } } },
+      targetSections: { include: { section: { select: { id: true, name: true } } } },
+      targetStudents: { select: { userId: true } }
+    };
 
-    res.status(200).json({ status: 'success', data: quizzes });
+    if (hasPagination) {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      const skip = (page - 1) * limit;
+
+      const [total, quizzes] = await prisma.$transaction([
+        prisma.quiz.count({ where: whereClause }),
+        prisma.quiz.findMany({
+          where: whereClause,
+          include: includeOptions,
+          orderBy: { createdAt: 'desc' },
+          skip,
+          take: limit
+        })
+      ]);
+
+      const hasMore = skip + quizzes.length < total;
+      res.status(200).json({ status: 'success', data: { items: quizzes, total, page, hasMore } });
+    } else {
+      const quizzes = await prisma.quiz.findMany({
+        where: whereClause,
+        include: includeOptions,
+        orderBy: { createdAt: 'desc' }
+      });
+
+      res.status(200).json({ status: 'success', data: quizzes });
+    }
   } catch (error) {
     next(error);
   }
@@ -40,8 +89,8 @@ export const getQuizById = async (req: Request, res: Response, next: NextFunctio
       where: { id: quizId },
       include: {
         questions: true,
-        targetDepartments: true,
-        targetSections: true
+        targetDepartments: { include: { department: { select: { id: true, name: true } } } },
+        targetSections: { include: { section: { select: { id: true, name: true } } } }
       }
     });
 
@@ -145,6 +194,78 @@ export const createQuiz = async (req: Request, res: Response, next: NextFunction
   }
 };
 
+// Update quiz metadata and publication targets without changing its questions.
+export const updateQuiz = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const quizId = req.params.quizId as string;
+    const userId = (req as any).user?.userId || 'system';
+    const userRole = (req as any).user?.role;
+    const {
+      title,
+      subject,
+      description,
+      instructions,
+      totalMarks,
+      passingMarks,
+      startDate,
+      endDate,
+      durationMinutes,
+      allowLateJoin,
+      autoSubmit,
+      performanceBands,
+      targetDepartments = [],
+      targetSections = [],
+      targetStudents = []
+    } = req.body;
+
+    const existing = await prisma.quiz.findUnique({ where: { id: quizId } });
+    if (!existing) throw new BadRequestError('Quiz not found', 'NOT_FOUND');
+    if (userRole !== 'ADMIN' && existing.createdBy !== userId) {
+      throw new BadRequestError('Not authorized to edit this quiz', 'UNAUTHORIZED');
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const quiz = await tx.quiz.update({
+        where: { id: quizId },
+        data: {
+          title,
+          subject,
+          description,
+          instructions,
+          totalMarks: Number(totalMarks) || 0,
+          passingMarks: Number(passingMarks) || 0,
+          startDate: startDate ? new Date(startDate) : null,
+          endDate: endDate ? new Date(endDate) : null,
+          durationMinutes: Number(durationMinutes) || 60,
+          allowLateJoin: Boolean(allowLateJoin),
+          autoSubmit,
+          performanceBands
+        }
+      });
+
+      await tx.quizDepartment.deleteMany({ where: { quizId } });
+      await tx.quizSection.deleteMany({ where: { quizId } });
+      await tx.quizStudent.deleteMany({ where: { quizId } });
+
+      if (Array.isArray(targetDepartments) && targetDepartments.length) {
+        await tx.quizDepartment.createMany({ data: targetDepartments.map((departmentId: string) => ({ quizId, departmentId })) });
+      }
+      if (Array.isArray(targetSections) && targetSections.length) {
+        await tx.quizSection.createMany({ data: targetSections.map((sectionId: string) => ({ quizId, sectionId })) });
+      }
+      if (Array.isArray(targetStudents) && targetStudents.length) {
+        await tx.quizStudent.createMany({ data: targetStudents.map((userId: string) => ({ quizId, userId })) });
+      }
+
+      return quiz;
+    });
+
+    res.status(200).json({ status: 'success', data: updated });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // Add/Edit Questions
 export const addQuestions = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -170,6 +291,7 @@ export const addQuestions = async (req: Request, res: Response, next: NextFuncti
             answerKey: q.answerKey ?? undefined,
             explanation: q.explanation ?? undefined,
             image: q.image ?? undefined,
+            topic: q.topic ?? null,
           }
         })
       )
@@ -187,11 +309,12 @@ export const getSubmissions = async (req: Request, res: Response, next: NextFunc
     const quizId = req.params.quizId as string;
     
     const attempts = await prisma.quizAttempt.findMany({
-      where: { quizId, status: { in: ['SUBMITTED', 'EVALUATED'] } },
+      where: { quizId },
       include: {
         user: { select: { name: true, rollNumber: true, email: true } },
         responses: { include: { question: true } }
-      }
+      },
+      orderBy: { createdAt: 'desc' }
     });
 
     res.status(200).json({ status: 'success', data: attempts });
@@ -237,6 +360,32 @@ export const evaluateAttempt = async (req: Request, res: Response, next: NextFun
       }
     });
 
+    res.status(200).json({ status: 'success', data: updated });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const togglePublishAnswers = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const quizId = req.params.quizId as string;
+    const { publish } = req.body;
+    
+    const userId = (req as any).user?.userId || 'system';
+    const userRole = (req as any).user?.role;
+    
+    const quiz = await prisma.quiz.findUnique({ where: { id: quizId } });
+    if (!quiz) throw new BadRequestError('Quiz not found', 'NOT_FOUND');
+    
+    if (userRole !== 'ADMIN' && quiz.createdBy !== userId) {
+      throw new BadRequestError('Not authorized', 'UNAUTHORIZED');
+    }
+    
+    const updated = await prisma.quiz.update({
+      where: { id: quizId },
+      data: { answersPublished: Boolean(publish) }
+    });
+    
     res.status(200).json({ status: 'success', data: updated });
   } catch (error) {
     next(error);
@@ -462,3 +611,5 @@ export const uploadImageHandler = async (req: Request, res: Response, next: Next
     next(error);
   }
 };
+
+

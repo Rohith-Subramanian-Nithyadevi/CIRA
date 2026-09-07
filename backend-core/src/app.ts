@@ -7,9 +7,13 @@ import facultyRoutes from './routes/faculty.routes';
 import analyticsRoutes from './routes/analytics.routes';
 import departmentRoutes from './routes/department.routes';
 import adminRoutes from './routes/admin.routes';
+import batchRoutes from './routes/batch.routes';
 import quizRoutes from './routes/quiz.routes';
 import studentExamRoutes from './routes/student-exam.routes';
 import studentDashboardRoutes from './routes/student-dashboard.routes';
+import facultyDashboardRoutes from './routes/faculty-dashboard.routes';
+import facultyReportsRoutes from './routes/faculty-reports.routes';
+import assignmentRoutes from './routes/assignment.routes';
 import { errorHandler } from './middlewares/error.middleware';
 
 const app: Application = express();
@@ -18,26 +22,31 @@ const app: Application = express();
 app.use(cors());
 app.use(express.json());
 
-// Serve static files from 'public' directory (which will contain the built frontend)
-app.use(express.static(path.join(__dirname, 'public')));
+
 
 // Routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/exams', examRoutes);
 app.use('/api/v1/faculty/quiz', quizRoutes);
+app.use('/api/v1/faculty/reports', facultyReportsRoutes);
+app.use('/api/v1/faculty/dashboard', facultyDashboardRoutes);
 app.use('/api/v1/faculty', facultyRoutes);
+app.use('/api/v1/assignments', assignmentRoutes);
 app.use('/api/v1/analytics', analyticsRoutes);
 app.use('/api/v1/departments', departmentRoutes);
+app.use('/api/v1/batches', batchRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/student/exam', studentExamRoutes);
 app.use('/api/v1/student', studentDashboardRoutes);
 
-// SPA Catch-all Route: serve index.html for non-API requests
+// Health check route for the root
+app.get('/', (req, res) => {
+  res.status(200).json({ status: 'API is running', timestamp: new Date() });
+});
+
+// Catch-all for API 404s
 app.use((req, res, next) => {
-  if (req.originalUrl.startsWith('/api/')) {
-    return next(); // Let API 404s fall through to the error handler
-  }
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.status(404).json({ success: false, message: 'API Route Not Found' });
 });
 
 // Global Error Handler Middleware

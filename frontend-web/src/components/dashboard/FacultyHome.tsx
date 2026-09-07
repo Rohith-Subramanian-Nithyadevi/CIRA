@@ -1,225 +1,623 @@
-import { useState } from 'react';
-import { Calendar as CalendarIcon, CheckCircle2, Circle, Bell, Plus, ChevronLeft, ChevronRight, MessageSquare } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { EditorContent, useEditor } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import Link from '@tiptap/extension-link';
+import DOMPurify from 'dompurify';
+import { 
+  Calendar as CalendarIcon, 
+  CheckCircle2, 
+  Circle, 
+  Bell, 
+  Plus, 
+  ChevronLeft, 
+  ChevronRight, 
+  MessageSquare,
+  X,
+  ListTodo,
+  Trash2,
+  Loader2
+} from 'lucide-react';
+import { useBatches, useDepartments } from '@/hooks/useReferenceData';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { apiClient } from '@/lib/apiClient';
 
-// Mock Data
-const TODO_ITEMS = [
-  { id: 1, task: 'Grade Section A Quizzes', completed: false, date: '2026-07-09' },
-  { id: 2, task: 'Prepare Midterm Assessment', completed: false, date: '2026-07-12' },
-  { id: 3, task: 'Review Aptitude Scores', completed: true, date: '2026-07-07' },
-  { id: 4, task: 'Upload Verbal Reasoning Materials', completed: false, date: '2026-07-10' },
-];
+const sanitizeHtml = (value: string) => DOMPurify.sanitize(value || '', { ALLOWED_TAGS: ['b', 'strong', 'i', 'em', 'u', 's', 'strike', 'ol', 'ul', 'li', 'a', 'p', 'br'], ALLOWED_ATTR: ['href', 'target', 'rel'] });
 
-const INITIAL_ANNOUNCEMENTS = [
-  { id: 1, title: 'Midterm Assessment Scheduled', content: 'The Aptitude midterm assessment is scheduled for next Monday. Please ensure all students are notified.', date: '2026-07-08', author: 'Dr. Smith' },
-  { id: 2, title: 'Quiz 3 Results Published', content: 'Results for the Verbal Reasoning Quiz 3 have been published to the student portal.', date: '2026-07-06', author: 'Prof. Johnson' },
-];
+function RichTextEditor({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      Link.configure({
+        openOnClick: false,
+        autolink: true,
+        HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' },
+      }),
+    ],
+    content: value || '<p></p>',
+    immediatelyRender: false,
+    editorProps: {
+      attributes: {
+        class: 'min-h-[120px] w-full rounded-lg border border-border-soft bg-white px-3 py-2 text-sm focus:outline-none prose prose-sm max-w-none',
+      },
+    },
+    onUpdate: ({ editor }) => onChange(editor.getHTML()),
+  });
+
+  useEffect(() => {
+    if (editor && value !== editor.getHTML()) {
+      editor.commands.setContent(value || '<p></p>', { emitUpdate: false });
+    }
+  }, [editor, value]);
+
+  return <EditorContent editor={editor} />;
+}
+
+interface Task { id: string; task: string; completed: boolean; date: string; }
+interface CalendarEvent { id: string; title: string; date: string; }
+interface Announcement { id: string; title: string; content: string; date: string; author?: string; isSurvey: boolean; audience: string; _count?: { responses: number }; facultyId?: string; }
+interface AnnouncementResponse { id: string; response: string; submittedAt: string; user: { name: string; rollNumber: string } }
+interface Notification { id: string; type: string; message: string; createdAt: string; read: boolean; }
 
 export default function FacultyHome() {
-  const [todos, setTodos] = useState(TODO_ITEMS);
-  const [announcements, setAnnouncements] = useState(INITIAL_ANNOUNCEMENTS);
-  const [newAnnouncement, setNewAnnouncement] = useState({ title: '', content: '' });
-  const [currentDate, setCurrentDate] = useState(new Date(2026, 6, 8)); // July 2026
+  // Loading States
+  const [loadingTasks, setLoadingTasks] = useState(true);
+  const [loadingCalendar, setLoadingCalendar] = useState(true);
+  const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
 
-  const toggleTodo = (id: number) => {
-    setTodos(todos.map(todo => todo.id === id ? { ...todo, completed: !todo.completed } : todo));
+  // Data States
+  const [todos, setTodos] = useState<Task[]>([]);
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  
+  // UI States
+  const [isAddingTask, setIsAddingTask] = useState(false);
+  const [newTaskText, setNewTaskText] = useState('');
+  
+  const [newAnnouncement, setNewAnnouncement] = useState({ 
+    title: '', 
+    content: '',
+    isSurvey: false,
+    batch: 'All Batches',
+    department: 'All Departments',
+    section: 'All Sections'
+  });
+
+  // Cached Reference Data
+  const { batches } = useBatches();
+  const selectedBatchId = batches.find(b => b.name === newAnnouncement.batch)?.id;
+  const { departments } = useDepartments(selectedBatchId, { 
+    enabled: newAnnouncement.batch !== 'All Batches' && !!selectedBatchId 
+  });
+
+  const [currentDate, setCurrentDate] = useState(new Date()); 
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [showEventForm, setShowEventForm] = useState(false);
+  const [newEventTitle, setNewEventTitle] = useState('');
+  
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifLoading, setNotifLoading] = useState(false);
+  const notificationRequestInFlight = useRef(false);
+  
+  const [viewingResponsesFor, setViewingResponsesFor] = useState<string | null>(null);
+  const [announcementResponses, setAnnouncementResponses] = useState<AnnouncementResponse[]>([]);
+  const [loadingResponses, setLoadingResponses] = useState(false);
+
+  useEffect(() => {
+    fetchTasks();
+    fetchCalendarEvents();
+    fetchAnnouncements(1);
+    fetchNotifications();
+    // Poll for new notifications every 30 seconds
+    const interval = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Helper to convert Date or ISO string to local 'YYYY-MM-DD'
+  const getLocalDateString = (d: Date | string): string => {
+    const dateObj = typeof d === 'string' ? new Date(d) : d;
+    const year = dateObj.getFullYear();
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const day = String(dateObj.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   };
 
-  const handlePostAnnouncement = (e: React.FormEvent) => {
+  const fetchTasks = async () => {
+    try {
+      const res = await apiClient.fetch('/api/v1/faculty/dashboard/tasks');
+      const data = await res.json();
+      if (data?.success) setTodos(data.data);
+    } catch (err) {} finally { setLoadingTasks(false); }
+  };
+
+  const fetchCalendarEvents = async () => {
+    try {
+      const res = await apiClient.fetch('/api/v1/faculty/dashboard/calendar');
+      const data = await res.json();
+      if (data?.success) setCalendarEvents(data.data.map((e: any) => ({ ...e, date: getLocalDateString(e.date) })));
+    } catch (err) {} finally { setLoadingCalendar(false); }
+  };
+
+  const fetchAnnouncements = async (pageNumber = 1) => {
+    try {
+      const res = await apiClient.fetch(`/api/v1/faculty/dashboard/announcements?page=${pageNumber}&limit=10`);
+      const data = await res.json();
+      if (data?.success) {
+        const fetchedAnnouncements = Array.isArray(data.data) ? data.data : data.data.items;
+        const formatted = fetchedAnnouncements.map((a: any) => ({ ...a, date: getLocalDateString(a.date), author: 'You' }));
+        if (pageNumber === 1) {
+          setAnnouncements(formatted);
+        } else {
+          setAnnouncements(prev => [...prev, ...formatted]);
+        }
+        if (!Array.isArray(data.data)) {
+          setHasMore(data.data.hasMore);
+          setPage(data.data.page);
+        } else {
+          setHasMore(false);
+        }
+      }
+    } catch (err) {} finally { setLoadingAnnouncements(false); }
+  };
+
+  const fetchNotifications = async () => {
+    if (notificationRequestInFlight.current) return;
+    notificationRequestInFlight.current = true;
+    try {
+      setNotifLoading(true);
+      const res = await apiClient.fetch('/api/v1/faculty/dashboard/notifications');
+      if (!res.ok) return; // Fail silently
+      const data = await res.json();
+      if (data?.success) setNotifications(data.data);
+    } catch (_err) {
+      // Fail silently — do not crash dashboard if notifications fail
+    } finally {
+      notificationRequestInFlight.current = false;
+      setNotifLoading(false);
+    }
+  };
+
+  const handleOpenNotifications = async () => {
+    setShowNotifications(prev => !prev);
+    // Mark all currently unread notifications as read
+    const unread = notifications.filter(n => !n.read);
+    if (unread.length > 0) {
+      // Optimistic update
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      // Persist to backend (fire-and-forget)
+      unread.forEach(n => {
+        apiClient.fetch(`/api/v1/faculty/dashboard/notifications/${n.id}/read`, {
+          method: 'PATCH',
+        }).catch(() => {});
+      });
+    }
+  };
+
+  // --- TASKS LOGIC ---
+  const handleAddTask = async () => {
+    if (!newTaskText.trim()) return;
+    const t = newTaskText;
+    setNewTaskText(''); setIsAddingTask(false);
+    try {
+      const res = await apiClient.fetch('/api/v1/faculty/dashboard/tasks', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task: t, date: new Date().toISOString() })
+      });
+      const data = await res.json();
+      if (data?.success) setTodos([...todos, data.data]);
+    } catch (err) {}
+  };
+
+  const toggleTodo = async (id: string, currentStatus: boolean) => {
+    setTodos(todos.map(t => t.id === id ? { ...t, completed: !currentStatus } : t));
+    try {
+      await apiClient.fetch(`/api/v1/faculty/dashboard/tasks/${id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ completed: !currentStatus })
+      });
+    } catch (err) {}
+  };
+
+  const deleteTask = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setTodos(todos.filter(t => t.id !== id));
+    try {
+      await apiClient.fetch(`/api/v1/faculty/dashboard/tasks/${id}`, { method: 'DELETE' });
+    } catch (err) {}
+  };
+
+  // --- CALENDAR LOGIC ---
+  const handleAddEvent = async () => {
+    if (!selectedDate || !newEventTitle.trim()) return;
+    const title = newEventTitle.trim();
+    const localDateStr = getLocalDateString(selectedDate);
+    // Send with noon UTC timestamp so date never shifts across timezones
+    const date = `${localDateStr}T12:00:00.000Z`;
+    setNewEventTitle(''); setShowEventForm(false);
+    try {
+      const res = await apiClient.fetch('/api/v1/faculty/dashboard/calendar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, date })
+      });
+      const data = await res.json();
+      if (data?.success) setCalendarEvents([...calendarEvents, { ...data.data, date: getLocalDateString(data.data.date) }]);
+    } catch (err) {}
+  };
+
+  const deleteCalendarEvent = async (id: string) => {
+    setCalendarEvents(calendarEvents.filter(e => e.id !== id));
+    try {
+      await apiClient.fetch(`/api/v1/faculty/dashboard/calendar/${id}`, { method: 'DELETE' });
+    } catch (err) {}
+  };
+
+  // --- ANNOUNCEMENTS LOGIC ---
+  const handlePostAnnouncement = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newAnnouncement.title || !newAnnouncement.content) return;
+    if (!newAnnouncement.title) return;
+
+    const cleanedContent = sanitizeHtml(newAnnouncement.content).trim();
+    if (!cleanedContent) {
+      alert('Announcement message is required.');
+      return;
+    }
     
-    const newAnn = {
-      id: Date.now(),
+    let audienceStr = 'All Students';
+    if (newAnnouncement.batch !== 'All Batches') {
+      audienceStr = `${newAnnouncement.batch}`;
+      if (newAnnouncement.department !== 'All Departments') audienceStr += ` | ${newAnnouncement.department}`;
+      if (newAnnouncement.section !== 'All Sections') audienceStr += ` | Section ${newAnnouncement.section}`;
+    }
+
+    const payload = {
       title: newAnnouncement.title,
-      content: newAnnouncement.content,
-      date: new Date().toISOString().split('T')[0],
-      author: 'You'
+      content: cleanedContent,
+      isSurvey: newAnnouncement.isSurvey,
+      audience: audienceStr,
+      date: new Date().toISOString()
     };
+
+    setNewAnnouncement({ title: '', content: '', isSurvey: false, batch: 'All Batches', department: 'All Departments', section: 'All Sections' });
     
-    setAnnouncements([newAnn, ...announcements]);
-    setNewAnnouncement({ title: '', content: '' });
+    try {
+      const res = await apiClient.fetch('/api/v1/faculty/dashboard/announcements', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data?.success) setAnnouncements([{...data.data, date: data.data.date.split('T')[0], author: 'You'}, ...announcements]);
+    } catch (err) {}
   };
 
-  // Simple Calendar Logic
+  const deleteAnnouncement = async (id: string) => {
+    setAnnouncements(announcements.filter(a => a.id !== id));
+    try {
+      await apiClient.fetch(`/api/v1/faculty/dashboard/announcements/${id}`, { method: 'DELETE' });
+    } catch (err) {}
+  };
+
+  const openSurveyResponses = async (id: string) => {
+    setViewingResponsesFor(id);
+    setLoadingResponses(true);
+    try {
+      const res = await apiClient.fetch(`/api/v1/faculty/dashboard/announcements/${id}/responses`);
+      const data = await res.json();
+      if (data?.success) setAnnouncementResponses(data.data);
+    } catch (err) {} finally { setLoadingResponses(false); }
+  };
+
+
+  // Helpers
+  const today = new Date();
+  today.setHours(0,0,0,0);
   const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
   const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
   const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
   
-  const nextMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
-  };
-  
-  const prevMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
-  };
-
-  // Mock events for the calendar (dots)
-  const calendarEvents = [9, 12, 15, 22, 28]; // Days with quizzes/assessments in July
+  const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
-    <div className="space-y-6">
-      
-      {/* Top Row: Calendar & To-Do List */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Calendar */}
-        <div className="bg-white border border-border-soft p-6 lg:col-span-2 rounded-xl shadow-sm">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-bold flex items-center text-ink font-serif">
-              <CalendarIcon className="w-5 h-5 mr-2 text-maroon" /> 
-              Upcoming Assessments Calendar
-            </h3>
-            <div className="flex items-center gap-4 bg-cream rounded-lg p-1 border border-border-soft">
-              <button onClick={prevMonth} className="p-1 hover:bg-cream-edge/30 rounded transition-colors text-ink"><ChevronLeft className="w-4 h-4" /></button>
-              <span className="text-sm font-medium w-32 text-center text-ink">
-                {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
-              </span>
-              <button onClick={nextMonth} className="p-1 hover:bg-cream-edge/30 rounded transition-colors text-ink"><ChevronRight className="w-4 h-4" /></button>
+    <div className="space-y-6 relative">
+      {viewingResponsesFor && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" role="presentation">
+          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col" role="dialog" aria-modal="true" aria-labelledby="survey-responses-title">
+            <div className="p-4 border-b border-border-soft flex justify-between items-center">
+              <h3 id="survey-responses-title" className="font-bold font-serif text-ink">Survey Responses</h3>
+              <button aria-label="Close survey responses" onClick={() => setViewingResponsesFor(null)}><X className="w-5 h-5 text-gray-body" /></button>
+            </div>
+            <div className="p-4 overflow-y-auto flex-1">
+              {loadingResponses ? (
+                <div className="flex justify-center p-8"><Loader2 className="w-6 h-6 animate-spin text-maroon" /></div>
+              ) : announcementResponses.length === 0 ? (
+                <EmptyState icon={<MessageSquare className="w-8 h-8 text-maroon" />} title="No responses yet" description="There are no survey responses for this announcement." />
+              ) : (
+                <div className="space-y-4">
+                  {announcementResponses.map(r => (
+                    <div key={r.id} className="bg-cream/30 border border-border-soft p-4 rounded-lg">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <p className="font-bold text-sm text-ink">{r.user.name}</p>
+                          <p className="text-xs text-gray-body">{r.user.rollNumber || 'N/A'}</p>
+                        </div>
+                        <span className="text-xs text-gray-body">{new Date(r.submittedAt).toLocaleDateString()}</span>
+                      </div>
+                      <p className="text-sm text-ink">{r.response}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
-          
-          <div className="grid grid-cols-7 gap-2 mb-2">
-            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-              <div key={day} className="text-center text-xs font-semibold text-gray-body uppercase py-2">
-                {day}
-              </div>
-            ))}
-          </div>
-          
-          <div className="grid grid-cols-7 gap-2">
-            {Array.from({ length: firstDayOfMonth }).map((_, i) => (
-              <div key={`empty-${i}`} className="h-12 rounded-lg bg-cream/30 opacity-50" />
-            ))}
-            {Array.from({ length: daysInMonth }).map((_, i) => {
-              const day = i + 1;
-              const hasEvent = calendarEvents.includes(day) && currentDate.getMonth() === 6; // Only show events in July
-              const isToday = day === 8 && currentDate.getMonth() === 6; // Mock today as July 8
-              
-              return (
-                <div 
-                  key={day} 
-                  className={`relative h-12 rounded-lg flex items-center justify-center text-sm font-semibold transition-colors border
-                    ${isToday ? 'bg-maroon/10 border-maroon text-maroon' : 'bg-white border-border-soft hover:border-maroon/20 hover:bg-cream/20 text-ink'}`}
-                >
-                  {day}
-                  {hasEvent && (
-                    <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-maroon" />
-                  )}
-                </div>
-              );
-            })}
-          </div>
-          <div className="mt-4 flex items-center gap-2 text-xs text-gray-body">
-            <div className="w-2 h-2 rounded-full bg-maroon" />
-            <span>Scheduled Quiz / Assessment</span>
-          </div>
         </div>
+      )}
 
-        {/* To-Do List */}
-        <div className="bg-white border border-border-soft p-6 flex flex-col h-[400px] rounded-xl shadow-sm">
-          <h3 className="text-lg font-bold mb-6 flex items-center text-ink font-serif">
-            <CheckCircle2 className="w-5 h-5 mr-2 text-green-600" /> 
-            Faculty To-Do List
-          </h3>
-          <div className="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar">
-            {todos.map(todo => (
-              <div 
-                key={todo.id} 
-                className={`p-3 rounded-lg border transition-colors cursor-pointer flex gap-3
-                  ${todo.completed ? 'bg-green-50/5 border-green-500/20 text-gray-body/70' : 'bg-cream/20 border-border-soft text-ink hover:border-maroon/20 hover:bg-cream/40'}`}
-                onClick={() => toggleTodo(todo.id)}
-              >
-                <div className="mt-0.5 shrink-0">
-                  {todo.completed ? (
-                    <CheckCircle2 className="w-4 h-4 text-green-600" />
-                  ) : (
-                    <Circle className="w-4 h-4 text-gray-body/60" />
-                  )}
-                </div>
-                <div>
-                  <p className={`text-sm ${todo.completed ? 'line-through text-gray-body/60' : 'font-semibold text-ink'}`}>{todo.task}</p>
-                  <p className="text-xs text-gray-body mt-1">Due: {todo.date}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-          <button className="w-full mt-4 py-2.5 flex items-center justify-center gap-2 bg-cream hover:bg-cream-edge/60 border border-border-soft text-ink rounded-lg text-sm font-semibold transition-colors">
-            <Plus className="w-4 h-4" /> Add Task
+      {/* Header */}
+      <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-border-soft shadow-sm">
+        <h2 className="text-xl font-serif font-bold text-ink">Dashboard</h2>
+        <div className="relative">
+          <button aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`} aria-expanded={showNotifications} aria-controls="faculty-notifications" onClick={handleOpenNotifications} className="p-2 hover:bg-cream rounded-full relative transition-colors">
+            <Bell className="w-5 h-5 text-ink" />
+            {unreadCount > 0 && <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>}
           </button>
+          {showNotifications && (
+            <div id="faculty-notifications" role="region" aria-label="Notifications" className="absolute right-0 top-12 w-80 bg-white border border-border-soft rounded-xl shadow-xl z-50 overflow-hidden">
+              <div className="px-4 py-3 border-b border-border-soft flex justify-between items-center">
+                <h4 className="font-bold text-sm text-ink">Notifications</h4>
+                {notifLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-body" />}
+              </div>
+              <div className="max-h-72 overflow-y-auto divide-y divide-border-soft">
+                {notifications.length === 0 ? (
+                  <div className="p-4">
+                    <EmptyState icon={<Bell className="w-6 h-6 text-maroon" />} title="No new notifications" description="You're all caught up!" className="min-h-[150px] p-4" />
+                  </div>
+                ) : (
+                  notifications.map(n => (
+                    <div key={n.id} className={`px-4 py-3 flex items-start gap-3 transition-colors ${!n.read ? 'bg-cream/40' : ''}`}>
+                      <div className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${!n.read ? 'bg-maroon' : 'bg-transparent'}`} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-ink leading-snug">{n.message}</p>
+                        <p className="text-xs text-gray-body mt-0.5">{new Date(n.createdAt).toLocaleString()}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Middle Row: Announcements */}
-      <div className="bg-white border border-border-soft p-6 rounded-xl shadow-sm">
-        <h3 className="text-lg font-bold mb-6 flex items-center text-ink font-serif">
-          <Bell className="w-5 h-5 mr-2 text-maroon" /> 
-          Announcements Board
-        </h3>
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
         
+        {/* Calendar */}
+        <div className="xl:col-span-8 space-y-6">
+          <div className="bg-white border border-border-soft p-6 rounded-xl shadow-sm">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-bold flex items-center text-ink font-serif"><CalendarIcon className="w-5 h-5 mr-2 text-maroon" /> Calendar</h3>
+              <div className="flex items-center gap-4 bg-cream rounded-lg p-1 border border-border-soft">
+                <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))} className="p-1 hover:bg-cream-edge/30 rounded text-ink"><ChevronLeft className="w-4 h-4" /></button>
+                <span className="text-sm font-medium w-32 text-center text-ink">{monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}</span>
+                <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))} className="p-1 hover:bg-cream-edge/30 rounded text-ink"><ChevronRight className="w-4 h-4" /></button>
+              </div>
+            </div>
+            
+            {loadingCalendar ? (
+              <div className="space-y-2">
+                <div className="grid grid-cols-7 gap-2">
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => <div key={day} className="text-center text-xs font-semibold text-gray-body uppercase py-2">{day}</div>)}
+                </div>
+                <div className="grid grid-cols-7 gap-2">
+                  {Array.from({ length: 35 }).map((_, i) => <div key={i} className="h-14 rounded-lg bg-cream/40 animate-pulse" />)}
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-7 gap-2 mb-2">
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => <div key={day} className="text-center text-xs font-semibold text-gray-body uppercase py-2">{day}</div>)}
+                </div>
+                
+                <div className="grid grid-cols-7 gap-2">
+                  {Array.from({ length: firstDayOfMonth }).map((_, i) => <div key={`empty-${i}`} className="h-14 rounded-lg" />)}
+                  
+                  {Array.from({ length: daysInMonth }).map((_, i) => {
+                    const day = i + 1;
+                    const dateObj = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+                    const dateStr = getLocalDateString(dateObj);
+                    const dayEvents = calendarEvents.filter(e => e.date === dateStr);
+                    const hasEvents = dayEvents.length > 0;
+                    
+                    const isPast = dateObj < today;
+                    const isToday = dateObj.getTime() === today.getTime();
+                    const isSelected = selectedDate && selectedDate.getTime() === dateObj.getTime();
+                    
+                    return (
+                      <div 
+                        key={day} 
+                        onClick={() => { if(!isPast) setSelectedDate(selectedDate?.getTime() === dateObj.getTime() ? null : dateObj); setShowEventForm(false); }} 
+                        className={`relative h-14 p-1.5 rounded-lg flex flex-col items-center justify-center transition-all border ${
+                          isPast 
+                            ? 'bg-gray-50/40 border-transparent opacity-40 cursor-not-allowed' 
+                            : 'cursor-pointer'
+                        } ${
+                          isSelected 
+                            ? 'border-maroon bg-maroon/5 ring-1 ring-maroon shadow-2xs' 
+                            : isToday 
+                            ? 'border-maroon/50 bg-maroon/5'
+                            : 'bg-white border-border-soft/70 hover:border-maroon/40 hover:bg-cream/20'
+                        }`}
+                      >
+                        {/* Event dot in the top right corner of the date box */}
+                        {hasEvents && (
+                          <span 
+                            className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-maroon" 
+                            title={`${dayEvents.length} event${dayEvents.length > 1 ? 's' : ''}`}
+                          />
+                        )}
+
+                        <span className={`text-xs ${
+                          isToday || isSelected ? 'font-bold text-maroon' : 'font-medium text-ink'
+                        }`}>
+                          {day}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+            
+            {selectedDate && (
+              <div className="mt-6 p-4 bg-cream/30 rounded-xl border border-border-soft flex flex-col gap-3">
+                <div className="flex justify-between items-center">
+                  <h4 className="text-sm font-semibold text-ink">Events for {selectedDate.toLocaleDateString()}</h4>
+                  <button onClick={() => setSelectedDate(null)} className="text-gray-body hover:text-ink"><X className="w-4 h-4" /></button>
+                </div>
+                
+                <div className="space-y-2 mb-2">
+                  {calendarEvents.filter(e => e.date === getLocalDateString(selectedDate)).map(ev => (
+                    <div key={ev.id} className="text-sm bg-white p-2 rounded border border-border-soft flex items-center justify-between group">
+                      <div className="flex items-center"><div className="w-1.5 h-1.5 rounded-full bg-maroon mr-2 shrink-0" />{ev.title}</div>
+                      <button onClick={(e) => { e.stopPropagation(); deleteCalendarEvent(ev.id); }} className="text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="w-3.5 h-3.5"/></button>
+                    </div>
+                  ))}
+                </div>
+
+                {!showEventForm ? (
+                  <button onClick={() => setShowEventForm(true)} className="w-full py-2 bg-white border border-border-soft hover:border-maroon/30 text-ink rounded-lg text-sm font-medium transition-colors">+ Add Event</button>
+                ) : (
+                  <div className="flex gap-2">
+                    <input autoFocus type="text" placeholder="Event Title..." className="flex-1 px-3 py-1.5 text-sm border border-border-soft rounded-lg focus:outline-none focus:border-maroon" value={newEventTitle} onChange={e => setNewEventTitle(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddEvent()} />
+                    <button onClick={handleAddEvent} className="px-3 py-1.5 bg-maroon text-white text-sm font-semibold rounded-lg hover:bg-maroon-deep transition-colors">Save</button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Tasks */}
+        <div className="xl:col-span-4 space-y-6">
+          <div className="bg-white border border-border-soft p-6 flex flex-col h-[500px] rounded-xl shadow-sm">
+            <h3 className="text-lg font-bold mb-6 flex items-center text-ink font-serif"><ListTodo className="w-5 h-5 mr-2 text-maroon" /> Tasks</h3>
+            <div className="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar">
+              {loadingTasks ? (
+                Array.from({length: 4}).map((_, i) => <div key={i} className="h-16 bg-cream/40 rounded-lg animate-pulse" />)
+              ) : todos.length === 0 ? (
+                <EmptyState icon={<ListTodo className="w-8 h-8 text-maroon" />} title="No tasks" description="You have no tasks created yet. Add one below!" />
+              ) : todos.map(todo => (
+                <div key={todo.id} className={`p-3 rounded-lg border transition-colors flex gap-3 group ${todo.completed ? 'bg-green-50/5 border-green-500/20 text-gray-body/70' : 'bg-cream/20 border-border-soft text-ink hover:border-maroon/20 hover:bg-cream/40'}`}>
+                  <button type="button" aria-label={`${todo.completed ? 'Mark incomplete' : 'Mark complete'}: ${todo.task}`} className="mt-0.5 shrink-0" onClick={() => toggleTodo(todo.id, todo.completed)}>
+                    {todo.completed ? <CheckCircle2 className="w-4 h-4 text-green-600" /> : <Circle className="w-4 h-4 text-gray-body/60" />}
+                  </button>
+                  <button type="button" aria-label={`Toggle task: ${todo.task}`} className="flex-1 text-left" onClick={() => toggleTodo(todo.id, todo.completed)}>
+                    <p className={`text-sm ${todo.completed ? 'line-through text-gray-body/60' : 'font-medium text-ink'}`}>{todo.task}</p>
+                    <p className="text-[10px] text-gray-body mt-1 uppercase tracking-wider">{new Date(todo.date).toLocaleDateString()}</p>
+                  </button>
+                  <button aria-label={`Delete task: ${todo.task}`} onClick={(e) => deleteTask(todo.id, e)} className="text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-50 rounded"><Trash2 className="w-4 h-4" /></button>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4">
+              {!isAddingTask ? (
+                <button onClick={() => setIsAddingTask(true)} className="w-full py-2.5 flex items-center justify-center gap-2 bg-cream hover:bg-cream-edge/60 border border-border-soft text-ink rounded-lg text-sm font-semibold transition-colors"><Plus className="w-4 h-4" /> Add Task</button>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  <input autoFocus type="text" placeholder="Task description..." className="w-full px-3 py-2 border border-border-soft rounded-lg text-sm focus:outline-none focus:border-maroon" value={newTaskText} onChange={e => setNewTaskText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddTask()} />
+                  <div className="flex gap-2">
+                    <button onClick={handleAddTask} className="flex-1 py-1.5 bg-maroon text-white text-sm font-semibold rounded-lg hover:bg-maroon-deep transition-colors">Save</button>
+                    <button onClick={() => { setIsAddingTask(false); setNewTaskText(''); }} className="flex-1 py-1.5 bg-white border border-border-soft text-ink text-sm font-semibold rounded-lg">Cancel</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Announcements */}
+      <div className="bg-white border border-border-soft p-6 rounded-xl shadow-sm">
+        <h3 className="text-lg font-bold mb-6 flex items-center text-ink font-serif"><MessageSquare className="w-5 h-5 mr-2 text-maroon" /> Announcements</h3>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          
-          {/* Post Announcement Form */}
           <div className="lg:col-span-1 bg-cream/40 p-5 rounded-xl border border-border-soft h-fit">
-            <h4 className="text-sm font-semibold text-ink mb-4 flex items-center gap-2">
-              <MessageSquare className="w-4 h-4 text-maroon" />
-              Post New Announcement
-            </h4>
+            <h4 className="text-sm font-bold text-ink mb-4">New Announcement</h4>
             <form onSubmit={handlePostAnnouncement} className="space-y-4">
-              <div>
-                <input 
-                  type="text" 
-                  placeholder="Announcement Title" 
-                  className="w-full px-3 py-2 bg-white border border-border-soft rounded-lg text-sm text-ink focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon"
-                  value={newAnnouncement.title}
-                  onChange={e => setNewAnnouncement({...newAnnouncement, title: e.target.value})}
-                />
+              <input required type="text" placeholder="Title" className="w-full px-3 py-2 bg-white border border-border-soft rounded-lg text-sm" value={newAnnouncement.title} onChange={e => setNewAnnouncement({...newAnnouncement, title: e.target.value})} />
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-gray-body uppercase">Target Audience</p>
+                <select className="w-full px-3 py-2 bg-white border rounded-lg text-sm" value={newAnnouncement.batch} onChange={e => setNewAnnouncement({...newAnnouncement, batch: e.target.value, department: 'All Departments', section: 'All Sections'})}>
+                  <option value="All Batches">All Batches</option>
+                  {batches.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
+                </select>
+                {newAnnouncement.batch !== 'All Batches' && (
+                  <select className="w-full px-3 py-2 bg-white border rounded-lg text-sm" value={newAnnouncement.department} onChange={e => setNewAnnouncement({...newAnnouncement, department: e.target.value, section: 'All Sections'})}>
+                    <option value="All Departments">All Departments</option>
+                    {departments.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
+                  </select>
+                )}
+                {newAnnouncement.batch !== 'All Batches' && newAnnouncement.department !== 'All Departments' && (
+                  <select className="w-full px-3 py-2 bg-white border rounded-lg text-sm" value={newAnnouncement.section} onChange={e => setNewAnnouncement({...newAnnouncement, section: e.target.value})}>
+                    <option value="All Sections">All Sections</option>
+                    {departments.find(d => d.name === newAnnouncement.department)?.sections?.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                  </select>
+                )}
               </div>
-              <div>
-                <textarea 
-                  placeholder="Write your announcement regarding quizzes or results here..." 
-                  rows={4}
-                  className="w-full px-3 py-2 bg-white border border-border-soft rounded-lg text-sm text-ink focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon resize-none"
-                  value={newAnnouncement.content}
-                  onChange={e => setNewAnnouncement({...newAnnouncement, content: e.target.value})}
-                />
-              </div>
-              <button 
-                type="submit" 
-                className="w-full py-2 bg-maroon hover:bg-maroon-deep text-white rounded-full text-sm font-bold transition-all shadow-sm hover:scale-105 active:scale-95"
-              >
-                Post Announcement
-              </button>
+              <RichTextEditor
+                value={newAnnouncement.content}
+                onChange={(value) => setNewAnnouncement({ ...newAnnouncement, content: value })}
+              />
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" className="w-4 h-4 rounded text-maroon" checked={newAnnouncement.isSurvey} onChange={e => setNewAnnouncement({...newAnnouncement, isSurvey: e.target.checked})} />
+                <span className="text-sm font-medium text-ink">Mark as Survey / Feedback Request</span>
+              </label>
+              <button type="submit" className="w-full py-2 bg-maroon hover:bg-maroon-deep text-white rounded-lg text-sm font-bold">Post</button>
             </form>
           </div>
 
-          {/* Announcement Feed */}
           <div className="lg:col-span-2 space-y-4">
-            {announcements.length === 0 ? (
-              <div className="h-full min-h-[200px] flex items-center justify-center border border-dashed border-border-soft rounded-xl">
-                <p className="text-gray-body text-sm">No announcements posted yet.</p>
-              </div>
-            ) : (
-              announcements.map((ann, idx) => (
-                <div key={ann.id} className="p-4 rounded-xl border border-border-soft bg-cream/20 hover:bg-cream/40 transition-colors">
-                  <div className="flex items-start justify-between mb-2">
-                    <h5 className="font-semibold text-ink">{ann.title}</h5>
-                    <span className="text-xs text-gray-body bg-cream border border-border-soft px-2 py-0.5 rounded-full">{ann.date}</span>
-                  </div>
-                  <p className="text-sm text-gray-body mb-3">{ann.content}</p>
-                  <div className="flex items-center gap-2">
-                    <div className="w-5 h-5 rounded-full bg-gradient-to-br from-maroon to-maroon-deep flex items-center justify-center text-[10px] font-bold text-white">
-                      {ann.author.charAt(0)}
+            {loadingAnnouncements ? (
+              Array.from({length: 3}).map((_, i) => <div key={i} className="h-32 bg-cream/40 rounded-xl animate-pulse" />)
+            ) : announcements.length === 0 ? (
+              <EmptyState icon={<MessageSquare className="w-8 h-8 text-maroon" />} title="No announcements" description="You haven't posted any announcements yet." />
+            ) : announcements.map((ann) => (
+              <div key={ann.id} className={`p-5 rounded-xl border relative group ${ann.isSurvey ? 'bg-maroon/5 border-maroon/20' : 'bg-white border-border-soft'}`}>
+                <button onClick={() => deleteAnnouncement(ann.id)} className="absolute top-4 right-4 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-50 rounded"><Trash2 className="w-4 h-4"/></button>
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between mb-3 gap-2 pr-8">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <h5 className="font-bold text-ink text-base">{ann.title}</h5>
+                      {ann.isSurvey && <span className="text-[10px] uppercase font-bold bg-maroon text-white px-2 py-0.5 rounded-md">Survey</span>}
                     </div>
-                    <span className="text-xs text-gray-body">Posted by {ann.author}</span>
-                    {idx === 0 && <span className="ml-2 text-[10px] font-medium text-maroon bg-maroon/10 px-1.5 py-0.5 rounded">New</span>}
+                    <span className="text-[10px] font-semibold text-gray-body uppercase border px-2 py-0.5 rounded bg-cream/50 inline-block">Target: {ann.audience}</span>
                   </div>
+                  <span className="text-xs font-medium text-gray-body shrink-0">{new Date(ann.date).toLocaleDateString()}</span>
                 </div>
-              ))
+                <div
+                  className="text-sm text-ink/80 mb-4 rich-text-content"
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(ann.content) || '<p>No announcement content.</p>' }}
+                />
+                <div className="flex items-center justify-between border-t border-border-soft/60 pt-3 mt-3">
+                  <span className="text-xs font-medium text-gray-body">Posted by <span className="text-ink">{ann.author || 'Faculty'}</span></span>
+                  {ann.isSurvey && (
+                    <button onClick={() => openSurveyResponses(ann.id)} className="text-xs font-bold text-maroon hover:underline">
+                      View Responses ({ann._count?.responses || 0})
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+            
+            {hasMore && (
+              <div className="flex justify-center mt-4 pt-2">
+                <button onClick={() => fetchAnnouncements(page + 1)} className="border border-maroon text-maroon hover:bg-maroon hover:text-white rounded-full px-6 py-1.5 font-bold transition-all shadow-sm text-xs">
+                  Load More
+                </button>
+              </div>
             )}
           </div>
         </div>
       </div>
-      
     </div>
   );
 }

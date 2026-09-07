@@ -30,12 +30,28 @@ async function main() {
 
   console.log("Admin seeded successfully!");
 
+  // Create a default batch
+  const defaultBatch = await prisma.batch.upsert({
+    where: { name: '2023-2027' },
+    update: {},
+    create: {
+      name: '2023-2027',
+      startYear: 2023
+    }
+  });
+
   // Seed default departments if none exist to avoid empty dropdowns
   const csDept = await prisma.department.upsert({
-    where: { name: 'Computer Science' },
+    where: { 
+      name_batchId: {
+        name: 'Computer Science',
+        batchId: defaultBatch.id
+      }
+    },
     update: {},
     create: {
       name: 'Computer Science',
+      batchId: defaultBatch.id,
       sections: {
         create: [{ name: 'A' }, { name: 'B' }, { name: 'C' }]
       }
@@ -43,10 +59,16 @@ async function main() {
   });
 
   const ecDept = await prisma.department.upsert({
-    where: { name: 'Electronics' },
+    where: { 
+      name_batchId: {
+        name: 'Electronics',
+        batchId: defaultBatch.id
+      }
+    },
     update: {},
     create: {
       name: 'Electronics',
+      batchId: defaultBatch.id,
       sections: {
         create: [{ name: 'A' }, { name: 'B' }]
       }
