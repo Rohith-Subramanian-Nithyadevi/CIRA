@@ -1,9 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/prisma';
 import { z } from 'zod';
 import { BadRequestError } from '../utils/errors';
-
-const prisma = new PrismaClient();
 
 export const getAllDepartments = async (req: Request, res: Response, next: NextFunction) => {
   try {

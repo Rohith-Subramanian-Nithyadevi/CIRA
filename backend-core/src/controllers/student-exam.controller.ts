@@ -1,8 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient, ResponseStatus, QuestionType } from '@prisma/client';
+import { ResponseStatus, QuestionType } from '@prisma/client';
+import { prisma } from '../config/prisma';
 import { BadRequestError } from '../utils/errors';
-
-const prisma = new PrismaClient();
 
 // Get eligible quizzes for the logged-in student
 export const getEligibleQuizzes = async (req: Request, res: Response, next: NextFunction) => {

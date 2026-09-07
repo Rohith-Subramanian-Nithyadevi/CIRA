@@ -8,13 +8,13 @@ export const errorHandler = (
   res: Response,
   next: NextFunction
 ) => {
-  console.error(`[Error] ${err.name}: ${err.message}`);
+  console.error(`[Error] ${err.name}: ${err.message}`, err.stack || '');
 
   // Default to 500 server error
   let statusCode = 500;
   let error = {
     code: 'ERR_INTERNAL_SERVER',
-    message: 'An unexpected error occurred.',
+    message: err.message || 'An unexpected error occurred.',
     details: null as any,
   };
 
@@ -32,9 +32,9 @@ export const errorHandler = (
     error.details = err.issues;
   }
 
-  // Hide detailed errors in production unless they are operational
-  if (process.env.NODE_ENV === 'development') {
-    error.details = error.details || err.stack;
+  // Include detailed stack/message when not explicitly in production
+  if (process.env.NODE_ENV !== 'production') {
+    error.details = error.details || err.stack || err.message;
   }
 
   res.status(statusCode).json({ error });
