@@ -1,9 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/prisma';
 import { z } from 'zod';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/errors';
-
-const prisma = new PrismaClient();
 
 const evaluateSchema = z.object({
   student_id: z.string(),

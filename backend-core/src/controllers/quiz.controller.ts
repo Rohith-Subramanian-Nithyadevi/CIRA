@@ -1,8 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient, QuestionType } from '@prisma/client';
+import { QuestionType } from '@prisma/client';
+import { prisma } from '../config/prisma';
 import { BadRequestError } from '../utils/errors';
-
-const prisma = new PrismaClient();
 
 // Get All Quizzes for logged in Faculty
 export const getQuizzes = async (req: Request, res: Response, next: NextFunction) => {
@@ -291,7 +290,6 @@ export const addQuestions = async (req: Request, res: Response, next: NextFuncti
             answerKey: q.answerKey ?? undefined,
             explanation: q.explanation ?? undefined,
             image: q.image ?? undefined,
-            topic: q.topic ?? null,
           }
         })
       )

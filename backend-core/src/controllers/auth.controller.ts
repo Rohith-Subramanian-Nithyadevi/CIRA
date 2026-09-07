@@ -1,13 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/prisma';
 import { z } from 'zod';
 import { generateToken } from '../utils/jwt';
 import { BadRequestError, UnauthorizedError, NotFoundError, ForbiddenError } from '../utils/errors';
 import { sendVerificationEmail, sendAdminApprovalRequestEmail, sendPasswordResetEmail } from '../utils/email';
 import { verifyFirebaseToken } from '../config/firebase';
-
-const prisma = new PrismaClient();
 
 
 const registerSchema = z.object({

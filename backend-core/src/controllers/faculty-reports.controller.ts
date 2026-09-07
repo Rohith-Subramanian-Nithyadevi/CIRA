@@ -1,8 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/prisma';
 import { ForbiddenError, NotFoundError } from '../utils/errors';
-
-const prisma = new PrismaClient();
 
 /**
  * Get aggregated performance band statistics for Batch / Department / Section
