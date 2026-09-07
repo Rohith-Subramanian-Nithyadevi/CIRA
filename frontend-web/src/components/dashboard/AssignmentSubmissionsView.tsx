@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ChevronLeft, CheckCircle2, Circle, Search, Loader2 } from 'lucide-react';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { apiClient } from '@/lib/apiClient';
 
 interface AssignmentSubmissionsViewProps {
   assignmentId: string;
@@ -8,9 +9,6 @@ interface AssignmentSubmissionsViewProps {
 }
 
 export default function AssignmentSubmissionsView({ assignmentId, onBack }: AssignmentSubmissionsViewProps) {
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-  const token = localStorage.getItem('cira_token');
-
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>(null);
   const [filter, setFilter] = useState<'ALL' | 'SUBMITTED' | 'GRADED' | 'NOT_SUBMITTED'>('ALL');
@@ -23,7 +21,7 @@ export default function AssignmentSubmissionsView({ assignmentId, onBack }: Assi
 
   const fetchSubmissions = async () => {
     try {
-      const res = await fetch(`${baseUrl}/api/v1/assignments/faculty/${assignmentId}/submissions`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await apiClient.fetch(`/api/v1/assignments/faculty/${assignmentId}/submissions`);
       const json = await res.json();
       if (json.success) {
         setData(json.data);
@@ -67,9 +65,9 @@ export default function AssignmentSubmissionsView({ assignmentId, onBack }: Assi
     setGradingState(prev => ({ ...prev, [submissionId]: { ...currentState, saving: true, error: '' } }));
 
     try {
-      const res = await fetch(`${baseUrl}/api/v1/assignments/faculty/${assignmentId}/submissions/${submissionId}/grade`, {
+      const res = await apiClient.fetch(`/api/v1/assignments/faculty/${assignmentId}/submissions/${submissionId}/grade`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ grade: numericGrade, feedback: currentState.feedback })
       });
       const json = await res.json();

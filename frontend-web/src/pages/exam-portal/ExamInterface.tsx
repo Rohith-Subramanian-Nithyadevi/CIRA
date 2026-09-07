@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useSecureExam } from '../../hooks/useSecureExam';
+import { apiClient } from '../../lib/apiClient';
 
 type QuestionStatus = 'NOT_VISITED' | 'NOT_ANSWERED' | 'ANSWERED' | 'MARKED_FOR_REVIEW' | 'ANSWERED_AND_MARKED_FOR_REVIEW';
 
@@ -32,11 +33,9 @@ export default function ExamInterface() {
   const handleSecurityViolation = async (reason: string) => {
     if (!attemptId) return;
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-      const token = localStorage.getItem('cira_token');
-      await fetch(`${baseUrl}/api/v1/student/exam/attempt/${attemptId}/submit`, {
+      await apiClient.fetch(`/api/v1/student/exam/attempt/${attemptId}/submit`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ violationReason: reason })
       });
       toast.error(`Exam terminated: ${reason}`);
@@ -60,11 +59,8 @@ export default function ExamInterface() {
     const fetchQuiz = async () => {
       try {
         hasFetched.current = true;
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-        const token = localStorage.getItem('cira_token');
-        const res = await fetch(`${baseUrl}/api/v1/student/exam/start/${quizId}`, {
+        const res = await apiClient.fetch(`/api/v1/student/exam/start/${quizId}`, {
           method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}` }
         });
         const data = await res.json();
         
@@ -117,11 +113,9 @@ export default function ExamInterface() {
     setResponses(prev => ({ ...prev, [questionId]: { data: answerData, status } }));
     setSaving(true);
     try {
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-        const token = localStorage.getItem('cira_token');
-        await fetch(`${baseUrl}/api/v1/student/exam/attempt/${attemptId}/save-response`, {
+        await apiClient.fetch(`/api/v1/student/exam/attempt/${attemptId}/save-response`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ questionId, answerData, status })
         });
     } catch(e) {
@@ -174,14 +168,9 @@ export default function ExamInterface() {
 
     submittingRef.current = true;
     try {
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-        const token = localStorage.getItem('cira_token');
-        const res = await fetch(`${baseUrl}/api/v1/student/exam/attempt/${currentAttemptId}/submit`, {
+        const res = await apiClient.fetch(`/api/v1/student/exam/attempt/${currentAttemptId}/submit`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({})
         });
         const data = await res.json();

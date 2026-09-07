@@ -4,6 +4,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
   Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis
 } from 'recharts';
+import { apiClient } from '@/lib/apiClient';
 
 export default function StudentSpace() {
   const [data, setData] = useState<any>(null);
@@ -12,13 +13,7 @@ export default function StudentSpace() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-        const token = localStorage.getItem('cira_token');
-        const res = await fetch(`${baseUrl}/api/v1/student/dashboard`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
+        const res = await apiClient.fetch('/api/v1/student/dashboard');
         const json = await res.json();
         if (json.success) {
           setData(json.data);

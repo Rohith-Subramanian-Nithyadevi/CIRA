@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useBatches, useDepartments } from '@/hooks/useReferenceData';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { apiClient } from '@/lib/apiClient';
 
 const sanitizeHtml = (value: string) => DOMPurify.sanitize(value || '', { ALLOWED_TAGS: ['b', 'strong', 'i', 'em', 'u', 's', 'strike', 'ol', 'ul', 'li', 'a', 'p', 'br'], ALLOWED_ATTR: ['href', 'target', 'rel'] });
 
@@ -58,9 +59,6 @@ interface AnnouncementResponse { id: string; response: string; submittedAt: stri
 interface Notification { id: string; type: string; message: string; createdAt: string; read: boolean; }
 
 export default function FacultyHome() {
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-  const token = localStorage.getItem('cira_token');
-
   // Loading States
   const [loadingTasks, setLoadingTasks] = useState(true);
   const [loadingCalendar, setLoadingCalendar] = useState(true);
@@ -127,7 +125,7 @@ export default function FacultyHome() {
 
   const fetchTasks = async () => {
     try {
-      const res = await fetch(`${baseUrl}/api/v1/faculty/dashboard/tasks`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await apiClient.fetch('/api/v1/faculty/dashboard/tasks');
       const data = await res.json();
       if (data?.success) setTodos(data.data);
     } catch (err) {} finally { setLoadingTasks(false); }
@@ -135,7 +133,7 @@ export default function FacultyHome() {
 
   const fetchCalendarEvents = async () => {
     try {
-      const res = await fetch(`${baseUrl}/api/v1/faculty/dashboard/calendar`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await apiClient.fetch('/api/v1/faculty/dashboard/calendar');
       const data = await res.json();
       if (data?.success) setCalendarEvents(data.data.map((e: any) => ({ ...e, date: getLocalDateString(e.date) })));
     } catch (err) {} finally { setLoadingCalendar(false); }
@@ -143,7 +141,7 @@ export default function FacultyHome() {
 
   const fetchAnnouncements = async (pageNumber = 1) => {
     try {
-      const res = await fetch(`${baseUrl}/api/v1/faculty/dashboard/announcements?page=${pageNumber}&limit=10`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await apiClient.fetch(`/api/v1/faculty/dashboard/announcements?page=${pageNumber}&limit=10`);
       const data = await res.json();
       if (data?.success) {
         const fetchedAnnouncements = Array.isArray(data.data) ? data.data : data.data.items;
@@ -166,7 +164,7 @@ export default function FacultyHome() {
   const fetchNotifications = async () => {
     try {
       setNotifLoading(true);
-      const res = await fetch(`${baseUrl}/api/v1/faculty/dashboard/notifications`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await apiClient.fetch('/api/v1/faculty/dashboard/notifications');
       if (!res.ok) return; // Fail silently
       const data = await res.json();
       if (data?.success) setNotifications(data.data);
@@ -186,9 +184,8 @@ export default function FacultyHome() {
       setNotifications(prev => prev.map(n => ({ ...n, read: true })));
       // Persist to backend (fire-and-forget)
       unread.forEach(n => {
-        fetch(`${baseUrl}/api/v1/faculty/dashboard/notifications/${n.id}/read`, {
+        apiClient.fetch(`/api/v1/faculty/dashboard/notifications/${n.id}/read`, {
           method: 'PATCH',
-          headers: { 'Authorization': `Bearer ${token}` }
         }).catch(() => {});
       });
     }
@@ -200,8 +197,8 @@ export default function FacultyHome() {
     const t = newTaskText;
     setNewTaskText(''); setIsAddingTask(false);
     try {
-      const res = await fetch(`${baseUrl}/api/v1/faculty/dashboard/tasks`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      const res = await apiClient.fetch('/api/v1/faculty/dashboard/tasks', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ task: t, date: new Date().toISOString() })
       });
       const data = await res.json();
@@ -212,8 +209,8 @@ export default function FacultyHome() {
   const toggleTodo = async (id: string, currentStatus: boolean) => {
     setTodos(todos.map(t => t.id === id ? { ...t, completed: !currentStatus } : t));
     try {
-      await fetch(`${baseUrl}/api/v1/faculty/dashboard/tasks/${id}`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      await apiClient.fetch(`/api/v1/faculty/dashboard/tasks/${id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ completed: !currentStatus })
       });
     } catch (err) {}
@@ -223,7 +220,7 @@ export default function FacultyHome() {
     e.stopPropagation();
     setTodos(todos.filter(t => t.id !== id));
     try {
-      await fetch(`${baseUrl}/api/v1/faculty/dashboard/tasks/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+      await apiClient.fetch(`/api/v1/faculty/dashboard/tasks/${id}`, { method: 'DELETE' });
     } catch (err) {}
   };
 
@@ -236,8 +233,8 @@ export default function FacultyHome() {
     const date = `${localDateStr}T12:00:00.000Z`;
     setNewEventTitle(''); setShowEventForm(false);
     try {
-      const res = await fetch(`${baseUrl}/api/v1/faculty/dashboard/calendar`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      const res = await apiClient.fetch('/api/v1/faculty/dashboard/calendar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title, date })
       });
       const data = await res.json();
@@ -248,7 +245,7 @@ export default function FacultyHome() {
   const deleteCalendarEvent = async (id: string) => {
     setCalendarEvents(calendarEvents.filter(e => e.id !== id));
     try {
-      await fetch(`${baseUrl}/api/v1/faculty/dashboard/calendar/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+      await apiClient.fetch(`/api/v1/faculty/dashboard/calendar/${id}`, { method: 'DELETE' });
     } catch (err) {}
   };
 
@@ -281,8 +278,8 @@ export default function FacultyHome() {
     setNewAnnouncement({ title: '', content: '', isSurvey: false, batch: 'All Batches', department: 'All Departments', section: 'All Sections' });
     
     try {
-      const res = await fetch(`${baseUrl}/api/v1/faculty/dashboard/announcements`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      const res = await apiClient.fetch('/api/v1/faculty/dashboard/announcements', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
       const data = await res.json();
@@ -293,7 +290,7 @@ export default function FacultyHome() {
   const deleteAnnouncement = async (id: string) => {
     setAnnouncements(announcements.filter(a => a.id !== id));
     try {
-      await fetch(`${baseUrl}/api/v1/faculty/dashboard/announcements/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+      await apiClient.fetch(`/api/v1/faculty/dashboard/announcements/${id}`, { method: 'DELETE' });
     } catch (err) {}
   };
 
@@ -301,7 +298,7 @@ export default function FacultyHome() {
     setViewingResponsesFor(id);
     setLoadingResponses(true);
     try {
-      const res = await fetch(`${baseUrl}/api/v1/faculty/dashboard/announcements/${id}/responses`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await apiClient.fetch(`/api/v1/faculty/dashboard/announcements/${id}/responses`);
       const data = await res.json();
       if (data?.success) setAnnouncementResponses(data.data);
     } catch (err) {} finally { setLoadingResponses(false); }

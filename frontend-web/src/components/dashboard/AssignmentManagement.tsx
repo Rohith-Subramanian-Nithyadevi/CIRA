@@ -8,6 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useBatches, useDepartments } from '@/hooks/useReferenceData';
 import AssignmentSubmissionsView from './AssignmentSubmissionsView';
+import { apiClient } from '@/lib/apiClient';
 
 const sanitizeHtml = (value: string) => DOMPurify.sanitize(value || '', { ALLOWED_TAGS: ['b', 'strong', 'i', 'em', 'u', 's', 'strike', 'ol', 'ul', 'li', 'a', 'p', 'br'], ALLOWED_ATTR: ['href', 'target', 'rel'] });
 
@@ -41,9 +42,6 @@ function RichTextEditor({ value, onChange }: { value: string; onChange: (value: 
 }
 
 export default function AssignmentManagement() {
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-  const token = localStorage.getItem('cira_token');
-
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
@@ -68,7 +66,7 @@ export default function AssignmentManagement() {
 
   const fetchAssignments = async (pageNumber = 1) => {
     try {
-      const res = await fetch(`${baseUrl}/api/v1/assignments/faculty?page=${pageNumber}&limit=10`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await apiClient.fetch(`/api/v1/assignments/faculty?page=${pageNumber}&limit=10`);
       const data = await res.json();
       if (data?.success) {
         const fetchedAssignments = Array.isArray(data.data) ? data.data : data.data.items;
@@ -108,13 +106,13 @@ export default function AssignmentManagement() {
     try {
       let res;
       if (activeAssignmentId) {
-        res = await fetch(`${baseUrl}/api/v1/assignments/faculty/${activeAssignmentId}`, {
-          method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        res = await apiClient.fetch(`/api/v1/assignments/faculty/${activeAssignmentId}`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
       } else {
-        res = await fetch(`${baseUrl}/api/v1/assignments/faculty`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        res = await apiClient.fetch('/api/v1/assignments/faculty', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
       }
@@ -157,7 +155,7 @@ export default function AssignmentManagement() {
   const handleDelete = async (id: string) => {
     setAssignments(assignments.filter(a => a.id !== id));
     try {
-      await fetch(`${baseUrl}/api/v1/assignments/faculty/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+      await apiClient.fetch(`/api/v1/assignments/faculty/${id}`, { method: 'DELETE' });
     } catch (err) {}
   };
 

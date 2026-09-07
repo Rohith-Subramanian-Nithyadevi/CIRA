@@ -33,11 +33,9 @@ import {
 import { useBatches, useDepartments } from '../../hooks/useReferenceData';
 import StudentProfileView from './StudentProfileView';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { apiClient } from '@/lib/apiClient';
 
 export const StudentReports = () => {
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-  const token = localStorage.getItem('cira_token');
-
   // Shared Reference Data (cached with TanStack Query)
   const { batches } = useBatches();
   const { departments } = useDepartments();
@@ -109,9 +107,7 @@ export const StudentReports = () => {
       const params = new URLSearchParams({ posted: 'true' });
       if (selectedDept) params.set('departmentId', selectedDept);
       if (selectedSection) params.set('sectionId', selectedSection);
-      const res = await fetch(`${baseUrl}/api/v1/faculty/quiz?${params.toString()}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const res = await apiClient.fetch(`/api/v1/faculty/quiz?${params.toString()}`);
       const data = await res.json();
       if (data?.data) setQuizzes(data.data);
     } catch (err) {
@@ -135,11 +131,7 @@ export const StudentReports = () => {
       setSearchLoading(true);
       setSearchError(null);
 
-      const res = await fetch(`${baseUrl}/api/v1/faculty/students/search?rollNumber=${encodeURIComponent(queryRoll)}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const res = await apiClient.fetch(`/api/v1/faculty/students/search?rollNumber=${encodeURIComponent(queryRoll)}`);
 
       const json = await res.json();
 
@@ -227,11 +219,7 @@ export const StudentReports = () => {
       if (selectedDept) params.append('departmentId', selectedDept);
       if (selectedSection) params.append('sectionId', selectedSection);
 
-      const res = await fetch(`${baseUrl}/api/v1/faculty/reports/performance-bands?${params.toString()}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const res = await apiClient.fetch(`/api/v1/faculty/reports/performance-bands?${params.toString()}`);
 
       if (!res.ok) {
         if (res.status === 403) {
@@ -275,9 +263,7 @@ export const StudentReports = () => {
       try {
         setQuizAnalyticsLoading(true);
         setQuizAnalyticsError(null);
-        const res = await fetch(`${baseUrl}/api/v1/faculty/reports/quiz/${selectedQuiz}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const res = await apiClient.fetch(`/api/v1/faculty/reports/quiz/${selectedQuiz}`);
         const json = await res.json();
         if (!res.ok) throw new Error(json.message || 'Failed to load quiz analytics.');
         setQuizAnalytics(json.data || null);

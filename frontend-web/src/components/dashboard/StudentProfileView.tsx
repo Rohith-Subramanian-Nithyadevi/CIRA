@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ArrowLeft, User, Loader2, AlertTriangle, CheckCircle2, Circle, Clock, FileText, Clipboard } from 'lucide-react';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { apiClient } from '@/lib/apiClient';
 
 interface StudentProfileViewProps {
   studentId: string;
@@ -8,9 +9,6 @@ interface StudentProfileViewProps {
 }
 
 export default function StudentProfileView({ studentId, onBack }: StudentProfileViewProps) {
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-  const token = localStorage.getItem('cira_token') || localStorage.getItem('token');
-
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<any>(null);
@@ -24,9 +22,7 @@ export default function StudentProfileView({ studentId, onBack }: StudentProfile
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch(`${baseUrl}/api/v1/faculty/students/${studentId}/profile`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const res = await apiClient.fetch(`/api/v1/faculty/students/${studentId}/profile`);
       const json = await res.json();
       if (!res.ok) {
         throw new Error(json.message || 'Failed to fetch student profile');

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { apiClient } from '../../lib/apiClient';
 
 const formatAnswer = (answer: any) => {
   if (answer === null || answer === undefined || answer === '') return 'Not answered';
@@ -31,11 +32,7 @@ export default function ExamResults() {
   useEffect(() => {
     const fetchResults = async () => {
       try {
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-        const token = localStorage.getItem('cira_token');
-        const res = await fetch(`${baseUrl}/api/v1/student/exam/result/${quizId}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const res = await apiClient.fetch(`/api/v1/student/exam/result/${quizId}`);
         const data = await res.json();
         
         if (data?.status === 'success') {

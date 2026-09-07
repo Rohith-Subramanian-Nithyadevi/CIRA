@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import StudentSpace from '../components/dashboard/StudentSpace';
 import UserProfile from '../components/dashboard/UserProfile';
+import { apiClient } from '../lib/apiClient';
 
 export default function StudentDashboard() {
   const [activeTab, setActiveTab] = useState('progress');
@@ -23,22 +24,16 @@ export default function StudentDashboard() {
   const fetchQuizzes = async () => {
     setLoading(true);
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-      const token = localStorage.getItem('cira_token');
       
       // Fetch active quizzes
-      const activeRes = await fetch(`${baseUrl}/api/v1/student/exam/eligible`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const activeRes = await apiClient.fetch('/api/v1/student/exam/eligible');
       const activeData = await activeRes.json();
       if (activeData?.data) {
         setActiveQuizzes(activeData.data);
       }
 
       // Fetch past quizzes via dashboard data
-      const dashboardRes = await fetch(`${baseUrl}/api/v1/student/dashboard`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const dashboardRes = await apiClient.fetch('/api/v1/student/dashboard');
       const dashboardData = await dashboardRes.json();
       if (dashboardData?.success && dashboardData.data?.pastQuizzes) {
         setPastQuizzes(dashboardData.data.pastQuizzes);
