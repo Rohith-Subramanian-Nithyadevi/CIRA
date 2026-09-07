@@ -225,40 +225,274 @@ export const getResources = async (req: Request, res: Response) => {
 };
 
 // ----------------------------------------------------
-// ANALYTICS (Mock Data)
+// ANALYTICS (Real Data from Quiz Attempts)
 // ----------------------------------------------------
 
 export const getTimeline = async (req: Request, res: Response) => {
-  res.json([
-    { name: 'Sem 3', score: 65 },
-    { name: 'Sem 4', score: 72 },
-    { name: 'Sem 5', score: 68 },
-    { name: 'Sem 6', score: 85 }
-  ]);
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    // Get all submitted attempts ordered by date, group by quiz
+    const attempts = await prisma.quizAttempt.findMany({
+      where: { userId, status: 'SUBMITTED' },
+      include: { quiz: { select: { title: true, totalMarks: true } } },
+      orderBy: { startTime: 'asc' }
+    });
+
+    if (attempts.length === 0) {
+      // Return empty but valid shape
+      return res.json([]);
+    }
+
+    // Group by month (or quiz) and compute average score %
+    const grouped: Record<string, { total: number; count: number }> = {};
+    attempts.forEach(a => {
+      const d = new Date(a.startTime);
+      const key = `${d.toLocaleString('default', { month: 'short' })} '${String(d.getFullYear()).slice(2)}`;
+      if (!grouped[key]) grouped[key] = { total: 0, count: 0 };
+      const maxMarks = a.quiz?.totalMarks || 100;
+      const pct = maxMarks > 0 ? Math.round((a.totalScore / maxMarks) * 100) : 0;
+      grouped[key].total += pct;
+      grouped[key].count += 1;
+    });
+
+    const result = Object.entries(grouped).map(([name, { total, count }]) => ({
+      name,
+      score: Math.round(total / count)
+    }));
+
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch timeline' });
+  }
 };
 
 export const getStrengthsWeaknesses = async (req: Request, res: Response) => {
-  res.json({
-    strengths: [{ topic: 'Data Structures (Trees/Graphs)', score: 89 }, { topic: 'Logical Reasoning', score: 85 }],
-    weaknesses: [{ topic: 'System Design', score: 42 }, { topic: 'Verbal Comprehension', score: 55 }]
-  });
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    // Get all responses the student has answered, join with question topic + marks
+    const responses = await prisma.quizResponse.findMany({
+      where: { attempt: { userId }, marksAwarded: { not: null } },
+      include: {
+        question: { select: { topic: true, marks: true } }
+      }
+    });
+
+    if (responses.length === 0) {
+      return res.json({ strengths: [], weaknesses: [] });
+    }
+
+    // Aggregate by topic: sum marks awarded / sum max marks → percentage
+    const topicMap: Record<string, { earned: number; max: number }> = {};
+    responses.forEach(r => {
+      const topic = r.question.topic || 'General';
+      if (!topicMap[topic]) topicMap[topic] = { earned: 0, max: 0 };
+      topicMap[topic].earned += r.marksAwarded || 0;
+      topicMap[topic].max += r.question.marks || 1;
+    });
+
+    const topics = Object.entries(topicMap)
+      .filter(([_, v]) => v.max > 0)
+      .map(([topic, { earned, max }]) => ({
+        topic,
+        score: Math.round((earned / max) * 100)
+      }))
+      .sort((a, b) => b.score - a.score);
+
+    const strengths = topics.filter(t => t.score >= 70).slice(0, 3);
+    const weaknesses = topics.filter(t => t.score < 70).slice(-3).reverse();
+
+    res.json({ strengths, weaknesses });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch strengths/weaknesses' });
+  }
 };
 
 export const getHeatmap = async (req: Request, res: Response) => {
-  res.json([
-    { topic: 'Aptitude: Quants', s1: 60, s2: 70, s3: 85, s4: 90 },
-    { topic: 'DSA: Arrays & Strings', s1: 40, s2: 50, s3: 65, s4: 70 },
-    { topic: 'Soft Skills: Leadership', s1: 50, s2: 55, s3: 80, s4: 85 },
-    { topic: 'Verbal: Grammar', s1: 45, s2: 60, s3: 65, s4: 80 }
-  ]);
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    // Group attempts by quarter (3-month window) as a proxy for "semester"
+    const attempts = await prisma.quizAttempt.findMany({
+      where: { userId, status: 'SUBMITTED' },
+      include: {
+        responses: {
+          where: { marksAwarded: { not: null } },
+          include: { question: { select: { topic: true, marks: true } } }
+        }
+      },
+      orderBy: { startTime: 'asc' }
+    });
+
+    if (attempts.length === 0) {
+      return res.json([]);
+    }
+
+    // Build map: topic → [{ period, score }]
+    const topicPeriods: Record<string, Record<string, { earned: number; max: number }>> = {};
+    attempts.forEach(a => {
+      const d = new Date(a.startTime);
+      const q = `Q${Math.ceil((d.getMonth() + 1) / 3)} ${d.getFullYear()}`;
+      a.responses.forEach(r => {
+        const topic = r.question.topic || 'General';
+        if (!topicPeriods[topic]) topicPeriods[topic] = {};
+        if (!topicPeriods[topic][q]) topicPeriods[topic][q] = { earned: 0, max: 0 };
+        topicPeriods[topic][q].earned += r.marksAwarded || 0;
+        topicPeriods[topic][q].max += r.question.marks || 1;
+      });
+    });
+
+    // Get up to 4 most recent periods
+    const allPeriods = [...new Set(
+      attempts.map(a => {
+        const d = new Date(a.startTime);
+        return `Q${Math.ceil((d.getMonth() + 1) / 3)} ${d.getFullYear()}`;
+      })
+    )].slice(-4);
+
+    const result = Object.entries(topicPeriods).slice(0, 6).map(([topic, periods]) => {
+      const row: any = { topic };
+      const keys = ['s1', 's2', 's3', 's4'];
+      allPeriods.forEach((p, i) => {
+        const data = periods[p];
+        row[keys[i]] = data ? Math.round((data.earned / data.max) * 100) : 0;
+      });
+      // Fill missing periods with 0
+      keys.forEach(k => { if (row[k] === undefined) row[k] = 0; });
+      return row;
+    });
+
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch heatmap' });
+  }
 };
 
 export const getRadar = async (req: Request, res: Response) => {
-  res.json([
-    { subject: 'Aptitude', A: 80, fullMark: 100 },
-    { subject: 'Soft Skills', A: 85, fullMark: 100 },
-    { subject: 'Verbal', A: 70, fullMark: 100 },
-    { subject: 'DSA', A: 75, fullMark: 100 },
-    { subject: 'Core Subjects', A: 65, fullMark: 100 }
-  ]);
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const responses = await prisma.quizResponse.findMany({
+      where: { attempt: { userId }, marksAwarded: { not: null } },
+      include: { question: { select: { topic: true, marks: true } } }
+    });
+
+    if (responses.length === 0) {
+      return res.json([]);
+    }
+
+    const topicMap: Record<string, { earned: number; max: number }> = {};
+    responses.forEach(r => {
+      const raw = r.question.topic || 'General';
+      // Normalize topic to high-level category
+      let subject = 'General';
+      if (/dsa|algorithm|data struct|tree|graph|array|string|dp|linked/i.test(raw)) subject = 'DSA';
+      else if (/aptitude|quant|math|logical|reasoning/i.test(raw)) subject = 'Aptitude';
+      else if (/verbal|grammar|english|comprehension|vocab/i.test(raw)) subject = 'Verbal';
+      else if (/soft skill|leadership|communication|teamwork|group/i.test(raw)) subject = 'Soft Skills';
+      else subject = 'Core Subjects';
+
+      if (!topicMap[subject]) topicMap[subject] = { earned: 0, max: 0 };
+      topicMap[subject].earned += r.marksAwarded || 0;
+      topicMap[subject].max += r.question.marks || 1;
+    });
+
+    const result = Object.entries(topicMap).map(([subject, { earned, max }]) => ({
+      subject,
+      A: Math.round((earned / max) * 100),
+      fullMark: 100
+    }));
+
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch radar' });
+  }
 };
+
+export const getBenchmark = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    // Get all responses grouped by topic for this student AND all students
+    const allResponses = await prisma.quizResponse.findMany({
+      where: { marksAwarded: { not: null } },
+      include: {
+        question: { select: { topic: true, marks: true } },
+        attempt: { select: { userId: true } }
+      }
+    });
+
+    if (allResponses.length === 0) return res.json([]);
+
+    const topicMap: Record<string, { myEarned: number; myMax: number; allEarned: number; allMax: number; maxScores: number[] }> = {};
+    
+    allResponses.forEach(r => {
+      const topic = r.question.topic || 'General';
+      if (!topicMap[topic]) topicMap[topic] = { myEarned: 0, myMax: 0, allEarned: 0, allMax: 0, maxScores: [] };
+      const marks = r.question.marks || 1;
+      const pct = ((r.marksAwarded || 0) / marks) * 100;
+      topicMap[topic].allEarned += r.marksAwarded || 0;
+      topicMap[topic].allMax += marks;
+      topicMap[topic].maxScores.push(pct);
+      if (r.attempt.userId === userId) {
+        topicMap[topic].myEarned += r.marksAwarded || 0;
+        topicMap[topic].myMax += marks;
+      }
+    });
+
+    const result = Object.entries(topicMap)
+      .filter(([_, v]) => v.myMax > 0)
+      .slice(0, 5)
+      .map(([topic, v]) => ({
+        topic,
+        you: Math.round((v.myEarned / v.myMax) * 100),
+        classAvg: Math.round((v.allEarned / v.allMax) * 100),
+        topper: Math.min(100, Math.round(Math.max(...v.maxScores)))
+      }));
+
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch benchmark' });
+  }
+};
+
+export const getDistribution = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const attempts = await prisma.quizAttempt.findMany({
+      where: { userId, status: 'SUBMITTED' },
+      include: { quiz: { select: { totalMarks: true } } }
+    });
+
+    const buckets: Record<string, number> = {
+      '0-20': 0, '21-40': 0, '41-60': 0, '61-70': 0,
+      '71-80': 0, '81-90': 0, '91-100': 0
+    };
+
+    attempts.forEach(a => {
+      const max = a.quiz?.totalMarks || 100;
+      const pct = max > 0 ? (a.totalScore / max) * 100 : 0;
+      if (pct <= 20) buckets['0-20']++;
+      else if (pct <= 40) buckets['21-40']++;
+      else if (pct <= 60) buckets['41-60']++;
+      else if (pct <= 70) buckets['61-70']++;
+      else if (pct <= 80) buckets['71-80']++;
+      else if (pct <= 90) buckets['81-90']++;
+      else buckets['91-100']++;
+    });
+
+    res.json(Object.entries(buckets).map(([range, count]) => ({ range, count })));
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch distribution' });
+  }
+};
+
+
