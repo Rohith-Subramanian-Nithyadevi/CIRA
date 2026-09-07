@@ -4,10 +4,13 @@ import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import StudentSpace from '../components/dashboard/StudentSpace';
 import UserProfile from '../components/dashboard/UserProfile';
+import StudyPlanner from '../components/student/StudyPlanner';
+import ResourceHub from '../components/student/ResourceHub';
+import StudentAnalytics from '../components/student/StudentAnalytics';
 import { apiClient } from '../lib/apiClient';
 
 export default function StudentDashboard() {
-  const [activeTab, setActiveTab] = useState('progress');
+  const [activeTab, setActiveTab] = useState('overview');
   
   const [activeQuizzes, setActiveQuizzes] = useState<any[]>([]);
   const [pastQuizzes, setPastQuizzes] = useState<any[]>([]);
@@ -49,7 +52,23 @@ export default function StudentDashboard() {
     <DashboardLayout title="Academic Profile" activeTab={activeTab} onTabChange={setActiveTab}>
       {activeTab === 'profile' && <UserProfile />}
       
-      {activeTab === 'progress' && <StudentSpace />}
+      {activeTab === 'overview' && (
+        <div className="space-y-6">
+          <StudentSpace />
+        </div>
+      )}
+
+      {activeTab === 'todo' && (
+        <StudyPlanner />
+      )}
+
+      {activeTab === 'analytics' && (
+        <StudentAnalytics />
+      )}
+
+      {activeTab === 'resources' && (
+        <ResourceHub />
+      )}
       
       {activeTab === 'assignments' && (
         <div className="p-6 bg-white rounded-xl border border-border-soft shadow-sm">
