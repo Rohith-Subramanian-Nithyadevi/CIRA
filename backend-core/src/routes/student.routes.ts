@@ -16,7 +16,9 @@ import {
   getTimeline,
   getStrengthsWeaknesses,
   getHeatmap,
-  getRadar
+  getRadar,
+  getBenchmark,
+  getDistribution
 } from '../controllers/student.controller';
 
 const router = Router();
@@ -49,5 +51,7 @@ router.get('/analytics/timeline', getTimeline);
 router.get('/analytics/strengths-weaknesses', getStrengthsWeaknesses);
 router.get('/analytics/heatmap', getHeatmap);
 router.get('/analytics/radar', getRadar);
+router.get('/analytics/benchmark', getBenchmark);
+router.get('/analytics/distribution', getDistribution);
 
 export default router;
