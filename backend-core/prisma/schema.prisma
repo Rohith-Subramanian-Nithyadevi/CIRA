@@ -113,6 +113,8 @@ model User {
   mappedDepartments FacultyDepartment[]
   mappedSections    FacultySection[]
   studentTasks      StudentTask[]  @relation("StudentTasks")
+  studentHabits     StudentHabit[] @relation("StudentHabits")
+  studentEvents     StudentCalendarEvent[] @relation("StudentEvents")
 
   streak             Int       @default(0)
   lastCompletedDate  DateTime?
@@ -427,10 +429,29 @@ model StudentTask {
   id          String   @id @default(uuid())
   title       String
   description String?
+  estimatedTime Int?
   date        DateTime
   completed Boolean  @default(false)
   userId    String
   user      User     @relation("StudentTasks", fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
+model StudentHabit {
+  id             String   @id @default(uuid())
+  title          String
+  completedDates Json     @default("[]") // Array of date strings
+  userId         String
+  user           User     @relation("StudentHabits", fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+}
+
+model StudentCalendarEvent {
+  id        String   @id @default(uuid())
+  title     String
+  date      DateTime
+  userId    String
+  user      User     @relation("StudentEvents", fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
 }
 
