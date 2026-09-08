@@ -5,7 +5,7 @@ import {
   Legend, Cell, ReferenceLine, Area, AreaChart,
   PieChart, Pie
 } from 'recharts';
-import { TrendingUp, AlertTriangle, Award, FlaskConical, BookOpen, Target, CheckCircle2 } from 'lucide-react';
+import { TrendingUp, BookOpen, CheckCircle2 } from 'lucide-react';
 import { apiClient } from '../../lib/apiClient';
 
 // Site accent palette
@@ -161,14 +161,13 @@ export default function StudentAnalytics({ isDemo }: { isDemo?: boolean }) {
   const [liveBenchmark, setLB]      = useState<any[]>([]);
   const [liveDist, setLD]           = useState<any[]>([]);
   const [liveSIS, setLSIS]          = useState<any>(null);
-  const [livePriority, setLP]       = useState<any>(null);
   const [loading, setLoading]       = useState(true);
 
   useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
     try {
-      const [tR, swR, hR, rR, bR, dR, sR, pR] = await Promise.all([
+      const [tR, swR, hR, rR, bR, dR, sR] = await Promise.all([
         apiClient.fetch('/api/v1/student-features/analytics/timeline').catch(() => null),
         apiClient.fetch('/api/v1/student-features/analytics/strengths-weaknesses').catch(() => null),
         apiClient.fetch('/api/v1/student-features/analytics/heatmap').catch(() => null),
@@ -176,7 +175,6 @@ export default function StudentAnalytics({ isDemo }: { isDemo?: boolean }) {
         apiClient.fetch('/api/v1/student-features/analytics/benchmark').catch(() => null),
         apiClient.fetch('/api/v1/student-features/analytics/distribution').catch(() => null),
         apiClient.fetch('/api/v1/student/improvement/sis').catch(() => null),
-        apiClient.fetch('/api/v1/student/improvement/priority').catch(() => null),
       ]);
       if (tR) setLT(await tR.json());
       if (swR) setLSW(await swR.json());
@@ -188,8 +186,7 @@ export default function StudentAnalytics({ isDemo }: { isDemo?: boolean }) {
       const sData = sR ? await sR.json() : null;
       if (sData?.success) setLSIS(sData.data);
       
-      const pData = pR ? await pR.json() : null;
-      if (pData?.success) setLP(pData.data);
+
       
     } catch (e) {
       console.error('Analytics fetch failed', e);
@@ -205,14 +202,11 @@ export default function StudentAnalytics({ isDemo }: { isDemo?: boolean }) {
   const benchmarkData       = isDemo ? DEMO_DATA.benchmark : liveBenchmark;
   const distributionData    = isDemo ? DEMO_DATA.distribution : liveDist;
   const sis                 = isDemo ? DEMO_DATA.sisDetails : liveSIS;
-  const priority            = isDemo ? DEMO_DATA.priority : livePriority;
+
 
   const latestScore  = timelineData.length ? timelineData[timelineData.length - 1]?.score : 0;
   const prevScore    = timelineData.length > 1 ? timelineData[timelineData.length - 2]?.score : latestScore;
   const trend        = latestScore - prevScore;
-  const topStrength  = strengthsWeaknesses.strengths[0];
-  const topWeakness  = strengthsWeaknesses.weaknesses[0];
-  const yourAvg      = benchmarkData.length ? Math.round(benchmarkData.reduce((s, d) => s + d.you, 0) / benchmarkData.length) : 0;
   const classAvgVal  = benchmarkData.length ? Math.round(benchmarkData.reduce((s, d) => s + d.classAvg, 0) / benchmarkData.length) : 70;
   const bestPeriod   = timelineData.length ? timelineData.reduce((b, d) => d.score > b.score ? d : b, timelineData[0]).name : '—';
 
@@ -257,29 +251,7 @@ export default function StudentAnalytics({ isDemo }: { isDemo?: boolean }) {
 
       {activeTab === 'quiz' && (
         <div className="space-y-6 animate-in fade-in duration-300">
-          {/* ── PRIORITY ALERT ── */}
-          {priority && (
-            <div className="bg-[#FFF5F5] rounded-xl border p-5 flex flex-col md:flex-row gap-5 items-center justify-between shadow-sm" style={{ borderColor: '#FECACA' }}>
-              <div className="flex items-start gap-4">
-                <div className="p-3 bg-white rounded-full shrink-0 shadow-sm">
-                  <Target className="w-6 h-6" style={{ color: C.danger }} />
-                </div>
-                <div>
-                  <h3 className="font-bold text-ink mb-1">Priority Focus: {priority.topic}</h3>
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-x-4 gap-y-1 text-sm" style={{ color: C.gray }}>
-                    <span className="flex items-center gap-1.5">
-                      <span className="font-semibold text-danger" style={{ color: C.danger }}>{priority.score}%</span> Current Mastery
-                    </span>
-                    <span className="hidden sm:inline">•</span>
-                    <span>{priority.reasons[0]}</span>
-                  </div>
-                </div>
-              </div>
-              <button className="w-full md:w-auto px-5 py-2.5 bg-danger text-white rounded-lg text-sm font-semibold shadow-sm transition-colors shrink-0" style={{ background: C.danger }}>
-                Review Topic Now
-              </button>
-            </div>
-          )}
+
 
           {/* ── SIS & SUMMARY CARDS ── */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -314,7 +286,7 @@ export default function StudentAnalytics({ isDemo }: { isDemo?: boolean }) {
                       ['Current Performance', sis.components.currentPerformance, '35%'],
                       ['Improvement Trend',   sis.components.improvement,       '30%'],
                       ['Topic Mastery',       sis.components.topicMastery,      '20%'],
-                    ] as [string, number, string][]).map(([label, val, weight]) => (
+                    ] as [string, number, string][]).map(([label, val]) => (
                       <div key={label}>
                         <div className="flex justify-between text-xs mb-1">
                           <span style={{ color: C.gray }}>{label}</span>
@@ -495,7 +467,7 @@ export default function StudentAnalytics({ isDemo }: { isDemo?: boolean }) {
                     <th className="text-center text-[11px] font-semibold pb-3 pl-4" style={{ color: C.gray }}>Net Change</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y" style={{ divideColor: C.creamEdge }}>
+                <tbody className="divide-y divide-border-soft">
                   {heatmapData.length === 0 ? (
                     <tr><td colSpan={6} className="py-8 text-center text-sm italic" style={{ color: C.gray }}>No data yet. Use sample data to preview.</td></tr>
                   ) : heatmapData.map((row: any, i) => {
@@ -535,35 +507,35 @@ export default function StudentAnalytics({ isDemo }: { isDemo?: boolean }) {
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             <div className="bg-white p-6 rounded-xl border shadow-sm flex flex-col justify-center" style={{ borderColor: C.border }}>
-              <div className="flex items-center gap-4">
-                <div className="p-4 bg-maroon/10 rounded-full">
-                  <CheckCircle2 className="w-8 h-8 text-maroon" />
+              <div className="flex items-center gap-5">
+                <div className="p-3.5 bg-maroon/5 rounded-full border" style={{ borderColor: C.maroonFaint }}>
+                  <CheckCircle2 className="w-6 h-6 text-maroon" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-gray-body uppercase tracking-wider">Total Practice Qns</p>
-                  <p className="text-3xl font-bold text-ink mt-1">452</p>
+                  <p className="text-[9px] tracking-[0.12em] uppercase font-bold text-gray-body mb-1">Total Practice Qns</p>
+                  <p className="text-3xl font-bold text-ink leading-none">452</p>
                 </div>
               </div>
             </div>
             <div className="bg-white p-6 rounded-xl border shadow-sm flex flex-col justify-center" style={{ borderColor: C.border }}>
-              <div className="flex items-center gap-4">
-                <div className="p-4 bg-green-700/10 rounded-full">
-                  <BookOpen className="w-8 h-8 text-green-700" />
+              <div className="flex items-center gap-5">
+                <div className="p-3.5 rounded-full border" style={{ background: '#EBF5EE', borderColor: '#D1E6DA' }}>
+                  <BookOpen className="w-6 h-6" style={{ color: C.good }} />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-gray-body uppercase tracking-wider">Resources Viewed</p>
-                  <p className="text-3xl font-bold text-ink mt-1">38</p>
+                  <p className="text-[9px] tracking-[0.12em] uppercase font-bold text-gray-body mb-1">Resources Viewed</p>
+                  <p className="text-3xl font-bold text-ink leading-none">38</p>
                 </div>
               </div>
             </div>
             <div className="bg-white p-6 rounded-xl border shadow-sm flex flex-col justify-center" style={{ borderColor: C.border }}>
-              <div className="flex items-center gap-4">
-                <div className="p-4 bg-amber-600/10 rounded-full">
-                  <TrendingUp className="w-8 h-8 text-amber-600" />
+              <div className="flex items-center gap-5">
+                <div className="p-3.5 rounded-full border" style={{ background: '#FDF5E8', borderColor: '#F2D7B4' }}>
+                  <TrendingUp className="w-6 h-6" style={{ color: C.warn }} />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-gray-body uppercase tracking-wider">Avg Score Impact</p>
-                  <p className="text-3xl font-bold text-ink mt-1">+14%</p>
+                  <p className="text-[9px] tracking-[0.12em] uppercase font-bold text-gray-body mb-1">Avg Score Impact</p>
+                  <p className="text-3xl font-bold text-ink leading-none">+14%</p>
                 </div>
               </div>
             </div>

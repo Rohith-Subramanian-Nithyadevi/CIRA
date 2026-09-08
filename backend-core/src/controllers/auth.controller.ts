@@ -190,8 +190,12 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
     const validatedData = loginSchema.parse(req.body);
 
     // Only look up students, faculty, or admins
-    const user = await prisma.user.findUnique({
+    const user = await prisma.user.findUnique({ 
       where: { email: validatedData.email },
+      include: {
+        department: true,
+        section: true
+      }
     });
 
     if (!user) {
@@ -231,6 +235,9 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
           employeeId: user.employeeId,
           subject: user.subject,
           departmentId: user.departmentId,
+          department: user.department,
+          sectionId: user.sectionId,
+          section: user.section,
         },
         token,
       },

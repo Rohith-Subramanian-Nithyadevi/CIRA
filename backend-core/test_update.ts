@@ -1,0 +1,1 @@
+import { prisma } from "./src/config/prisma"; async function test() { try { const user = await prisma.user.findFirst({ where: { role: "STUDENT" } }); if(!user) return console.log("No student"); console.log("Updating user", user.id); await prisma.user.update({ where: { id: user.id }, data: { name: user.name } }); console.log("Success"); } catch(e) { console.error(e); } } test();
