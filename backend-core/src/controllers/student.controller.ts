@@ -45,8 +45,8 @@ export const createTask = async (req: Request, res: Response) => {
 
 export const toggleTask = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-    const { completed } = req.body;
+    const id = req.params.id as string;
+    const completed = Boolean(req.body.completed);
     const userId = (req as any).user?.userId;
 
     const task = await prisma.studentTask.update({
@@ -90,7 +90,7 @@ export const toggleTask = async (req: Request, res: Response) => {
 
 export const deleteTask = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     await prisma.studentTask.delete({ where: { id } });
     res.json({ success: true });
   } catch (error) {
@@ -495,4 +495,75 @@ export const getDistribution = async (req: Request, res: Response) => {
   }
 };
 
+// ---------------------------------------------------------
+// Profile and Announcements (Added)
+// ---------------------------------------------------------
+export const updateProfile = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user?.userId;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    
+    const { name, phone, rollNumber, departmentId, sectionId } = req.body;
+    
+    // Only update fields that are provided
+    const data: any = {};
+    if (name !== undefined) data.name = name;
+    if (phone !== undefined) data.phone = phone;
+    if (rollNumber !== undefined) data.rollNumber = rollNumber;
+    if (departmentId !== undefined) data.departmentId = departmentId;
+    if (sectionId !== undefined) data.sectionId = sectionId === 'all' ? null : sectionId;
 
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data
+    });
+    
+    res.json({ success: true, data: updatedUser });
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    res.status(500).json({ error: 'Failed to update profile' });
+  }
+};
+
+export const getAnnouncements = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user?.userId;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        department: true,
+        section: true
+      }
+    });
+
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    // Build audiences the student belongs to
+    const audiences = ['ALL'];
+    if (user.department?.name) audiences.push(user.department.name);
+    if (user.section?.name) audiences.push(user.section.name);
+    // Some announcements might just target the department ID or section ID instead of name. Let's add them too just in case.
+    if (user.departmentId) audiences.push(user.departmentId);
+    if (user.sectionId) audiences.push(user.sectionId);
+
+    const announcements = await prisma.announcement.findMany({
+      where: {
+        audience: { in: audiences }
+      },
+      include: {
+        faculty: {
+          select: { name: true }
+        }
+      },
+      orderBy: { date: 'desc' },
+      take: 20
+    });
+
+    res.json({ success: true, data: announcements });
+  } catch (error) {
+    console.error('Error fetching announcements:', error);
+    res.status(500).json({ error: 'Failed to fetch announcements' });
+  }
+};

@@ -1,173 +1,184 @@
 import { useState, useEffect } from 'react';
-import { Download, FileText, Loader2 } from 'lucide-react';
-import { 
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
-  Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis
-} from 'recharts';
+import { TrendingUp, Bell, Loader2, Calendar } from 'lucide-react';
 import { apiClient } from '@/lib/apiClient';
 
-export default function StudentSpace() {
-  const [data, setData] = useState<any>(null);
+interface SISData {
+  sis: number;
+  components: { currentPerformance: number; improvement: number; topicMastery: number; consistency: number; recovery: number };
+  insufficientData: boolean;
+  attemptCount: number;
+  trend: number;
+  latestScore: number;
+}
+
+interface Announcement {
+  id: string;
+  title: string;
+  content: string;
+  date: string;
+  faculty: { name: string };
+  isSurvey: boolean;
+}
+
+// Color palette (matches site)
+const C = { maroon: '#9B2242', good: '#2A6B4A', danger: '#C13535', warn: '#C07820', gray: '#6B6560', ink: '#1A1A1A', border: '#E7DDD0', cream: '#FAF5EE', creamEdge: '#EFE5D8' };
+
+function SISRing({ sis, insufficient }: { sis: number; insufficient: boolean }) {
+  const r = 46;
+  const circ = 2 * Math.PI * r;
+  const dash = insufficient ? 0 : (sis / 100) * circ;
+  return (
+    <div className="relative flex items-center justify-center" style={{ width: 120, height: 120 }}>
+      <svg width="120" height="120" style={{ transform: 'rotate(-90deg)' }}>
+        <circle cx="60" cy="60" r={r} fill="none" stroke={C.creamEdge} strokeWidth="10" />
+        <circle cx="60" cy="60" r={r} fill="none" stroke={C.maroon} strokeWidth="10"
+          strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
+          style={{ transition: 'stroke-dasharray 1s ease' }} />
+      </svg>
+      <div className="absolute text-center">
+        {insufficient ? (
+          <span className="text-xs text-gray-body font-medium">No data</span>
+        ) : (
+          <>
+            <div className="text-3xl font-bold text-ink leading-none">{sis}</div>
+            <div className="text-[10px] text-gray-body font-semibold">/100</div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default function StudentSpace({ onTabChange, isDemo }: { onTabChange?: (tab: string) => void, isDemo?: boolean }) {
+  const [sis, setSIS] = useState<SISData | null>(null);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const res = await apiClient.fetch('/api/v1/student/dashboard');
-        const json = await res.json();
-        if (json.success) {
-          setData(json.data);
-        } else {
-          // Add some mock data in case API fails/isn't returning expected shape
-          setMockData();
-        }
-      } catch (err) {
-        console.error("Failed to fetch dashboard data", err);
-        setMockData();
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, []);
+    if (isDemo) {
+      setSIS({
+        sis: 82,
+        components: { currentPerformance: 85, improvement: 78, topicMastery: 80, consistency: 88, recovery: 75 },
+        insufficientData: false,
+        attemptCount: 12,
+        trend: 5,
+        latestScore: 88
+      });
+      setAnnouncements([
+        { id: '1', title: 'Midterm schedule updated', content: 'The midterm for Data Structures has been moved to Friday. Please check the portal for exact timings.', date: new Date().toISOString(), faculty: { name: 'Dr. Smith' }, isSurvey: false },
+        { id: '2', title: 'Course Feedback Required', content: 'Please fill out the feedback survey for the recent module on algorithms.', date: new Date(Date.now() - 86400000).toISOString(), faculty: { name: 'Prof. Johnson' }, isSurvey: true }
+      ]);
+      setLoading(false);
+      return;
+    }
 
-  const setMockData = () => {
-    setData({
-      performanceTrajectory: [
-        { date: 'Quiz 1', score: 65 },
-        { date: 'Quiz 2', score: 78 },
-        { date: 'Midterm', score: 85 },
-        { date: 'Quiz 3', score: 92 },
-      ],
-      knowledgeDeficits: [
-        { subject: 'Data Structures', score: 90 },
-        { subject: 'Algorithms', score: 60 },
-        { subject: 'Database Systems', score: 85 },
-        { subject: 'Operating Systems', score: 70 },
-        { subject: 'Networks', score: 50 },
-      ],
-      assignments: [
-        { id: 1, title: 'Practice: Sorting Algorithms', date: '2026-07-10', status: 'Generated' },
-        { id: 2, title: 'Review: TCP/IP Fundamentals', date: '2026-07-12', status: 'Generated' },
-      ]
-    });
-  };
+    Promise.all([
+      apiClient.fetch('/api/v1/student/improvement/sis').then(r => r.json()).catch(() => null),
+      apiClient.fetch('/api/v1/student/announcements').then(r => r.json()).catch(() => null),
+    ]).then(([sisRes, annRes]) => {
+      if (sisRes?.success) setSIS(sisRes.data);
+      if (annRes?.success) setAnnouncements(annRes.data);
+    }).finally(() => setLoading(false));
+  }, [isDemo]);
 
-  const { performanceTrajectory, knowledgeDeficits, assignments } = data || {};
+  const user = JSON.parse(localStorage.getItem('cira_user') || '{}');
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+
+  if (loading) {
+    return <div className="flex items-center justify-center h-48"><Loader2 className="w-6 h-6 animate-spin text-gray-body" /></div>;
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Your Progress */}
-        <div className="bg-white border border-border-soft p-6 lg:col-span-2 rounded-xl shadow-sm">
-          <h3 className="text-lg font-serif font-bold mb-6 flex items-center text-ink">
-            <span className="w-2 h-2 rounded-full bg-maroon mr-2"></span>
-            Your Progress
-          </h3>
-          <div className="h-[300px] w-full flex items-center justify-center border border-dashed border-border-soft rounded-xl bg-cream/20 overflow-hidden">
-            {loading ? (
-              <Loader2 className="w-6 h-6 animate-spin text-gray-body" />
-            ) : performanceTrajectory && performanceTrajectory.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={performanceTrajectory} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="name" stroke="#64748b" fontSize={12} tickMargin={10} />
-                  <YAxis stroke="#64748b" fontSize={12} domain={[0, 100]} />
-                  <RechartsTooltip 
-                    contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', color: '#1e293b' }}
-                    itemStyle={{ color: '#0f172a' }}
-                  />
-                  <Line type="monotone" dataKey="score" stroke="#800000" strokeWidth={3} dot={{ r: 4, fill: '#800000' }} activeDot={{ r: 6 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              <p className="text-gray-body text-sm italic">No performance data available yet.</p>
-            )}
-          </div>
-        </div>
+    <div className="space-y-6 max-w-4xl">
+      {/* ── WELCOME ── */}
+      <div className="bg-transparent">
+        <div className="flex flex-col md:flex-row md:items-center gap-8">
+          
+          {/* Welcome text + stats */}
+          <div className="flex-1">
+            <h2 className="text-3xl font-serif font-bold text-ink">{greeting}, {user.name?.split(' ')[0] ?? 'Student'}</h2>
+            <p className="text-base mt-1" style={{ color: C.gray }}>Here is your overview for today.</p>
 
-        {/* Topics to Review */}
-        <div className="bg-white border border-border-soft p-6 rounded-xl shadow-sm">
-          <h3 className="text-lg font-serif font-bold mb-6 flex items-center text-ink">
-            <span className="w-2 h-2 rounded-full bg-maroon mr-2"></span>
-            Topics to Review
-          </h3>
-          <div className="h-[300px] w-full flex items-center justify-center border border-dashed border-border-soft rounded-xl bg-cream/20 overflow-hidden">
-            {loading ? (
-               <Loader2 className="w-6 h-6 animate-spin text-gray-body" />
-            ) : knowledgeDeficits && knowledgeDeficits.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <RadarChart cx="50%" cy="50%" outerRadius="60%" data={knowledgeDeficits}>
-                  <PolarGrid stroke="#e2e8f0" />
-                  <PolarAngleAxis dataKey="subject" tick={{ fill: '#64748b', fontSize: 11 }} />
-                  <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: '#94a3b8', fontSize: 10 }} />
-                  <Radar name="Score" dataKey="score" stroke="#800000" fill="#800000" fillOpacity={0.4} />
-                  <RechartsTooltip 
-                    contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', color: '#1e293b' }}
-                  />
-                </RadarChart>
-              </ResponsiveContainer>
-            ) : (
-              <p className="text-gray-body text-sm italic">No analysis available.</p>
-            )}
+            <div className="grid grid-cols-3 gap-4 mt-6">
+              <div className="bg-transparent border-l-2 pl-4 py-1" style={{ borderColor: C.maroon }}>
+                <p className="text-[10px] uppercase tracking-widest font-bold mb-1" style={{ color: C.gray }}>Performance</p>
+                <p className="text-2xl font-bold text-ink">{sis?.latestScore ?? 0}<span className="text-sm font-normal text-gray-body">%</span></p>
+              </div>
+              <div className="bg-transparent border-l-2 pl-4 py-1" style={{ borderColor: C.border }}>
+                <p className="text-[10px] uppercase tracking-widest font-bold mb-1" style={{ color: C.gray }}>Assessments</p>
+                <p className="text-2xl font-bold text-ink">{sis?.attemptCount ?? 0}</p>
+              </div>
+              <div className="bg-transparent border-l-2 pl-4 py-1" style={{ borderColor: C.border }}>
+                <p className="text-[10px] uppercase tracking-widest font-bold mb-1" style={{ color: C.gray }}>Improvement</p>
+                <p className="text-2xl font-bold" style={{ color: (sis?.trend ?? 0) >= 0 ? C.good : C.danger }}>
+                  {(sis?.trend ?? 0) >= 0 ? '+' : ''}{sis?.trend ?? 0}%
+                </p>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
 
-      {/* Recommended Practice Assignments */}
-      <div className="bg-white border border-border-soft p-6 rounded-xl shadow-sm">
-        <h3 className="text-lg font-serif font-bold mb-1 text-ink">Recommended Practice Assignments</h3>
-        <p className="text-sm text-gray-body mb-6">These assignments are picked for you based on topics you need to practice.</p>
-        
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-ink">
-            <thead>
-              <tr className="border-b border-border-soft text-xs uppercase text-gray-body">
-                <th className="pb-3 font-semibold">Assignment Title</th>
-                <th className="pb-3 font-semibold">Date Issued</th>
-                <th className="pb-3 font-semibold">Status</th>
-                <th className="pb-3 font-semibold text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={4} className="py-8 text-center">
-                    <Loader2 className="w-6 h-6 animate-spin text-gray-body mx-auto" />
-                  </td>
-                </tr>
-              ) : assignments && assignments.length > 0 ? assignments.map((item: any) => (
-                <tr key={item.id} className="border-b border-border-soft hover:bg-cream/20 transition-colors">
-                  <td className="py-4 font-semibold text-ink">
-                    <div className="flex items-center">
-                      <FileText className="w-4 h-4 mr-3 text-maroon" />
-                      <span>{item.title}</span>
-                    </div>
-                  </td>
-                  <td className="py-4 text-sm text-gray-body">{item.date}</td>
-                  <td className="py-4">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border ${
-                      item.status === 'Generated' ? 'bg-maroon/10 text-maroon border-maroon/20' : 'bg-green-50/10 text-green-700 border-green-200'
-                    }`}>
-                      {item.status}
-                    </span>
-                  </td>
-                  <td className="py-4 text-right">
-                    <button className="inline-flex items-center px-3 py-1.5 text-xs font-semibold bg-cream hover:bg-cream-edge/60 border border-border-soft text-ink rounded-lg transition-colors">
-                      <Download className="w-3 h-3 mr-1.5 text-maroon" /> PDF
-                    </button>
-                  </td>
-                </tr>
-              )) : (
-                <tr>
-                  <td colSpan={4} className="py-8 text-center text-gray-body italic text-sm">No assignments found.</td>
-                </tr>
+          {/* SIS Ring */}
+          <div className="flex flex-col items-center gap-3 shrink-0">
+            <SISRing sis={sis?.sis ?? 0} insufficient={!sis || sis.insufficientData} />
+            <div className="text-center">
+              <p className="text-[10px] uppercase tracking-widest font-bold" style={{ color: C.gray }}>Improvement Score</p>
+              {sis && !sis.insufficientData && sis.trend !== 0 && (
+                <span className="text-sm font-semibold mt-1 block" style={{ color: sis.trend > 0 ? C.good : C.danger }}>
+                  {sis.trend > 0 ? `▲ +${sis.trend}` : `▼ ${sis.trend}`} pts vs last
+                </span>
               )}
-            </tbody>
-          </table>
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* ── ANNOUNCEMENTS ── */}
+      <div className="mt-8">
+        <h3 className="text-lg font-serif font-bold text-ink mb-4 flex items-center gap-2">
+          <Bell className="w-5 h-5" style={{ color: C.maroon }} />
+          Announcements
+        </h3>
+        
+        {announcements.length === 0 ? (
+          <div className="py-8 text-center rounded-xl border border-dashed bg-cream/30" style={{ borderColor: C.border }}>
+            <p className="text-sm" style={{ color: C.gray }}>No announcements for your batch right now.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {announcements.map((ann) => (
+              <div key={ann.id} className="p-4 rounded-xl border bg-white shadow-sm flex gap-4 items-start" style={{ borderColor: C.border }}>
+                <div className="p-2 rounded-lg shrink-0" style={{ background: C.creamEdge }}>
+                  <Calendar className="w-5 h-5" style={{ color: C.maroon }} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h4 className="font-bold text-ink">{ann.title}</h4>
+                    {ann.isSurvey && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: C.maroon, color: '#fff' }}>Survey</span>
+                    )}
+                  </div>
+                  <p className="text-sm whitespace-pre-wrap leading-relaxed" style={{ color: C.gray }}>{ann.content}</p>
+                  <p className="text-xs font-semibold mt-3" style={{ color: C.gray }}>
+                    From {ann.faculty?.name} • {new Date(ann.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      
+      {/* ── EMPTY STATE for new students ── */}
+      {!sis || sis.insufficientData ? (
+        <div className="bg-cream/40 rounded-xl border border-dashed p-8 text-center mt-8" style={{ borderColor: C.border }}>
+          <TrendingUp className="w-10 h-10 mx-auto mb-3" style={{ color: C.maroon, opacity: 0.4 }} />
+          <h3 className="font-semibold text-ink mb-1">Your analytics will appear here</h3>
+          <p className="text-sm" style={{ color: C.gray }}>
+            Complete {sis ? `${3 - sis.attemptCount} more` : 'at least 3'} assessments to unlock your full improvement dashboard.
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }
