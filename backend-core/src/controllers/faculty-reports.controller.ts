@@ -131,7 +131,7 @@ export const getPerformanceBands = async (req: Request, res: Response, next: Nex
     const evaluatedStudentIds = new Set<string>();
 
     const subjectData: Record<string, { Poor: number; Average: number; Excellent: number }> = {};
-    const sectionData: Record<string, { Poor: number; Average: number; Excellent: number }> = {};
+    const sectionData: Record<string, { Poor: number; Average: number; Excellent: number; totalScore: number; attempts: number }> = {};
 
     for (const student of students) {
       for (const attempt of student.quizAttempts) {
@@ -161,9 +161,11 @@ export const getPerformanceBands = async (req: Request, res: Response, next: Nex
 
         if (student.sectionId) {
           if (!sectionData[student.sectionId]) {
-            sectionData[student.sectionId] = { Poor: 0, Average: 0, Excellent: 0 };
+            sectionData[student.sectionId] = { Poor: 0, Average: 0, Excellent: 0, totalScore: 0, attempts: 0 };
           }
           sectionData[student.sectionId][band]++;
+          sectionData[student.sectionId].totalScore += percentage;
+          sectionData[student.sectionId].attempts += 1;
         }
       }
     }
@@ -182,13 +184,21 @@ export const getPerformanceBands = async (req: Request, res: Response, next: Nex
 
     const yearData = [poorObj, avgObj, excObj];
 
-    const deptData = sections.map(sec => ({
-      name: `Section ${sec.name}`,
-      sectionId: sec.id,
-      Excellent: sectionData[sec.id]?.Excellent || 0,
-      Average: sectionData[sec.id]?.Average || 0,
-      Poor: sectionData[sec.id]?.Poor || 0
-    }));
+    const deptData = sections.map(sec => {
+      const stats = sectionData[sec.id] || { Poor: 0, Average: 0, Excellent: 0, totalScore: 0, attempts: 0 };
+      const avgScore = stats.attempts > 0 ? Math.round(stats.totalScore / stats.attempts) : 0;
+      const passRate = stats.attempts > 0 ? Math.round(((stats.Excellent + stats.Average) / stats.attempts) * 100) : 0;
+      return {
+        name: `Section ${sec.name}`,
+        sectionId: sec.id,
+        Excellent: stats.Excellent,
+        Average: stats.Average,
+        Poor: stats.Poor,
+        averageScore: avgScore,
+        passRate,
+        totalAttempts: stats.attempts
+      };
+    });
 
     const totalAttempts = poorCount + averageCount + excellentCount;
     const percentage = (count: number) => totalAttempts > 0 ? Math.round((count / totalAttempts) * 100) : 0;
@@ -242,9 +252,6 @@ export const getQuizAnalytics = async (req: Request, res: Response, next: NextFu
     if (!quiz) {
       throw new NotFoundError('Quiz not found', 'ERR_NOT_FOUND');
     }
-    if (userRole !== 'ADMIN' && quiz.createdBy !== userId) {
-      throw new ForbiddenError('You are not authorized to view this quiz report', 'ERR_FORBIDDEN');
-    }
 
     const targetDepartmentIds = quiz.targetDepartments.map(target => target.departmentId);
     const targetSectionIds = quiz.targetSections.map(target => target.sectionId);
@@ -268,7 +275,15 @@ export const getQuizAnalytics = async (req: Request, res: Response, next: NextFu
         status: true,
         totalScore: true,
         score: true,
-        user: { select: { id: true, name: true, rollNumber: true } },
+        user: { 
+          select: { 
+            id: true, 
+            name: true, 
+            rollNumber: true, 
+            section: { select: { id: true, name: true } },
+            department: { select: { id: true, name: true } }
+          } 
+        },
         responses: {
           where: { marksAwarded: { not: null } },
           select: { marksAwarded: true, question: { select: { topic: true, marks: true } } }
@@ -285,11 +300,36 @@ export const getQuizAnalytics = async (req: Request, res: Response, next: NextFu
         id: attempt.user.id,
         roll: attempt.user.rollNumber || 'No roll number',
         name: attempt.user.name,
+        sectionName: attempt.user.section?.name ? `Section ${attempt.user.section.name}` : 'Unassigned',
+        departmentName: attempt.user.department?.name || 'General',
         score,
         band,
         status: attempt.status
       };
     }).sort((first, second) => second.score - first.score || first.name.localeCompare(second.name));
+
+    // Calculate section-by-section comparison for this quiz
+    const sectionQuizTotals: Record<string, { name: string; totalScore: number; count: number; excellent: number; average: number; poor: number }> = {};
+    leaderboard.forEach(student => {
+      const secName = student.sectionName;
+      if (!sectionQuizTotals[secName]) {
+        sectionQuizTotals[secName] = { name: secName, totalScore: 0, count: 0, excellent: 0, average: 0, poor: 0 };
+      }
+      sectionQuizTotals[secName].totalScore += student.score;
+      sectionQuizTotals[secName].count += 1;
+      if (student.band === 'Excellent') sectionQuizTotals[secName].excellent += 1;
+      else if (student.band === 'Average') sectionQuizTotals[secName].average += 1;
+      else sectionQuizTotals[secName].poor += 1;
+    });
+
+    const sectionComparison = Object.values(sectionQuizTotals).map(sec => ({
+      name: sec.name,
+      averageScore: sec.count > 0 ? Math.round(sec.totalScore / sec.count) : 0,
+      totalStudents: sec.count,
+      excellent: sec.excellent,
+      average: sec.average,
+      poor: sec.poor
+    })).sort((a, b) => b.averageScore - a.averageScore);
 
     const topicTotals: Record<string, { score: number; marks: number }> = {};
     for (const attempt of attempts) {
@@ -325,6 +365,7 @@ export const getQuizAnalytics = async (req: Request, res: Response, next: NextFu
           excellent: leaderboard.filter(student => student.band === 'Excellent').length
         },
         leaderboard,
+        sectionComparison,
         topicAverages
       }
     });

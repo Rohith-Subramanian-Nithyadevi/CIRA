@@ -4,7 +4,7 @@ import { authenticate, authorize } from '../middlewares/auth.middleware';
 
 const router = Router();
 
-router.use(authenticate, authorize(['FACULTY', 'ADMIN']));
+router.use(authenticate, authorize(['FACULTY']));
 
 router.get('/performance-bands', getPerformanceBands);
 router.get('/quiz/:quizId', getQuizAnalytics);
