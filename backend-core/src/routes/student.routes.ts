@@ -18,13 +18,19 @@ import {
   getHeatmap,
   getRadar,
   getBenchmark,
-  getDistribution
+  getDistribution,
+  updateProfile,
+  getAnnouncements
 } from '../controllers/student.controller';
 
 const router = Router();
 
 // Protect all routes
 router.use(authenticate);
+
+// Profile and Announcements
+router.put('/profile', updateProfile);
+router.get('/announcements', getAnnouncements);
 
 // Tasks
 router.get('/tasks', getTasks);

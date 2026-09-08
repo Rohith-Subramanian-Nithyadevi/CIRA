@@ -15,6 +15,7 @@ import studentFeaturesRoutes from './routes/student.routes';
 import facultyDashboardRoutes from './routes/faculty-dashboard.routes';
 import facultyReportsRoutes from './routes/faculty-reports.routes';
 import assignmentRoutes from './routes/assignment.routes';
+import studentImprovementRoutes from './routes/student-improvement.routes';
 import { errorHandler } from './middlewares/error.middleware';
 
 const app: Application = express();
@@ -40,6 +41,7 @@ app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/student/exam', studentExamRoutes);
 app.use('/api/v1/student', studentDashboardRoutes);
 app.use('/api/v1/student-features', studentFeaturesRoutes);
+app.use('/api/v1/student/improvement', studentImprovementRoutes);
 
 // Health check route for the root
 app.get('/', (req, res) => {

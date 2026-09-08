@@ -132,8 +132,7 @@ const heatBg = (s: number) => {
 };
 
 // ─── COMPONENT ───────────────────────────────────────────────────────────────
-export default function StudentAnalytics() {
-  const [isDemo, setIsDemo]         = useState(false);
+export default function StudentAnalytics({ isDemo }: { isDemo?: boolean }) {
   const [liveTimeline, setLT]       = useState<any[]>([]);
   const [liveSW, setLSW]            = useState<{ strengths: any[]; weaknesses: any[] }>({ strengths: [], weaknesses: [] });
   const [liveRadar, setLR]          = useState<any[]>([]);
@@ -201,23 +200,12 @@ export default function StudentAnalytics() {
         </div>
       )}
 
-      {/* Header + toggle */}
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-ink">Performance Analytics</h2>
           <p className="text-xs mt-0.5" style={{ color: C.gray }}>Aggregated from all quiz attempts and assessments</p>
         </div>
-        <button
-          onClick={() => setIsDemo(!isDemo)}
-          className="flex items-center gap-2 px-3.5 py-2 rounded-lg border text-xs font-semibold transition-all"
-          style={isDemo
-            ? { background: C.maroon, borderColor: C.maroonDeep, color: '#fff' }
-            : { background: '#fff', borderColor: C.border, color: C.gray }
-          }
-        >
-          <FlaskConical className="w-3.5 h-3.5" />
-          {isDemo ? 'Exit Demo' : 'Preview with Sample Data'}
-        </button>
       </div>
 
       {/* ── CARDS ── */}
