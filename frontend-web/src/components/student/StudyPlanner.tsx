@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, CheckCircle2, Circle, GripVertical, TrendingUp, Calendar as CalendarIcon, ChevronLeft, ChevronRight, X, Clock, Play, Pause, RotateCcw, Target } from 'lucide-react';
+import { Trash2, CheckCircle2, Circle, GripVertical, TrendingUp, Calendar as CalendarIcon, ChevronLeft, ChevronRight, X, Clock, Play, Pause, RotateCcw, Target } from 'lucide-react';
 import { apiClient } from '../../lib/apiClient';
 
 interface Task {

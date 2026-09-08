@@ -7,9 +7,7 @@ import UserProfile from '../components/dashboard/UserProfile';
 import StudyPlanner from '../components/student/StudyPlanner';
 import ResourceHub from '../components/student/ResourceHub';
 import StudentAnalytics from '../components/student/StudentAnalytics';
-import StudentImprovement from '../components/student/StudentImprovement';
 import TopicPerformance from '../components/student/TopicPerformance';
-import MistakeNotebook from '../components/student/MistakeNotebook';
 import GoalTracker from '../components/student/GoalTracker';
 import { apiClient } from '../lib/apiClient';
 
@@ -61,11 +59,10 @@ export default function StudentDashboard() {
       
       {activeTab === 'overview' && (
         <div className="space-y-6">
-          <StudentSpace onTabChange={setActiveTab} isDemo={isDemo} />
+          <StudentSpace isDemo={isDemo} />
         </div>
       )}
 
-      {activeTab === 'improvement' && <StudentImprovement isDemo={isDemo} />}
       {activeTab === 'topics' && <TopicPerformance isDemo={isDemo} />}
       {activeTab === 'goals' && <GoalTracker />}
 
@@ -81,8 +78,9 @@ export default function StudentDashboard() {
       )}
       
       {activeTab === 'quizzes' && (
-        <div className="space-y-8">
-          <section>
+        <div className="bg-white rounded-xl border border-border-soft shadow-sm p-6 md:p-8 min-h-[calc(100vh-8rem)]">
+          <div className="space-y-10">
+            <section>
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-2xl font-serif font-bold text-ink">Active & Upcoming Quizzes</h2>
               <button 
@@ -201,6 +199,7 @@ export default function StudentDashboard() {
               </div>
             )}
           </section>
+          </div>
         </div>
       )}
     </DashboardLayout>

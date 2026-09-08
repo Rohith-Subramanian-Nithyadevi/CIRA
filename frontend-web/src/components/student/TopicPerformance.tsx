@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Loader2, ChevronDown, ChevronUp, Minus } from 'lucide-react';
+import { Loader2, ChevronDown, ChevronUp, Minus, Target } from 'lucide-react';
 import { apiClient } from '../../lib/apiClient';
 
 const C = { maroon: '#9B2242', good: '#2A6B4A', danger: '#C13535', warn: '#C07820', gray: '#6B6560', ink: '#1A1A1A', border: '#E7DDD0', cream: '#FAF5EE', creamEdge: '#EFE5D8' };
@@ -37,6 +37,7 @@ function TrendIcon({ trend }: { trend: 'up' | 'down' | 'stable' }) {
 
 export default function TopicPerformance({ isDemo }: { isDemo?: boolean }) {
   const [topics, setTopics] = useState<TopicPerf[]>([]);
+  const [priority, setPriority] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -50,15 +51,20 @@ export default function TopicPerformance({ isDemo }: { isDemo?: boolean }) {
         { topic: 'Operating Systems - Paging', currentScore: 45, previousScore: 60, improvement: -15, questionsAttempted: 15, questionsCorrect: 6, assessmentCount: 2, masteryLabel: 'Needs Improvement', lastAttemptAt: new Date().toISOString(), trend: 'down' },
         { topic: 'Networking - TCP/IP', currentScore: 55, previousScore: 55, improvement: 0, questionsAttempted: 20, questionsCorrect: 11, assessmentCount: 2, masteryLabel: 'Needs Improvement', lastAttemptAt: new Date().toISOString(), trend: 'stable' },
       ]);
+      setPriority({
+        topic: 'Verbal Comprehension', score: 48, reasons: ['Score dropped 10% in last quiz', 'Required for placement assessments']
+      });
       setLoading(false);
       return;
     }
 
-    apiClient.fetch('/api/v1/student/improvement/topics')
-      .then(r => r.json())
-      .then(d => { if (d?.success) setTopics(d.data); })
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    Promise.all([
+      apiClient.fetch('/api/v1/student/improvement/topics').then(r => r.json()).catch(() => null),
+      apiClient.fetch('/api/v1/student/improvement/priority').then(r => r.json()).catch(() => null)
+    ]).then(([topicsRes, priorityRes]) => {
+      if (topicsRes?.success) setTopics(topicsRes.data);
+      if (priorityRes?.success) setPriority(priorityRes.data);
+    }).finally(() => setLoading(false));
   }, [isDemo]);
 
   if (loading) return <div className="flex items-center justify-center h-32"><Loader2 className="w-5 h-5 animate-spin" style={{ color: C.gray }} /></div>;
@@ -150,6 +156,29 @@ export default function TopicPerformance({ isDemo }: { isDemo?: boolean }) {
         <h2 className="text-lg font-semibold text-ink">Topic Performance</h2>
         <p className="text-xs mt-0.5" style={{ color: C.gray }}>Click any topic to expand details. Data from all graded assessments.</p>
       </div>
+
+      {priority && (
+        <div className="bg-white rounded-xl border p-5 flex flex-col md:flex-row gap-5 items-center justify-between shadow-sm mb-6" style={{ borderColor: C.border }}>
+          <div className="flex items-start gap-4">
+            <div className="p-3 rounded-full shrink-0" style={{ background: C.creamEdge }}>
+              <Target className="w-6 h-6" style={{ color: C.maroon }} />
+            </div>
+            <div>
+              <h3 className="font-serif text-lg font-bold text-ink mb-0.5">Priority Focus: {priority.topic}</h3>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-x-4 gap-y-1 text-sm" style={{ color: C.gray }}>
+                <span className="flex items-center gap-1.5">
+                  <span className="font-bold tabular-nums" style={{ color: C.danger }}>{priority.score}%</span> Current Mastery
+                </span>
+                <span className="hidden sm:inline">•</span>
+                <span>{priority.reasons[0]}</span>
+              </div>
+            </div>
+          </div>
+          <button className="w-full md:w-auto px-6 py-2 border rounded-lg text-sm font-bold shadow-sm transition-colors shrink-0 hover:bg-cream/50" style={{ borderColor: C.border, color: C.maroon }}>
+            Review Topic Now
+          </button>
+        </div>
+      )}
 
       {/* Summary row */}
       <div className="grid grid-cols-3 gap-3 mb-6">

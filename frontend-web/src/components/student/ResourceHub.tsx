@@ -35,8 +35,15 @@ export default function ResourceHub() {
           { id: '1', title: 'Top 100 System Design Questions', description: 'Curated list of highly-asked architectural patterns.', url: '#', category: 'CORE', topic: 'System Design' },
           { id: '2', title: 'Behavioral Interviews (STAR Method)', description: 'Mastering situational questions for HR rounds.', url: '#', category: 'SOFT_SKILLS', topic: 'Communication' },
           { id: '3', title: 'Speed Math & Quantitative Aptitude', description: 'Cheat sheet for quick calculations in competitive exams.', url: '#', category: 'APTITUDE', topic: 'Quantitative' },
-          { id: '4', title: 'Blind 75: Arrays & Strings', description: 'Essential LeetCode patterns for technical rounds.', url: '#', category: 'DSA', topic: 'Arrays & Strings' },
-          { id: '5', title: 'Verbal Comprehension Mastery', description: 'Strategies for RC and sentence correction.', url: '#', category: 'VERBAL', topic: 'Grammar' }
+          { id: '5', title: 'Verbal Comprehension Mastery', description: 'Strategies for RC and sentence correction.', url: '#', category: 'VERBAL', topic: 'Grammar' },
+          { id: '6', title: 'CN Top 100', description: 'Top 100 questions for Computer Networks interviews.', url: '#', category: 'CORE', topic: 'Computer Networks' },
+          { id: '7', title: 'OS Top 100', description: 'Top 100 questions for Operating Systems interviews.', url: '#', category: 'CORE', topic: 'Operating Systems' },
+          { id: '8', title: 'OOPS Top 100', description: 'Top 100 questions for Object Oriented Programming.', url: '#', category: 'CORE', topic: 'OOPS' },
+          { id: '9', title: 'DAA Top 100', description: 'Top 100 questions for Design and Analysis of Algorithms.', url: '#', category: 'DSA', topic: 'Algorithms' },
+          { id: '10', title: 'CIR 75 - Last minute prep', description: 'Essential 75 questions for last minute preparation.', url: '#', category: 'DSA', topic: 'Curated Prep' },
+          { id: '11', title: 'CIR 150 - Curated Qns', description: '150 handpicked questions for comprehensive preparation.', url: '#', category: 'DSA', topic: 'Curated Prep' },
+          { id: '12', title: 'CIR 350 - A2Z', description: 'Complete A2Z preparation guide with 350 questions.', url: '#', category: 'DSA', topic: 'Curated Prep' },
+          { id: '13', title: 'CIR LLD - Low Level Design', description: 'Comprehensive guide for Low Level Design.', url: '#', category: 'CORE', topic: 'Low Level Design' }
         ]);
       }
     } catch (error) {

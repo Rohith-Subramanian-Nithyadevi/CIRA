@@ -49,7 +49,7 @@ function SISRing({ sis, insufficient }: { sis: number; insufficient: boolean }) 
   );
 }
 
-export default function StudentSpace({ onTabChange, isDemo }: { onTabChange?: (tab: string) => void, isDemo?: boolean }) {
+export default function StudentSpace({ isDemo }: { isDemo?: boolean }) {
   const [sis, setSIS] = useState<SISData | null>(null);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
@@ -90,28 +90,28 @@ export default function StudentSpace({ onTabChange, isDemo }: { onTabChange?: (t
   }
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="bg-white rounded-2xl border shadow-sm p-8 w-full space-y-10" style={{ borderColor: C.border }}>
       {/* ── WELCOME ── */}
-      <div className="bg-transparent">
-        <div className="flex flex-col md:flex-row md:items-center gap-8">
+      <div>
+        <div className="flex flex-col md:flex-row md:items-start justify-between gap-8">
           
           {/* Welcome text + stats */}
           <div className="flex-1">
-            <h2 className="text-3xl font-serif font-bold text-ink">{greeting}, {user.name?.split(' ')[0] ?? 'Student'}</h2>
-            <p className="text-base mt-1" style={{ color: C.gray }}>Here is your overview for today.</p>
+            <h2 className="text-3xl font-serif font-bold text-ink mb-1">{greeting}, {user.name?.split(' ')[0] ?? 'Student'}</h2>
+            <p className="text-base mb-8" style={{ color: C.gray }}>Here is your overview for today.</p>
 
-            <div className="grid grid-cols-3 gap-4 mt-6">
-              <div className="bg-transparent border-l-2 pl-4 py-1" style={{ borderColor: C.maroon }}>
+            <div className="flex flex-wrap items-center gap-x-12 gap-y-6">
+              <div className="border-l-2 pl-4 py-1" style={{ borderColor: C.maroon }}>
                 <p className="text-[10px] uppercase tracking-widest font-bold mb-1" style={{ color: C.gray }}>Performance</p>
-                <p className="text-2xl font-bold text-ink">{sis?.latestScore ?? 0}<span className="text-sm font-normal text-gray-body">%</span></p>
+                <p className="text-2xl font-bold text-ink leading-none">{sis?.latestScore ?? 0}<span className="text-sm font-normal text-gray-body ml-0.5">%</span></p>
               </div>
-              <div className="bg-transparent border-l-2 pl-4 py-1" style={{ borderColor: C.border }}>
+              <div className="border-l-2 pl-4 py-1" style={{ borderColor: C.border }}>
                 <p className="text-[10px] uppercase tracking-widest font-bold mb-1" style={{ color: C.gray }}>Assessments</p>
-                <p className="text-2xl font-bold text-ink">{sis?.attemptCount ?? 0}</p>
+                <p className="text-2xl font-bold text-ink leading-none">{sis?.attemptCount ?? 0}</p>
               </div>
-              <div className="bg-transparent border-l-2 pl-4 py-1" style={{ borderColor: C.border }}>
+              <div className="border-l-2 pl-4 py-1" style={{ borderColor: C.border }}>
                 <p className="text-[10px] uppercase tracking-widest font-bold mb-1" style={{ color: C.gray }}>Improvement</p>
-                <p className="text-2xl font-bold" style={{ color: (sis?.trend ?? 0) >= 0 ? C.good : C.danger }}>
+                <p className="text-2xl font-bold leading-none" style={{ color: (sis?.trend ?? 0) >= 0 ? C.good : C.danger }}>
                   {(sis?.trend ?? 0) >= 0 ? '+' : ''}{sis?.trend ?? 0}%
                 </p>
               </div>
@@ -119,9 +119,9 @@ export default function StudentSpace({ onTabChange, isDemo }: { onTabChange?: (t
           </div>
 
           {/* SIS Ring */}
-          <div className="flex flex-col items-center gap-3 shrink-0">
+          <div className="flex flex-col items-center shrink-0 bg-cream/30 p-6 rounded-2xl border" style={{ borderColor: C.creamEdge }}>
             <SISRing sis={sis?.sis ?? 0} insufficient={!sis || sis.insufficientData} />
-            <div className="text-center">
+            <div className="text-center mt-4">
               <p className="text-[10px] uppercase tracking-widest font-bold" style={{ color: C.gray }}>Improvement Score</p>
               {sis && !sis.insufficientData && sis.trend !== 0 && (
                 <span className="text-sm font-semibold mt-1 block" style={{ color: sis.trend > 0 ? C.good : C.danger }}>
@@ -133,9 +133,11 @@ export default function StudentSpace({ onTabChange, isDemo }: { onTabChange?: (t
         </div>
       </div>
 
+      <div className="h-px w-full" style={{ background: C.creamEdge }} />
+
       {/* ── ANNOUNCEMENTS ── */}
-      <div className="mt-8">
-        <h3 className="text-lg font-serif font-bold text-ink mb-4 flex items-center gap-2">
+      <div>
+        <h3 className="text-lg font-serif font-bold text-ink mb-5 flex items-center gap-2">
           <Bell className="w-5 h-5" style={{ color: C.maroon }} />
           Announcements
         </h3>
@@ -145,22 +147,22 @@ export default function StudentSpace({ onTabChange, isDemo }: { onTabChange?: (t
             <p className="text-sm" style={{ color: C.gray }}>No announcements for your batch right now.</p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {announcements.map((ann) => (
-              <div key={ann.id} className="p-4 rounded-xl border bg-white shadow-sm flex gap-4 items-start" style={{ borderColor: C.border }}>
-                <div className="p-2 rounded-lg shrink-0" style={{ background: C.creamEdge }}>
+              <div key={ann.id} className="p-5 rounded-xl border bg-white shadow-sm hover:shadow-md transition-shadow flex gap-4 items-start" style={{ borderColor: C.border }}>
+                <div className="p-2 rounded-lg shrink-0 mt-0.5" style={{ background: C.creamEdge }}>
                   <Calendar className="w-5 h-5" style={{ color: C.maroon }} />
                 </div>
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <h4 className="font-bold text-ink">{ann.title}</h4>
+                <div className="flex-1">
+                  <div className="flex items-start justify-between gap-2 mb-1.5">
+                    <h4 className="font-bold text-ink leading-tight">{ann.title}</h4>
                     {ann.isSurvey && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: C.maroon, color: '#fff' }}>Survey</span>
+                      <span className="text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full shrink-0" style={{ background: C.maroon, color: '#fff' }}>Survey</span>
                     )}
                   </div>
-                  <p className="text-sm whitespace-pre-wrap leading-relaxed" style={{ color: C.gray }}>{ann.content}</p>
-                  <p className="text-xs font-semibold mt-3" style={{ color: C.gray }}>
-                    From {ann.faculty?.name} • {new Date(ann.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                  <p className="text-sm leading-relaxed mb-4" style={{ color: C.gray }}>{ann.content}</p>
+                  <p className="text-xs font-semibold" style={{ color: C.gray }}>
+                    From {ann.faculty?.name} <span className="mx-1">•</span> {new Date(ann.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                   </p>
                 </div>
               </div>

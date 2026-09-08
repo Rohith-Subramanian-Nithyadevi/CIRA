@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { prisma } from '../config/prisma';
+import bcrypt from 'bcryptjs';
 
 // ----------------------------------------------------
 // TASK PLANNER
@@ -503,7 +504,7 @@ export const updateProfile = async (req: Request, res: Response) => {
     const userId = (req as any).user?.userId;
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
     
-    const { name, phone, rollNumber, departmentId, sectionId } = req.body;
+    const { name, phone, rollNumber, departmentId, sectionId, password } = req.body;
     
     // Only update fields that are provided
     const data: any = {};
@@ -512,16 +513,25 @@ export const updateProfile = async (req: Request, res: Response) => {
     if (rollNumber !== undefined) data.rollNumber = rollNumber;
     if (departmentId !== undefined) data.departmentId = departmentId;
     if (sectionId !== undefined) data.sectionId = sectionId === 'all' ? null : sectionId;
+    
+    if (password) {
+      const salt = await bcrypt.genSalt(10);
+      data.password = await bcrypt.hash(password, salt);
+    }
 
     const updatedUser = await prisma.user.update({
       where: { id: userId },
-      data
+      data,
+      include: {
+        department: true,
+        section: true
+      }
     });
     
     res.json({ success: true, data: updatedUser });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error updating profile:', error);
-    res.status(500).json({ error: 'Failed to update profile' });
+    res.status(500).json({ error: 'Failed to update profile', details: error.message, stack: error.stack });
   }
 };
 

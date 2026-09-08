@@ -32,6 +32,7 @@ export default {
    			'chip-peach': 'var(--chip-peach)',
    			'cta-tan': 'var(--cta-tan)',
    			'border-soft': 'var(--border-soft)',
+   			white: 'var(--white)',
    			background: 'var(--background)',
    			foreground: 'var(--foreground)',
    			card: {

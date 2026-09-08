@@ -22,7 +22,7 @@ export default function UserProfile() {
   // Enrollment state
   const [enrolledDepartments, setEnrolledDepartments] = useState<{ id: string; name: string; batchName?: string; type?: string; departmentName?: string }[]>([]);
   const [enrolledSections, setEnrolledSections] = useState<{ id: string; name: string; batchName?: string; departmentName?: string; type?: string }[]>([]);
-  const [enrollBatchId, setEnrollBatchId] = useState('');
+  const [enrollBatchId, setEnrollBatchId] = useState(user.department?.batchId || '');
   const [enrollDeptId, setEnrollDeptId] = useState(user.departmentId || '');
   const [enrollSectionId, setEnrollSectionId] = useState(user.sectionId || '');
   const [enrolling, setEnrolling] = useState(false);
@@ -66,6 +66,10 @@ export default function UserProfile() {
         payload.sectionId = enrollSectionId === 'all' ? undefined : (enrollSectionId || undefined);
       }
       
+      if (password) {
+        payload.password = password;
+      }
+      
       if (role === 'STUDENT') {
         const res = await apiClient.fetch('/api/v1/student/profile', {
           method: 'PUT',
@@ -81,7 +85,8 @@ export default function UserProfile() {
           setSuccess('Profile updated successfully!');
           setIsEditing(false);
         } else {
-          setError(getApiErrorMessage(res, 'Failed to update profile'));
+          const errData = await res.json();
+          setError(errData.details ? `${errData.error}: ${errData.details}` : (errData.error || 'Failed to update profile'));
         }
       } else {
         // Just local storage for non-students for now
@@ -90,8 +95,8 @@ export default function UserProfile() {
         setSuccess('Profile updated successfully!');
         setIsEditing(false);
       }
-    } catch (err) {
-      setError('An error occurred while saving.');
+    } catch (err: any) {
+      setError(getApiErrorMessage(err, 'An error occurred while saving.'));
     } finally {
       setLoading(false);
       setTimeout(() => setSuccess(''), 3000);
