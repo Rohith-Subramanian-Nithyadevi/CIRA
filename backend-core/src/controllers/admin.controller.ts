@@ -83,7 +83,7 @@ export const importStudents = async (req: Request, res: Response, next: NextFunc
       const startYear = 2000 + parseInt(startYearStr, 10);
       const years = parseInt(yearsStr, 10);
       const endYear = startYear + years;
-      const batchName = `${startYear} -${endYear.toString().slice(-2)}`; // e.g. 2024 -28
+      const batchName = `${startYear}-${endYear}`; // e.g. 2024-2028
       
       const sectionLetter = String.fromCharCode(65 + parseInt(sectionIndexStr, 10)); // 0->A, 1->B, 2->C
 

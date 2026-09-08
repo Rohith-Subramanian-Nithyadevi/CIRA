@@ -786,7 +786,27 @@ export const StudentReports = () => {
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" vertical={false} opacity={0.6} />
                     <XAxis dataKey="name" stroke="var(--gray-body)" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'var(--gray-body)' }} />
                     <YAxis stroke="var(--gray-body)" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'var(--gray-body)' }} />
-                    <RechartsTooltip cursor={{ fill: 'var(--cream)', opacity: 0.3 }} contentStyle={{ backgroundColor: '#ffffff', border: '1px solid var(--border-soft)', borderRadius: '8px', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }} itemStyle={{ fontWeight: 'bold', color: 'var(--ink)' }} />
+                    <RechartsTooltip 
+                      cursor={{ fill: 'var(--cream)', opacity: 0.3 }} 
+                      content={({ active, payload, label }) => {
+                        if (active && payload && payload.length) {
+                          const data = payload[0].payload;
+                          return (
+                            <div className="bg-white border border-border-soft p-3 rounded-xl shadow-lg">
+                              <p className="font-bold text-ink mb-2">{label}</p>
+                              <div className="space-y-1 mb-2 border-b border-border-soft pb-2">
+                                <p className="text-xs text-gray-body flex justify-between"><span className="text-green-600 font-semibold">Excellent:</span> <span>{data.Excellent}</span></p>
+                                <p className="text-xs text-gray-body flex justify-between"><span className="text-yellow-600 font-semibold">Average:</span> <span>{data.Average}</span></p>
+                                <p className="text-xs text-gray-body flex justify-between"><span className="text-red-600 font-semibold">Poor:</span> <span>{data.Poor}</span></p>
+                              </div>
+                              <p className="text-xs text-ink font-bold flex justify-between mb-1"><span>Pass Rate:</span> <span>{data.passRate}%</span></p>
+                              <p className="text-xs text-maroon font-bold flex justify-between"><span>Avg Score:</span> <span>{data.averageScore}%</span></p>
+                            </div>
+                          );
+                        }
+                        return null;
+                      }} 
+                    />
                     <Legend iconType="circle" wrapperStyle={{ paddingTop: '10px', fontSize: 12 }} />
                     <Bar dataKey="Excellent" stackId="a" fill="url(#secExcellent)" radius={[0, 0, 4, 4]} />
                     <Bar dataKey="Average" stackId="a" fill="url(#secAverage)" />
@@ -969,10 +989,69 @@ export const StudentReports = () => {
             </div>
           </div>
 
+          {/* Section-by-Section Performance Comparison for Quiz */}
+          {quizAnalytics?.sectionComparison && quizAnalytics.sectionComparison.length > 0 && (
+            <div className="bg-white border border-border-soft rounded-xl p-6 shadow-sm">
+              <div className="flex justify-between items-center mb-4">
+                <div>
+                  <h3 className="text-base font-bold text-ink font-serif">Class & Section Comparative Quiz Performance</h3>
+                  <p className="text-xs text-gray-body">Compare average scores and student distributions across sections for this quiz</p>
+                </div>
+                <button
+                  onClick={() => exportToCSV(quizAnalytics.sectionComparison, `section_quiz_comparison_${selectedQuiz}`)}
+                  className="p-1.5 text-gray-body hover:text-maroon border border-border-soft rounded-lg hover:bg-cream transition-colors"
+                  title="Export Comparison to CSV"
+                >
+                  <Download className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={quizAnalytics.sectionComparison} margin={{ top: 20, right: 20, left: 0, bottom: 0 }} barSize={35}>
+                    <defs>
+                      <linearGradient id="secAvgGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#9B2242" stopOpacity={1}/>
+                        <stop offset="100%" stopColor="#70182E" stopOpacity={0.85}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" vertical={false} opacity={0.6} />
+                    <XAxis dataKey="name" stroke="var(--gray-body)" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'var(--gray-body)' }} />
+                    <YAxis domain={[0, 100]} stroke="var(--gray-body)" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'var(--gray-body)' }} />
+                    <RechartsTooltip 
+                      cursor={{ fill: 'var(--cream)', opacity: 0.3 }} 
+                      content={({ active, payload, label }) => {
+                        if (active && payload && payload.length) {
+                          const data = payload[0].payload;
+                          return (
+                            <div className="bg-white border border-border-soft p-3 rounded-xl shadow-lg min-w-[180px]">
+                              <p className="font-bold text-ink mb-1 border-b border-border-soft pb-2">{label}</p>
+                              <div className="py-2 space-y-1">
+                                <p className="text-xs text-maroon font-bold flex justify-between"><span>Section Avg:</span> <span>{data.averageScore}%</span></p>
+                                <p className="text-xs text-gray-body flex justify-between"><span>Total Students:</span> <span>{data.totalStudents}</span></p>
+                              </div>
+                              <div className="pt-2 border-t border-border-soft space-y-1">
+                                <p className="text-[10px] uppercase font-bold text-gray-body mb-1">Band Distribution</p>
+                                <p className="text-xs text-gray-body flex justify-between"><span className="text-green-600 font-semibold">Excellent (80+):</span> <span>{data.excellent}</span></p>
+                                <p className="text-xs text-gray-body flex justify-between"><span className="text-yellow-600 font-semibold">Average (60-79):</span> <span>{data.average}</span></p>
+                                <p className="text-xs text-gray-body flex justify-between"><span className="text-red-600 font-semibold">Needs support:</span> <span>{data.poor}</span></p>
+                              </div>
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                    <Bar dataKey="averageScore" name="Section Avg Score (%)" fill="url(#secAvgGrad)" radius={[6, 6, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="bg-white border border-border-soft rounded-xl p-6 lg:col-span-2 shadow-sm">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-base font-bold text-ink font-serif">Class Leaderboard</h3>
+                <h3 className="text-base font-bold text-ink font-serif">Student Performance & Peer Comparison Leaderboard</h3>
                 <button
                   onClick={() => exportToCSV(quizDetails.leaderboard, `class_leaderboard_${selectedQuiz}`)}
                   disabled={!quizDetails.leaderboard || quizDetails.leaderboard.length === 0}
@@ -989,6 +1068,7 @@ export const StudentReports = () => {
                       <th className="px-4 py-3 rounded-tl-lg font-semibold">Rank</th>
                       <th className="px-4 py-3 font-semibold">Roll Number</th>
                       <th className="px-4 py-3 font-semibold">Name</th>
+                      <th className="px-4 py-3 font-semibold">Section</th>
                       <th className="px-4 py-3 font-semibold">Score</th>
                       <th className="px-4 py-3 rounded-tr-lg font-semibold">Band</th>
                       <th className="px-4 py-3 font-semibold">Attempt</th>
@@ -996,9 +1076,9 @@ export const StudentReports = () => {
                   </thead>
                   <tbody>
                     {quizAnalyticsLoading ? (
-                      <tr><td colSpan={6} className="px-4 py-8 text-center text-xs text-gray-body"><Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin text-maroon" />Loading attended students...</td></tr>
+                      <tr><td colSpan={7} className="px-4 py-8 text-center text-xs text-gray-body"><Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin text-maroon" />Loading attended students...</td></tr>
                     ) : quizDetails.leaderboard.length === 0 ? (
-                      <tr><td colSpan={6} className="px-4 py-8 text-center text-xs text-gray-body">No submitted or evaluated student attempts were found for this assessment.</td></tr>
+                      <tr><td colSpan={7} className="px-4 py-8 text-center text-xs text-gray-body">No submitted or evaluated student attempts were found for this assessment.</td></tr>
                     ) : quizDetails.leaderboard.map((student: any, idx: number) => (
                       <tr 
                         key={student.roll} 
@@ -1008,6 +1088,7 @@ export const StudentReports = () => {
                         <td className="px-4 py-3 font-semibold">{idx + 1}</td>
                         <td className="px-4 py-3 font-mono text-maroon text-xs font-semibold">{student.roll}</td>
                         <td className="px-4 py-3 text-gray-body">{student.name}</td>
+                        <td className="px-4 py-3 text-xs font-medium text-gray-body">{student.sectionName}</td>
                         <td className="px-4 py-3 text-ink font-semibold">{student.score}%</td>
                         <td className="px-4 py-3">
                           <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${

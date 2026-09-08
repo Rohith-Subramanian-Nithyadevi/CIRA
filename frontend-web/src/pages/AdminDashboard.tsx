@@ -63,7 +63,15 @@ export default function AdminDashboard() {
         const batchData = await batchRes.json();
 
         if (facData.data?.faculty) setFacultyList(facData.data.faculty);
-        if (userData.data?.users) setUserList(userData.data.users);
+        if (userData.data?.users) {
+          const sortedUsers = [...userData.data.users].sort((a, b) => {
+            if (a.role !== b.role) return a.role.localeCompare(b.role);
+            const rollA = a.rollNumber || '';
+            const rollB = b.rollNumber || '';
+            return rollA.localeCompare(rollB);
+          });
+          setUserList(sortedUsers);
+        }
         if (batchData.data?.batches) setBatches(batchData.data.batches);
       } catch (err) {
         console.error("Failed to fetch admin data", err);
