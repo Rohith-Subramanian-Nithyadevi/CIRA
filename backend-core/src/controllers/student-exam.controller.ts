@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { ResponseStatus, QuestionType } from '@prisma/client';
 import { prisma } from '../config/prisma';
-import { BadRequestError } from '../utils/errors';
+import { BadRequestError, ForbiddenError } from '../utils/errors';
 
 // Get eligible quizzes for the logged-in student
 export const getEligibleQuizzes = async (req: Request, res: Response, next: NextFunction) => {
@@ -154,6 +154,24 @@ export const saveResponse = async (req: Request, res: Response, next: NextFuncti
       throw new BadRequestError('Invalid or submitted attempt', 'FORBIDDEN');
     }
 
+    const currentUserId = (req as any).user?.userId;
+    if (currentUserId && attempt.userId !== currentUserId) {
+      throw new ForbiddenError('You can only save responses to your own exam attempts.', 'ERR_FORBIDDEN_ATTEMPT_OWNERSHIP');
+    }
+
+    // Cross-quiz validation: verify questionId strictly belongs to the quiz of this attempt
+    const question = await prisma.question.findFirst({
+      where: {
+        id: questionId,
+        quizId: attempt.quizId
+      },
+      select: { id: true }
+    });
+
+    if (!question) {
+      throw new BadRequestError('This question does not belong to the active quiz attempt.', 'INVALID_QUESTION_REFERENCE');
+    }
+
     const response = await prisma.quizResponse.upsert({
       where: { attemptId_questionId: { attemptId, questionId } },
       update: {
@@ -192,6 +210,11 @@ export const submitExam = async (req: Request, res: Response, next: NextFunction
 
     if (!attempt) throw new BadRequestError('Attempt not found', 'NOT_FOUND');
     if (attempt.status !== 'IN_PROGRESS') throw new BadRequestError('Exam already submitted', 'FORBIDDEN');
+
+    const currentUserId = (req as any).user?.userId;
+    if (currentUserId && attempt.userId !== currentUserId) {
+      throw new ForbiddenError('You can only submit your own exam attempt.', 'ERR_FORBIDDEN_ATTEMPT_SUBMIT');
+    }
 
     let objectiveScore = 0;
 

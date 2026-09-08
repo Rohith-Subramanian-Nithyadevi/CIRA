@@ -20,11 +20,45 @@ export const evaluateStudent = async (req: Request, res: Response, next: NextFun
           user_id: validatedData.student_id,
           assessment_id: validatedData.assessment_id
         }
+      },
+      include: {
+        user: {
+          select: { departmentId: true, sectionId: true }
+        }
       }
     });
 
     if (!result) {
       throw new NotFoundError('Result not found for this student and assessment', 'ERR_RESULT_NOT_FOUND');
+    }
+
+    const facultyUserId = req.user?.userId;
+    const facultyRole = req.user?.role;
+
+    // Authorization verification: ADMINs can grade any student.
+    // FACULTY members must be mapped to the student's department or section.
+    if (facultyRole !== 'ADMIN' && facultyUserId) {
+      const studentDeptId = result.user?.departmentId;
+      const studentSectionId = result.user?.sectionId;
+
+      const hasDeptMapping = studentDeptId
+        ? await prisma.facultyDepartment.findFirst({
+            where: { userId: facultyUserId, departmentId: studentDeptId }
+          })
+        : null;
+
+      const hasSectionMapping = studentSectionId
+        ? await prisma.facultySection.findFirst({
+            where: { userId: facultyUserId, sectionId: studentSectionId }
+          })
+        : null;
+
+      if (!hasDeptMapping && !hasSectionMapping) {
+        throw new ForbiddenError(
+          'You are not authorized to evaluate students outside your mapped departments or sections.',
+          'ERR_FORBIDDEN_FACULTY_EVALUATION'
+        );
+      }
     }
 
     const updatedMetrics = {

@@ -16,6 +16,7 @@ import facultyDashboardRoutes from './routes/faculty-dashboard.routes';
 import facultyReportsRoutes from './routes/faculty-reports.routes';
 import assignmentRoutes from './routes/assignment.routes';
 import studentImprovementRoutes from './routes/student-improvement.routes';
+import rateLimit from 'express-rate-limit';
 import { errorHandler } from './middlewares/error.middleware';
 
 const app: Application = express();
@@ -24,10 +25,29 @@ const app: Application = express();
 app.use(cors());
 app.use(express.json());
 
+// Rate Limiting (CIRA-019)
+// 1. General API rate limiter (protects server from rapid uncontrolled flooding)
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 300, // Limit each IP to 300 requests per 15 minutes
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many requests from this IP, please try again after 15 minutes.' }
+});
 
+// 2. Strict Authentication rate limiter (protects against credential stuffing & OTP brute-force)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20, // Max 20 auth attempts per 15 minutes
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many login or verification attempts, please try again after 15 minutes.' }
+});
+
+app.use('/api/', generalLimiter);
 
 // Routes
-app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/auth', authLimiter, authRoutes);
 app.use('/api/v1/exams', examRoutes);
 app.use('/api/v1/faculty/quiz', quizRoutes);
 app.use('/api/v1/faculty/reports', facultyReportsRoutes);

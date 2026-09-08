@@ -309,10 +309,14 @@ export const forgotPassword = async (req: Request, res: Response, next: NextFunc
     }
 
     const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15-minute OTP validity
 
     await prisma.user.update({
       where: { id: user.id },
-      data: { verificationCode: resetCode }
+      data: { 
+        verificationCode: resetCode,
+        verificationCodeExpiresAt: expiresAt
+      }
     });
 
     await sendPasswordResetEmail(user.personalEmail, resetCode);
@@ -344,6 +348,11 @@ export const resetPassword = async (req: Request, res: Response, next: NextFunct
       throw new BadRequestError('Invalid or expired verification code');
     }
 
+    // Enforce OTP expiration timestamp
+    if (user.verificationCodeExpiresAt && new Date() > user.verificationCodeExpiresAt) {
+      throw new BadRequestError('Verification code has expired. Please request a new password reset code.');
+    }
+
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(newPassword, salt);
 
@@ -351,7 +360,8 @@ export const resetPassword = async (req: Request, res: Response, next: NextFunct
       where: { id: user.id },
       data: {
         password: hashedPassword,
-        verificationCode: null
+        verificationCode: null,
+        verificationCodeExpiresAt: null
       }
     });
 
