@@ -40,9 +40,23 @@ export const importStudents = async (req: Request, res: Response, next: NextFunc
       const name = normalize(row.name || row.Name);
       const email = normalize(row.email || row.Email).toLowerCase();
       const rollNumber = normalize(row.rollNumber || row.RollNumber || row['Roll Number']).toUpperCase();
+      const dobStr = normalize(row.dateOfBirth || row.DateOfBirth || row['Date of Birth'] || row.DOB);
       const phone = normalize(row.phone || row.Phone) || undefined;
       const personalEmail = normalize(row.personalEmail || row.PersonalEmail || row['Personal Email']).toLowerCase() || email;
-      const temporaryPassword = normalize(row.password || row.Password) || `Cira@${rollNumber}`;
+      const defaultPasswordPrefix = name.substring(0, 3);
+      const defaultPasswordPrefixFormatted = defaultPasswordPrefix.charAt(0).toUpperCase() + defaultPasswordPrefix.slice(1).toLowerCase();
+      
+      let defaultPasswordSuffix = '1234'; // Fallback if DOB is missing/invalid
+      if (dobStr) {
+        // Extract digits and take first 4 (assumes DD/MM/YYYY or DDMM)
+        const digits = dobStr.replace(/\D/g, '');
+        if (digits.length >= 4) {
+          defaultPasswordSuffix = digits.substring(0, 4);
+        }
+      }
+      
+      const generatedPassword = `${defaultPasswordPrefixFormatted}@${defaultPasswordSuffix}`;
+      const temporaryPassword = normalize(row.password || row.Password) || generatedPassword;
 
       if (!name || !email || !rollNumber) {
         rejectedRows.push({ row: rowNumber, reason: 'name, email, and rollNumber are required' });
@@ -134,7 +148,8 @@ export const importStudents = async (req: Request, res: Response, next: NextFunc
           rollNumber,
           departmentId,
           sectionId,
-          approvalStatus: 'APPROVED'
+          approvalStatus: 'APPROVED',
+          isEmailVerified: true
         }
       });
       seenRollNumbers.add(rollNumber);

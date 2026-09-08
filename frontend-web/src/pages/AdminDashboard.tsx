@@ -273,7 +273,7 @@ export default function AdminDashboard() {
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-maroon/10 text-maroon"><FileSpreadsheet className="h-5 w-5" /></div>
               <div>
                 <h2 className="text-lg font-serif font-bold text-ink">Bulk import students</h2>
-                <p className="mt-1 text-xs leading-5 text-gray-body">Import a CSV or XLSX file. Students will be automatically grouped by Campus, Batch, Branch, and Section based on their Roll Number (e.g. <code>CH.SC.U4CSE24142</code>).</p>
+                <p className="mt-1 text-xs leading-5 text-gray-body">Import a CSV or XLSX file. Students will be automatically grouped by Campus, Batch, Branch, and Section based on their Roll Number (e.g. <code>CH.SC.U4CSE24142</code>). Please ensure the <code>Date of Birth</code> column is formatted as DD/MM/YYYY for correct password generation.</p>
               </div>
             </div>
             <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
