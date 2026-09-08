@@ -45,7 +45,7 @@ export default function AdminDashboard() {
   const [newSectionName, setNewSectionName] = useState('');
   const [selectedBatchId, setSelectedBatchId] = useState('');
   const [selectedDeptId, setSelectedDeptId] = useState('');
-  const [importSectionId, setImportSectionId] = useState('');
+
   const [importingStudents, setImportingStudents] = useState(false);
   const [importSummary, setImportSummary] = useState<{ imported: number; rejected: number; message?: string; rejectedRows?: { row: number, reason: string }[] } | null>(null);
 
