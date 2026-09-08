@@ -330,7 +330,7 @@ export const evaluateAttempt = async (req: Request, res: Response, next: NextFun
     const attempt = await prisma.quizAttempt.findUnique({ 
       where: { id: attemptId },
       include: {
-        quiz: { select: { id: true, createdById: true } },
+        quiz: { select: { id: true, createdBy: true } },
         user: { select: { id: true, departmentId: true, sectionId: true } }
       }
     });
@@ -342,7 +342,7 @@ export const evaluateAttempt = async (req: Request, res: Response, next: NextFun
     // Authorization verification: ADMINs can evaluate any attempt.
     // FACULTY must either have created the quiz or be mapped to the student's cohort.
     if (facultyRole !== 'ADMIN' && facultyUserId) {
-      const isQuizCreator = attempt.quiz.createdById === facultyUserId;
+      const isQuizCreator = attempt.quiz.createdBy === facultyUserId;
       
       let isMapped = false;
       if (!isQuizCreator) {
