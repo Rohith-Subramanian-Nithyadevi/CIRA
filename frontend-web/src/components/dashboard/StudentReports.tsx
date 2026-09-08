@@ -48,12 +48,17 @@ export const StudentReports = () => {
   const [selectedSection, setSelectedSection] = useState<string | null>(null);
   const [selectedQuiz, setSelectedQuiz] = useState<string | null>(null);
   
-  // Custom Batch Dropdown Popover state
+  // Branch-first scope selection followed by optional batch switching.
+  const [isBranchDropdownOpen, setIsBranchDropdownOpen] = useState(false);
   const [isBatchDropdownOpen, setIsBatchDropdownOpen] = useState(false);
+  const branchDropdownRef = useRef<HTMLDivElement>(null);
   const batchDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      if (branchDropdownRef.current && !branchDropdownRef.current.contains(event.target as Node)) {
+        setIsBranchDropdownOpen(false);
+      }
       if (batchDropdownRef.current && !batchDropdownRef.current.contains(event.target as Node)) {
         setIsBatchDropdownOpen(false);
       }
@@ -70,6 +75,15 @@ export const StudentReports = () => {
     setIsBatchDropdownOpen(false);
   };
 
+  const handleSelectBranch = (departmentId: string) => {
+    const branch = departments.find(department => department.id === departmentId);
+    setSelectedDept(departmentId);
+    setSelectedBatch(branch?.batchId || null);
+    setSelectedSection(null);
+    setSelectedQuiz(null);
+    setIsBranchDropdownOpen(false);
+  };
+
   const handleResetToBatch = () => {
     setSelectedDept(null);
     setSelectedSection(null);
@@ -80,13 +94,6 @@ export const StudentReports = () => {
   const [searchedStudentId, setSearchedStudentId] = useState<string | null>(null);
   
   const [subjectFilter, setSubjectFilter] = useState<string>('All Subjects');
-
-  // Auto-select initial batch once loaded from cache
-  useEffect(() => {
-    if (batches.length > 0 && !selectedBatch) {
-      setSelectedBatch(batches[0].id);
-    }
-  }, [batches, selectedBatch]);
 
   useEffect(() => {
     fetchInitialData();
@@ -335,6 +342,56 @@ export const StudentReports = () => {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         {/* Left: Enhanced Batch Dropdown and Breadcrumbs */}
         <div className="flex items-center flex-wrap gap-2 text-sm">
+          <div className="relative" ref={branchDropdownRef}>
+            <button
+              type="button"
+              onClick={() => setIsBranchDropdownOpen(prev => !prev)}
+              aria-haspopup="listbox"
+              aria-expanded={isBranchDropdownOpen}
+              aria-label={`Branch: ${departments.find(department => department.id === selectedDept)?.name || 'Select Branch'}`}
+              className="flex items-center space-x-2.5 bg-white hover:bg-cream/70 border border-border-soft hover:border-maroon/50 shadow-xs px-3.5 py-2 rounded-xl transition-all cursor-pointer group"
+              title="Select a branch before opening its reports"
+            >
+              <div className="w-7 h-7 rounded-lg bg-maroon/10 text-maroon flex items-center justify-center group-hover:bg-maroon group-hover:text-white transition-colors">
+                <Users className="w-4 h-4" />
+              </div>
+              <div className="text-left">
+                <span className="block text-[10px] uppercase font-bold text-gray-body/70 tracking-wider leading-none">Branch</span>
+                <span className="text-sm font-bold text-ink group-hover:text-maroon transition-colors leading-tight">
+                  {departments.find(department => department.id === selectedDept)?.name || 'Select Branch'}
+                </span>
+              </div>
+              <ChevronDown className={`w-4 h-4 text-gray-body ml-1 transition-transform duration-200 ${isBranchDropdownOpen ? 'rotate-180 text-maroon' : ''}`} />
+            </button>
+            {isBranchDropdownOpen && (
+              <div role="listbox" aria-label="Available branches" className="absolute left-0 mt-2 w-64 bg-white border border-border-soft rounded-2xl shadow-xl z-50 p-2 animate-in fade-in slide-in-from-top-2 duration-150">
+                <div className="px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-gray-body border-b border-border-soft/60 mb-1 flex items-center justify-between">
+                  <span>Select a branch</span>
+                  <span className="bg-cream text-maroon text-[10px] font-bold px-2 py-0.5 rounded-full border border-border-soft/60">{departments.length}</span>
+                </div>
+                <div className="max-h-60 overflow-y-auto space-y-1">
+                  {departments.map(branch => {
+                    const isCurrent = branch.id === selectedDept;
+                    return (
+                      <button
+                        key={branch.id}
+                        type="button"
+                        role="option"
+                        aria-selected={isCurrent}
+                        onClick={() => handleSelectBranch(branch.id)}
+                        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-left text-sm transition-all ${isCurrent ? 'bg-maroon text-white font-bold shadow-xs' : 'hover:bg-cream/80 text-ink font-medium'}`}
+                      >
+                        <span>{branch.name}</span>
+                        <span className={`text-[10px] ${isCurrent ? 'text-white/80' : 'text-gray-body'}`}>{batches.find(batch => batch.id === branch.batchId)?.name || 'Batch'}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <ChevronRight className="w-4 h-4 text-gray-body/50 shrink-0" />
           {/* Custom Attractive Batch Dropdown */}
           <div className="relative" ref={batchDropdownRef}>
             <button
@@ -475,7 +532,26 @@ export const StudentReports = () => {
         </div>
       </div>
 
-      {!selectedDept && (
+      {!selectedDept && departments.length > 0 && (
+        <div className="rounded-2xl border border-maroon/20 bg-white/90 p-8 text-center shadow-sm animate-in fade-in duration-300">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-maroon/10 text-maroon">
+            <Users className="h-7 w-7" />
+          </div>
+          <h2 className="font-serif text-2xl font-bold text-ink">Select a branch to begin</h2>
+          <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-gray-body">
+            Choose the branch from the first dropdown above. Reports, sections, assessments, and analytics will then be limited to that branch.
+          </p>
+          <button
+            type="button"
+            onClick={() => setIsBranchDropdownOpen(true)}
+            className="mt-5 rounded-lg bg-maroon px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-maroon-deep hover:shadow-md"
+          >
+            Choose Branch
+          </button>
+        </div>
+      )}
+
+      {!selectedDept && departments.length === 0 && (
         <div className="space-y-6 animate-in fade-in duration-500">
           <section className="overflow-hidden rounded-2xl border border-maroon/20 bg-[linear-gradient(120deg,#fffaf2_0%,#ffffff_55%,#f8eee7_100%)] shadow-sm">
             <div className="border-b border-maroon/10 px-6 py-5 md:px-8">
