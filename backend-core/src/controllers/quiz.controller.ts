@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { QuestionType } from '@prisma/client';
 import { prisma } from '../config/prisma';
-import { BadRequestError } from '../utils/errors';
+import { BadRequestError, ForbiddenError } from '../utils/errors';
 
 // Get All Quizzes for logged in Faculty
 export const getQuizzes = async (req: Request, res: Response, next: NextFunction) => {
@@ -327,8 +327,50 @@ export const evaluateAttempt = async (req: Request, res: Response, next: NextFun
     const attemptId = req.params.attemptId as string;
     const { evaluations, writtenScore: rawWrittenScore, facultyFeedback, performanceCategory, finalGrade } = req.body;
 
-    const attempt = await prisma.quizAttempt.findUnique({ where: { id: attemptId } });
+    const attempt = await prisma.quizAttempt.findUnique({ 
+      where: { id: attemptId },
+      include: {
+        quiz: { select: { id: true, createdById: true } },
+        user: { select: { id: true, departmentId: true, sectionId: true } }
+      }
+    });
     if (!attempt) throw new BadRequestError('Attempt not found', 'NOT_FOUND');
+
+    const facultyUserId = (req as any).user?.userId;
+    const facultyRole = (req as any).user?.role;
+
+    // Authorization verification: ADMINs can evaluate any attempt.
+    // FACULTY must either have created the quiz or be mapped to the student's cohort.
+    if (facultyRole !== 'ADMIN' && facultyUserId) {
+      const isQuizCreator = attempt.quiz.createdById === facultyUserId;
+      
+      let isMapped = false;
+      if (!isQuizCreator) {
+        const studentDeptId = attempt.user?.departmentId;
+        const studentSecId = attempt.user?.sectionId;
+
+        if (studentDeptId) {
+          const deptMap = await prisma.facultyDepartment.findFirst({
+            where: { userId: facultyUserId, departmentId: studentDeptId }
+          });
+          if (deptMap) isMapped = true;
+        }
+
+        if (!isMapped && studentSecId) {
+          const secMap = await prisma.facultySection.findFirst({
+            where: { userId: facultyUserId, sectionId: studentSecId }
+          });
+          if (secMap) isMapped = true;
+        }
+      }
+
+      if (!isQuizCreator && !isMapped) {
+        throw new ForbiddenError(
+          'You are not authorized to evaluate this quiz attempt.',
+          'ERR_FORBIDDEN_ATTEMPT_EVALUATION'
+        );
+      }
+    }
 
     let writtenScore = 0;
 

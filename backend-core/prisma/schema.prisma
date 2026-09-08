@@ -102,6 +102,7 @@ model User {
   approvalStatus ApprovalStatus @default(APPROVED)
   isEmailVerified Boolean       @default(false)
   verificationCode String?
+  verificationCodeExpiresAt DateTime?
   subject        String?
   
   departmentId   String?

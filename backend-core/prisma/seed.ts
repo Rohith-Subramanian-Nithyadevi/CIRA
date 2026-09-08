@@ -6,9 +6,13 @@ const prisma = new PrismaClient();
 async function main() {
   console.log("Seeding database with default Admin and Departments...");
   
-  const adminEmail = 'admin@amrita.edu';
-  const adminPassword = 'cira_admin@amrita';
+  const adminEmail = process.env.ADMIN_SEED_EMAIL || 'admin@amrita.edu';
+  const adminPassword = process.env.ADMIN_SEED_PASSWORD || (process.env.NODE_ENV === 'production' ? '' : 'cira_admin@amrita');
   
+  if (!adminPassword) {
+    throw new Error('ADMIN_SEED_PASSWORD environment variable must be specified in production environments.');
+  }
+
   // Hash the password
   const salt = await bcrypt.genSalt(10);
   const hashedPassword = await bcrypt.hash(adminPassword, salt);
