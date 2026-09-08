@@ -7,7 +7,6 @@ import UserProfile from '../components/dashboard/UserProfile';
 import StudyPlanner from '../components/student/StudyPlanner';
 import ResourceHub from '../components/student/ResourceHub';
 import StudentAnalytics from '../components/student/StudentAnalytics';
-import StudentImprovement from '../components/student/StudentImprovement';
 import TopicPerformance from '../components/student/TopicPerformance';
 import MistakeNotebook from '../components/student/MistakeNotebook';
 import GoalTracker from '../components/student/GoalTracker';
@@ -65,7 +64,6 @@ export default function StudentDashboard() {
         </div>
       )}
 
-      {activeTab === 'improvement' && <StudentImprovement isDemo={isDemo} />}
       {activeTab === 'topics' && <TopicPerformance isDemo={isDemo} />}
       {activeTab === 'goals' && <GoalTracker />}
 

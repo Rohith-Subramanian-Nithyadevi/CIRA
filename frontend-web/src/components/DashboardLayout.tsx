@@ -87,15 +87,12 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
 
           {role === 'STUDENT' && (
             <>
-              <SectionHeader title="Overview" />
+              <SectionHeader title="Dashboard" />
               <button aria-current={activeTab === 'overview' ? 'page' : undefined} onClick={() => onTabChange('overview')} className={getNavClass('overview')}>
                 <LayoutDashboard className="w-5 h-5 mr-3" /> Overview
               </button>
 
               <SectionHeader title="All Analysis" />
-              <button aria-current={activeTab === 'improvement' ? 'page' : undefined} onClick={() => onTabChange('improvement')} className={getNavClass('improvement')}>
-                <TrendingUp className="w-5 h-5 mr-3" /> My Improvement
-              </button>
               <button aria-current={activeTab === 'topics' ? 'page' : undefined} onClick={() => onTabChange('topics')} className={getNavClass('topics')}>
                 <BookMarked className="w-5 h-5 mr-3" /> Topic Skills
               </button>
