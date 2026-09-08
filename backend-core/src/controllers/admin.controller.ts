@@ -1,11 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/prisma';
 import { BadRequestError } from '../utils/errors';
 import { NotFoundError } from '../utils/errors';
 import bcrypt from 'bcryptjs';
 import XLSX from 'xlsx';
-
-const prisma = new PrismaClient();
 
 const normalize = (value: unknown) => String(value ?? '').trim();
 

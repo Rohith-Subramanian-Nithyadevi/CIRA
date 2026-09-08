@@ -1,13 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/prisma';
 import { z } from 'zod';
 import { generateToken } from '../utils/jwt';
 import { BadRequestError, UnauthorizedError, NotFoundError, ForbiddenError } from '../utils/errors';
 import { sendVerificationEmail, sendAdminApprovalRequestEmail, sendPasswordResetEmail } from '../utils/email';
 import { verifyFirebaseToken } from '../config/firebase';
-
-const prisma = new PrismaClient();
 
 
 const registerSchema = z.object({
@@ -192,8 +190,12 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
     const validatedData = loginSchema.parse(req.body);
 
     // Only look up students, faculty, or admins
-    const user = await prisma.user.findUnique({
+    const user = await prisma.user.findUnique({ 
       where: { email: validatedData.email },
+      include: {
+        department: true,
+        section: true
+      }
     });
 
     if (!user) {
@@ -233,6 +235,9 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
           employeeId: user.employeeId,
           subject: user.subject,
           departmentId: user.departmentId,
+          department: user.department,
+          sectionId: user.sectionId,
+          section: user.section,
         },
         token,
       },
@@ -304,10 +309,14 @@ export const forgotPassword = async (req: Request, res: Response, next: NextFunc
     }
 
     const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15-minute OTP validity
 
     await prisma.user.update({
       where: { id: user.id },
-      data: { verificationCode: resetCode }
+      data: { 
+        verificationCode: resetCode,
+        verificationCodeExpiresAt: expiresAt
+      }
     });
 
     await sendPasswordResetEmail(user.personalEmail, resetCode);
@@ -339,6 +348,11 @@ export const resetPassword = async (req: Request, res: Response, next: NextFunct
       throw new BadRequestError('Invalid or expired verification code');
     }
 
+    // Enforce OTP expiration timestamp
+    if (user.verificationCodeExpiresAt && new Date() > user.verificationCodeExpiresAt) {
+      throw new BadRequestError('Verification code has expired. Please request a new password reset code.');
+    }
+
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(newPassword, salt);
 
@@ -346,7 +360,8 @@ export const resetPassword = async (req: Request, res: Response, next: NextFunct
       where: { id: user.id },
       data: {
         password: hashedPassword,
-        verificationCode: null
+        verificationCode: null,
+        verificationCodeExpiresAt: null
       }
     });
 

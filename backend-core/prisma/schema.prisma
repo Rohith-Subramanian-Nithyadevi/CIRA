@@ -102,6 +102,7 @@ model User {
   approvalStatus ApprovalStatus @default(APPROVED)
   isEmailVerified Boolean       @default(false)
   verificationCode String?
+  verificationCodeExpiresAt DateTime?
   subject        String?
   
   departmentId   String?
@@ -112,6 +113,12 @@ model User {
   
   mappedDepartments FacultyDepartment[]
   mappedSections    FacultySection[]
+  studentTasks      StudentTask[]  @relation("StudentTasks")
+  studentHabits     StudentHabit[] @relation("StudentHabits")
+  studentEvents     StudentCalendarEvent[] @relation("StudentEvents")
+
+  streak             Int       @default(0)
+  lastCompletedDate  DateTime?
 
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
@@ -126,6 +133,10 @@ model User {
   announcementResponses  AnnouncementResponse[]
   assignmentTargets      AssignmentStudent[]
   notifications          Notification[]  @relation("FacultyNotifications")
+  studentGoals           StudentGoal[]   @relation("StudentGoals")
+  studentMistakes        StudentMistake[] @relation("StudentMistakes")
+  studentAchievements    StudentAchievement[] @relation("StudentAchievements")
+  studentNotifications   StudentNotification[] @relation("StudentNotifications")
 }
 
 model FacultyDepartment {
@@ -181,7 +192,9 @@ model Question {
   quizId        String
   type          QuestionType
   text          String
-  topic         String?
+  topic         String?      // legacy free-text topic
+  topicId       String?      // FK to Topic model (Option B)
+  topicRef      Topic?       @relation("QuestionTopic", fields: [topicId], references: [id], onDelete: SetNull)
   marks         Float
   negativeMarks Float        @default(0)
   options       Json?        // Array of options for MCQ/Multi-select
@@ -418,3 +431,207 @@ model Notification {
 
   faculty   User     @relation("FacultyNotifications", fields: [facultyId], references: [id], onDelete: Cascade)
 }
+
+model StudentTask {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  estimatedTime Int?
+  date        DateTime
+  completed Boolean  @default(false)
+  userId    String
+  user      User     @relation("StudentTasks", fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
+model StudentHabit {
+  id             String   @id @default(uuid())
+  title          String
+  completedDates Json     @default("[]") // Array of date strings
+  userId         String
+  user           User     @relation("StudentHabits", fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+}
+
+model StudentCalendarEvent {
+  id        String   @id @default(uuid())
+  title     String
+  date      DateTime
+  userId    String
+  user      User     @relation("StudentEvents", fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
+model Resource {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  url         String
+  category    String   // e.g., "DSA", "APTITUDE", "SOFT_SKILLS", "VERBAL", "CORE"
+  topic       String?
+  createdAt   DateTime @default(now())
+}
+
+// ─── TOPIC TAXONOMY ───────────────────────────────────────────────────────────
+
+model Subject {
+  id          String   @id @default(uuid())
+  name        String
+  code        String?  @unique
+  description String?
+  topics      Topic[]
+  createdAt   DateTime @default(now())
+}
+
+model Topic {
+  id          String      @id @default(uuid())
+  name        String
+  description String?
+  subjectId   String?
+  subject     Subject?    @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  subtopics   Subtopic[]
+  questions   Question[]  @relation("QuestionTopic")
+  resources   LearningResource[]
+  goals       StudentGoal[]
+  mistakes    StudentMistake[]
+  createdAt   DateTime    @default(now())
+
+  @@unique([name, subjectId])
+}
+
+model Subtopic {
+  id          String  @id @default(uuid())
+  name        String
+  description String?
+  topicId     String
+  topic       Topic   @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+}
+
+// ─── LEARNING RESOURCES ───────────────────────────────────────────────────────
+
+enum ResourceType {
+  PDF
+  ARTICLE
+  VIDEO
+  PRACTICE
+  REFERENCE
+  LINK
+}
+
+enum ResourceStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model LearningResource {
+  id               String         @id @default(uuid())
+  title            String
+  description      String?
+  type             ResourceType   @default(LINK)
+  url              String?
+  fileUrl          String?
+  topicId          String?
+  topic            Topic?         @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  difficulty       String?        // "BEGINNER" | "INTERMEDIATE" | "ADVANCED"
+  estimatedMinutes Int?
+  status           ResourceStatus @default(DRAFT)
+  approvedBy       String?
+  createdAt        DateTime       @default(now())
+}
+
+// ─── STUDENT GOALS ────────────────────────────────────────────────────────────
+
+enum GoalType {
+  TOPIC_SCORE
+  SUBJECT_SCORE
+  SIS_SCORE
+  PERFORMANCE_BAND
+}
+
+enum GoalStatus {
+  ACTIVE
+  COMPLETED
+  EXPIRED
+  PAUSED
+}
+
+model StudentGoal {
+  id           String     @id @default(uuid())
+  userId       String
+  user         User       @relation("StudentGoals", fields: [userId], references: [id], onDelete: Cascade)
+  goalType     GoalType   @default(TOPIC_SCORE)
+  topicId      String?
+  topic        Topic?     @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  description  String?
+  currentValue Float      @default(0)
+  targetValue  Float
+  startDate    DateTime   @default(now())
+  targetDate   DateTime?
+  status       GoalStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+// ─── MISTAKE NOTEBOOK ─────────────────────────────────────────────────────────
+
+model StudentMistake {
+  id         String    @id @default(uuid())
+  userId     String
+  user       User      @relation("StudentMistakes", fields: [userId], references: [id], onDelete: Cascade)
+  questionId String
+  quizId     String
+  attemptId  String
+  topicId    String?
+  topic      Topic?    @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  reviewed   Boolean   @default(false)
+  reviewedAt DateTime?
+  createdAt  DateTime  @default(now())
+}
+
+// ─── ACHIEVEMENTS ─────────────────────────────────────────────────────────────
+
+model Achievement {
+  id          String               @id @default(uuid())
+  name        String               @unique
+  description String
+  criteria    String               // Human-readable rule description
+  icon        String?
+  earnedBy    StudentAchievement[]
+  createdAt   DateTime             @default(now())
+}
+
+model StudentAchievement {
+  id            String      @id @default(uuid())
+  userId        String
+  user          User        @relation("StudentAchievements", fields: [userId], references: [id], onDelete: Cascade)
+  achievementId String
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  earnedAt      DateTime    @default(now())
+
+  @@unique([userId, achievementId])
+}
+
+// ─── STUDENT NOTIFICATIONS ────────────────────────────────────────────────────
+
+enum StudentNotifType {
+  ASSESSMENT
+  PERFORMANCE
+  STUDY
+  ACHIEVEMENT
+  SYSTEM
+}
+
+model StudentNotification {
+  id        String             @id @default(uuid())
+  userId    String
+  user      User               @relation("StudentNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  type      StudentNotifType   @default(SYSTEM)
+  title     String
+  message   String
+  priority  Int                @default(0)
+  read      Boolean            @default(false)
+  createdAt DateTime           @default(now())
+}
+

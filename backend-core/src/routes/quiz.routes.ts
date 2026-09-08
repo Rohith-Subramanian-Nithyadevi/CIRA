@@ -7,7 +7,21 @@ import { authenticate, authorize } from '../middlewares/auth.middleware';
 import multer from 'multer';
 
 const router = Router();
-const upload = multer({ dest: 'uploads/' });
+const upload = multer({
+  dest: 'uploads/',
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit to prevent ZIP/DOCX memory exhaustion
+    files: 1
+  },
+  fileFilter: (req, file, cb) => {
+    // Validate file extensions and mimetypes
+    const allowedExtensions = /\.(docx|xlsx|png|jpg|jpeg)$/i;
+    if (!file.originalname.match(allowedExtensions)) {
+      return cb(new Error('Invalid file type. Only DOCX, XLSX, and Image files are permitted.'));
+    }
+    cb(null, true);
+  }
+});
 
 // Only FACULTY and ADMIN can manage quizzes
 router.use(authenticate, authorize(['FACULTY', 'ADMIN']));

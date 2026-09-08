@@ -1,7 +1,5 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '../config/prisma';
 
 // Create an assignment and automatically assign to all applicable users
 export const createAssignment = async (req: Request, res: Response) => {

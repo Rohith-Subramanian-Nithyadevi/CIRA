@@ -1,7 +1,5 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '../config/prisma';
 
 export const getDashboardData = async (req: Request, res: Response) => {
   try {
@@ -24,16 +22,21 @@ export const getDashboardData = async (req: Request, res: Response) => {
       orderBy: { startTime: 'asc' },
       include: {
         quiz: {
-          select: { id: true, title: true, answersPublished: true },
+          select: { id: true, title: true, answersPublished: true, totalMarks: true },
         },
       },
     });
 
-    const performanceTrajectory = attempts.map(attempt => ({
-      name: attempt.quiz.title,
-      score: attempt.totalScore,
-      date: attempt.startTime.toISOString().split('T')[0],
-    }));
+    const performanceTrajectory = attempts.map(attempt => {
+      const maxScore = attempt.quiz.totalMarks;
+      const percentage = maxScore > 0 ? (attempt.totalScore / maxScore) * 100 : attempt.totalScore;
+      
+      return {
+        name: attempt.quiz.title,
+        score: Math.round(percentage),
+        date: attempt.startTime.toISOString().split('T')[0],
+      };
+    });
 
     // 2. Knowledge Deficits — from the latest attempt that has metrics
     const attemptWithMetrics = [...attempts].reverse().find(a => a.metrics && Object.keys(a.metrics as any).length > 0);
