@@ -565,7 +565,7 @@ export function isAnnouncementForStudent(audience: string | null | undefined, st
 
   // 3. Normalization helpers
   const normBatch = (s: string) => s.toLowerCase().replace(/^batch\s*/i, '').trim();
-  const normSec = (s: string) => s.toLowerCase().replace(/^section\s*/i, '').trim();
+  const normSec = (s: string) => s.toLowerCase().replace(/^(section|sec)\s*/i, '').trim();
 
   const areDeptsEquivalent = (a: string, b: string) => {
     const na = a.trim().toLowerCase().replace(/^(dept|department)\s+of\s+/i, '').replace(/\s+department$/i, '').trim();
@@ -594,7 +594,12 @@ export function isAnnouncementForStudent(audience: string | null | undefined, st
     if (!tb || tb === 'all' || tb === 'all batches' || tb === 'all students') return true;
     if (!student.batchName && !student.batchId) return false;
     if (student.batchId && targetBatch.trim() === student.batchId) return true;
-    if (student.batchName && normBatch(targetBatch) === normBatch(student.batchName)) return true;
+    if (student.batchName) {
+      if (normBatch(targetBatch) === normBatch(student.batchName)) return true;
+      const tbYears = tb.match(/\d{4}/g) || [];
+      const sbYears = student.batchName.toLowerCase().match(/\d{4}/g) || [];
+      if (tbYears.length && sbYears.length && tbYears[0] === sbYears[0]) return true;
+    }
     return false;
   };
 
