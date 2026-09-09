@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Bell, Search, Calendar, MessageSquare, CheckCircle2, Send, Loader2, RefreshCw } from 'lucide-react';
+import { Bell, Search, Calendar, MessageSquare, CheckCircle2, Send, Loader2, RefreshCw, Trash2, RotateCcw } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import { apiClient } from '@/lib/apiClient';
 
@@ -29,10 +29,51 @@ export default function StudentAnnouncements({ isDemo }: { isDemo?: boolean }) {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeFilter, setActiveFilter] = useState<'all' | 'surveys' | 'targeted' | 'general'>('all');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'surveys' | 'targeted' | 'general' | 'dismissed'>('all');
   const [respondingId, setRespondingId] = useState<string | null>(null);
   const [responseText, setResponseText] = useState('');
   const [submittingSurvey, setSubmittingSurvey] = useState(false);
+
+  const user = JSON.parse(localStorage.getItem('cira_user') || '{}');
+  const userStorageKey = `cira_dismissed_announcements_${user.id || 'default'}`;
+
+  const getDismissedIds = (): string[] => {
+    try {
+      return JSON.parse(localStorage.getItem(userStorageKey) || '[]');
+    } catch {
+      return [];
+    }
+  };
+
+  const [dismissedIds, setDismissedIds] = useState<string[]>(getDismissedIds);
+
+  const handleDismiss = (id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (!window.confirm('Delete this announcement from your notices?')) return;
+    const current = getDismissedIds();
+    if (!current.includes(id)) {
+      const updated = [...current, id];
+      setDismissedIds(updated);
+      localStorage.setItem(userStorageKey, JSON.stringify(updated));
+      window.dispatchEvent(new Event('cira_announcements_updated'));
+    }
+  };
+
+  const handleRestore = (id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    const current = getDismissedIds();
+    const updated = current.filter(dId => dId !== id);
+    setDismissedIds(updated);
+    localStorage.setItem(userStorageKey, JSON.stringify(updated));
+    window.dispatchEvent(new Event('cira_announcements_updated'));
+  };
+
+  const handleRestoreAll = () => {
+    if (!window.confirm('Restore all dismissed notices back to your active feed?')) return;
+    setDismissedIds([]);
+    localStorage.removeItem(userStorageKey);
+    window.dispatchEvent(new Event('cira_announcements_updated'));
+  };
 
   const fetchAnnouncements = async () => {
     if (isDemo) {
@@ -85,6 +126,11 @@ export default function StudentAnnouncements({ isDemo }: { isDemo?: boolean }) {
 
   useEffect(() => {
     fetchAnnouncements();
+    const handleSync = () => {
+      setDismissedIds(getDismissedIds());
+    };
+    window.addEventListener('cira_announcements_updated', handleSync);
+    return () => window.removeEventListener('cira_announcements_updated', handleSync);
   }, [isDemo]);
 
   const handleSurveySubmit = async (announcementId: string) => {
@@ -117,7 +163,17 @@ export default function StudentAnnouncements({ isDemo }: { isDemo?: boolean }) {
     }
   };
 
+  const activeAnnouncements = announcements.filter(a => !dismissedIds.includes(a.id));
+  const dismissedAnnouncements = announcements.filter(a => dismissedIds.includes(a.id));
+
   const filteredAnnouncements = announcements.filter(ann => {
+    // Dismissed filtering
+    if (activeFilter === 'dismissed') {
+      if (!dismissedIds.includes(ann.id)) return false;
+    } else {
+      if (dismissedIds.includes(ann.id)) return false;
+    }
+
     // Search query filter
     const titleMatch = ann.title.toLowerCase().includes(searchQuery.toLowerCase());
     const contentMatch = ann.content.toLowerCase().includes(searchQuery.toLowerCase());
@@ -154,7 +210,7 @@ export default function StudentAnnouncements({ isDemo }: { isDemo?: boolean }) {
           <button
             onClick={fetchAnnouncements}
             disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 border border-border-soft text-ink font-semibold rounded-lg hover:bg-cream/40 transition-colors text-sm w-fit"
+            className="flex items-center gap-2 px-4 py-2 border border-border-soft text-ink font-semibold rounded-lg hover:bg-cream/40 transition-colors text-sm w-fit cursor-pointer"
           >
             <RefreshCw className={`w-4 h-4 text-maroon ${loading ? 'animate-spin' : ''}`} />
             Refresh
@@ -167,27 +223,27 @@ export default function StudentAnnouncements({ isDemo }: { isDemo?: boolean }) {
           <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0">
             <button
               onClick={() => setActiveFilter('all')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap cursor-pointer ${
                 activeFilter === 'all'
                   ? 'bg-maroon text-white shadow-sm'
                   : 'bg-cream-edge/30 text-gray-body hover:text-ink'
               }`}
             >
-              All ({announcements.length})
+              All ({activeAnnouncements.length})
             </button>
             <button
               onClick={() => setActiveFilter('surveys')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap cursor-pointer ${
                 activeFilter === 'surveys'
                   ? 'bg-maroon text-white shadow-sm'
                   : 'bg-cream-edge/30 text-gray-body hover:text-ink'
               }`}
             >
-              Surveys ({announcements.filter(a => a.isSurvey).length})
+              Surveys ({activeAnnouncements.filter(a => a.isSurvey).length})
             </button>
             <button
               onClick={() => setActiveFilter('targeted')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap cursor-pointer ${
                 activeFilter === 'targeted'
                   ? 'bg-maroon text-white shadow-sm'
                   : 'bg-cream-edge/30 text-gray-body hover:text-ink'
@@ -197,13 +253,23 @@ export default function StudentAnnouncements({ isDemo }: { isDemo?: boolean }) {
             </button>
             <button
               onClick={() => setActiveFilter('general')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap cursor-pointer ${
                 activeFilter === 'general'
                   ? 'bg-maroon text-white shadow-sm'
                   : 'bg-cream-edge/30 text-gray-body hover:text-ink'
               }`}
             >
               General
+            </button>
+            <button
+              onClick={() => setActiveFilter('dismissed')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap cursor-pointer ${
+                activeFilter === 'dismissed'
+                  ? 'bg-maroon text-white shadow-sm'
+                  : 'bg-cream-edge/30 text-gray-body hover:text-ink'
+              }`}
+            >
+              Dismissed ({dismissedAnnouncements.length})
             </button>
           </div>
 
@@ -221,6 +287,23 @@ export default function StudentAnnouncements({ isDemo }: { isDemo?: boolean }) {
         </div>
       </div>
 
+      {/* Dismissed Filter Notice Banner */}
+      {activeFilter === 'dismissed' && dismissedAnnouncements.length > 0 && (
+        <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+          <div>
+            <p className="font-bold">Viewing Dismissed Notices ({dismissedAnnouncements.length})</p>
+            <p className="text-amber-800">These announcements were hidden from your dashboard. You can restore them to your active feed anytime.</p>
+          </div>
+          <button
+            onClick={handleRestoreAll}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg transition-colors shrink-0 w-fit cursor-pointer"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            Restore All
+          </button>
+        </div>
+      )}
+
       {/* Announcements List */}
       {loading ? (
         <div className="flex flex-col items-center justify-center p-12 bg-white rounded-xl border border-border-soft">
@@ -230,9 +313,13 @@ export default function StudentAnnouncements({ isDemo }: { isDemo?: boolean }) {
       ) : filteredAnnouncements.length === 0 ? (
         <div className="p-12 text-center bg-white rounded-xl border border-dashed border-border-soft">
           <Bell className="w-10 h-10 mx-auto mb-3 text-maroon opacity-30" />
-          <h3 className="font-bold text-ink text-base mb-1">No announcements found</h3>
+          <h3 className="font-bold text-ink text-base mb-1">
+            {activeFilter === 'dismissed' ? 'No dismissed notices' : 'No announcements found'}
+          </h3>
           <p className="text-sm text-gray-body">
-            {searchQuery
+            {activeFilter === 'dismissed'
+              ? 'You have not dismissed or deleted any announcements.'
+              : searchQuery
               ? `No announcements match "${searchQuery}".`
               : 'There are no notices posted for your class or batch right now.'}
           </p>
@@ -242,6 +329,7 @@ export default function StudentAnnouncements({ isDemo }: { isDemo?: boolean }) {
           {filteredAnnouncements.map((ann) => {
             const myResponse = ann.responses?.[0];
             const isResponding = respondingId === ann.id;
+            const isDismissed = dismissedIds.includes(ann.id);
 
             return (
               <div
@@ -268,9 +356,31 @@ export default function StudentAnnouncements({ isDemo }: { isDemo?: boolean }) {
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-1.5 text-xs text-gray-body shrink-0">
-                    <Calendar className="w-3.5 h-3.5" />
-                    <span>{new Date(ann.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+
+                  {/* Header Actions: Date + Delete/Restore */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-1.5 text-xs text-gray-body">
+                      <Calendar className="w-3.5 h-3.5 text-maroon" />
+                      <span>{new Date(ann.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                    </div>
+                    {isDismissed ? (
+                      <button
+                        onClick={(e) => handleRestore(ann.id, e)}
+                        className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-maroon hover:bg-maroon/10 border border-maroon/30 rounded-lg transition-colors cursor-pointer"
+                        title="Restore notice"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Restore</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={(e) => handleDismiss(ann.id, e)}
+                        className="p-1.5 text-gray-body/60 hover:text-red-600 hover:bg-red-50 rounded-lg border border-transparent hover:border-red-100 transition-colors cursor-pointer"
+                        title="Delete notice"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -312,7 +422,7 @@ export default function StudentAnnouncements({ isDemo }: { isDemo?: boolean }) {
                         <div className="flex justify-end gap-2">
                           <button
                             onClick={() => { setRespondingId(null); setResponseText(''); }}
-                            className="px-3 py-1.5 text-xs text-gray-body hover:text-ink font-medium rounded-lg"
+                            className="px-3 py-1.5 text-xs text-gray-body hover:text-ink font-medium rounded-lg cursor-pointer"
                             disabled={submittingSurvey}
                           >
                             Cancel
@@ -320,7 +430,7 @@ export default function StudentAnnouncements({ isDemo }: { isDemo?: boolean }) {
                           <button
                             onClick={() => handleSurveySubmit(ann.id)}
                             disabled={submittingSurvey || !responseText.trim()}
-                            className="px-4 py-1.5 bg-maroon hover:bg-maroon-deep text-white text-xs font-bold rounded-lg flex items-center gap-1.5 shadow-sm disabled:opacity-50 transition-colors"
+                            className="px-4 py-1.5 bg-maroon hover:bg-maroon-deep text-white text-xs font-bold rounded-lg flex items-center gap-1.5 shadow-sm disabled:opacity-50 transition-colors cursor-pointer"
                           >
                             {submittingSurvey ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
                             Submit Response
@@ -330,7 +440,7 @@ export default function StudentAnnouncements({ isDemo }: { isDemo?: boolean }) {
                     ) : (
                       <button
                         onClick={() => { setRespondingId(ann.id); setResponseText(''); }}
-                        className="px-4 py-1.5 bg-maroon/10 hover:bg-maroon/20 text-maroon text-xs font-bold rounded-lg flex items-center gap-1.5 transition-colors"
+                        className="px-4 py-1.5 bg-maroon/10 hover:bg-maroon/20 text-maroon text-xs font-bold rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
                       >
                         <MessageSquare className="w-3.5 h-3.5" />
                         Respond to Survey
@@ -344,6 +454,11 @@ export default function StudentAnnouncements({ isDemo }: { isDemo?: boolean }) {
                   <span>
                     Posted by <span className="font-semibold text-ink">{ann.faculty?.name || 'Faculty Member'}</span>
                   </span>
+                  {isDismissed && (
+                    <span className="text-[11px] font-semibold text-amber-800 bg-amber-100/70 border border-amber-200 px-2 py-0.5 rounded">
+                      Dismissed from your notices
+                    </span>
+                  )}
                 </div>
               </div>
             );
