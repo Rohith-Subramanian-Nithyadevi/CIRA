@@ -523,7 +523,11 @@ export const updateProfile = async (req: Request, res: Response) => {
       where: { id: userId },
       data,
       include: {
-        department: true,
+        department: {
+          include: {
+            batch: true
+          }
+        },
         section: true
       }
     });
@@ -535,6 +539,91 @@ export const updateProfile = async (req: Request, res: Response) => {
   }
 };
 
+interface StudentContext {
+  batchName?: string | null;
+  batchId?: string | null;
+  deptName?: string | null;
+  deptId?: string | null;
+  sectionName?: string | null;
+  sectionId?: string | null;
+}
+
+export function isAnnouncementForStudent(audience: string | null | undefined, student: StudentContext): boolean {
+  if (!audience) return true;
+  const audTrimmed = audience.trim();
+  const audLower = audTrimmed.toLowerCase();
+
+  // 1. Universal audiences
+  const universal = ['all', 'all students', 'all batches', 'everyone', '*', 'general'];
+  if (universal.includes(audLower)) return true;
+
+  // 2. Direct ID matches
+  if (student.deptId && audTrimmed === student.deptId) return true;
+  if (student.sectionId && audTrimmed === student.sectionId) return true;
+  if (student.batchId && audTrimmed === student.batchId) return true;
+
+  // 3. Normalization helpers
+  const normBatch = (s: string) => s.toLowerCase().replace(/^batch\s*/i, '').trim();
+  const normSec = (s: string) => s.toLowerCase().replace(/^section\s*/i, '').trim();
+
+  const isBatchMatch = (targetBatch: string) => {
+    const tb = targetBatch.trim().toLowerCase();
+    if (!tb || tb === 'all' || tb === 'all batches' || tb === 'all students') return true;
+    if (!student.batchName && !student.batchId) return false;
+    if (student.batchId && targetBatch.trim() === student.batchId) return true;
+    if (student.batchName && normBatch(targetBatch) === normBatch(student.batchName)) return true;
+    return false;
+  };
+
+  const isDeptMatch = (targetDept: string) => {
+    const td = targetDept.trim().toLowerCase();
+    if (!td || td === 'all' || td === 'all departments') return true;
+    if (!student.deptName && !student.deptId) return false;
+    if (student.deptId && targetDept.trim() === student.deptId) return true;
+    if (student.deptName && td === student.deptName.toLowerCase()) return true;
+    return false;
+  };
+
+  const isSecMatch = (targetSec: string) => {
+    const ts = targetSec.trim().toLowerCase();
+    if (!ts || ts === 'all' || ts === 'all sections') return true;
+    if (!student.sectionName && !student.sectionId) return false;
+    if (student.sectionId && targetSec.trim() === student.sectionId) return true;
+    if (student.sectionName && normSec(targetSec) === normSec(student.sectionName)) return true;
+    return false;
+  };
+
+  // 4. Split by pipe "|"
+  const parts = audTrimmed.split('|').map(p => p.trim()).filter(Boolean);
+
+  if (parts.length === 1) {
+    const single = parts[0];
+    if (universal.includes(single.toLowerCase())) return true;
+    if (isBatchMatch(single)) return true;
+    if (isDeptMatch(single)) return true;
+    if (isSecMatch(single)) return true;
+    return false;
+  }
+
+  if (parts.length === 2) {
+    // Could be: [Batch, Dept] OR [Dept, Section] OR [Batch, Section]
+    if (isBatchMatch(parts[0]) && isDeptMatch(parts[1])) return true;
+    if (isDeptMatch(parts[0]) && isSecMatch(parts[1])) return true;
+    if (isBatchMatch(parts[0]) && isSecMatch(parts[1])) return true;
+    return false;
+  }
+
+  if (parts.length >= 3) {
+    // Standard faculty format: [Batch, Dept, Section]
+    if (isBatchMatch(parts[0]) && isDeptMatch(parts[1]) && isSecMatch(parts[2])) {
+      return true;
+    }
+    return false;
+  }
+
+  return false;
+}
+
 export const getAnnouncements = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user?.userId;
@@ -543,35 +632,45 @@ export const getAnnouncements = async (req: Request, res: Response) => {
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: {
-        department: true,
+        department: {
+          include: {
+            batch: true
+          }
+        },
         section: true
       }
     });
 
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    // Build audiences the student belongs to
-    const audiences = ['ALL'];
-    if (user.department?.name) audiences.push(user.department.name);
-    if (user.section?.name) audiences.push(user.section.name);
-    // Some announcements might just target the department ID or section ID instead of name. Let's add them too just in case.
-    if (user.departmentId) audiences.push(user.departmentId);
-    if (user.sectionId) audiences.push(user.sectionId);
+    const studentContext: StudentContext = {
+      batchName: user.department?.batch?.name || null,
+      batchId: user.department?.batchId || user.department?.batch?.id || null,
+      deptName: user.department?.name || null,
+      deptId: user.departmentId || null,
+      sectionName: user.section?.name || null,
+      sectionId: user.sectionId || null
+    };
 
-    const announcements = await prisma.announcement.findMany({
-      where: {
-        audience: { in: audiences }
-      },
+    const allAnnouncements = await prisma.announcement.findMany({
       include: {
         faculty: {
-          select: { name: true }
+          select: { name: true, email: true }
+        },
+        responses: {
+          where: { userId },
+          select: { id: true, response: true, submittedAt: true }
         }
       },
       orderBy: { date: 'desc' },
-      take: 20
+      take: 100
     });
 
-    res.json({ success: true, data: announcements });
+    const studentAnnouncements = allAnnouncements.filter(ann => 
+      isAnnouncementForStudent(ann.audience, studentContext)
+    );
+
+    res.json({ success: true, data: studentAnnouncements });
   } catch (error) {
     console.error('Error fetching announcements:', error);
     res.status(500).json({ error: 'Failed to fetch announcements' });
