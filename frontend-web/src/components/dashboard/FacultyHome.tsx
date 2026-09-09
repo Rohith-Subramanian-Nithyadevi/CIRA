@@ -265,10 +265,12 @@ export default function FacultyHome() {
     }
     
     let audienceStr = 'All Students';
-    if (newAnnouncement.batch !== 'All Batches') {
-      audienceStr = `${newAnnouncement.batch}`;
-      if (newAnnouncement.department !== 'All Departments') audienceStr += ` | ${newAnnouncement.department}`;
-      if (newAnnouncement.section !== 'All Sections') audienceStr += ` | Section ${newAnnouncement.section}`;
+    const audienceParts: string[] = [];
+    if (newAnnouncement.batch && newAnnouncement.batch !== 'All Batches') audienceParts.push(newAnnouncement.batch);
+    if (newAnnouncement.department && newAnnouncement.department !== 'All Departments') audienceParts.push(newAnnouncement.department);
+    if (newAnnouncement.section && newAnnouncement.section !== 'All Sections') audienceParts.push(`Section ${newAnnouncement.section}`);
+    if (audienceParts.length > 0) {
+      audienceStr = audienceParts.join(' | ');
     }
 
     const payload = {

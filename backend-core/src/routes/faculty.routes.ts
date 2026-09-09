@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { evaluateStudent, enrollDepartment, unenrollDepartment, unenrollSection, getEnrolledDepartments, getStudents, searchStudent, getStudentProfile } from '../controllers/faculty.controller';
+import { evaluateStudent, enrollDepartment, unenrollDepartment, unenrollSection, getEnrolledDepartments, getStudents, searchStudent, getStudentProfile, updateFacultyProfile } from '../controllers/faculty.controller';
 import { authenticate, authorize } from '../middlewares/auth.middleware';
 
 const router = Router();
@@ -7,6 +7,7 @@ const router = Router();
 router.use(authenticate);
 router.use(authorize(['FACULTY', 'ADMIN']));
 
+router.put('/profile', updateFacultyProfile);
 router.put('/evaluate', evaluateStudent);
 
 router.post('/enroll', enrollDepartment);

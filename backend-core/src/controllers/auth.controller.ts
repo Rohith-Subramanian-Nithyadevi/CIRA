@@ -193,7 +193,11 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
     const user = await prisma.user.findUnique({ 
       where: { email: validatedData.email },
       include: {
-        department: true,
+        department: {
+          include: {
+            batch: true
+          }
+        },
         section: true
       }
     });
@@ -229,6 +233,7 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
           id: user.id,
           name: user.name,
           email: user.email,
+          personalEmail: user.personalEmail,
           role: user.role,
           phone: user.phone,
           rollNumber: user.rollNumber,
@@ -261,11 +266,19 @@ export const getMe = async (req: Request, res: Response, next: NextFunction) => 
         id: true,
         name: true,
         email: true,
+        personalEmail: true,
         role: true,
         phone: true,
         rollNumber: true,
         employeeId: true,
-        department: true,
+        subject: true,
+        departmentId: true,
+        department: {
+          include: {
+            batch: true
+          }
+        },
+        sectionId: true,
         section: true,
         approvalStatus: true,
         createdAt: true,
@@ -392,6 +405,14 @@ export const firebaseAuthLogin = async (req: Request, res: Response, next: NextF
           { email: googlePersonalEmail }
         ]
       },
+      include: {
+        department: {
+          include: {
+            batch: true
+          }
+        },
+        section: true
+      }
     });
 
     if (!user) {
@@ -427,12 +448,16 @@ export const firebaseAuthLogin = async (req: Request, res: Response, next: NextF
           id: user.id,
           name: user.name,
           email: user.email,
+          personalEmail: user.personalEmail,
           role: user.role,
           phone: user.phone,
           rollNumber: user.rollNumber,
           employeeId: user.employeeId,
           subject: user.subject,
           departmentId: user.departmentId,
+          department: user.department,
+          sectionId: user.sectionId,
+          section: user.section,
         },
         token,
       },

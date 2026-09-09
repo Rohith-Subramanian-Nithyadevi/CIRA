@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { TrendingUp, Bell, Loader2, Calendar, Send, CheckCircle2, MessageSquare } from 'lucide-react';
+import { TrendingUp, Bell, Loader2, Calendar, Send, CheckCircle2, MessageSquare, ArrowRight } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import { apiClient } from '@/lib/apiClient';
 
@@ -27,6 +27,11 @@ interface Announcement {
   faculty?: { name?: string; email?: string } | null;
   isSurvey: boolean;
   responses?: AnnouncementResponse[];
+}
+
+interface StudentSpaceProps {
+  isDemo?: boolean;
+  onNavigateTab?: (tab: string) => void;
 }
 
 // Color palette (matches site)
@@ -63,13 +68,23 @@ function SISRing({ sis, insufficient }: { sis: number; insufficient: boolean }) 
   );
 }
 
-export default function StudentSpace({ isDemo }: { isDemo?: boolean }) {
+export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProps) {
   const [sis, setSIS] = useState<SISData | null>(null);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
   const [respondingId, setRespondingId] = useState<string | null>(null);
   const [responseText, setResponseText] = useState('');
   const [submittingSurvey, setSubmittingSurvey] = useState(false);
+
+  const fetchOverviewData = () => {
+    Promise.all([
+      apiClient.fetch('/api/v1/student/improvement/sis').then(r => r.json()).catch(() => null),
+      apiClient.fetch('/api/v1/student/announcements').then(r => r.json()).catch(() => null),
+    ]).then(([sisRes, annRes]) => {
+      if (sisRes?.success) setSIS(sisRes.data);
+      if (annRes?.success) setAnnouncements(annRes.data || []);
+    }).finally(() => setLoading(false));
+  };
 
   useEffect(() => {
     if (isDemo) {
@@ -89,13 +104,11 @@ export default function StudentSpace({ isDemo }: { isDemo?: boolean }) {
       return;
     }
 
-    Promise.all([
-      apiClient.fetch('/api/v1/student/improvement/sis').then(r => r.json()).catch(() => null),
-      apiClient.fetch('/api/v1/student/announcements').then(r => r.json()).catch(() => null),
-    ]).then(([sisRes, annRes]) => {
-      if (sisRes?.success) setSIS(sisRes.data);
-      if (annRes?.success) setAnnouncements(annRes.data || []);
-    }).finally(() => setLoading(false));
+    fetchOverviewData();
+
+    const handleUpdate = () => fetchOverviewData();
+    window.addEventListener('cira_user_updated', handleUpdate);
+    return () => window.removeEventListener('cira_user_updated', handleUpdate);
   }, [isDemo]);
 
   const handleSurveySubmit = async (announcementId: string) => {
@@ -184,110 +197,95 @@ export default function StudentSpace({ isDemo }: { isDemo?: boolean }) {
 
       {/* ── ANNOUNCEMENTS ── */}
       <div>
-        <div className="flex items-center justify-between mb-5">
-          <h3 className="text-lg font-serif font-bold text-ink flex items-center gap-2">
-            <Bell className="w-5 h-5" style={{ color: C.maroon }} />
-            Announcements & Notices
-          </h3>
-          {announcements.length > 0 && (
-            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-cream-edge/40 text-gray-body border border-border-soft">
-              {announcements.length} {announcements.length === 1 ? 'Notice' : 'Notices'}
-            </span>
-          )}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-lg bg-cream-edge/60 text-maroon flex items-center justify-center">
+              <Bell className="w-5 h-5" style={{ color: C.maroon }} />
+            </div>
+            <div>
+              <h3 className="text-lg font-serif font-bold text-ink leading-tight">Announcements & Notices</h3>
+              <p className="text-xs text-gray-body">Recent updates and notices targeted for your class</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {announcements.length > 0 && (
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-cream-edge/40 text-gray-body border border-border-soft">
+                {announcements.length} {announcements.length === 1 ? 'Notice' : 'Notices'}
+              </span>
+            )}
+            {onNavigateTab && (
+              <button 
+                onClick={() => onNavigateTab('announcements')} 
+                className="text-xs font-bold text-maroon hover:text-maroon-deep flex items-center gap-1 group py-1 px-2.5 rounded-lg hover:bg-cream-edge/40 transition-colors"
+              >
+                <span>View All</span>
+                <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
+              </button>
+            )}
+          </div>
         </div>
         
         {announcements.length === 0 ? (
-          <div className="py-8 text-center rounded-xl border border-dashed bg-cream/30" style={{ borderColor: C.border }}>
-            <p className="text-sm" style={{ color: C.gray }}>No announcements for your batch right now.</p>
+          <div className="py-6 px-6 text-center rounded-xl border border-dashed bg-cream/30 flex items-center justify-center gap-3" style={{ borderColor: C.border }}>
+            <Bell className="w-4 h-4 text-gray-body/50" />
+            <p className="text-sm font-medium" style={{ color: C.gray }}>No announcements for your batch right now.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2.5">
             {announcements.map((ann) => {
-              const myResponse = ann.responses?.[0];
-              const isResponding = respondingId === ann.id;
+              const formattedDate = new Date(ann.date).toLocaleDateString(undefined, { 
+                month: 'short', 
+                day: 'numeric',
+                year: 'numeric' 
+              });
+              const hasResponded = !!ann.responses?.[0];
 
               return (
-                <div key={ann.id} className="p-5 rounded-xl border bg-white shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between" style={{ borderColor: C.border }}>
-                  <div className="flex gap-4 items-start mb-3">
-                    <div className="p-2 rounded-lg shrink-0 mt-0.5" style={{ background: C.creamEdge }}>
-                      <Calendar className="w-5 h-5" style={{ color: C.maroon }} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2 mb-1.5 flex-wrap">
-                        <h4 className="font-bold text-ink leading-tight text-base">{ann.title}</h4>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          {ann.isSurvey && (
-                            <span className="text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full shrink-0" style={{ background: C.maroon, color: '#fff' }}>
-                              Survey
-                            </span>
-                          )}
-                          {ann.audience && ann.audience !== 'ALL' && ann.audience !== 'All Students' && (
-                            <span className="text-[9px] font-semibold text-gray-body border px-1.5 py-0.5 rounded bg-cream/50 truncate max-w-[150px]" title={ann.audience}>
-                              {ann.audience}
-                            </span>
-                          )}
-                        </div>
+                <div 
+                  key={ann.id} 
+                  onClick={() => onNavigateTab?.('announcements')}
+                  className="group relative flex items-center justify-between gap-4 p-4 rounded-xl border bg-white hover:bg-cream/20 hover:border-maroon/30 transition-all duration-150 shadow-sm cursor-pointer"
+                  style={{ borderColor: C.border }}
+                >
+                  {/* Left: Indicator + Title + Meta */}
+                  <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                    <div className="w-2.5 h-2.5 rounded-full shrink-0 bg-maroon shadow-sm ring-4 ring-maroon/10" />
+                    
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-ink text-sm group-hover:text-maroon transition-colors line-clamp-1">
+                          {ann.title}
+                        </span>
+
+                        {ann.isSurvey && (
+                          <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                            hasResponded ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-maroon text-white'
+                          }`}>
+                            {hasResponded ? 'Responded' : 'Survey'}
+                          </span>
+                        )}
+
+                        {ann.audience && ann.audience !== 'ALL' && ann.audience !== 'All Students' && (
+                          <span className="text-[10px] font-semibold text-gray-body border border-border-soft px-2 py-0.5 rounded-full bg-cream/60 truncate max-w-[200px]" title={ann.audience}>
+                            {ann.audience}
+                          </span>
+                        )}
                       </div>
-                      <div 
-                        className="text-sm leading-relaxed rich-text-content text-ink/80 my-2"
-                        dangerouslySetInnerHTML={{ __html: sanitizeHtml(ann.content) || '<p>No announcement content.</p>' }}
-                      />
+
+                      <div className="flex items-center gap-3 text-xs text-gray-body mt-1">
+                        <span>From <strong className="text-ink/80">{ann.faculty?.name || 'Faculty'}</strong></span>
+                        <span className="text-gray-body/40">•</span>
+                        <span>{formattedDate}</span>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Survey Response Area */}
-                  {ann.isSurvey && (
-                    <div className="mt-2 pt-3 border-t border-border-soft/60">
-                      {myResponse ? (
-                        <div className="p-2.5 rounded-lg bg-green-50/80 border border-green-200/80 text-xs flex items-start gap-2">
-                          <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0 mt-0.5" />
-                          <div className="flex-1">
-                            <span className="font-bold text-green-800">Your Response: </span>
-                            <span className="text-green-900">{myResponse.response}</span>
-                          </div>
-                        </div>
-                      ) : isResponding ? (
-                        <div className="space-y-2 mt-1">
-                          <textarea
-                            rows={2}
-                            placeholder="Type your response here..."
-                            className="w-full text-xs p-2 rounded-lg border border-border-soft focus:outline-none focus:border-maroon resize-none bg-white"
-                            value={responseText}
-                            onChange={(e) => setResponseText(e.target.value)}
-                          />
-                          <div className="flex justify-end gap-2">
-                            <button
-                              onClick={() => { setRespondingId(null); setResponseText(''); }}
-                              className="px-2.5 py-1 text-xs text-gray-body hover:text-ink font-medium rounded"
-                              disabled={submittingSurvey}
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              onClick={() => handleSurveySubmit(ann.id)}
-                              disabled={submittingSurvey || !responseText.trim()}
-                              className="px-3 py-1 bg-maroon hover:bg-maroon-deep text-white text-xs font-bold rounded-lg flex items-center gap-1 shadow-sm disabled:opacity-50"
-                            >
-                              {submittingSurvey ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
-                              Submit
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => { setRespondingId(ann.id); setResponseText(''); }}
-                          className="text-xs font-bold text-maroon hover:underline flex items-center gap-1"
-                        >
-                          <MessageSquare className="w-3.5 h-3.5" />
-                          Submit Response
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-between border-t border-border-soft/60 pt-2.5 mt-2 text-xs font-medium" style={{ color: C.gray }}>
-                    <span>From <span className="text-ink font-semibold">{ann.faculty?.name || 'Faculty'}</span></span>
-                    <span>{new Date(ann.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                  {/* Right: Quick action */}
+                  <div className="shrink-0 flex items-center gap-2">
+                    <span className="text-xs font-semibold text-gray-body group-hover:text-maroon flex items-center gap-1 transition-colors">
+                      View
+                      <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
+                    </span>
                   </div>
                 </div>
               );
