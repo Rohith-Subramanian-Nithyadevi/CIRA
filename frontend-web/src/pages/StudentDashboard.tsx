@@ -60,7 +60,7 @@ export default function StudentDashboard() {
       
       {activeTab === 'overview' && (
         <div className="space-y-6">
-          <StudentSpace isDemo={isDemo} />
+          <StudentSpace isDemo={isDemo} onNavigateTab={setActiveTab} />
         </div>
       )}
 

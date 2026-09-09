@@ -22,16 +22,38 @@ export default function UserProfile() {
   // Enrollment state
   const [enrolledDepartments, setEnrolledDepartments] = useState<{ id: string; name: string; batchName?: string; type?: string; departmentName?: string }[]>([]);
   const [enrolledSections, setEnrolledSections] = useState<{ id: string; name: string; batchName?: string; departmentName?: string; type?: string }[]>([]);
-  const [enrollBatchId, setEnrollBatchId] = useState(user.department?.batchId || '');
-  const [enrollDeptId, setEnrollDeptId] = useState(user.departmentId || '');
-  const [enrollSectionId, setEnrollSectionId] = useState(user.sectionId || '');
+  const [enrollBatchId, setEnrollBatchId] = useState(user.department?.batchId || user.department?.batch?.id || '');
+  const [enrollDeptId, setEnrollDeptId] = useState(user.departmentId || user.department?.id || '');
+  const [enrollSectionId, setEnrollSectionId] = useState(user.sectionId || user.section?.id || '');
   const [enrolling, setEnrolling] = useState(false);
 
   // Cascading reference data
   const { batches } = useBatches();
   const { departments: deptsByBatch } = useDepartments(enrollBatchId, { enabled: !!enrollBatchId });
 
-  // Fetch already-enrolled departments on mount
+  // Always fetch fresh profile details on mount from database
+  useEffect(() => {
+    let isMounted = true;
+    apiClient.fetch('/api/v1/auth/me')
+      .then(res => res.json())
+      .then(data => {
+        if (!isMounted || !data?.data?.user) return;
+        const u = data.data.user;
+        localStorage.setItem('cira_user', JSON.stringify(u));
+        setName(u.name || '');
+        setPhone(u.phone || '');
+        if (u.rollNumber) setRollNumber(u.rollNumber);
+        const batchId = u.department?.batchId || u.department?.batch?.id || '';
+        if (batchId) setEnrollBatchId(batchId);
+        if (u.departmentId || u.department?.id) setEnrollDeptId(u.departmentId || u.department?.id);
+        if (u.sectionId || u.section?.id) setEnrollSectionId(u.sectionId || u.section?.id);
+      })
+      .catch(console.error);
+
+    return () => { isMounted = false; };
+  }, []);
+
+  // Fetch already-enrolled departments on mount for faculty
   useEffect(() => {
     if (role === 'FACULTY') {
       apiClient.fetch('/api/v1/faculty/departments')
@@ -82,16 +104,45 @@ export default function UserProfile() {
           // update local user
           const updatedUser = { ...user, ...resData.data };
           localStorage.setItem('cira_user', JSON.stringify(updatedUser));
+          setName(updatedUser.name || '');
+          setPhone(updatedUser.phone || '');
+          setRollNumber(updatedUser.rollNumber || '');
+          setEnrollBatchId(updatedUser.department?.batchId || updatedUser.department?.batch?.id || enrollBatchId);
+          setEnrollDeptId(updatedUser.departmentId || enrollDeptId);
+          setEnrollSectionId(updatedUser.sectionId || enrollSectionId);
+          window.dispatchEvent(new Event('cira_user_updated'));
           setSuccess('Profile updated successfully!');
           setIsEditing(false);
         } else {
           const errData = await res.json();
           setError(errData.details ? `${errData.error}: ${errData.details}` : (errData.error || 'Failed to update profile'));
         }
+      } else if (role === 'FACULTY') {
+        const facultyPayload: any = { name, phone };
+        if (password) facultyPayload.password = password;
+        const res = await apiClient.fetch('/api/v1/faculty/profile', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(facultyPayload)
+        });
+        
+        if (res.ok) {
+          const resData = await res.json();
+          const updatedUser = { ...user, ...resData.data };
+          localStorage.setItem('cira_user', JSON.stringify(updatedUser));
+          setName(updatedUser.name || '');
+          setPhone(updatedUser.phone || '');
+          window.dispatchEvent(new Event('cira_user_updated'));
+          setSuccess('Profile updated successfully!');
+          setIsEditing(false);
+        } else {
+          const errData = await res.json();
+          setError(errData.message || 'Failed to update faculty profile');
+        }
       } else {
-        // Just local storage for non-students for now
         const updatedUser = { ...user, name, phone };
         localStorage.setItem('cira_user', JSON.stringify(updatedUser));
+        window.dispatchEvent(new Event('cira_user_updated'));
         setSuccess('Profile updated successfully!');
         setIsEditing(false);
       }
@@ -289,13 +340,16 @@ export default function UserProfile() {
               >
                 <option value="">Select Batch…</option>
                 {batches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                {enrollBatchId && !batches.some(b => b.id === enrollBatchId) && (
+                  <option value={enrollBatchId}>{user.department?.batch?.name || 'Current Batch'}</option>
+                )}
               </select>
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-gray-body dark:text-gray-400 mb-1.5 uppercase tracking-wide">Department</label>
               <select
-                disabled={(role === 'STUDENT' && !isEditing) || !enrollBatchId || availableDepts.length === 0}
+                disabled={(role === 'STUDENT' && !isEditing) || !enrollBatchId || (availableDepts.length === 0 && !enrollDeptId)}
                 value={enrollDeptId}
                 onChange={(e) => { setEnrollDeptId(e.target.value); setEnrollSectionId(''); }}
                 className="w-full px-3 py-2 bg-white dark:bg-[#222] border border-border-soft dark:border-gray-700 rounded-lg focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon transition-colors text-sm font-semibold appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
@@ -304,13 +358,16 @@ export default function UserProfile() {
                   {!enrollBatchId ? 'Select a batch first' : availableDepts.length === 0 ? 'No departments' : 'Select Department…'}
                 </option>
                 {availableDepts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                {enrollDeptId && !availableDepts.some(d => d.id === enrollDeptId) && (
+                  <option value={enrollDeptId}>{user.department?.name || 'Current Department'}</option>
+                )}
               </select>
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-gray-body dark:text-gray-400 mb-1.5 uppercase tracking-wide">Section</label>
               <select
-                disabled={(role === 'STUDENT' && !isEditing) || !enrollDeptId || availableSections.length === 0}
+                disabled={(role === 'STUDENT' && !isEditing) || !enrollDeptId || (availableSections.length === 0 && !enrollSectionId)}
                 value={enrollSectionId}
                 onChange={(e) => setEnrollSectionId(e.target.value)}
                 className="w-full px-3 py-2 bg-white dark:bg-[#222] border border-border-soft dark:border-gray-700 rounded-lg focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon transition-colors text-sm font-semibold appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
@@ -318,7 +375,10 @@ export default function UserProfile() {
                 <option value={role === 'STUDENT' ? "" : "all"}>
                   {!enrollDeptId ? 'Select a department first' : (role === 'STUDENT' ? 'Select Section...' : 'All Sections')}
                 </option>
-                {availableSections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                {availableSections.map(s => <option key={s.id} value={s.id}>Section {s.name}</option>)}
+                {enrollSectionId && enrollSectionId !== 'all' && !availableSections.some(s => s.id === enrollSectionId) && (
+                  <option value={enrollSectionId}>Section {user.section?.name || enrollSectionId}</option>
+                )}
               </select>
             </div>
           </div>

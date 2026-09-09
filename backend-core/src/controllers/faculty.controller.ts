@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
+import bcrypt from 'bcryptjs';
 import { prisma } from '../config/prisma';
 import { z } from 'zod';
-import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/errors';
+import { NotFoundError, ForbiddenError, BadRequestError, UnauthorizedError } from '../utils/errors';
 
 const evaluateSchema = z.object({
   student_id: z.string(),
@@ -510,6 +511,46 @@ export const getStudentProfile = async (req: Request, res: Response, next: NextF
         }
       }
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateFacultyProfile = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = (req as any).user?.userId;
+    if (!userId) throw new UnauthorizedError('Unauthorized');
+
+    const { name, phone, password, employeeId, subject } = req.body;
+    const data: any = {};
+    if (name !== undefined) data.name = name;
+    if (phone !== undefined) data.phone = phone;
+    if (employeeId !== undefined) data.employeeId = employeeId;
+    if (subject !== undefined) data.subject = subject;
+
+    if (password) {
+      const salt = await bcrypt.genSalt(10);
+      data.password = await bcrypt.hash(password, salt);
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        personalEmail: true,
+        role: true,
+        phone: true,
+        employeeId: true,
+        subject: true,
+        approvalStatus: true,
+        createdAt: true,
+      }
+    });
+
+    res.json({ success: true, data: updatedUser });
   } catch (error) {
     next(error);
   }

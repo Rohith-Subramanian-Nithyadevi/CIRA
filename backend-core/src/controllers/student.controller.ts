@@ -511,8 +511,8 @@ export const updateProfile = async (req: Request, res: Response) => {
     if (name !== undefined) data.name = name;
     if (phone !== undefined) data.phone = phone;
     if (rollNumber !== undefined) data.rollNumber = rollNumber;
-    if (departmentId !== undefined) data.departmentId = departmentId;
-    if (sectionId !== undefined) data.sectionId = sectionId === 'all' ? null : sectionId;
+    if (departmentId !== undefined) data.departmentId = departmentId || null;
+    if (sectionId !== undefined) data.sectionId = (!sectionId || sectionId === 'all') ? null : sectionId;
     
     if (password) {
       const salt = await bcrypt.genSalt(10);
@@ -532,7 +532,8 @@ export const updateProfile = async (req: Request, res: Response) => {
       }
     });
     
-    res.json({ success: true, data: updatedUser });
+    const { password: _, ...userWithoutPassword } = updatedUser as any;
+    res.json({ success: true, data: userWithoutPassword });
   } catch (error: any) {
     console.error('Error updating profile:', error);
     res.status(500).json({ error: 'Failed to update profile', details: error.message, stack: error.stack });
@@ -566,6 +567,28 @@ export function isAnnouncementForStudent(audience: string | null | undefined, st
   const normBatch = (s: string) => s.toLowerCase().replace(/^batch\s*/i, '').trim();
   const normSec = (s: string) => s.toLowerCase().replace(/^section\s*/i, '').trim();
 
+  const areDeptsEquivalent = (a: string, b: string) => {
+    const na = a.trim().toLowerCase().replace(/^(dept|department)\s+of\s+/i, '').replace(/\s+department$/i, '').trim();
+    const nb = b.trim().toLowerCase().replace(/^(dept|department)\s+of\s+/i, '').replace(/\s+department$/i, '').trim();
+    if (na === nb) return true;
+    
+    const aliases: string[][] = [
+      ['cse', 'computer science', 'computer science and engineering'],
+      ['ece', 'electronics', 'electronics and communication', 'electronics and communication engineering'],
+      ['cce', 'computer and communication', 'computer and communication engineering'],
+      ['aie', 'ai', 'artificial intelligence', 'artificial intelligence and data science', 'aids'],
+      ['mech', 'mechanical', 'mechanical engineering'],
+      ['cys', 'cyber', 'cyber security', 'cybersecurity']
+    ];
+
+    for (const group of aliases) {
+      if (group.some(alias => alias === na) && group.some(alias => alias === nb)) {
+        return true;
+      }
+    }
+    return false;
+  };
+
   const isBatchMatch = (targetBatch: string) => {
     const tb = targetBatch.trim().toLowerCase();
     if (!tb || tb === 'all' || tb === 'all batches' || tb === 'all students') return true;
@@ -580,7 +603,7 @@ export function isAnnouncementForStudent(audience: string | null | undefined, st
     if (!td || td === 'all' || td === 'all departments') return true;
     if (!student.deptName && !student.deptId) return false;
     if (student.deptId && targetDept.trim() === student.deptId) return true;
-    if (student.deptName && td === student.deptName.toLowerCase()) return true;
+    if (student.deptName && areDeptsEquivalent(targetDept, student.deptName)) return true;
     return false;
   };
 
