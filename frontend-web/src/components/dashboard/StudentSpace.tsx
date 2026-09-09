@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { TrendingUp, Bell, Loader2, Calendar, Send, CheckCircle2, MessageSquare, ArrowRight } from 'lucide-react';
-import DOMPurify from 'dompurify';
+import { TrendingUp, Bell, Loader2, ArrowRight } from 'lucide-react';
 import { apiClient } from '@/lib/apiClient';
 
 interface SISData {
@@ -37,11 +36,6 @@ interface StudentSpaceProps {
 // Color palette (matches site)
 const C = { maroon: '#9B2242', good: '#2A6B4A', danger: '#C13535', warn: '#C07820', gray: '#6B6560', ink: '#1A1A1A', border: '#E7DDD0', cream: '#FAF5EE', creamEdge: '#EFE5D8' };
 
-const sanitizeHtml = (value: string) => DOMPurify.sanitize(value || '', {
-  ALLOWED_TAGS: ['b', 'strong', 'i', 'em', 'u', 's', 'strike', 'ol', 'ul', 'li', 'a', 'p', 'br', 'span', 'h1', 'h2', 'h3', 'h4'],
-  ALLOWED_ATTR: ['href', 'target', 'rel', 'class', 'style']
-});
-
 function SISRing({ sis, insufficient }: { sis: number; insufficient: boolean }) {
   const r = 46;
   const circ = 2 * Math.PI * r;
@@ -72,9 +66,6 @@ export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProp
   const [sis, setSIS] = useState<SISData | null>(null);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
-  const [respondingId, setRespondingId] = useState<string | null>(null);
-  const [responseText, setResponseText] = useState('');
-  const [submittingSurvey, setSubmittingSurvey] = useState(false);
 
   const fetchOverviewData = () => {
     Promise.all([
@@ -110,36 +101,6 @@ export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProp
     window.addEventListener('cira_user_updated', handleUpdate);
     return () => window.removeEventListener('cira_user_updated', handleUpdate);
   }, [isDemo]);
-
-  const handleSurveySubmit = async (announcementId: string) => {
-    if (!responseText.trim()) return;
-    setSubmittingSurvey(true);
-    try {
-      const res = await apiClient.fetch('/api/v1/student/announcements/respond', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ announcementId, response: responseText.trim() })
-      });
-      const data = await res.json();
-      if (data?.success) {
-        setAnnouncements(prev => prev.map(ann => {
-          if (ann.id === announcementId) {
-            return {
-              ...ann,
-              responses: [{ response: responseText.trim(), submittedAt: new Date().toISOString() }]
-            };
-          }
-          return ann;
-        }));
-        setRespondingId(null);
-        setResponseText('');
-      }
-    } catch (err) {
-      console.error('Failed to submit survey response:', err);
-    } finally {
-      setSubmittingSurvey(false);
-    }
-  };
 
   const user = JSON.parse(localStorage.getItem('cira_user') || '{}');
   const hour = new Date().getHours();
