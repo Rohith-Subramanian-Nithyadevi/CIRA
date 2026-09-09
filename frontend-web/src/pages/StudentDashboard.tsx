@@ -3,6 +3,7 @@ import { PlayCircle, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import StudentSpace from '../components/dashboard/StudentSpace';
+import StudentAnnouncements from '../components/student/StudentAnnouncements';
 import UserProfile from '../components/dashboard/UserProfile';
 import StudyPlanner from '../components/student/StudyPlanner';
 import ResourceHub from '../components/student/ResourceHub';
@@ -62,6 +63,8 @@ export default function StudentDashboard() {
           <StudentSpace isDemo={isDemo} />
         </div>
       )}
+
+      {activeTab === 'announcements' && <StudentAnnouncements isDemo={isDemo} />}
 
       {activeTab === 'topics' && <TopicPerformance isDemo={isDemo} />}
       {activeTab === 'goals' && <GoalTracker />}

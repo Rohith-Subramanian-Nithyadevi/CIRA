@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, BookOpen, LogOut, FileText, CheckSquare, Settings, User, Home, BookMarked, Target, Database } from 'lucide-react';
+import { LayoutDashboard, Users, BookOpen, LogOut, FileText, CheckSquare, Settings, User, Home, BookMarked, Target, Database, Bell } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import React from 'react';
 
@@ -91,6 +91,9 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
               <SectionHeader title="Dashboard" />
               <button aria-current={activeTab === 'overview' ? 'page' : undefined} onClick={() => onTabChange('overview')} className={getNavClass('overview')}>
                 <LayoutDashboard className="w-5 h-5 mr-3" /> Overview
+              </button>
+              <button aria-current={activeTab === 'announcements' ? 'page' : undefined} onClick={() => onTabChange('announcements')} className={getNavClass('announcements')}>
+                <Bell className="w-5 h-5 mr-3" /> Announcements
               </button>
 
               <SectionHeader title="All Analysis" />
