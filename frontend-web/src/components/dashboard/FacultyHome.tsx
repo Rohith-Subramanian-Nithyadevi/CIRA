@@ -104,6 +104,7 @@ export default function FacultyHome() {
   const [viewingResponsesFor, setViewingResponsesFor] = useState<string | null>(null);
   const [announcementResponses, setAnnouncementResponses] = useState<AnnouncementResponse[]>([]);
   const [loadingResponses, setLoadingResponses] = useState(false);
+  const [viewingAnnouncement, setViewingAnnouncement] = useState<Announcement | null>(null);
 
   useEffect(() => {
     fetchTasks();
@@ -294,10 +295,25 @@ export default function FacultyHome() {
   };
 
   const deleteAnnouncement = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this announcement? It will be permanently removed for all students.')) {
+      return;
+    }
+    const previous = [...announcements];
     setAnnouncements(announcements.filter(a => a.id !== id));
+    if (viewingAnnouncement?.id === id) {
+      setViewingAnnouncement(null);
+    }
     try {
-      await apiClient.fetch(`/api/v1/faculty/dashboard/announcements/${id}`, { method: 'DELETE' });
-    } catch (err) {}
+      const res = await apiClient.fetch(`/api/v1/faculty/dashboard/announcements/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!data?.success) {
+        alert(data?.message || 'Failed to delete announcement');
+        setAnnouncements(previous);
+      }
+    } catch (err) {
+      alert('Network error while deleting announcement');
+      setAnnouncements(previous);
+    }
   };
 
   const openSurveyResponses = async (id: string) => {
@@ -350,6 +366,76 @@ export default function FacultyHome() {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Announcement Details Modal */}
+      {viewingAnnouncement && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 backdrop-blur-xs" role="presentation" onClick={() => setViewingAnnouncement(null)}>
+          <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[85vh] flex flex-col border border-border-soft overflow-hidden" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
+            <div className="p-5 border-b border-border-soft flex justify-between items-start gap-4 bg-cream/20">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                  <h3 className="font-bold font-serif text-lg text-ink leading-snug">{viewingAnnouncement.title}</h3>
+                  {viewingAnnouncement.isSurvey && (
+                    <span className="text-[10px] uppercase font-bold bg-maroon text-white px-2 py-0.5 rounded-full">
+                      Survey
+                    </span>
+                  )}
+                  <span className="text-[10px] font-semibold text-gray-body uppercase border px-2 py-0.5 rounded bg-white">
+                    Target: {viewingAnnouncement.audience}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-gray-body">
+                  <CalendarIcon className="w-3.5 h-3.5 text-maroon" />
+                  <span>Posted on {new Date(viewingAnnouncement.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                  <span>•</span>
+                  <span>Author: {viewingAnnouncement.author || 'You'}</span>
+                </div>
+              </div>
+              <button aria-label="Close" onClick={() => setViewingAnnouncement(null)} className="p-1.5 text-gray-body hover:text-ink hover:bg-cream-edge/50 rounded-lg transition-colors cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-1 space-y-4">
+              <div
+                className="text-sm leading-relaxed text-ink/90 rich-text-content"
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(viewingAnnouncement.content) || '<p>No content.</p>' }}
+              />
+            </div>
+
+            <div className="p-4 border-t border-border-soft bg-cream/10 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => deleteAnnouncement(viewingAnnouncement.id)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 border border-red-200 rounded-lg transition-colors cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Delete Announcement
+              </button>
+              <div className="flex items-center gap-2">
+                {viewingAnnouncement.isSurvey && (
+                  <button
+                    onClick={() => {
+                      const id = viewingAnnouncement.id;
+                      setViewingAnnouncement(null);
+                      openSurveyResponses(id);
+                    }}
+                    className="px-3.5 py-1.5 text-xs font-bold text-maroon hover:bg-cream-edge/40 border border-maroon/20 rounded-lg transition-colors cursor-pointer"
+                  >
+                    View Responses ({viewingAnnouncement._count?.responses || 0})
+                  </button>
+                )}
+                <button
+                  onClick={() => setViewingAnnouncement(null)}
+                  className="px-4 py-1.5 text-xs font-semibold text-ink bg-white hover:bg-cream-edge/40 border border-border-soft rounded-lg transition-colors cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -583,18 +669,43 @@ export default function FacultyHome() {
             ) : announcements.length === 0 ? (
               <EmptyState icon={<MessageSquare className="w-8 h-8 text-maroon" />} title="No announcements" description="You haven't posted any announcements yet." />
             ) : announcements.map((ann) => (
-              <div key={ann.id} className={`p-5 rounded-xl border relative group ${ann.isSurvey ? 'bg-maroon/5 border-maroon/20' : 'bg-white border-border-soft'}`}>
-                <button onClick={() => deleteAnnouncement(ann.id)} className="absolute top-4 right-4 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-50 rounded"><Trash2 className="w-4 h-4"/></button>
-                <div className="flex flex-col sm:flex-row sm:items-start justify-between mb-3 gap-2 pr-8">
+              <div key={ann.id} className={`p-5 rounded-xl border relative transition-all ${ann.isSurvey ? 'bg-maroon/5 border-maroon/20 shadow-xs' : 'bg-white border-border-soft shadow-xs'}`}>
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between mb-3 gap-3">
                   <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <h5 className="font-bold text-ink text-base">{ann.title}</h5>
-                      {ann.isSurvey && <span className="text-[10px] uppercase font-bold bg-maroon text-white px-2 py-0.5 rounded-md">Survey</span>}
+                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                      <h5 
+                        onClick={() => setViewingAnnouncement(ann)} 
+                        className="font-bold text-ink text-base hover:text-maroon transition-colors cursor-pointer"
+                        title="Click to view full announcement"
+                      >
+                        {ann.title}
+                      </h5>
+                      {ann.isSurvey && <span className="text-[10px] uppercase font-bold bg-maroon text-white px-2 py-0.5 rounded-full">Survey</span>}
                     </div>
                     <span className="text-[10px] font-semibold text-gray-body uppercase border px-2 py-0.5 rounded bg-cream/50 inline-block">Target: {ann.audience}</span>
                   </div>
-                  <span className="text-xs font-medium text-gray-body shrink-0">{new Date(ann.date).toLocaleDateString()}</span>
+
+                  {/* Header Actions: Date + View Details + Delete */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-xs font-medium text-gray-body">{new Date(ann.date).toLocaleDateString()}</span>
+                    <button
+                      type="button"
+                      onClick={() => setViewingAnnouncement(ann)}
+                      className="text-xs font-bold text-maroon hover:bg-cream-edge/50 px-2.5 py-1 rounded-lg border border-border-soft transition-colors cursor-pointer"
+                    >
+                      View Details
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deleteAnnouncement(ann.id)}
+                      className="text-gray-body/60 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-lg border border-transparent hover:border-red-100 transition-colors cursor-pointer"
+                      title="Delete announcement"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
+
                 <div
                   className="text-sm text-ink/80 mb-4 rich-text-content"
                   dangerouslySetInnerHTML={{ __html: sanitizeHtml(ann.content) || '<p>No announcement content.</p>' }}
@@ -602,7 +713,7 @@ export default function FacultyHome() {
                 <div className="flex items-center justify-between border-t border-border-soft/60 pt-3 mt-3">
                   <span className="text-xs font-medium text-gray-body">Posted by <span className="text-ink">{ann.author || 'Faculty'}</span></span>
                   {ann.isSurvey && (
-                    <button onClick={() => openSurveyResponses(ann.id)} className="text-xs font-bold text-maroon hover:underline">
+                    <button onClick={() => openSurveyResponses(ann.id)} className="text-xs font-bold text-maroon hover:underline cursor-pointer">
                       View Responses ({ann._count?.responses || 0})
                     </button>
                   )}
