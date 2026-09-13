@@ -5,7 +5,8 @@ const resend = new Resend(process.env.RESEND_API_KEY || 're_placeholder_key');
 
 export const sendVerificationEmail = async (to: string, code: string) => {
   if (!process.env.RESEND_API_KEY) {
-    console.warn('⚠️ WARNING: RESEND_API_KEY is missing from .env. The email will likely fail to send.');
+    console.warn(`⚠️ RESEND_API_KEY missing. Mock verification code for ${to}: [ ${code} ]`);
+    return { id: 'mock-verification-id' };
   }
 
   try {

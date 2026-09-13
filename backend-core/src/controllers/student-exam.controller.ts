@@ -218,57 +218,72 @@ export const submitExam = async (req: Request, res: Response, next: NextFunction
 
     let objectiveScore = 0;
 
-    // Auto Evaluate
-    for (const response of attempt.responses) {
-      if (response.status === 'ANSWERED' || response.status === 'ANSWERED_AND_MARKED_FOR_REVIEW') {
-        const question = attempt.quiz.questions.find((q: any) => q.id === response.questionId);
-        if (question) {
-          // Objective evaluation logic based on type
-          const isObjective = ['MCQ', 'MULTI_SELECT', 'TRUE_FALSE', 'MATCHING', 'NUMERICAL', 'FILL_BLANK'].includes(question.type);
-          
-          if (isObjective && question.answerKey) {
-            let isCorrect = false;
+    // Auto Evaluate all questions in the quiz
+    for (const question of attempt.quiz.questions) {
+      const response = attempt.responses.find((r: any) => r.questionId === question.id);
+      let marksAwarded = 0;
+      const isObjective = ['MCQ', 'MULTI_SELECT', 'TRUE_FALSE', 'MATCHING', 'NUMERICAL', 'FILL_BLANK'].includes(question.type);
 
-            if (question.type === 'NUMERICAL') {
-              // Exact numerical match (can be enhanced to handle tolerance)
-              isCorrect = Number(response.answerData) === Number(question.answerKey);
-            } else if (question.type === 'MULTI_SELECT' || question.type === 'MATCHING') {
-              // Deep equality check for arrays or objects
-              const answerStr = JSON.stringify(response.answerData);
-              const keyStr = JSON.stringify(question.answerKey);
-              // Simple check for arrays (assuming order doesn't matter for multi_select, sorting them)
-              if (Array.isArray(response.answerData) && Array.isArray(question.answerKey)) {
-                if (question.type === 'MATCHING') {
-                  const ansSorted = [...response.answerData].sort((a: any, b: any) => (a.left || '').localeCompare(b.left || ''));
-                  const keySorted = [...question.answerKey].sort((a: any, b: any) => (a.left || '').localeCompare(b.left || ''));
-                  isCorrect = JSON.stringify(ansSorted) === JSON.stringify(keySorted);
-                } else {
-                  isCorrect = JSON.stringify([...response.answerData].sort()) === JSON.stringify([...question.answerKey].sort());
-                }
+      if (response && (response.status === 'ANSWERED' || response.status === 'ANSWERED_AND_MARKED_FOR_REVIEW')) {
+        if (isObjective && question.answerKey !== undefined && question.answerKey !== null) {
+          let isCorrect = false;
+
+          if (question.type === 'NUMERICAL') {
+            isCorrect = Number(response.answerData) === Number(question.answerKey);
+          } else if (question.type === 'MULTI_SELECT' || question.type === 'MATCHING') {
+            const answerStr = JSON.stringify(response.answerData);
+            const keyStr = JSON.stringify(question.answerKey);
+            if (Array.isArray(response.answerData) && Array.isArray(question.answerKey)) {
+              if (question.type === 'MATCHING') {
+                const ansSorted = [...response.answerData].sort((a: any, b: any) => (a.left || '').localeCompare(b.left || ''));
+                const keySorted = [...question.answerKey].sort((a: any, b: any) => (a.left || '').localeCompare(b.left || ''));
+                isCorrect = JSON.stringify(ansSorted) === JSON.stringify(keySorted);
               } else {
-                isCorrect = answerStr === keyStr;
+                isCorrect = JSON.stringify([...response.answerData].sort()) === JSON.stringify([...question.answerKey].sort());
               }
             } else {
-              isCorrect = response.answerData === question.answerKey;
+              isCorrect = answerStr === keyStr;
             }
+          } else {
+            isCorrect = String(response.answerData).trim() === String(question.answerKey).trim();
+          }
 
-            if (isCorrect) {
-              objectiveScore += question.marks;
-            } else {
-              objectiveScore -= question.negativeMarks;
-            }
+          if (isCorrect) {
+            marksAwarded = question.marks;
+            objectiveScore += question.marks;
+          } else {
+            marksAwarded = question.negativeMarks ? -question.negativeMarks : 0;
+            objectiveScore -= (question.negativeMarks || 0);
           }
         }
       }
+
+      if (response) {
+        await prisma.quizResponse.update({
+          where: { id: response.id },
+          data: { marksAwarded }
+        });
+      } else {
+        await prisma.quizResponse.create({
+          data: {
+            attemptId: attempt.id,
+            questionId: question.id,
+            status: 'NOT_ANSWERED',
+            marksAwarded: 0
+          }
+        });
+      }
     }
+
+    const finalObjectiveScore = Math.max(0, objectiveScore);
 
     const updated = await prisma.quizAttempt.update({
       where: { id: attemptId },
       data: {
         status: 'SUBMITTED',
         endTime: new Date(),
-        objectiveScore,
-        totalScore: objectiveScore, // Written score is 0 until graded
+        objectiveScore: finalObjectiveScore,
+        totalScore: finalObjectiveScore, // Written score is 0 until graded
         violationReason: violationReason || null
       }
     });

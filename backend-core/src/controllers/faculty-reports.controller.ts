@@ -106,7 +106,7 @@ export const getPerformanceBands = async (req: Request, res: Response, next: Nex
           },
           include: {
             quiz: {
-              select: { id: true, title: true, subject: true, totalMarks: true }
+              select: { id: true, title: true, subject: true, totalMarks: true, questions: { select: { marks: true } } }
             }
           }
         }
@@ -135,9 +135,10 @@ export const getPerformanceBands = async (req: Request, res: Response, next: Nex
 
     for (const student of students) {
       for (const attempt of student.quizAttempts) {
-        const totalMarks = attempt.quiz.totalMarks > 0 ? attempt.quiz.totalMarks : 100;
+        const sumQuestionMarks = attempt.quiz.questions ? attempt.quiz.questions.reduce((sum: number, q: any) => sum + (q.marks || 1), 0) : 0;
+        const totalMarks = sumQuestionMarks > 0 ? sumQuestionMarks : (attempt.quiz.totalMarks > 0 ? attempt.quiz.totalMarks : 100);
         const score = attempt.totalScore || attempt.score || 0;
-        const percentage = (score / totalMarks) * 100;
+        const percentage = Math.min(100, (score / totalMarks) * 100);
         totalPercentage += percentage;
         evaluatedStudentIds.add(student.id);
         const subject = attempt.quiz.subject || 'General';
@@ -243,6 +244,7 @@ export const getQuizAnalytics = async (req: Request, res: Response, next: NextFu
         title: true,
         totalMarks: true,
         createdBy: true,
+        questions: { select: { marks: true } },
         targetDepartments: { select: { departmentId: true } },
         targetSections: { select: { sectionId: true } },
         targetStudents: { select: { userId: true } }
@@ -285,13 +287,18 @@ export const getQuizAnalytics = async (req: Request, res: Response, next: NextFu
           } 
         },
         responses: {
-          where: { marksAwarded: { not: null } },
-          select: { marksAwarded: true, question: { select: { topic: true, marks: true } } }
+          select: {
+            status: true,
+            answerData: true,
+            marksAwarded: true,
+            question: { select: { topic: true, marks: true, negativeMarks: true, answerKey: true, type: true } }
+          }
         }
       }
     });
 
-    const totalMarks = quiz.totalMarks > 0 ? quiz.totalMarks : 100;
+    const sumQuestionMarks = quiz.questions ? quiz.questions.reduce((sum, q) => sum + (q.marks || 1), 0) : 0;
+    const totalMarks = sumQuestionMarks > 0 ? sumQuestionMarks : (quiz.totalMarks > 0 ? quiz.totalMarks : 100);
     const leaderboard = attempts.map(attempt => {
       const rawScore = attempt.totalScore || attempt.score || 0;
       const score = Math.round(Math.max(0, Math.min(100, (rawScore / totalMarks) * 100)));
@@ -302,6 +309,8 @@ export const getQuizAnalytics = async (req: Request, res: Response, next: NextFu
         name: attempt.user.name,
         sectionName: attempt.user.section?.name ? `Section ${attempt.user.section.name}` : 'Unassigned',
         departmentName: attempt.user.department?.name || 'General',
+        rawScore,
+        totalMarks,
         score,
         band,
         status: attempt.status
@@ -334,12 +343,31 @@ export const getQuizAnalytics = async (req: Request, res: Response, next: NextFu
     const topicTotals: Record<string, { score: number; marks: number }> = {};
     for (const attempt of attempts) {
       for (const response of attempt.responses) {
-        const topic = response.question.topic || 'Unclassified';
+        const rawTopic = response.question.topic ? response.question.topic.trim() : '';
+        const topic = rawTopic || 'General Topics';
         if (!topicTotals[topic]) topicTotals[topic] = { score: 0, marks: 0 };
-        topicTotals[topic].score += response.marksAwarded || 0;
-        topicTotals[topic].marks += response.question.marks || 0;
+
+        let marksAwarded = response.marksAwarded;
+        if (marksAwarded === null || marksAwarded === undefined) {
+          if (response.status === 'ANSWERED' || response.status === 'ANSWERED_AND_MARKED_FOR_REVIEW') {
+            const q = response.question;
+            if (q.answerKey !== undefined && q.answerKey !== null) {
+              const isCorrect = String(response.answerData).trim() === String(q.answerKey).trim() ||
+                JSON.stringify(response.answerData) === JSON.stringify(q.answerKey);
+              marksAwarded = isCorrect ? q.marks : (q.negativeMarks ? -q.negativeMarks : 0);
+            } else {
+              marksAwarded = 0;
+            }
+          } else {
+            marksAwarded = 0;
+          }
+        }
+
+        topicTotals[topic].score += Math.max(0, marksAwarded);
+        topicTotals[topic].marks += response.question.marks || 1;
       }
     }
+
     const topicAverages = Object.entries(topicTotals).map(([topic, totals]) => ({
       topic,
       avg: totals.marks > 0 ? Math.round((totals.score / totals.marks) * 100) : 0

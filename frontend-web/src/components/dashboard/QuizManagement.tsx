@@ -367,14 +367,24 @@ export default function QuizManagement() {
   const [editingQuizId, setEditingQuizId] = useState<string | null>(null);
   const [questions, setQuestions] = useState<any[]>([{ type: 'MCQ', text: '', marks: 1, options: ['', '', '', ''], answerKey: '', topic: '' }]);
 
-  // Bulk Import State
+  // Bulk Import & Topic Sections State
   const [showBulkImport, setShowBulkImport] = useState(false);
-  const [bulkConfig, setBulkConfig] = useState<Record<string, { selected: boolean; text: string }>>({
-    MCQ: { selected: false, text: '' },
-    SHORT_WRITTEN: { selected: false, text: '' },
-    NUMERICAL: { selected: false, text: '' },
-    LONG_WRITTEN: { selected: false, text: '' },
-  });
+  const [topicSections, setTopicSections] = useState<Array<{
+    id: string;
+    topicName: string;
+    config: Record<string, { selected: boolean; text: string }>;
+  }>>([
+    {
+      id: 'topic-sec-1',
+      topicName: '',
+      config: {
+        MCQ: { selected: true, text: '' },
+        SHORT_WRITTEN: { selected: false, text: '' },
+        NUMERICAL: { selected: false, text: '' },
+        LONG_WRITTEN: { selected: false, text: '' },
+      }
+    }
+  ]);
 
   // Grading State
   const [submissions, setSubmissions] = useState<any[]>([]);
@@ -769,55 +779,100 @@ export default function QuizManagement() {
     setQuestions(newQs);
   };
 
+  const handleAddTopicSection = () => {
+    setTopicSections(prev => [
+      ...prev,
+      {
+        id: `topic-sec-${Date.now()}-${prev.length + 1}`,
+        topicName: '',
+        config: {
+          MCQ: { selected: true, text: '' },
+          SHORT_WRITTEN: { selected: false, text: '' },
+          NUMERICAL: { selected: false, text: '' },
+          LONG_WRITTEN: { selected: false, text: '' },
+        }
+      }
+    ]);
+  };
+
+  const handleRemoveTopicSection = (id: string) => {
+    if (topicSections.length === 1) {
+      toast.error("At least one topic section is required.");
+      return;
+    }
+    setTopicSections(prev => prev.filter(sec => sec.id !== id));
+  };
+
+  const updateTopicSectionName = (id: string, name: string) => {
+    setTopicSections(prev => prev.map(sec => sec.id === id ? { ...sec, topicName: name } : sec));
+  };
+
+  const updateTopicSectionConfig = (id: string, type: string, field: 'selected' | 'text', value: any) => {
+    setTopicSections(prev => prev.map(sec => {
+      if (sec.id !== id) return sec;
+      return {
+        ...sec,
+        config: {
+          ...sec.config,
+          [type]: {
+            ...sec.config[type],
+            [field]: value
+          }
+        }
+      };
+    }));
+  };
+
   const handleImportBulkQuestions = () => {
-    let parsedQuestions: any[] = [];
+    let allParsedQuestions: any[] = [];
     const countSummary: string[] = [];
 
-    if (bulkConfig.MCQ.selected && bulkConfig.MCQ.text.trim()) {
-      const mcqs = parseMCQs(bulkConfig.MCQ.text);
-      parsedQuestions = [...parsedQuestions, ...mcqs];
-      countSummary.push(`${mcqs.length} MCQ`);
+    for (let idx = 0; idx < topicSections.length; idx++) {
+      const section = topicSections[idx];
+      const sectionTopic = section.topicName.trim();
+      const config = section.config;
+      let sectionParsed: any[] = [];
+
+      if (config.MCQ.selected && config.MCQ.text.trim()) {
+        const mcqs = parseMCQs(config.MCQ.text).map(q => ({ ...q, topic: sectionTopic }));
+        sectionParsed = [...sectionParsed, ...mcqs];
+      }
+
+      if (config.SHORT_WRITTEN.selected && config.SHORT_WRITTEN.text.trim()) {
+        const shortWritten = parseShortWritten(config.SHORT_WRITTEN.text).map(q => ({ ...q, topic: sectionTopic }));
+        sectionParsed = [...sectionParsed, ...shortWritten];
+      }
+
+      if (config.NUMERICAL.selected && config.NUMERICAL.text.trim()) {
+        const numerical = parseNumerical(config.NUMERICAL.text).map(q => ({ ...q, topic: sectionTopic }));
+        sectionParsed = [...sectionParsed, ...numerical];
+      }
+
+      if (config.LONG_WRITTEN.selected && config.LONG_WRITTEN.text.trim()) {
+        const longWritten = parseLongWritten(config.LONG_WRITTEN.text).map(q => ({ ...q, topic: sectionTopic }));
+        sectionParsed = [...sectionParsed, ...longWritten];
+      }
+
+      if (sectionParsed.length > 0) {
+        countSummary.push(`${sectionParsed.length} qns (${sectionTopic || `Topic ${idx + 1}`})`);
+        allParsedQuestions = [...allParsedQuestions, ...sectionParsed];
+      }
     }
 
-    if (bulkConfig.SHORT_WRITTEN.selected && bulkConfig.SHORT_WRITTEN.text.trim()) {
-      const shortWritten = parseShortWritten(bulkConfig.SHORT_WRITTEN.text);
-      parsedQuestions = [...parsedQuestions, ...shortWritten];
-      countSummary.push(`${shortWritten.length} Short Written`);
-    }
-
-    if (bulkConfig.NUMERICAL.selected && bulkConfig.NUMERICAL.text.trim()) {
-      const numerical = parseNumerical(bulkConfig.NUMERICAL.text);
-      parsedQuestions = [...parsedQuestions, ...numerical];
-      countSummary.push(`${numerical.length} Numerical`);
-    }
-
-    if (bulkConfig.LONG_WRITTEN.selected && bulkConfig.LONG_WRITTEN.text.trim()) {
-      const longWritten = parseLongWritten(bulkConfig.LONG_WRITTEN.text);
-      parsedQuestions = [...parsedQuestions, ...longWritten];
-      countSummary.push(`${longWritten.length} Long Written`);
-    }
-
-    if (parsedQuestions.length === 0) {
-      toast.error('No valid questions parsed. Please check your formatting!');
+    if (allParsedQuestions.length === 0) {
+      toast.error('No valid questions parsed. Please check your textboxes and selected question types!');
       return;
     }
 
     setQuestions(prev => {
       const isDefaultSingleEmpty = prev.length === 1 && prev[0].text === '' && (!prev[0].options || prev[0].options.every((o: string) => o === '')) && prev[0].answerKey === '';
       if (isDefaultSingleEmpty) {
-        return parsedQuestions;
+        return allParsedQuestions;
       }
-      return [...prev, ...parsedQuestions];
+      return [...prev, ...allParsedQuestions];
     });
 
-    toast.success(`Successfully imported ${parsedQuestions.length} questions (${countSummary.join(', ')}).`);
-    
-    setBulkConfig({
-      MCQ: { selected: false, text: '' },
-      SHORT_WRITTEN: { selected: false, text: '' },
-      NUMERICAL: { selected: false, text: '' },
-      LONG_WRITTEN: { selected: false, text: '' },
-    });
+    toast.success(`Successfully imported ${allParsedQuestions.length} questions across ${topicSections.length} topic section(s).`);
     setShowBulkImport(false);
     setActiveView('add_questions');
   };
@@ -972,135 +1027,157 @@ export default function QuizManagement() {
 
               {/* Mode 1: Paste Textboxes */}
               {creationMode === 'paste' && (
-                <div className="p-5 bg-cream/30 rounded-xl border border-border-soft space-y-5">
+                <div className="p-5 bg-cream/30 rounded-xl border border-border-soft space-y-6">
                   <div>
                     <h3 className="text-sm font-bold text-ink mb-1 flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-maroon" /> Select Question Types to Paste
+                      <Sparkles className="w-4 h-4 text-maroon" /> Topic-Wise Question Creator
                     </h3>
                     <p className="text-xs text-gray-body">
-                      Check the question formats you want to add. Textboxes will open below for each type.
+                      Group your questions by topic. Each topic will be saved to the database to track student performance per topic. Click "+ Add Another Topic Section" to create multiple topics in this quiz.
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-white rounded-lg border border-border-soft">
-                    {(['MCQ', 'SHORT_WRITTEN', 'NUMERICAL', 'LONG_WRITTEN'] as const).map(type => {
-                      const labelMap = {
-                        MCQ: 'MCQ (Single/Multi)',
-                        SHORT_WRITTEN: 'Short Written',
-                        NUMERICAL: 'Numerical',
-                        LONG_WRITTEN: 'Long Written',
-                      };
-                      return (
-                        <label key={type} className="flex items-center space-x-2 cursor-pointer p-2 rounded hover:bg-cream/40 select-none">
-                          <input
-                            type="checkbox"
-                            checked={bulkConfig[type].selected}
-                            onChange={(e) => setBulkConfig({
-                              ...bulkConfig,
-                              [type]: { ...bulkConfig[type], selected: e.target.checked }
-                            })}
-                            className="w-4 h-4 rounded text-maroon focus:ring-maroon accent-maroon"
-                          />
-                          <span className="text-xs font-semibold text-ink">{labelMap[type]}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
+                  {topicSections.map((section, sIndex) => {
+                    const labelMap = {
+                      MCQ: 'MCQ (Single/Multi)',
+                      SHORT_WRITTEN: 'Short Written',
+                      NUMERICAL: 'Numerical',
+                      LONG_WRITTEN: 'Long Written',
+                    };
 
-                  {/* Dynamic Textareas */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    {bulkConfig.MCQ.selected && (
-                      <div className="space-y-2 bg-white p-4 rounded-xl border border-border-soft shadow-sm">
-                        <div className="flex justify-between items-center">
-                          <Label className="text-xs text-maroon font-bold flex items-center gap-1">
-                            <Clipboard className="w-3.5 h-3.5" /> MCQ Questions Box
-                          </Label>
-                          <span className="text-[10px] text-gray-body bg-cream/60 px-2 py-0.5 rounded border border-border-soft font-mono">{"Format: Question -> Options A-D -> Answer: X"}</span>
+                    return (
+                      <div key={section.id} className="p-5 bg-white rounded-xl border border-border-soft shadow-sm space-y-4 relative">
+                        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-border-soft">
+                          <div className="flex items-center gap-3 flex-1 min-w-[280px]">
+                            <span className="bg-maroon text-white text-xs font-bold px-2.5 py-1 rounded-md">
+                              Topic {sIndex + 1}
+                            </span>
+                            <div className="flex-1">
+                              <Input
+                                type="text"
+                                value={section.topicName}
+                                onChange={(e) => updateTopicSectionName(section.id, e.target.value)}
+                                placeholder="Enter Topic Name (e.g., Data Structures, Networking, Python Basics)..."
+                                className="bg-cream/20 border-border-soft text-ink text-xs font-semibold focus:border-maroon focus:ring-1 focus:ring-maroon"
+                              />
+                            </div>
+                          </div>
+
+                          {topicSections.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveTopicSection(section.id)}
+                              className="text-red-500 hover:text-red-700 text-xs font-bold underline"
+                            >
+                              Remove Topic Section
+                            </button>
+                          )}
                         </div>
-                        <Textarea
-                          placeholder={`1. What is the complexity of binary search?\nA) O(1)\nB) O(log n)\nC) O(n)\nD) O(n^2)\nAnswer: B\n\n2. Which layer is HTTP protocol located?\nA) Transport\nB) Network\nC) Application\nD) Data Link\nAnswer: C`}
-                          value={bulkConfig.MCQ.text}
-                          onChange={(e) => setBulkConfig({
-                            ...bulkConfig,
-                            MCQ: { ...bulkConfig.MCQ, text: e.target.value }
-                          })}
-                          className="h-52 bg-cream/10 border-border-soft font-mono text-xs text-ink focus:border-maroon focus:ring-1 focus:ring-maroon"
-                        />
-                      </div>
-                    )}
 
-                    {bulkConfig.SHORT_WRITTEN.selected && (
-                      <div className="space-y-2 bg-white p-4 rounded-xl border border-border-soft shadow-sm">
-                        <div className="flex justify-between items-center">
-                          <Label className="text-xs text-maroon font-bold flex items-center gap-1">
-                            <Clipboard className="w-3.5 h-3.5" /> Short Written Questions Box
-                          </Label>
-                          <span className="text-[10px] text-gray-body bg-cream/60 px-2 py-0.5 rounded border border-border-soft font-mono">{"Format: Question -> Answer: ..."}</span>
+                        <div>
+                          <Label className="text-xs text-gray-body block mb-1.5 font-semibold">Select Question Formats for this Topic:</Label>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-2.5 bg-cream/20 rounded-lg border border-border-soft">
+                            {(['MCQ', 'SHORT_WRITTEN', 'NUMERICAL', 'LONG_WRITTEN'] as const).map(type => (
+                              <label key={type} className="flex items-center space-x-2 cursor-pointer p-1.5 rounded hover:bg-cream/40 select-none">
+                                <input
+                                  type="checkbox"
+                                  checked={section.config[type]?.selected || false}
+                                  onChange={(e) => updateTopicSectionConfig(section.id, type, 'selected', e.target.checked)}
+                                  className="w-4 h-4 rounded text-maroon focus:ring-maroon accent-maroon"
+                                />
+                                <span className="text-xs font-semibold text-ink">{labelMap[type]}</span>
+                              </label>
+                            ))}
+                          </div>
                         </div>
-                        <Textarea
-                          placeholder={`1. Explain CPU Cache memory.\nAnswer: Cache is high-speed volatile memory placed close to CPU for fast data access.\n\n2. Define Polymorphism in Object-Oriented Programming.\nAnswer: Polymorphism allows methods to behave differently based on the object calling them.`}
-                          value={bulkConfig.SHORT_WRITTEN.text}
-                          onChange={(e) => setBulkConfig({
-                            ...bulkConfig,
-                            SHORT_WRITTEN: { ...bulkConfig.SHORT_WRITTEN, text: e.target.value }
-                          })}
-                          className="h-52 bg-cream/10 border-border-soft font-mono text-xs text-ink focus:border-maroon focus:ring-1 focus:ring-maroon"
-                        />
-                      </div>
-                    )}
 
-                    {bulkConfig.NUMERICAL.selected && (
-                      <div className="space-y-2 bg-white p-4 rounded-xl border border-border-soft shadow-sm">
-                        <div className="flex justify-between items-center">
-                          <Label className="text-xs text-maroon font-bold flex items-center gap-1">
-                            <Clipboard className="w-3.5 h-3.5" /> Numerical Questions Box
-                          </Label>
-                          <span className="text-[10px] text-gray-body bg-cream/60 px-2 py-0.5 rounded border border-border-soft font-mono">{"Format: Question -> Answer: 10"}</span>
+                        {/* Dynamic Textareas for this Section */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {section.config.MCQ?.selected && (
+                            <div className="space-y-2 bg-cream/10 p-3 rounded-lg border border-border-soft">
+                              <div className="flex justify-between items-center">
+                                <Label className="text-xs text-maroon font-bold flex items-center gap-1">
+                                  <Clipboard className="w-3.5 h-3.5" /> MCQ Questions Box ({section.topicName || `Topic ${sIndex + 1}`})
+                                </Label>
+                                <span className="text-[10px] text-gray-body font-mono">Format: Question -&gt; Options A-D -&gt; Answer: X</span>
+                              </div>
+                              <Textarea
+                                placeholder={`1. What is the complexity of binary search?\nA) O(1)\nB) O(log n)\nC) O(n)\nD) O(n^2)\nAnswer: B`}
+                                value={section.config.MCQ?.text || ''}
+                                onChange={(e) => updateTopicSectionConfig(section.id, 'MCQ', 'text', e.target.value)}
+                                className="h-44 bg-white border-border-soft font-mono text-xs text-ink focus:border-maroon focus:ring-1 focus:ring-maroon"
+                              />
+                            </div>
+                          )}
+
+                          {section.config.SHORT_WRITTEN?.selected && (
+                            <div className="space-y-2 bg-cream/10 p-3 rounded-lg border border-border-soft">
+                              <div className="flex justify-between items-center">
+                                <Label className="text-xs text-maroon font-bold flex items-center gap-1">
+                                  <Clipboard className="w-3.5 h-3.5" /> Short Written Box ({section.topicName || `Topic ${sIndex + 1}`})
+                                </Label>
+                                <span className="text-[10px] text-gray-body font-mono">Format: Question -&gt; Answer: ...</span>
+                              </div>
+                              <Textarea
+                                placeholder={`1. Explain CPU Cache memory.\nAnswer: Cache is high-speed volatile memory placed close to CPU.`}
+                                value={section.config.SHORT_WRITTEN?.text || ''}
+                                onChange={(e) => updateTopicSectionConfig(section.id, 'SHORT_WRITTEN', 'text', e.target.value)}
+                                className="h-44 bg-white border-border-soft font-mono text-xs text-ink focus:border-maroon focus:ring-1 focus:ring-maroon"
+                              />
+                            </div>
+                          )}
+
+                          {section.config.NUMERICAL?.selected && (
+                            <div className="space-y-2 bg-cream/10 p-3 rounded-lg border border-border-soft">
+                              <div className="flex justify-between items-center">
+                                <Label className="text-xs text-maroon font-bold flex items-center gap-1">
+                                  <Clipboard className="w-3.5 h-3.5" /> Numerical Box ({section.topicName || `Topic ${sIndex + 1}`})
+                                </Label>
+                                <span className="text-[10px] text-gray-body font-mono">Format: Question -&gt; Answer: 10</span>
+                              </div>
+                              <Textarea
+                                placeholder={`1. What is 2^8?\nAnswer: 256`}
+                                value={section.config.NUMERICAL?.text || ''}
+                                onChange={(e) => updateTopicSectionConfig(section.id, 'NUMERICAL', 'text', e.target.value)}
+                                className="h-44 bg-white border-border-soft font-mono text-xs text-ink focus:border-maroon focus:ring-1 focus:ring-maroon"
+                              />
+                            </div>
+                          )}
+
+                          {section.config.LONG_WRITTEN?.selected && (
+                            <div className="space-y-2 bg-cream/10 p-3 rounded-lg border border-border-soft">
+                              <div className="flex justify-between items-center">
+                                <Label className="text-xs text-maroon font-bold flex items-center gap-1">
+                                  <Clipboard className="w-3.5 h-3.5" /> Long Written Box ({section.topicName || `Topic ${sIndex + 1}`})
+                                </Label>
+                                <span className="text-[10px] text-gray-body font-mono">Format: Question -&gt; Answer: key points</span>
+                              </div>
+                              <Textarea
+                                placeholder={`1. Describe Database ACID properties in detail.\nAnswer: Atomicity, Consistency, Isolation, Durability.`}
+                                value={section.config.LONG_WRITTEN?.text || ''}
+                                onChange={(e) => updateTopicSectionConfig(section.id, 'LONG_WRITTEN', 'text', e.target.value)}
+                                className="h-44 bg-white border-border-soft font-mono text-xs text-ink focus:border-maroon focus:ring-1 focus:ring-maroon"
+                              />
+                            </div>
+                          )}
                         </div>
-                        <Textarea
-                          placeholder={`1. What is 2^8?\nAnswer: 256\n\n2. Solve: 15 * 14\nAnswer: 210`}
-                          value={bulkConfig.NUMERICAL.text}
-                          onChange={(e) => setBulkConfig({
-                            ...bulkConfig,
-                            NUMERICAL: { ...bulkConfig.NUMERICAL, text: e.target.value }
-                          })}
-                          className="h-52 bg-cream/10 border-border-soft font-mono text-xs text-ink focus:border-maroon focus:ring-1 focus:ring-maroon"
-                        />
                       </div>
-                    )}
+                    );
+                  })}
 
-                    {bulkConfig.LONG_WRITTEN.selected && (
-                      <div className="space-y-2 bg-white p-4 rounded-xl border border-border-soft shadow-sm">
-                        <div className="flex justify-between items-center">
-                          <Label className="text-xs text-maroon font-bold flex items-center gap-1">
-                            <Clipboard className="w-3.5 h-3.5" /> Long Written Questions Box
-                          </Label>
-                          <span className="text-[10px] text-gray-body bg-cream/60 px-2 py-0.5 rounded border border-border-soft font-mono">{"Format: Question -> Answer: key points"}</span>
-                        </div>
-                        <Textarea
-                          placeholder={`1. Describe the Database ACID properties in detail.\nAnswer: Atomicity ensures all-or-nothing transactions; Consistency maintains DB rules; Isolation prevents concurrency issues; Durability guarantees persistence.\n\n2. Explain Dijkstra's shortest path algorithm.\nAnswer: Greedy algorithm using min-priority queue to find shortest path from single source.`}
-                          value={bulkConfig.LONG_WRITTEN.text}
-                          onChange={(e) => setBulkConfig({
-                            ...bulkConfig,
-                            LONG_WRITTEN: { ...bulkConfig.LONG_WRITTEN, text: e.target.value }
-                          })}
-                          className="h-52 bg-cream/10 border-border-soft font-mono text-xs text-ink focus:border-maroon focus:ring-1 focus:ring-maroon"
-                        />
-                      </div>
-                    )}
-                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-border-soft">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleAddTopicSection}
+                      className="border-dashed border-maroon text-maroon hover:bg-maroon hover:text-white font-bold text-xs rounded-full px-5 py-2 transition-all flex items-center gap-1.5"
+                    >
+                      + Add Another Topic Section
+                    </Button>
 
-                  {!Object.values(bulkConfig).some(c => c.selected) && (
-                    <div className="text-center py-6 bg-white rounded-xl border border-dashed border-border-soft text-gray-body text-xs flex items-center justify-center gap-2">
-                      <AlertCircle className="w-4 h-4 text-maroon" /> Check at least one question type checkbox above to reveal pasting textboxes.
-                    </div>
-                  )}
-
-                  <div className="flex justify-end pt-3">
                     <Button
                       type="button"
                       onClick={handleImportBulkQuestions}
-                      disabled={!Object.values(bulkConfig).some(c => c.selected && c.text.trim().length > 0)}
                       className="bg-maroon hover:bg-maroon-deep text-white font-bold h-11 px-8 rounded-full transition-all shadow-sm flex items-center gap-2"
                     >
                       <Check className="w-4 h-4" /> Convert into Questions & Review

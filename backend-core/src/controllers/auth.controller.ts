@@ -74,7 +74,8 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(validatedData.password, salt);
 
-    const approvalStatus = validatedData.role === 'FACULTY' ? 'PENDING' : 'APPROVED';
+    const autoVerify = !process.env.RESEND_API_KEY;
+    const approvalStatus = 'APPROVED';
     const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
 
     const user = await prisma.user.create({
@@ -92,7 +93,7 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
         employeeId: validatedData.employeeId,
         subject: validatedData.subject,
         approvalStatus,
-        isEmailVerified: false,
+        isEmailVerified: autoVerify ? true : false,
         verificationCode,
       },
     });

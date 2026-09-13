@@ -284,6 +284,7 @@ export const addQuestions = async (req: Request, res: Response, next: NextFuncti
             quizId,
             type: q.type as QuestionType,
             text: q.text,
+            topic: q.topic ? String(q.topic).trim() : undefined,
             marks: Number(q.marks) || 1,
             negativeMarks: Number(q.negativeMarks) || 0,
             options: q.options ?? undefined,
@@ -294,6 +295,14 @@ export const addQuestions = async (req: Request, res: Response, next: NextFuncti
         })
       )
     );
+
+    const sumMarks = createdQuestions.reduce((sum, q) => sum + (q.marks || 1), 0);
+    if (sumMarks > 0) {
+      await prisma.quiz.update({
+        where: { id: quizId },
+        data: { totalMarks: sumMarks }
+      });
+    }
 
     res.status(201).json({ status: 'success', data: createdQuestions });
   } catch (error) {
@@ -551,6 +560,7 @@ export const uploadDocxParser = async (req: Request, res: Response, next: NextFu
             if (!text.toLowerCase().includes('n/a')) currentQ.hasImagePlaceholder = true;
           }
           else if (text.startsWith('Marks:')) currentQ.marks = Number(text.substring(6).trim()) || 1;
+          else if (text.startsWith('Topic:')) currentQ.topic = text.substring(6).trim();
           else if (text.startsWith('Explanation:')) currentQ.explanation = text.substring(12).trim();
           
           else if (text.startsWith('Option A:')) currentQ.options[0] = text.substring(9).trim();

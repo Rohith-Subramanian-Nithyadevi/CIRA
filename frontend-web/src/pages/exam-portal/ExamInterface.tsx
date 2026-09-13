@@ -21,13 +21,14 @@ export default function ExamInterface() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
   const [responses, setResponses] = useState<Record<string, { data: any, status: QuestionStatus }>>({});
-  const [timeLeft, setTimeLeft] = useState(60 * 60); 
+  const [timeLeft, setTimeLeft] = useState<number | null>(null); 
   const [saving, setSaving] = useState(false);
   const [attemptId, setAttemptId] = useState<string>('');
   const [quizDetails, setQuizDetails] = useState<any>(null);
   const [hasStartedSecureExam, setHasStartedSecureExam] = useState(false);
   const submittingRef = React.useRef(false);
   const attemptIdRef = React.useRef('');
+  const endTimeRef = React.useRef<number | null>(null);
 
   // Zero tolerance: any violation = instant auto-submit with reason logged
   const handleSecurityViolation = async (reason: string) => {
@@ -79,14 +80,20 @@ export default function ExamInterface() {
           }
           setResponses(loadedResponses);
           
-          const startTime = new Date(attempt.startTime).getTime();
-          const durationSec = (quiz.durationMinutes || 60) * 60;
-          const elapsedSec = Math.floor((Date.now() - startTime) / 1000);
-          const remaining = Math.max(0, durationSec - elapsedSec);
+          const startTimeMs = new Date(attempt.startTime).getTime();
+          const durationMs = (quiz.durationMinutes || 60) * 60 * 1000;
+          const calculatedEndTime = startTimeMs + durationMs;
+          endTimeRef.current = calculatedEndTime;
+          
+          const remaining = Math.max(0, Math.floor((calculatedEndTime - Date.now()) / 1000));
           setTimeLeft(remaining);
-          } else {
-            toast.error('Error starting exam: ' + (data.message || 'Invalid exam response'));
-           navigate('/exam-portal', { replace: true });
+          
+          if (remaining <= 0) {
+            handleSubmit();
+          }
+        } else {
+          toast.error('Error starting exam: ' + (data.message || 'Invalid exam response'));
+          navigate('/exam-portal', { replace: true });
         }
       } catch(err) {
          console.error(err);
@@ -94,20 +101,22 @@ export default function ExamInterface() {
     };
     
     if (quizId) fetchQuiz();
+  }, [quizId]);
 
+  useEffect(() => {
     const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          handleSubmit();
-          return 0;
-        }
-        return prev - 1;
-      });
+      if (endTimeRef.current === null) return;
+      const remaining = Math.max(0, Math.floor((endTimeRef.current - Date.now()) / 1000));
+      setTimeLeft(remaining);
+
+      if (remaining <= 0 && !submittingRef.current) {
+        clearInterval(timer);
+        handleSubmit();
+      }
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [quizId]);
+  }, []);
 
   const handleSaveResponse = async (questionId: string, answerData: any, status: QuestionStatus) => {
     setResponses(prev => ({ ...prev, [questionId]: { data: answerData, status } }));
@@ -264,7 +273,9 @@ export default function ExamInterface() {
     handleSaveResponse(currentQ.id, curr, 'ANSWERED');
   };
 
-  const formatTime = (seconds: number) => {
+  const formatTime = (seconds: number | null) => {
+    if (seconds === null) return '--:--:--';
+    if (seconds < 0) seconds = 0;
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
     const s = seconds % 60;
