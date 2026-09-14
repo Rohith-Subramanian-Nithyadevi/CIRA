@@ -89,20 +89,6 @@ services:
       - mongo-init
     restart: unless-stopped
 
-  backend-ai:
-    build:
-      context: ./backend-ai
-      dockerfile: Dockerfile
-    container_name: cira_backend_ai
-    ports:
-      - "8000:8000"
-    environment:
-      - PORT=8000
-      - MONGO_URI=${MONGO_URI:-mongodb://mongo1:27017/cira-exams}
-    depends_on:
-      - mongo-init
-    restart: unless-stopped
-
   frontend-web:
     build:
       context: ./frontend-web
