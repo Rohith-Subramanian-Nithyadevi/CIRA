@@ -1,7 +1,11 @@
 import jwt from 'jsonwebtoken';
 import { UnauthorizedError } from './errors';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_key_for_development';
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+  throw new Error('FATAL: JWT_SECRET environment variable is missing.');
+}
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1d';
 
 export interface JwtPayload {

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticate } from '../middlewares/auth.middleware';
+import { authenticate, authorize } from '../middlewares/auth.middleware';
 import {
   getTasks,
   createTask,
@@ -31,8 +31,9 @@ import {
 
 const router = Router();
 
-// Protect all routes
+// Protect all routes and enforce STUDENT role
 router.use(authenticate);
+router.use(authorize(['STUDENT']));
 
 // Profile and Announcements
 router.put('/profile', updateProfile);
