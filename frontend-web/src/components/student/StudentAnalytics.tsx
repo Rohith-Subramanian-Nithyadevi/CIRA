@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
   BarChart, Bar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
-  Legend, Cell, ReferenceLine, Area, AreaChart,
-  PieChart, Pie
+  Legend, Cell, ReferenceLine, Area, AreaChart
 } from 'recharts';
 import { TrendingUp, BookOpen, CheckCircle2 } from 'lucide-react';
 import { apiClient } from '../../lib/apiClient';
@@ -161,13 +160,14 @@ export default function StudentAnalytics({ isDemo }: { isDemo?: boolean }) {
   const [liveBenchmark, setLB]      = useState<any[]>([]);
   const [liveDist, setLD]           = useState<any[]>([]);
   const [liveSIS, setLSIS]          = useState<any>(null);
+  const [sheetAnalytics, setSheetAnalytics] = useState<any[]>([]);
   const [loading, setLoading]       = useState(true);
 
   useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
     try {
-      const [tR, swR, hR, rR, bR, dR, sR] = await Promise.all([
+      const [tR, swR, hR, rR, bR, dR, sR, sheetR] = await Promise.all([
         apiClient.fetch('/api/v1/student/analytics/timeline').catch(() => null),
         apiClient.fetch('/api/v1/student/analytics/strengths-weaknesses').catch(() => null),
         apiClient.fetch('/api/v1/student/analytics/heatmap').catch(() => null),
@@ -175,6 +175,7 @@ export default function StudentAnalytics({ isDemo }: { isDemo?: boolean }) {
         apiClient.fetch('/api/v1/student/analytics/benchmark').catch(() => null),
         apiClient.fetch('/api/v1/student/analytics/distribution').catch(() => null),
         apiClient.fetch('/api/v1/student/improvement/sis').catch(() => null),
+        apiClient.fetch('/api/v1/student/resources/sheet/analytics').catch(() => null),
       ]);
       if (tR) setLT(await tR.json());
       if (swR) setLSW(await swR.json());
@@ -186,8 +187,9 @@ export default function StudentAnalytics({ isDemo }: { isDemo?: boolean }) {
       const sData = sR ? await sR.json() : null;
       if (sData?.success) setLSIS(sData.data);
       
+      const sheetData = sheetR ? await sheetR.json() : null;
+      if (sheetData?.success) setSheetAnalytics(sheetData.data);
 
-      
     } catch (e) {
       console.error('Analytics fetch failed', e);
     } finally {
@@ -505,88 +507,113 @@ export default function StudentAnalytics({ isDemo }: { isDemo?: boolean }) {
       {activeTab === 'resource' && (
         <div className="space-y-6 animate-in fade-in duration-300">
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            <div className="bg-white p-6 rounded-xl border shadow-sm flex flex-col justify-center" style={{ borderColor: C.border }}>
-              <div className="flex items-center gap-5">
-                <div className="p-3.5 bg-maroon/5 rounded-full border" style={{ borderColor: C.maroonFaint }}>
-                  <CheckCircle2 className="w-6 h-6 text-maroon" />
-                </div>
-                <div>
-                  <p className="text-[9px] tracking-[0.12em] uppercase font-bold text-gray-body mb-1">Total Practice Qns</p>
-                  <p className="text-3xl font-bold text-ink leading-none">452</p>
-                </div>
-              </div>
+          {sheetAnalytics.length === 0 ? (
+            <div className="bg-cream/40 p-8 rounded-xl border border-dashed border-border-soft text-center text-gray-body text-sm">
+              No sheet analytics data available. Start solving sheet questions to see your progress!
             </div>
-            <div className="bg-white p-6 rounded-xl border shadow-sm flex flex-col justify-center" style={{ borderColor: C.border }}>
-              <div className="flex items-center gap-5">
-                <div className="p-3.5 rounded-full border" style={{ background: '#EBF5EE', borderColor: '#D1E6DA' }}>
-                  <BookOpen className="w-6 h-6" style={{ color: C.good }} />
+          ) : (
+            sheetAnalytics.map(sheet => (
+              <div key={sheet.id} className="space-y-6">
+                <div className="flex items-center gap-2 mb-2">
+                  <BookOpen className="w-5 h-5 text-maroon" />
+                  <h3 className="text-xl font-serif font-bold text-ink">{sheet.title}</h3>
                 </div>
-                <div>
-                  <p className="text-[9px] tracking-[0.12em] uppercase font-bold text-gray-body mb-1">Resources Viewed</p>
-                  <p className="text-3xl font-bold text-ink leading-none">38</p>
-                </div>
-              </div>
-            </div>
-            <div className="bg-white p-6 rounded-xl border shadow-sm flex flex-col justify-center" style={{ borderColor: C.border }}>
-              <div className="flex items-center gap-5">
-                <div className="p-3.5 rounded-full border" style={{ background: '#FDF5E8', borderColor: '#F2D7B4' }}>
-                  <TrendingUp className="w-6 h-6" style={{ color: C.warn }} />
-                </div>
-                <div>
-                  <p className="text-[9px] tracking-[0.12em] uppercase font-bold text-gray-body mb-1">Avg Score Impact</p>
-                  <p className="text-3xl font-bold text-ink leading-none">+14%</p>
-                </div>
-              </div>
-            </div>
-          </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            <div className="bg-white p-6 rounded-xl border shadow-sm" style={{ borderColor: C.border }}>
-              <Eyebrow label="Resource Effectiveness" title="Where are you learning the most?" />
-              <div className="h-64 flex items-center justify-center relative">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={DEMO_DATA.resourceImpact}
-                      cx="50%" cy="50%"
-                      innerRadius={60} outerRadius={80}
-                      paddingAngle={5} dataKey="value"
-                      stroke="none"
-                    >
-                      {DEMO_DATA.resourceImpact.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.fill} />
-                      ))}
-                    </Pie>
-                    <RechartsTooltip content={<CT />} />
-                    <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '12px' }} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none mt-[-36px]">
-                  <span className="text-2xl font-bold text-ink">38</span>
-                  <span className="text-xs text-gray-body">Total</span>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                  <div className="bg-white p-6 rounded-xl border shadow-sm flex flex-col justify-center" style={{ borderColor: C.border }}>
+                    <div className="flex items-center gap-5">
+                      <div className="p-3.5 bg-maroon/5 rounded-full border" style={{ borderColor: C.maroonFaint }}>
+                        <CheckCircle2 className="w-6 h-6 text-maroon" />
+                      </div>
+                      <div>
+                        <p className="text-[9px] tracking-[0.12em] uppercase font-bold text-gray-body mb-1">Total Questions</p>
+                        <p className="text-3xl font-bold text-ink leading-none">{sheet.totalQuestions}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-white p-6 rounded-xl border shadow-sm flex flex-col justify-center" style={{ borderColor: C.border }}>
+                    <div className="flex items-center gap-5">
+                      <div className="p-3.5 rounded-full border" style={{ background: '#EBF5EE', borderColor: '#D1E6DA' }}>
+                        <BookOpen className="w-6 h-6" style={{ color: C.good }} />
+                      </div>
+                      <div>
+                        <p className="text-[9px] tracking-[0.12em] uppercase font-bold text-gray-body mb-1">Solved</p>
+                        <p className="text-3xl font-bold text-ink leading-none">{sheet.solvedQuestions}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-white p-6 rounded-xl border shadow-sm flex flex-col justify-center" style={{ borderColor: C.border }}>
+                    <div className="flex items-center gap-5">
+                      <div className="p-3.5 rounded-full border" style={{ background: '#FDF5E8', borderColor: '#F2D7B4' }}>
+                        <TrendingUp className="w-6 h-6" style={{ color: C.warn }} />
+                      </div>
+                      <div className="flex-1 w-full">
+                        <p className="text-[9px] tracking-[0.12em] uppercase font-bold text-gray-body mb-1">Overall Progress</p>
+                        <div className="flex justify-between items-end mb-1">
+                          <p className="text-xl font-bold text-ink leading-none">{sheet.progress}%</p>
+                        </div>
+                        <MiniBar value={sheet.progress} color={sheet.progress > 75 ? C.good : sheet.progress > 40 ? C.warn : C.danger} />
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
 
-            <div className="bg-white p-6 rounded-xl border shadow-sm" style={{ borderColor: C.border }}>
-              <Eyebrow label="Practice by Topic" title="Questions Attempted vs Mastered" />
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={DEMO_DATA.resourceTopics} layout="vertical" margin={{ left: 10, right: 10 }}>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={C.creamEdge} />
-                    <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: C.gray, fontSize: 10 }} />
-                    <YAxis dataKey="topic" type="category" axisLine={false} tickLine={false} width={120} tick={{ fill: C.ink, fontSize: 11, fontWeight: 500 }} />
-                    <RechartsTooltip content={<CT />} />
-                    <Legend iconSize={8} wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                    <Bar dataKey="completed" name="Questions Completed" fill={C.creamEdge} radius={[0,3,3,0]} barSize={10} />
-                    <Bar dataKey="learned" name="Successfully Learned" fill={C.maroon} radius={[0,3,3,0]} barSize={10} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                  <div className="bg-white p-6 rounded-xl border shadow-sm" style={{ borderColor: C.border }}>
+                    <Eyebrow label="Skill Net" title="Topic Mastery Radar" />
+                    <div className="h-64">
+                      {sheet.topicStats && sheet.topicStats.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <RadarChart cx="50%" cy="50%" outerRadius="70%" data={sheet.topicStats}>
+                            <PolarGrid stroke={C.border} />
+                            <PolarAngleAxis dataKey="subject" tick={{ fill: C.ink, fontSize: 10, fontWeight: 500 }} />
+                            <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
+                            <Radar name="Completion %" dataKey="A" stroke={C.maroon} fill={C.maroon} fillOpacity={0.2} strokeWidth={2} dot={{ r: 3, fill: C.maroon }} />
+                            <RechartsTooltip content={<CT />} />
+                          </RadarChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="flex items-center justify-center h-full text-sm text-gray-body italic">No topic stats available</div>
+                      )}
+                    </div>
+                  </div>
 
+                  <div className="bg-white p-6 rounded-xl border shadow-sm flex flex-col gap-6" style={{ borderColor: C.border }}>
+                    <div>
+                      <Eyebrow label="Strongest Topics" title="High Completion Rate" />
+                      <div className="space-y-3">
+                        {sheet.strongTopics?.length ? sheet.strongTopics.map((topic: any, i: number) => (
+                          <div key={i}>
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="text-sm font-medium text-ink truncate mr-4">{topic.name}</span>
+                              <span className="text-xs font-bold text-green-700">{topic.score}%</span>
+                            </div>
+                            <MiniBar value={topic.score} color={C.good} />
+                          </div>
+                        )) : <div className="text-xs text-gray-body italic">Not enough data</div>}
+                      </div>
+                    </div>
+                    <div>
+                      <Eyebrow label="Weakest Topics" title="Low Completion Rate" />
+                      <div className="space-y-3">
+                        {sheet.weakTopics?.length ? sheet.weakTopics.map((topic: any, i: number) => (
+                          <div key={i}>
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="text-sm font-medium text-ink truncate mr-4">{topic.name}</span>
+                              <span className="text-xs font-bold text-red-700">{topic.score}%</span>
+                            </div>
+                            <MiniBar value={topic.score} danger />
+                          </div>
+                        )) : <div className="text-xs text-gray-body italic">Not enough data</div>}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <hr className="my-8 border-border-soft" />
+              </div>
+            ))
+          )}
         </div>
       )}
 

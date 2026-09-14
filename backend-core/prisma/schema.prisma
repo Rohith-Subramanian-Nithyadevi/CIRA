@@ -137,6 +137,7 @@ model User {
   studentMistakes        StudentMistake[] @relation("StudentMistakes")
   studentAchievements    StudentAchievement[] @relation("StudentAchievements")
   studentNotifications   StudentNotification[] @relation("StudentNotifications")
+  sheetProgress          StudentSheetProgress[]
 }
 
 model FacultyDepartment {
@@ -463,13 +464,53 @@ model StudentCalendarEvent {
 }
 
 model Resource {
+  id             String   @id @default(uuid())
+  title          String
+  description    String?
+  url            String?
+  category       String   // e.g., "DSA", "APTITUDE", "SOFT_SKILLS", "VERBAL", "CORE"
+  topic          String?
+  type           String   @default("LINK") // "LINK" or "SHEET"
+  totalQuestions Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  sheetTopics    SheetTopic[]
+}
+
+model SheetTopic {
   id          String   @id @default(uuid())
+  name        String
+  resourceId  String
+  order       Int      @default(0)
+  resource    Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  questions   SheetQuestion[]
+}
+
+model SheetQuestion {
+  id          String      @id @default(uuid())
   title       String
-  description String?
   url         String
-  category    String   // e.g., "DSA", "APTITUDE", "SOFT_SKILLS", "VERBAL", "CORE"
-  topic       String?
-  createdAt   DateTime @default(now())
+  difficulty  String      @default("MEDIUM") // EASY, MEDIUM, HARD
+  topicId     String
+  order       Int         @default(0)
+  topic       SheetTopic  @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  studentProgress StudentSheetProgress[]
+}
+
+model StudentSheetProgress {
+  id                String      @id @default(uuid())
+  userId            String
+  questionId        String
+  status            String      @default("UNSOLVED") // UNSOLVED, SOLVED
+  markedForRevision Boolean     @default(false)
+  updatedAt         DateTime    @updatedAt
+
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question          SheetQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questionId])
 }
 
 // ─── TOPIC TAXONOMY ───────────────────────────────────────────────────────────

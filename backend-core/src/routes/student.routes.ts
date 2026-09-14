@@ -22,6 +22,12 @@ import {
   updateProfile,
   getAnnouncements
 } from '../controllers/student.controller';
+import {
+  getSheetDetails,
+  updateQuestionProgress,
+  getRevisionPool,
+  getSheetAnalytics
+} from '../controllers/resource-sheet.controller';
 
 const router = Router();
 
@@ -51,6 +57,12 @@ router.delete('/calendar/:id', deleteCalendarEvent);
 
 // Resources
 router.get('/resources', getResources);
+
+// Resource Sheets
+router.get('/resources/sheet/analytics', getSheetAnalytics);
+router.get('/resources/sheet/revision', getRevisionPool);
+router.get('/resources/sheet/:id', getSheetDetails);
+router.patch('/resources/sheet/question/:questionId', updateQuestionProgress);
 
 // Analytics
 router.get('/analytics/timeline', getTimeline);
