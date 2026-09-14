@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { ResponseStatus, QuestionType } from '@prisma/client';
 import { prisma } from '../config/prisma';
-import { BadRequestError, ForbiddenError } from '../utils/errors';
+import { BadRequestError, ForbiddenError, UnauthorizedError } from '../utils/errors';
 
 // Get eligible quizzes for the logged-in student
 export const getEligibleQuizzes = async (req: Request, res: Response, next: NextFunction) => {
@@ -284,8 +284,16 @@ export const allowRestart = async (req: Request, res: Response, next: NextFuncti
   try {
     const attemptId = req.params.attemptId as string;
 
-    const attempt = await prisma.quizAttempt.findUnique({ where: { id: attemptId } });
+    const attempt = await prisma.quizAttempt.findUnique({ 
+      where: { id: attemptId },
+      include: { quiz: true }
+    });
     if (!attempt) throw new BadRequestError('Attempt not found', 'NOT_FOUND');
+
+    // Authorization check: only ADMIN or the quiz creator can delete an attempt
+    if (req.user?.role !== 'ADMIN' && attempt.quiz.createdBy !== req.user?.userId) {
+      throw new UnauthorizedError('Not authorized to modify attempts for this quiz', 'UNAUTHORIZED');
+    }
 
     // Delete the attempt and all its responses (cascade)
     await prisma.quizAttempt.delete({ where: { id: attemptId } });
