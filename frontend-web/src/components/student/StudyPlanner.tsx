@@ -163,9 +163,9 @@ export default function StudyPlanner() {
   const fetchData = async () => {
     try {
       const [tasksRes, habitsRes, calRes] = await Promise.all([
-        apiClient.fetch('/api/v1/student-features/tasks'),
-        apiClient.fetch('/api/v1/student-features/habits'),
-        apiClient.fetch('/api/v1/student-features/calendar')
+        apiClient.fetch('/api/v1/student/tasks'),
+        apiClient.fetch('/api/v1/student/habits'),
+        apiClient.fetch('/api/v1/student/calendar')
       ]);
       
       const tasksData = await tasksRes.json();
@@ -192,7 +192,7 @@ export default function StudyPlanner() {
     if (!newTask.trim()) return;
 
     try {
-      const res = await apiClient.fetch('/api/v1/student-features/tasks', {
+      const res = await apiClient.fetch('/api/v1/student/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -214,7 +214,7 @@ export default function StudyPlanner() {
 
   const toggleTask = async (id: string, currentStatus: boolean) => {
     try {
-      const res = await apiClient.fetch(`/api/v1/student-features/tasks/${id}`, {
+      const res = await apiClient.fetch(`/api/v1/student/tasks/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ completed: !currentStatus })
@@ -233,7 +233,7 @@ export default function StudyPlanner() {
 
   const deleteTask = async (id: string) => {
     try {
-      await apiClient.fetch(`/api/v1/student-features/tasks/${id}`, { method: 'DELETE' });
+      await apiClient.fetch(`/api/v1/student/tasks/${id}`, { method: 'DELETE' });
       setTasks(tasks.filter(t => t.id !== id));
       if (pomodoroTask?.id === id) setPomodoroTask(null);
     } catch (error) {
@@ -246,7 +246,7 @@ export default function StudyPlanner() {
     e.preventDefault();
     if (!newHabit.trim()) return;
     try {
-      const res = await apiClient.fetch('/api/v1/student-features/habits', {
+      const res = await apiClient.fetch('/api/v1/student/habits', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: newHabit })
@@ -267,7 +267,7 @@ export default function StudyPlanner() {
     setHabits(habits.map(h => h.id === id ? { ...h, completedDates: newDates } : h));
 
     try {
-      await apiClient.fetch(`/api/v1/student-features/habits/${id}`, {
+      await apiClient.fetch(`/api/v1/student/habits/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ date: todayStr })
@@ -279,7 +279,7 @@ export default function StudyPlanner() {
 
   const deleteHabit = async (id: string) => {
     try {
-      await apiClient.fetch(`/api/v1/student-features/habits/${id}`, { method: 'DELETE' });
+      await apiClient.fetch(`/api/v1/student/habits/${id}`, { method: 'DELETE' });
       setHabits(habits.filter(h => h.id !== id));
     } catch (error) {}
   };
@@ -292,7 +292,7 @@ export default function StudyPlanner() {
     const date = `${localDateStr}T12:00:00.000Z`;
     setNewEventTitle(''); setShowEventForm(false);
     try {
-      const res = await apiClient.fetch('/api/v1/student-features/calendar', {
+      const res = await apiClient.fetch('/api/v1/student/calendar', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title, date })
       });
@@ -304,7 +304,7 @@ export default function StudyPlanner() {
   const deleteCalendarEvent = async (id: string) => {
     setCalendarEvents(calendarEvents.filter(e => e.id !== id));
     try {
-      await apiClient.fetch(`/api/v1/student-features/calendar/${id}`, { method: 'DELETE' });
+      await apiClient.fetch(`/api/v1/student/calendar/${id}`, { method: 'DELETE' });
     } catch (err) {}
   };
 
