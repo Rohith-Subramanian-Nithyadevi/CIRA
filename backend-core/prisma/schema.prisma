@@ -466,7 +466,7 @@ model Resource {
   id          String   @id @default(uuid())
   title       String
   description String?
-  url         String
+  url         String?
   category    String   // e.g., "DSA", "APTITUDE", "SOFT_SKILLS", "VERBAL", "CORE"
   topic       String?
   createdAt   DateTime @default(now())
