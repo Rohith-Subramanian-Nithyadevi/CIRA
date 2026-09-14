@@ -80,7 +80,7 @@ export default function Login() {
   useEffect(() => {
     const fetchBatches = async () => {
       try {
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+        const baseUrl = import.meta.env.API_BASE_VARIABLE || 'http://localhost:3000';
         const res = await fetch(`${baseUrl}/api/v1/batches`);
         const data = await res.json();
         if (data?.data?.batches) {
@@ -100,7 +100,7 @@ export default function Login() {
     }
     const fetchDepartments = async () => {
       try {
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+        const baseUrl = import.meta.env.API_BASE_VARIABLE || 'http://localhost:3000';
         const res = await fetch(`${baseUrl}/api/v1/departments?batchId=${batchId}`);
         const data = await res.json();
         if (data?.data?.departments) {
@@ -131,7 +131,7 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+      const baseUrl = import.meta.env.API_BASE_VARIABLE || 'http://localhost:3000';
       const response = await fetch(`${baseUrl}/api/v1/auth/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -171,7 +171,7 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+      const baseUrl = import.meta.env.API_BASE_VARIABLE || 'http://localhost:3000';
       const response = await fetch(`${baseUrl}/api/v1/auth/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -213,7 +213,7 @@ export default function Login() {
       const googlePersonalEmail = (user.email || '').toLowerCase();
       setPersonalEmail(googlePersonalEmail);
 
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+      const baseUrl = import.meta.env.API_BASE_VARIABLE || 'http://localhost:3000';
       const response = await fetch(`${baseUrl}/api/v1/auth/firebase-login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -298,7 +298,7 @@ export default function Login() {
     }
 
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+      const baseUrl = import.meta.env.API_BASE_VARIABLE || 'http://localhost:3000';
       const payload: any = {
         idToken: firebaseIdToken,
         role,
@@ -382,7 +382,7 @@ export default function Login() {
     }
 
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+      const baseUrl = import.meta.env.API_BASE_VARIABLE || 'http://localhost:3000';
       const endpoint = isLogin ? '/api/v1/auth/login' : '/api/v1/auth/register';
       
       const payload: any = isLogin ? { email, password } : { 
@@ -449,7 +449,7 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+      const baseUrl = import.meta.env.API_BASE_VARIABLE || 'http://localhost:3000';
       const response = await fetch(`${baseUrl}/api/v1/auth/verify-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

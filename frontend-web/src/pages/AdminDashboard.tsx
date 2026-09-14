@@ -47,7 +47,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     const fetchAdminData = async () => {
       try {
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+        const baseUrl = import.meta.env.API_BASE_VARIABLE || 'http://localhost:3000';
         const token = localStorage.getItem('cira_token');
         const headers = { 'Authorization': `Bearer ${token}` };
 
@@ -78,7 +78,7 @@ export default function AdminDashboard() {
     }
     const fetchDepartments = async () => {
       try {
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+        const baseUrl = import.meta.env.API_BASE_VARIABLE || 'http://localhost:3000';
         const token = localStorage.getItem('cira_token');
         const res = await fetch(`${baseUrl}/api/v1/departments?batchId=${selectedBatchId}`, {
           headers: { 'Authorization': `Bearer ${token}` }
@@ -94,7 +94,7 @@ export default function AdminDashboard() {
 
   const handleApproval = async (id: string, status: 'APPROVED' | 'REJECTED') => {
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+      const baseUrl = import.meta.env.API_BASE_VARIABLE || 'http://localhost:3000';
       const token = localStorage.getItem('cira_token');
       await fetch(`${baseUrl}/api/v1/admin/faculty/${id}/approve`, {
         method: 'PUT',
@@ -114,7 +114,7 @@ export default function AdminDashboard() {
   const handleDeleteUser = async (id: string) => {
     if (!window.confirm('Are you sure you want to delete this user?')) return;
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+      const baseUrl = import.meta.env.API_BASE_VARIABLE || 'http://localhost:3000';
       const token = localStorage.getItem('cira_token');
       await fetch(`${baseUrl}/api/v1/admin/users/${id}`, {
         method: 'DELETE',
@@ -130,7 +130,7 @@ export default function AdminDashboard() {
   const handleCreateDepartment = async () => {
     if (!newDeptName || !selectedBatchId) return;
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+      const baseUrl = import.meta.env.API_BASE_VARIABLE || 'http://localhost:3000';
       const token = localStorage.getItem('cira_token');
       const res = await fetch(`${baseUrl}/api/v1/departments`, {
         method: 'POST',
@@ -148,7 +148,7 @@ export default function AdminDashboard() {
   const handleCreateSection = async () => {
     if (!newSectionName || !selectedDeptId) return;
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+      const baseUrl = import.meta.env.API_BASE_VARIABLE || 'http://localhost:3000';
       const token = localStorage.getItem('cira_token');
       const res = await fetch(`${baseUrl}/api/v1/departments/sections`, {
         method: 'POST',
@@ -168,7 +168,7 @@ export default function AdminDashboard() {
   const handleDeleteDepartment = async (id: string) => {
     if (!window.confirm('Delete department? All sections inside will be lost.')) return;
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+      const baseUrl = import.meta.env.API_BASE_VARIABLE || 'http://localhost:3000';
       const token = localStorage.getItem('cira_token');
       await fetch(`${baseUrl}/api/v1/departments/${id}`, {
         method: 'DELETE',

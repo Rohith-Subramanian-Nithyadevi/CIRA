@@ -32,7 +32,7 @@ export default function ExamInterface() {
   const handleSecurityViolation = async (reason: string) => {
     if (!attemptId) return;
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+      const baseUrl = import.meta.env.API_BASE_VARIABLE || 'http://localhost:3000';
       const token = localStorage.getItem('cira_token');
       await fetch(`${baseUrl}/api/v1/student/exam/attempt/${attemptId}/submit`, {
         method: 'POST',
@@ -60,7 +60,7 @@ export default function ExamInterface() {
     const fetchQuiz = async () => {
       try {
         hasFetched.current = true;
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+        const baseUrl = import.meta.env.API_BASE_VARIABLE || 'http://localhost:3000';
         const token = localStorage.getItem('cira_token');
         const res = await fetch(`${baseUrl}/api/v1/student/exam/start/${quizId}`, {
           method: 'POST',
@@ -117,7 +117,7 @@ export default function ExamInterface() {
     setResponses(prev => ({ ...prev, [questionId]: { data: answerData, status } }));
     setSaving(true);
     try {
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+        const baseUrl = import.meta.env.API_BASE_VARIABLE || 'http://localhost:3000';
         const token = localStorage.getItem('cira_token');
         await fetch(`${baseUrl}/api/v1/student/exam/attempt/${attemptId}/save-response`, {
           method: 'POST',
@@ -174,7 +174,7 @@ export default function ExamInterface() {
 
     submittingRef.current = true;
     try {
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+        const baseUrl = import.meta.env.API_BASE_VARIABLE || 'http://localhost:3000';
         const token = localStorage.getItem('cira_token');
         const res = await fetch(`${baseUrl}/api/v1/student/exam/attempt/${currentAttemptId}/submit`, {
           method: 'POST',

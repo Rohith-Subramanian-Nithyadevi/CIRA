@@ -7,7 +7,7 @@ interface Department { id: string; name: string; batchId: string; sections: Sect
 interface Section { id: string; name: string; }
 
 export default function AssignmentManagement() {
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+  const baseUrl = import.meta.env.API_BASE_VARIABLE || 'http://localhost:3000';
   const token = localStorage.getItem('cira_token');
 
   const [loading, setLoading] = useState(true);

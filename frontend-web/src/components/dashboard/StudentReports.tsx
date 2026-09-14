@@ -17,7 +17,7 @@ import {
 import { Search, ChevronRight, User, BookOpen, AlertTriangle, TrendingUp, ArrowLeft, Loader2 } from 'lucide-react';
 
 export const StudentReports = () => {
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+  const baseUrl = import.meta.env.API_BASE_VARIABLE || 'http://localhost:3000';
   const token = localStorage.getItem('cira_token');
 
   const [loading, setLoading] = useState(true);

@@ -15,7 +15,7 @@ export default function UserProfile() {
   // Fetch departments if faculty
   useEffect(() => {
     if (role === 'FACULTY') {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+      const baseUrl = import.meta.env.API_BASE_VARIABLE || 'http://localhost:3000';
       fetch(`${baseUrl}/api/v1/departments`)
         .then(res => res.json())
         .then(data => {
@@ -126,7 +126,7 @@ export default function UserProfile() {
                   <button 
                     onClick={async () => {
                       try {
-                        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+                        const baseUrl = import.meta.env.API_BASE_VARIABLE || 'http://localhost:3000';
                         const token = localStorage.getItem('cira_token');
                         const res = await fetch(`${baseUrl}/api/v1/faculty/enroll`, {
                           method: 'POST',
@@ -158,7 +158,7 @@ export default function UserProfile() {
                       <button 
                         onClick={async () => {
                           try {
-                            const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+                            const baseUrl = import.meta.env.API_BASE_VARIABLE || 'http://localhost:3000';
                             const token = localStorage.getItem('cira_token');
                             const res = await fetch(`${baseUrl}/api/v1/faculty/enroll/${ed.id}`, {
                               method: 'DELETE',

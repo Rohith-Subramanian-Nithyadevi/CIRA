@@ -22,7 +22,7 @@ interface Announcement { id: string; title: string; content: string; date: strin
 interface AnnouncementResponse { id: string; response: string; submittedAt: string; user: { name: string; rollNumber: string } }
 
 export default function FacultyHome() {
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+  const baseUrl = import.meta.env.API_BASE_VARIABLE || 'http://localhost:3000';
   const token = localStorage.getItem('cira_token');
 
   // Loading States

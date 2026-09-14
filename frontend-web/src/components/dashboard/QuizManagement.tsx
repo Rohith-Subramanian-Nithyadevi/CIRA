@@ -379,7 +379,7 @@ export default function QuizManagement() {
   const [facultyFeedback, setFacultyFeedback] = useState('');
   const [parsedTotalMarks, setParsedTotalMarks] = useState(0);
   const [parsedTotalQuestions, setParsedTotalQuestions] = useState(0);
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+  const baseUrl = import.meta.env.API_BASE_VARIABLE || 'http://localhost:3000';
   const token = localStorage.getItem('cira_token');
 
   useEffect(() => {
@@ -1428,7 +1428,7 @@ export default function QuizManagement() {
     const handleAllowRestart = async (attemptId: string) => {
       if (!confirm('Are you sure you want to allow this student to retake the exam? Their current attempt and all responses will be deleted.')) return;
       try {
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+        const baseUrl = import.meta.env.API_BASE_VARIABLE || 'http://localhost:3000';
         const token = localStorage.getItem('cira_token');
         const res = await fetch(`${baseUrl}/api/v1/faculty/quiz/attempt/${attemptId}/allow-restart`, {
           method: 'POST',
