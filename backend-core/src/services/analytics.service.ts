@@ -4,9 +4,8 @@
  * No AI. All logic is rule-based and deterministic.
  */
 
-import { PrismaClient, PerformanceRating } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { PerformanceRating } from '@prisma/client';
+import { prisma } from '../config/prisma';
 
 // ─── BAND THRESHOLDS ─────────────────────────────────────────────────────────
 const BAND_THRESHOLDS = {
@@ -69,7 +68,7 @@ async function getAttemptSummaries(userId: string): Promise<AttemptSummary[]> {
   const attempts = await prisma.quizAttempt.findMany({
     where: {
       userId,
-      status: { in: ['SUBMITTED', 'EVALUATED'] },
+      status: 'EVALUATED', // Only include fully graded attempts
     },
     orderBy: { startTime: 'asc' },
     include: {

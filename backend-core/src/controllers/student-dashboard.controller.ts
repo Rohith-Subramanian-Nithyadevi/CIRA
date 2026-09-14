@@ -38,15 +38,33 @@ export const getDashboardData = async (req: Request, res: Response) => {
       };
     });
 
-    // 2. Knowledge Deficits — from the latest attempt that has metrics
-    const attemptWithMetrics = [...attempts].reverse().find(a => a.metrics && Object.keys(a.metrics as any).length > 0);
-    const metricsData = (attemptWithMetrics?.metrics as Record<string, number>) || {};
-    
-    const knowledgeDeficits = Object.entries(metricsData).map(([subject, score]) => ({
-      subject,
-      score,
-      fullMark: 100,
-    }));
+    // 2. Knowledge Deficits — dynamically calculated from recent responses
+    const recentResponses = await prisma.quizResponse.findMany({
+      where: { 
+        attempt: { userId: user.id },
+        marksAwarded: { not: null }
+      },
+      include: { question: { select: { topic: true, marks: true } } },
+      orderBy: { savedAt: 'desc' },
+      take: 200 // Look at last 200 responses for recent deficits
+    });
+
+    const topicStats: Record<string, { earned: number; max: number }> = {};
+    recentResponses.forEach(r => {
+      const topic = r.question.topic || 'General';
+      if (!topicStats[topic]) topicStats[topic] = { earned: 0, max: 0 };
+      topicStats[topic].earned += r.marksAwarded || 0;
+      topicStats[topic].max += r.question.marks || 1;
+    });
+
+    const knowledgeDeficits = Object.entries(topicStats)
+      .map(([subject, stats]) => ({
+        subject,
+        score: Math.round((stats.earned / stats.max) * 100),
+        fullMark: 100,
+      }))
+      .sort((a, b) => a.score - b.score) // Sort ascending by score (worst first)
+      .slice(0, 5); // Take the 5 worst topics
 
     // 3. Remediation Assignments
     const submissions = await prisma.assignmentSubmission.findMany({
@@ -92,7 +110,6 @@ export const getDashboardData = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Error fetching dashboard data:', error);
-    require('fs').writeFileSync('dashboard_error.log', error.stack || error.toString());
     res.status(500).json({ success: false, message: 'Server Error', details: error.message });
   }
 };

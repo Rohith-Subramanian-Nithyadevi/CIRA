@@ -22,7 +22,22 @@ import { errorHandler } from './middlewares/error.middleware';
 const app: Application = express();
 
 // Global Middlewares
-app.use(cors());
+const allowedOrigins = [
+  process.env.FRONTEND_URL || 'http://localhost:5173',
+  'http://localhost:3000', // fallback for some dev environments
+  'https://cira-rust-seven.vercel.app' // Vercel production origin
+];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true); // Allow non-browser requests
+    if (allowedOrigins.indexOf(origin) === -1) {
+      return callback(new Error('CORS policy violation: Origin not allowed'), false);
+    }
+    return callback(null, true);
+  },
+  credentials: true
+}));
 app.use(express.json());
 
 // Rate Limiting (CIRA-019)

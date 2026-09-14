@@ -18,7 +18,7 @@ export class ApiError extends Error {
   }
 }
 
-const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const baseUrl = import.meta.env.API_BASE_VARIABLE || 'http://localhost:3000';
 
 const getErrorPayload = (body: any, status: number): ApiErrorPayload => {
   const standardized = body?.error;
