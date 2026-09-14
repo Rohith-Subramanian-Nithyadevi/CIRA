@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { 
   getTasks, createTask, updateTask, deleteTask,
   getCalendarEvents, createCalendarEvent, deleteCalendarEvent,
-  getAnnouncements, createAnnouncement, deleteAnnouncement, getAnnouncementResponses
+  getAnnouncements, createAnnouncement, deleteAnnouncement, getAnnouncementResponses,
+  getNotifications, markNotificationRead
 } from '../controllers/faculty-dashboard.controller';
 import { authenticate } from '../middlewares/auth.middleware';
 
@@ -24,5 +25,9 @@ router.get('/announcements', authenticate, getAnnouncements);
 router.post('/announcements', authenticate, createAnnouncement);
 router.delete('/announcements/:id', authenticate, deleteAnnouncement);
 router.get('/announcements/:id/responses', authenticate, getAnnouncementResponses);
+
+// Notifications
+router.get('/notifications', authenticate, getNotifications);
+router.patch('/notifications/:id/read', authenticate, markNotificationRead);
 
 export default router;

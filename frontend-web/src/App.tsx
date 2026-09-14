@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'sonner';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import LandingPage from './pages/LandingPage';
 import Login from './pages/Login';
 import AdminDashboard from './pages/AdminDashboard';
@@ -10,9 +11,20 @@ import ExamDashboard from './pages/exam-portal/ExamDashboard';
 import ExamInterface from './pages/exam-portal/ExamInterface';
 import ExamResults from './pages/exam-portal/ExamResults';
 
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000,
+      refetchOnWindowFocus: false,
+      retry: 1
+    }
+  }
+});
+
 function App() {
   return (
-    <BrowserRouter>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
       <Toaster richColors position="top-right" />
       <Routes>
         <Route path="/" element={<LandingPage />} />
@@ -65,6 +77,7 @@ function App() {
         <Route path="/dashboard" element={<ProtectedRoute allowedRoles={[]}><div /></ProtectedRoute>} />
       </Routes>
     </BrowserRouter>
+  </QueryClientProvider>
   );
 }
 

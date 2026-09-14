@@ -1,8 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient, QuestionType } from '@prisma/client';
-import { BadRequestError } from '../utils/errors';
-
-const prisma = new PrismaClient();
+import { QuestionType } from '@prisma/client';
+import { prisma } from '../config/prisma';
+import { BadRequestError, ForbiddenError } from '../utils/errors';
 
 // Get All Quizzes for logged in Faculty
 export const getQuizzes = async (req: Request, res: Response, next: NextFunction) => {
@@ -10,22 +9,69 @@ export const getQuizzes = async (req: Request, res: Response, next: NextFunction
     const userId = (req as any).user?.userId || 'system';
     const userRole = (req as any).user?.role;
 
-    // Faculty sees only their quizzes, Admins see all
-    const whereClause = userRole === 'ADMIN' ? {} : { createdBy: userId };
+    // Faculty sees only their quizzes, Admins see all.
+    const whereClause: any = userRole === 'ADMIN' ? {} : { createdBy: userId };
+    const filters: any[] = [];
+    if (req.query.posted === 'true') {
+      filters.push({ OR: [
+        { targetDepartments: { some: {} } },
+        { targetSections: { some: {} } },
+        { targetStudents: { some: {} } }
+      ] });
+    }
 
-    const quizzes = await prisma.quiz.findMany({
-      where: whereClause,
-      include: {
-        _count: {
-          select: { questions: true, attempts: true }
-        },
-        targetDepartments: { include: { department: { select: { id: true, name: true } } } },
-        targetSections: { include: { section: { select: { id: true, name: true } } } }
+    const departmentId = req.query.departmentId as string | undefined;
+    const sectionId = req.query.sectionId as string | undefined;
+    if (sectionId) {
+      filters.push({ OR: [
+        { targetSections: { some: { sectionId } } },
+        ...(departmentId ? [{ targetDepartments: { some: { departmentId } } }] : [])
+      ] });
+    } else if (departmentId) {
+      filters.push({ targetDepartments: { some: { departmentId } } });
+    }
+    if (filters.length > 0) {
+      whereClause.AND = filters;
+    }
+
+    const hasPagination = req.query.page !== undefined || req.query.limit !== undefined;
+
+    const includeOptions = {
+      _count: {
+        select: { questions: true, attempts: true }
       },
-      orderBy: { createdAt: 'desc' }
-    });
+      targetDepartments: { include: { department: { select: { id: true, name: true } } } },
+      targetSections: { include: { section: { select: { id: true, name: true } } } },
+      targetStudents: { select: { userId: true } }
+    };
 
-    res.status(200).json({ status: 'success', data: quizzes });
+    if (hasPagination) {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      const skip = (page - 1) * limit;
+
+      const [total, quizzes] = await prisma.$transaction([
+        prisma.quiz.count({ where: whereClause }),
+        prisma.quiz.findMany({
+          where: whereClause,
+          include: includeOptions,
+          orderBy: { createdAt: 'desc' },
+          skip,
+          take: limit
+        })
+      ]);
+
+      const hasMore = skip + quizzes.length < total;
+      res.status(200).json({ status: 'success', data: { items: quizzes, total, page, hasMore } });
+    } else {
+      const quizzes = await prisma.quiz.findMany({
+        where: whereClause,
+        include: includeOptions,
+        orderBy: { createdAt: 'desc' }
+      });
+
+      res.status(200).json({ status: 'success', data: quizzes });
+    }
   } catch (error) {
     next(error);
   }
@@ -244,7 +290,6 @@ export const addQuestions = async (req: Request, res: Response, next: NextFuncti
             answerKey: q.answerKey ?? undefined,
             explanation: q.explanation ?? undefined,
             image: q.image ?? undefined,
-            topic: q.topic ?? null,
           }
         })
       )
@@ -282,8 +327,50 @@ export const evaluateAttempt = async (req: Request, res: Response, next: NextFun
     const attemptId = req.params.attemptId as string;
     const { evaluations, writtenScore: rawWrittenScore, facultyFeedback, performanceCategory, finalGrade } = req.body;
 
-    const attempt = await prisma.quizAttempt.findUnique({ where: { id: attemptId } });
+    const attempt = await prisma.quizAttempt.findUnique({ 
+      where: { id: attemptId },
+      include: {
+        quiz: { select: { id: true, createdBy: true } },
+        user: { select: { id: true, departmentId: true, sectionId: true } }
+      }
+    });
     if (!attempt) throw new BadRequestError('Attempt not found', 'NOT_FOUND');
+
+    const facultyUserId = (req as any).user?.userId;
+    const facultyRole = (req as any).user?.role;
+
+    // Authorization verification: ADMINs can evaluate any attempt.
+    // FACULTY must either have created the quiz or be mapped to the student's cohort.
+    if (facultyRole !== 'ADMIN' && facultyUserId) {
+      const isQuizCreator = attempt.quiz.createdBy === facultyUserId;
+      
+      let isMapped = false;
+      if (!isQuizCreator) {
+        const studentDeptId = attempt.user?.departmentId;
+        const studentSecId = attempt.user?.sectionId;
+
+        if (studentDeptId) {
+          const deptMap = await prisma.facultyDepartment.findFirst({
+            where: { userId: facultyUserId, departmentId: studentDeptId }
+          });
+          if (deptMap) isMapped = true;
+        }
+
+        if (!isMapped && studentSecId) {
+          const secMap = await prisma.facultySection.findFirst({
+            where: { userId: facultyUserId, sectionId: studentSecId }
+          });
+          if (secMap) isMapped = true;
+        }
+      }
+
+      if (!isQuizCreator && !isMapped) {
+        throw new ForbiddenError(
+          'You are not authorized to evaluate this quiz attempt.',
+          'ERR_FORBIDDEN_ATTEMPT_EVALUATION'
+        );
+      }
+    }
 
     let writtenScore = 0;
 

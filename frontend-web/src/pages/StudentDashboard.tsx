@@ -3,10 +3,18 @@ import { PlayCircle, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import StudentSpace from '../components/dashboard/StudentSpace';
+import StudentAnnouncements from '../components/student/StudentAnnouncements';
 import UserProfile from '../components/dashboard/UserProfile';
+import StudyPlanner from '../components/student/StudyPlanner';
+import ResourceHub from '../components/student/ResourceHub';
+import StudentAnalytics from '../components/student/StudentAnalytics';
+import TopicPerformance from '../components/student/TopicPerformance';
+import GoalTracker from '../components/student/GoalTracker';
+import { apiClient } from '../lib/apiClient';
 
 export default function StudentDashboard() {
-  const [activeTab, setActiveTab] = useState('progress');
+  const [activeTab, setActiveTab] = useState('overview');
+  const [isDemo, setIsDemo] = useState(false);
   
   const [activeQuizzes, setActiveQuizzes] = useState<any[]>([]);
   const [pastQuizzes, setPastQuizzes] = useState<any[]>([]);
@@ -23,22 +31,12 @@ export default function StudentDashboard() {
   const fetchQuizzes = async () => {
     setLoading(true);
     try {
-      const baseUrl = import.meta.env.API_BASE_VARIABLE || 'http://localhost:3000';
-      const token = localStorage.getItem('cira_token');
-      
-      // Fetch active quizzes
-      const activeRes = await fetch(`${baseUrl}/api/v1/student/exam/eligible`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const activeRes = await apiClient.fetch('/api/v1/student/exam/eligible');
       const activeData = await activeRes.json();
       if (activeData?.data) {
         setActiveQuizzes(activeData.data);
       }
-
-      // Fetch past quizzes via dashboard data
-      const dashboardRes = await fetch(`${baseUrl}/api/v1/student/dashboard`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const dashboardRes = await apiClient.fetch('/api/v1/student/dashboard');
       const dashboardData = await dashboardRes.json();
       if (dashboardData?.success && dashboardData.data?.pastQuizzes) {
         setPastQuizzes(dashboardData.data.pastQuizzes);
@@ -51,10 +49,29 @@ export default function StudentDashboard() {
   };
 
   return (
-    <DashboardLayout title="Academic Profile" activeTab={activeTab} onTabChange={setActiveTab}>
+    <DashboardLayout 
+      title="Academic Profile" 
+      activeTab={activeTab} 
+      onTabChange={setActiveTab}
+      isDemo={isDemo}
+      onToggleDemo={setIsDemo}
+    >
       {activeTab === 'profile' && <UserProfile />}
       
-      {activeTab === 'progress' && <StudentSpace />}
+      {activeTab === 'overview' && (
+        <div className="space-y-6">
+          <StudentSpace isDemo={isDemo} onNavigateTab={setActiveTab} />
+        </div>
+      )}
+
+      {activeTab === 'announcements' && <StudentAnnouncements isDemo={isDemo} />}
+
+      {activeTab === 'topics' && <TopicPerformance isDemo={isDemo} />}
+      {activeTab === 'goals' && <GoalTracker />}
+
+      {activeTab === 'todo' && <StudyPlanner />}
+      {activeTab === 'analytics' && <StudentAnalytics isDemo={isDemo} />}
+      {activeTab === 'resources' && <ResourceHub />}
       
       {activeTab === 'assignments' && (
         <div className="p-6 bg-white rounded-xl border border-border-soft shadow-sm">
@@ -64,10 +81,9 @@ export default function StudentDashboard() {
       )}
       
       {activeTab === 'quizzes' && (
-        <div className="space-y-8">
-          
-          {/* Active and Upcoming Quizzes */}
-          <section>
+        <div className="bg-white rounded-xl border border-border-soft shadow-sm p-6 md:p-8 min-h-[calc(100vh-8rem)]">
+          <div className="space-y-10">
+            <section>
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-2xl font-serif font-bold text-ink">Active & Upcoming Quizzes</h2>
               <button 
@@ -89,7 +105,6 @@ export default function StudentDashboard() {
                   const now = new Date();
                   const startDate = quiz.startDate ? new Date(quiz.startDate) : null;
                   const isLive = !startDate || startDate <= now;
-                  
                   return (
                     <div key={quiz.id} className="bg-white border border-border-soft rounded-xl p-5 shadow-sm hover:border-maroon/30 transition-colors">
                       <div className="flex justify-between items-start mb-3">
@@ -130,7 +145,6 @@ export default function StudentDashboard() {
             )}
           </section>
 
-          {/* Past Quizzes */}
           <section>
             <h2 className="text-2xl font-serif font-bold text-ink mb-4">Past Quizzes & Results</h2>
             {loading ? (
@@ -152,7 +166,6 @@ export default function StudentDashboard() {
                           <div className="text-2xl font-bold text-maroon">{quiz.totalScore}</div>
                         </div>
                       </div>
-                      
                       <div className="grid grid-cols-3 gap-4 mb-4">
                         <div className="bg-white p-3 rounded-lg border border-border-soft shadow-sm text-center">
                           <div className="text-lg font-bold text-ink">{quiz.objectiveScore || 0}</div>
@@ -167,14 +180,12 @@ export default function StudentDashboard() {
                           <div className="text-[10px] font-semibold text-gray-body uppercase tracking-wider">Grade</div>
                         </div>
                       </div>
-                      
                       {quiz.facultyFeedback && (
                         <div className="border-t border-border-soft pt-3 mt-3">
                           <p className="text-xs font-bold text-ink mb-1">Faculty Feedback:</p>
                           <p className="text-sm text-gray-body italic leading-relaxed">"{quiz.facultyFeedback}"</p>
                         </div>
                       )}
-                      
                       {quiz.answersPublished && (
                         <div className="border-t border-border-soft pt-3 mt-3 flex justify-between items-center">
                           <span className="text-xs text-gray-body font-medium">Answers have been published for this quiz.</span>
@@ -191,9 +202,9 @@ export default function StudentDashboard() {
               </div>
             )}
           </section>
+          </div>
         </div>
       )}
     </DashboardLayout>
   );
 }
-

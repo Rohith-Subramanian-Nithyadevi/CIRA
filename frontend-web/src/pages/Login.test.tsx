@@ -1,6 +1,7 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { Toaster } from 'sonner';
 import Login from './Login';
 
 const renderLogin = () => {
@@ -12,6 +13,7 @@ const renderLogin = () => {
         <Route path="/faculty/dashboard" element={<h1>Faculty Dashboard</h1>} />
         <Route path="/admin/dashboard" element={<h1>Admin Dashboard</h1>} />
       </Routes>
+      <Toaster />
     </MemoryRouter>
   );
 };
@@ -43,7 +45,9 @@ describe('Login', () => {
 
     await userEvent.type(screen.getByLabelText(/your username or email/i), 'student@amrita.edu');
     await userEvent.type(screen.getByLabelText(/^your password$/i), 'Password1');
-    await userEvent.click(screen.getByRole('button', { name: /^log in$/i }));
+    const loginForm = screen.getByLabelText(/^your password$/i).closest('form');
+    expect(loginForm).not.toBeNull();
+    await userEvent.click(within(loginForm as HTMLFormElement).getByRole('button', { name: /^log in$/i }));
 
     expect(await screen.findByRole('heading', { name: /student dashboard/i })).toBeInTheDocument();
     expect(localStorage.getItem('cira_token')).toBe('student-token');
@@ -61,7 +65,12 @@ describe('Login', () => {
       } as Response)
       .mockResolvedValueOnce({
         ok: false,
-        json: async () => ({ message: 'Invalid credentials' }),
+        json: async () => ({
+          error: {
+            code: 'ERR_UNAUTHORIZED',
+            message: 'Invalid credentials',
+          },
+        }),
       } as Response);
 
     renderLogin();
@@ -69,10 +78,12 @@ describe('Login', () => {
 
     await userEvent.type(screen.getByLabelText(/your username or email/i), 'wrong@amrita.edu');
     await userEvent.type(screen.getByLabelText(/^your password$/i), 'Password1');
-    await userEvent.click(screen.getByRole('button', { name: /^log in$/i }));
+    const loginForm = screen.getByLabelText(/^your password$/i).closest('form');
+    expect(loginForm).not.toBeNull();
+    await userEvent.click(within(loginForm as HTMLFormElement).getByRole('button', { name: /^log in$/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/invalid credentials/i)).toBeInTheDocument();
+      expect(screen.getByText(/invalid credentials \(ERR_UNAUTHORIZED\)/i)).toBeInTheDocument();
     });
   });
 });

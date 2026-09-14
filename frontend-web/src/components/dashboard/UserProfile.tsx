@@ -1,4 +1,7 @@
 import { useState, useEffect } from 'react';
+import { CheckCircle2, Trash2, Loader2, Moon, Sun } from 'lucide-react';
+import { useBatches, useDepartments } from '@/hooks/useReferenceData';
+import { apiClient, getApiErrorMessage } from '@/lib/apiClient';
 
 export default function UserProfile() {
   const user = JSON.parse(localStorage.getItem('cira_user') || '{}');
@@ -7,188 +10,443 @@ export default function UserProfile() {
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(user.name || '');
   const [phone, setPhone] = useState(user.phone || '');
+  const [rollNumber, setRollNumber] = useState(user.rollNumber || '');
   const [password, setPassword] = useState('');
-  const [enrollDepartmentId, setEnrollDepartmentId] = useState('');
-  const [departments, setDepartments] = useState<{id: string, name: string}[]>([]);
-  const [enrolledDepartments, setEnrolledDepartments] = useState<{id: string, name: string}[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState('');
+  const [error, setError] = useState('');
 
-  // Fetch departments if faculty
+  // Theme state
+  const [theme, setTheme] = useState(localStorage.getItem('cira_theme') || 'light');
+
+  // Enrollment state
+  const [enrolledDepartments, setEnrolledDepartments] = useState<{ id: string; name: string; batchName?: string; type?: string; departmentName?: string }[]>([]);
+  const [enrolledSections, setEnrolledSections] = useState<{ id: string; name: string; batchName?: string; departmentName?: string; type?: string }[]>([]);
+  const [enrollBatchId, setEnrollBatchId] = useState(user.department?.batchId || user.department?.batch?.id || '');
+  const [enrollDeptId, setEnrollDeptId] = useState(user.departmentId || user.department?.id || '');
+  const [enrollSectionId, setEnrollSectionId] = useState(user.sectionId || user.section?.id || '');
+  const [enrolling, setEnrolling] = useState(false);
+
+  // Cascading reference data
+  const { batches } = useBatches();
+  const { departments: deptsByBatch } = useDepartments(enrollBatchId, { enabled: !!enrollBatchId });
+
+  // Always fetch fresh profile details on mount from database
+  useEffect(() => {
+    let isMounted = true;
+    apiClient.fetch('/api/v1/auth/me')
+      .then(res => res.json())
+      .then(data => {
+        if (!isMounted || !data?.data?.user) return;
+        const u = data.data.user;
+        localStorage.setItem('cira_user', JSON.stringify(u));
+        setName(u.name || '');
+        setPhone(u.phone || '');
+        if (u.rollNumber) setRollNumber(u.rollNumber);
+        const batchId = u.department?.batchId || u.department?.batch?.id || '';
+        if (batchId) setEnrollBatchId(batchId);
+        if (u.departmentId || u.department?.id) setEnrollDeptId(u.departmentId || u.department?.id);
+        if (u.sectionId || u.section?.id) setEnrollSectionId(u.sectionId || u.section?.id);
+      })
+      .catch(console.error);
+
+    return () => { isMounted = false; };
+  }, []);
+
+  // Fetch already-enrolled departments on mount for faculty
   useEffect(() => {
     if (role === 'FACULTY') {
-      const baseUrl = import.meta.env.API_BASE_VARIABLE || 'http://localhost:3000';
-      fetch(`${baseUrl}/api/v1/departments`)
+      apiClient.fetch('/api/v1/faculty/departments')
         .then(res => res.json())
         .then(data => {
-          if (data?.data?.departments) setDepartments(data.data.departments);
+          if (data?.data?.departments) setEnrolledDepartments(data.data.departments);
+          if (data?.data?.sections) setEnrolledSections(data.data.sections);
         })
         .catch(console.error);
-
-      // Fetch enrolled departments
-      const token = localStorage.getItem('cira_token');
-      if (token) {
-        fetch(`${baseUrl}/api/v1/faculty/departments`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
-          .then(res => res.json())
-          .then(data => {
-            if (data?.data?.departments) setEnrolledDepartments(data.data.departments);
-          })
-          .catch(console.error);
-      }
     }
   }, [role]);
 
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState('');
+  const toggleTheme = (newTheme: string) => {
+    setTheme(newTheme);
+    localStorage.setItem('cira_theme', newTheme);
+    if (newTheme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  };
 
   const handleSave = async () => {
     setLoading(true);
-    // In a real implementation, we would call an API here.
-    // For now, we simulate saving to local storage.
-    setTimeout(() => {
-      const updatedUser = { ...user, name, phone };
-      localStorage.setItem('cira_user', JSON.stringify(updatedUser));
-      setSuccess('Profile updated successfully!');
-      setIsEditing(false);
+    setError('');
+    
+    try {
+      const payload: any = { name, phone };
+      if (role === 'STUDENT') {
+        payload.rollNumber = rollNumber;
+        payload.departmentId = enrollDeptId || undefined;
+        payload.sectionId = enrollSectionId === 'all' ? undefined : (enrollSectionId || undefined);
+      }
+      
+      if (password) {
+        payload.password = password;
+      }
+      
+      if (role === 'STUDENT') {
+        const res = await apiClient.fetch('/api/v1/student/profile', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        
+        if (res.ok) {
+          const resData = await res.json();
+          // update local user
+          const updatedUser = { ...user, ...resData.data };
+          localStorage.setItem('cira_user', JSON.stringify(updatedUser));
+          setName(updatedUser.name || '');
+          setPhone(updatedUser.phone || '');
+          setRollNumber(updatedUser.rollNumber || '');
+          setEnrollBatchId(updatedUser.department?.batchId || updatedUser.department?.batch?.id || enrollBatchId);
+          setEnrollDeptId(updatedUser.departmentId || enrollDeptId);
+          setEnrollSectionId(updatedUser.sectionId || enrollSectionId);
+          window.dispatchEvent(new Event('cira_user_updated'));
+          setSuccess('Profile updated successfully!');
+          setIsEditing(false);
+        } else {
+          const errData = await res.json();
+          setError(errData.details ? `${errData.error}: ${errData.details}` : (errData.error || 'Failed to update profile'));
+        }
+      } else if (role === 'FACULTY') {
+        const facultyPayload: any = { name, phone };
+        if (password) facultyPayload.password = password;
+        const res = await apiClient.fetch('/api/v1/faculty/profile', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(facultyPayload)
+        });
+        
+        if (res.ok) {
+          const resData = await res.json();
+          const updatedUser = { ...user, ...resData.data };
+          localStorage.setItem('cira_user', JSON.stringify(updatedUser));
+          setName(updatedUser.name || '');
+          setPhone(updatedUser.phone || '');
+          window.dispatchEvent(new Event('cira_user_updated'));
+          setSuccess('Profile updated successfully!');
+          setIsEditing(false);
+        } else {
+          const errData = await res.json();
+          setError(errData.message || 'Failed to update faculty profile');
+        }
+      } else {
+        const updatedUser = { ...user, name, phone };
+        localStorage.setItem('cira_user', JSON.stringify(updatedUser));
+        window.dispatchEvent(new Event('cira_user_updated'));
+        setSuccess('Profile updated successfully!');
+        setIsEditing(false);
+      }
+    } catch (err: any) {
+      setError(getApiErrorMessage(err, 'An error occurred while saving.'));
+    } finally {
       setLoading(false);
       setTimeout(() => setSuccess(''), 3000);
-    }, 1000);
+    }
   };
 
+  const handleFacultyEnroll = async () => {
+    if (!enrollDeptId) return;
+    setEnrolling(true);
+    setError('');
+    try {
+      const payload: any = { departmentId: enrollDeptId };
+      if (enrollSectionId && enrollSectionId !== 'all') {
+        payload.sectionId = enrollSectionId;
+      }
+
+      const res = await apiClient.fetch('/api/v1/faculty/enroll', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      await res.json();
+      if (res.ok) {
+        const dept = deptsByBatch.find(d => d.id === enrollDeptId);
+        const batch = batches.find(b => b.id === enrollBatchId);
+        
+        if (payload.sectionId) {
+          const sec = dept?.sections?.find(s => s.id === payload.sectionId);
+          if (sec && dept) {
+            setEnrolledSections(prev => [...prev, { id: sec.id, name: sec.name, departmentName: dept.name, batchName: batch?.name, type: 'section' }]);
+          }
+        } else if (dept) {
+          setEnrolledDepartments(prev => [...prev, { id: dept.id, name: dept.name, batchName: batch?.name, type: 'department' }]);
+        }
+
+        setSuccess('Successfully enrolled!');
+        setEnrollSectionId('');
+        setTimeout(() => setSuccess(''), 3000);
+      }
+    } catch (err) {
+      setError(getApiErrorMessage(err, 'Enrollment failed. You may already be enrolled.'));
+    } finally {
+      setEnrolling(false);
+    }
+  };
+
+  const handleUnenroll = async (id: string, type: 'department' | 'section') => {
+    try {
+      const endpoint = type === 'department' ? `/api/v1/faculty/enroll/${id}` : `/api/v1/faculty/enroll/section/${id}`;
+      await apiClient.fetch(endpoint, { method: 'DELETE' });
+      if (type === 'department') {
+        setEnrolledDepartments(prev => prev.filter(d => d.id !== id));
+      } else {
+        setEnrolledSections(prev => prev.filter(s => s.id !== id));
+      }
+      setSuccess('Unenrolled successfully.');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError(getApiErrorMessage(err, 'Failed to unenroll. Please try again.'));
+    }
+  };
+
+  // Departments in the selected batch
+  const availableDepts = deptsByBatch;
+  const selectedDept = deptsByBatch.find(d => d.id === enrollDeptId);
+  const availableSections = selectedDept?.sections || [];
+
   return (
-    <div className="max-w-2xl bg-white rounded-xl border border-border-soft p-8 shadow-sm text-ink">
-      <h2 className="text-2xl font-serif font-bold text-ink mb-6">User Profile</h2>
-      
-      {success && <div className="bg-green-50 border border-green-200 text-green-700 p-3 rounded-lg mb-6 text-sm font-semibold">{success}</div>}
+    <div className="max-w-2xl bg-white dark:bg-[#1A1A1A] rounded-xl border border-border-soft dark:border-gray-800 p-8 shadow-sm transition-colors duration-200">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl font-serif font-bold text-ink dark:text-cream">User Profile</h2>
+        
+        {/* Theme Toggle */}
+        <div className="flex bg-cream dark:bg-gray-800 rounded-full p-1 border border-border-soft dark:border-gray-700">
+          <button 
+            onClick={() => toggleTheme('light')} 
+            className={`p-1.5 rounded-full transition-colors ${theme === 'light' ? 'bg-white shadow-sm text-maroon' : 'text-gray-body hover:text-ink dark:hover:text-cream'}`}
+            title="Light Mode"
+          >
+            <Sun className="w-4 h-4" />
+          </button>
+          <button 
+            onClick={() => toggleTheme('dark')} 
+            className={`p-1.5 rounded-full transition-colors ${theme === 'dark' ? 'bg-gray-700 shadow-sm text-cream' : 'text-gray-body hover:text-ink dark:hover:text-cream'}`}
+            title="Dark Mode"
+          >
+            <Moon className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
 
-      <div className="space-y-6">
+      {success && (
+        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 p-3 rounded-lg mb-4 text-sm font-semibold flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 shrink-0" />
+          {success}
+        </div>
+      )}
+      {error && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 p-3 rounded-lg mb-4 text-sm font-semibold">
+          {error}
+        </div>
+      )}
+
+      <div className="space-y-6 text-ink dark:text-cream">
+        {/* Full Name */}
         <div>
-          <label className="block text-sm font-semibold text-gray-body mb-1.5">Full Name</label>
-          <input 
-            type="text" 
-            disabled={!isEditing} 
-            value={name} 
-            onChange={(e) => setName(e.target.value)} 
-            className="w-full px-4 py-2 bg-white border border-border-soft rounded-lg text-ink focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon transition-colors disabled:opacity-75 disabled:cursor-not-allowed" 
+          <label className="block text-sm font-semibold text-gray-body dark:text-gray-400 mb-1.5">Full Name</label>
+          <input
+            type="text"
+            disabled={!isEditing}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full px-4 py-2 bg-white dark:bg-[#222] border border-border-soft dark:border-gray-700 rounded-lg focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon transition-colors disabled:opacity-75 disabled:cursor-not-allowed"
           />
         </div>
 
+        {/* Email (read-only) */}
         <div>
-          <label className="block text-sm font-semibold text-gray-body mb-1.5">Email Address</label>
-          <input 
-            type="email" 
-            disabled 
-            value={user.email || ''} 
-            className="w-full px-4 py-2 bg-cream/40 border border-border-soft rounded-lg text-gray-body cursor-not-allowed font-medium" 
+          <label className="block text-sm font-semibold text-gray-body dark:text-gray-400 mb-1.5">Email Address</label>
+          <input
+            type="email"
+            disabled
+            value={user.email || ''}
+            className="w-full px-4 py-2 bg-cream/40 dark:bg-gray-800/40 border border-border-soft dark:border-gray-700 rounded-lg text-gray-body dark:text-gray-500 cursor-not-allowed font-medium"
           />
-          <p className="text-xs text-gray-body/60 mt-1">Email address cannot be changed.</p>
+          <p className="text-xs text-gray-body/60 dark:text-gray-500 mt-1">Email address cannot be changed.</p>
         </div>
 
+        {/* Phone */}
         <div>
-          <label className="block text-sm font-semibold text-gray-body mb-1.5">Phone Number</label>
-          <input 
-            type="text" 
-            disabled={!isEditing} 
-            value={phone} 
-            onChange={(e) => setPhone(e.target.value)} 
-            className="w-full px-4 py-2 bg-white border border-border-soft rounded-lg text-ink focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon transition-colors disabled:opacity-75 disabled:cursor-not-allowed" 
+          <label className="block text-sm font-semibold text-gray-body dark:text-gray-400 mb-1.5">Phone Number</label>
+          <input
+            type="text"
+            disabled={!isEditing}
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            className="w-full px-4 py-2 bg-white dark:bg-[#222] border border-border-soft dark:border-gray-700 rounded-lg focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon transition-colors disabled:opacity-75 disabled:cursor-not-allowed"
           />
         </div>
-
-        {isEditing && (
+        
+        {/* Roll Number (Student Only) */}
+        {role === 'STUDENT' && (
           <div>
-            <label className="block text-sm font-semibold text-gray-body mb-1.5">New Password (Optional)</label>
-            <input 
-              type="password" 
-              value={password} 
-              onChange={(e) => setPassword(e.target.value)} 
-              placeholder="Leave blank to keep current password"
-              className="w-full px-4 py-2 bg-white border border-border-soft rounded-lg text-ink focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon transition-colors placeholder:text-gray-body/40" 
+            <label className="block text-sm font-semibold text-gray-body dark:text-gray-400 mb-1.5">Roll Number</label>
+            <input
+              type="text"
+              disabled={!isEditing}
+              value={rollNumber}
+              onChange={(e) => setRollNumber(e.target.value)}
+              className="w-full px-4 py-2 bg-white dark:bg-[#222] border border-border-soft dark:border-gray-700 rounded-lg focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon transition-colors disabled:opacity-75 disabled:cursor-not-allowed"
             />
           </div>
         )}
 
-        {role === 'FACULTY' && (
-          <div className="space-y-4 pt-4 border-t border-border-soft">
-            <h3 className="text-lg font-serif font-bold text-ink">Course Enrollment Mapping</h3>
-            <div className="grid grid-cols-1 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-body mb-1.5">Select Department/Class to Enroll</label>
-                <div className="flex gap-2">
-                  <select 
-                    value={enrollDepartmentId} 
-                    onChange={(e) => setEnrollDepartmentId(e.target.value)} 
-                    className="flex-1 px-4 py-2 bg-white border border-border-soft rounded-lg text-ink focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon transition-colors appearance-none text-sm font-semibold shadow-sm"
-                  >
-                    <option value="" disabled>Select Department</option>
-                    {departments.filter(d => !enrolledDepartments.find(ed => ed.id === d.id)).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                  </select>
-                  <button 
-                    onClick={async () => {
-                      try {
-                        const baseUrl = import.meta.env.API_BASE_VARIABLE || 'http://localhost:3000';
-                        const token = localStorage.getItem('cira_token');
-                        const res = await fetch(`${baseUrl}/api/v1/faculty/enroll`, {
-                          method: 'POST',
-                          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ departmentId: enrollDepartmentId })
-                        });
-                        if (res.ok) {
-                          const dept = departments.find(d => d.id === enrollDepartmentId);
-                          if (dept) setEnrolledDepartments(prev => [...prev, dept]);
-                          setSuccess('Successfully enrolled in class!');
-                          setEnrollDepartmentId('');
-                        }
-                      } catch (err) { console.error(err); }
-                    }} 
-                    disabled={!enrollDepartmentId} 
-                    className="px-6 py-2 bg-maroon hover:bg-maroon-deep text-white font-bold rounded-full transition-all text-sm disabled:opacity-50 shadow-sm"
-                  >
-                    Enroll
-                  </button>
-                </div>
-              </div>
-              
-              {enrolledDepartments.length > 0 && (
-                <div className="mt-4 space-y-2">
-                  <label className="block text-sm font-semibold text-gray-body mb-1.5">Enrolled Departments</label>
-                  {enrolledDepartments.map(ed => (
-                    <div key={ed.id} className="p-3 bg-cream/20 border border-border-soft rounded-lg flex justify-between items-center text-sm font-semibold text-ink">
-                      <span>{ed.name}</span>
-                      <button 
-                        onClick={async () => {
-                          try {
-                            const baseUrl = import.meta.env.API_BASE_VARIABLE || 'http://localhost:3000';
-                            const token = localStorage.getItem('cira_token');
-                            const res = await fetch(`${baseUrl}/api/v1/faculty/enroll/${ed.id}`, {
-                              method: 'DELETE',
-                              headers: { 'Authorization': `Bearer ${token}` }
-                            });
-                            if (res.ok) {
-                              setEnrolledDepartments(prev => prev.filter(d => d.id !== ed.id));
-                              setSuccess('Unenrolled successfully');
-                            }
-                          } catch (err) { console.error(err); }
-                        }}
-                        className="text-red-600 hover:text-red-700 transition-colors font-bold"
-                      >
-                        Unenroll
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+        {/* Password (only visible in edit mode) */}
+        {isEditing && (
+          <div>
+            <label className="block text-sm font-semibold text-gray-body dark:text-gray-400 mb-1.5">New Password (Optional)</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Leave blank to keep current password"
+              className="w-full px-4 py-2 bg-white dark:bg-[#222] border border-border-soft dark:border-gray-700 rounded-lg focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon transition-colors placeholder:text-gray-body/40 dark:placeholder:text-gray-600"
+            />
           </div>
         )}
 
-        <div className="pt-4 border-t border-border-soft flex gap-4">
+        {/* ── DEPARTMENT / SECTION (STUDENT & FACULTY) ── */}
+        <div className="space-y-5 pt-5 border-t border-border-soft dark:border-gray-800">
+          <div>
+            <h3 className="text-lg font-serif font-bold">
+              {role === 'STUDENT' ? 'Your Class Details' : 'Department Enrollment'}
+            </h3>
+            <p className="text-xs text-gray-body dark:text-gray-400 mt-0.5">
+              {role === 'STUDENT' 
+                ? 'Update your class details to receive targeted announcements and quizzes.' 
+                : 'Select a batch then a department to enroll. Only enrolled departments appear in Student Reports.'}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-body dark:text-gray-400 mb-1.5 uppercase tracking-wide">Batch</label>
+              <select
+                disabled={role === 'STUDENT' && !isEditing}
+                value={enrollBatchId}
+                onChange={(e) => { setEnrollBatchId(e.target.value); setEnrollDeptId(''); setEnrollSectionId(''); }}
+                className="w-full px-3 py-2 bg-white dark:bg-[#222] border border-border-soft dark:border-gray-700 rounded-lg focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon transition-colors text-sm font-semibold appearance-none disabled:opacity-75 disabled:cursor-not-allowed"
+              >
+                <option value="">Select Batch…</option>
+                {batches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                {enrollBatchId && !batches.some(b => b.id === enrollBatchId) && (
+                  <option value={enrollBatchId}>{user.department?.batch?.name || 'Current Batch'}</option>
+                )}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-body dark:text-gray-400 mb-1.5 uppercase tracking-wide">Department</label>
+              <select
+                disabled={(role === 'STUDENT' && !isEditing) || !enrollBatchId || (availableDepts.length === 0 && !enrollDeptId)}
+                value={enrollDeptId}
+                onChange={(e) => { setEnrollDeptId(e.target.value); setEnrollSectionId(''); }}
+                className="w-full px-3 py-2 bg-white dark:bg-[#222] border border-border-soft dark:border-gray-700 rounded-lg focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon transition-colors text-sm font-semibold appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <option value="">
+                  {!enrollBatchId ? 'Select a batch first' : availableDepts.length === 0 ? 'No departments' : 'Select Department…'}
+                </option>
+                {availableDepts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                {enrollDeptId && !availableDepts.some(d => d.id === enrollDeptId) && (
+                  <option value={enrollDeptId}>{user.department?.name || 'Current Department'}</option>
+                )}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-body dark:text-gray-400 mb-1.5 uppercase tracking-wide">Section</label>
+              <select
+                disabled={(role === 'STUDENT' && !isEditing) || !enrollDeptId || (availableSections.length === 0 && !enrollSectionId)}
+                value={enrollSectionId}
+                onChange={(e) => setEnrollSectionId(e.target.value)}
+                className="w-full px-3 py-2 bg-white dark:bg-[#222] border border-border-soft dark:border-gray-700 rounded-lg focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon transition-colors text-sm font-semibold appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <option value={role === 'STUDENT' ? "" : "all"}>
+                  {!enrollDeptId ? 'Select a department first' : (role === 'STUDENT' ? 'Select Section...' : 'All Sections')}
+                </option>
+                {availableSections.map(s => <option key={s.id} value={s.id}>Section {s.name}</option>)}
+                {enrollSectionId && enrollSectionId !== 'all' && !availableSections.some(s => s.id === enrollSectionId) && (
+                  <option value={enrollSectionId}>Section {user.section?.name || enrollSectionId}</option>
+                )}
+              </select>
+            </div>
+          </div>
+
+          {role === 'FACULTY' && (
+            <>
+              <button
+                onClick={handleFacultyEnroll}
+                disabled={!enrollDeptId || enrolling}
+                className="flex items-center gap-2 px-6 py-2 bg-maroon hover:bg-maroon-deep text-white font-bold rounded-full transition-all text-sm disabled:opacity-50 shadow-sm"
+              >
+                {enrolling && <Loader2 className="w-4 h-4 animate-spin" />}
+                {enrolling ? 'Enrolling…' : '+ Enroll'}
+              </button>
+
+              {/* Currently enrolled departments & sections */}
+              {(enrolledDepartments.length > 0 || enrolledSections.length > 0) ? (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-body dark:text-gray-400 mb-2 uppercase tracking-wide">Currently Enrolled</label>
+                  <div className="space-y-2">
+                    {enrolledDepartments.map(ed => (
+                      <div key={ed.id} className="flex items-center justify-between bg-cream/30 dark:bg-gray-800/30 border border-border-soft dark:border-gray-800 rounded-lg px-4 py-3">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-bold">{ed.name}</p>
+                            <span className="text-[10px] bg-maroon text-white px-2 py-0.5 rounded-full uppercase font-bold tracking-wider">Dept</span>
+                          </div>
+                          {ed.batchName && <p className="text-xs text-gray-body dark:text-gray-500 mt-0.5">{ed.batchName}</p>}
+                        </div>
+                        <button onClick={() => handleUnenroll(ed.id, 'department')} className="text-red-500 hover:text-red-700 p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                    {enrolledSections.map(es => (
+                      <div key={es.id} className="flex items-center justify-between bg-cream/30 dark:bg-gray-800/30 border border-border-soft dark:border-gray-800 rounded-lg px-4 py-3">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-bold">Section {es.name}</p>
+                            <span className="text-[10px] bg-gray-500 text-white px-2 py-0.5 rounded-full uppercase font-bold tracking-wider">Section</span>
+                          </div>
+                          <p className="text-xs text-gray-body dark:text-gray-500 mt-0.5">{es.departmentName} {es.batchName ? `(${es.batchName})` : ''}</p>
+                        </div>
+                        <button onClick={() => handleUnenroll(es.id, 'section')} className="text-red-500 hover:text-red-700 p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-6 border border-dashed border-border-soft dark:border-gray-800 rounded-xl bg-cream/10 dark:bg-gray-900/30">
+                  <p className="text-sm text-gray-body dark:text-gray-500 italic">Not enrolled in any departments yet.</p>
+                  <p className="text-xs text-gray-body/60 dark:text-gray-600 mt-1">Select a batch and department above to get started.</p>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Save / Edit buttons */}
+        <div className="pt-4 border-t border-border-soft dark:border-gray-800 flex gap-4">
           {isEditing ? (
             <>
               <button onClick={handleSave} disabled={loading} className="px-6 py-2.5 bg-maroon hover:bg-maroon-deep text-white font-bold rounded-full transition-all text-sm disabled:opacity-50 shadow-sm">
-                {loading ? 'Saving...' : 'Save Changes'}
+                {loading ? 'Saving…' : 'Save Changes'}
               </button>
-              <button onClick={() => setIsEditing(false)} className="px-6 py-2.5 bg-cream hover:bg-cream-edge/60 border border-border-soft text-ink font-bold rounded-full transition-all text-sm">
+              <button onClick={() => setIsEditing(false)} className="px-6 py-2.5 bg-cream dark:bg-gray-800 hover:bg-cream-edge/60 dark:hover:bg-gray-700 border border-border-soft dark:border-gray-700 font-bold rounded-full transition-all text-sm">
                 Cancel
               </button>
             </>

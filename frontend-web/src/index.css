@@ -70,6 +70,17 @@
     --sidebar-ring: oklch(0.708 0 0);
   }
   .dark {
+    --bg-cream: #121212;
+    --bg-cream-edge: #1e1e1e;
+    --maroon: #d6336c; /* Slightly lighter maroon for contrast */
+    --maroon-deep: #a61e4d;
+    --ink: #f8f9fa;
+    --gray-body: #adb5bd;
+    --white: #1A1A1A;
+    --chip-peach: #2c2c2c;
+    --cta-tan: #343a40;
+    --border-soft: #333333;
+
     --background: oklch(0.145 0 0);
     --foreground: oklch(0.985 0 0);
     --card: oklch(0.205 0 0);

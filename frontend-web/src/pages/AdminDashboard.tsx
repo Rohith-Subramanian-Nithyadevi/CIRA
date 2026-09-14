@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import DashboardLayout from '../components/DashboardLayout';
 import UserProfile from '../components/dashboard/UserProfile';
+import { apiClient } from '@/lib/apiClient';
+import { FileSpreadsheet, Upload } from 'lucide-react';
 
 interface Faculty {
   id: string;
@@ -44,17 +46,16 @@ export default function AdminDashboard() {
   const [selectedBatchId, setSelectedBatchId] = useState('');
   const [selectedDeptId, setSelectedDeptId] = useState('');
 
+  const [importingStudents, setImportingStudents] = useState(false);
+  const [importSummary, setImportSummary] = useState<{ imported: number; rejected: number; message?: string; rejectedRows?: { row: number, reason: string }[] } | null>(null);
+
   useEffect(() => {
     const fetchAdminData = async () => {
       try {
-        const baseUrl = import.meta.env.API_BASE_VARIABLE || 'http://localhost:3000';
-        const token = localStorage.getItem('cira_token');
-        const headers = { 'Authorization': `Bearer ${token}` };
-
         const [facRes, userRes, batchRes] = await Promise.all([
-          fetch(`${baseUrl}/api/v1/admin/faculty/all`, { headers }),
-          fetch(`${baseUrl}/api/v1/admin/users`, { headers }),
-          fetch(`${baseUrl}/api/v1/batches`, { headers })
+          apiClient.fetch('/api/v1/admin/faculty/all'),
+          apiClient.fetch('/api/v1/admin/users'),
+          apiClient.fetch('/api/v1/batches')
         ]);
 
         const facData = await facRes.json();
@@ -62,7 +63,15 @@ export default function AdminDashboard() {
         const batchData = await batchRes.json();
 
         if (facData.data?.faculty) setFacultyList(facData.data.faculty);
-        if (userData.data?.users) setUserList(userData.data.users);
+        if (userData.data?.users) {
+          const sortedUsers = [...userData.data.users].sort((a, b) => {
+            if (a.role !== b.role) return a.role.localeCompare(b.role);
+            const rollA = a.rollNumber || '';
+            const rollB = b.rollNumber || '';
+            return rollA.localeCompare(rollB);
+          });
+          setUserList(sortedUsers);
+        }
         if (batchData.data?.batches) setBatches(batchData.data.batches);
       } catch (err) {
         console.error("Failed to fetch admin data", err);
@@ -78,11 +87,7 @@ export default function AdminDashboard() {
     }
     const fetchDepartments = async () => {
       try {
-        const baseUrl = import.meta.env.API_BASE_VARIABLE || 'http://localhost:3000';
-        const token = localStorage.getItem('cira_token');
-        const res = await fetch(`${baseUrl}/api/v1/departments?batchId=${selectedBatchId}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const res = await apiClient.fetch(`/api/v1/departments?batchId=${selectedBatchId}`);
         const data = await res.json();
         if (data.data?.departments) setDepartments(data.data.departments);
       } catch (err) {
@@ -94,14 +99,9 @@ export default function AdminDashboard() {
 
   const handleApproval = async (id: string, status: 'APPROVED' | 'REJECTED') => {
     try {
-      const baseUrl = import.meta.env.API_BASE_VARIABLE || 'http://localhost:3000';
-      const token = localStorage.getItem('cira_token');
-      await fetch(`${baseUrl}/api/v1/admin/faculty/${id}/approve`, {
+      await apiClient.fetch(`/api/v1/admin/faculty/${id}/approve`, {
         method: 'PUT',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status })
       });
       setFacultyList(prev => prev.map(f => f.id === id ? { ...f, approvalStatus: status } : f));
@@ -114,12 +114,7 @@ export default function AdminDashboard() {
   const handleDeleteUser = async (id: string) => {
     if (!window.confirm('Are you sure you want to delete this user?')) return;
     try {
-      const baseUrl = import.meta.env.API_BASE_VARIABLE || 'http://localhost:3000';
-      const token = localStorage.getItem('cira_token');
-      await fetch(`${baseUrl}/api/v1/admin/users/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      await apiClient.fetch(`/api/v1/admin/users/${id}`, { method: 'DELETE' });
       setUserList(prev => prev.filter(u => u.id !== id));
       setFacultyList(prev => prev.filter(f => f.id !== id));
     } catch (err) {
@@ -130,11 +125,9 @@ export default function AdminDashboard() {
   const handleCreateDepartment = async () => {
     if (!newDeptName || !selectedBatchId) return;
     try {
-      const baseUrl = import.meta.env.API_BASE_VARIABLE || 'http://localhost:3000';
-      const token = localStorage.getItem('cira_token');
-      const res = await fetch(`${baseUrl}/api/v1/departments`, {
+      const res = await apiClient.fetch('/api/v1/departments', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newDeptName, batchId: selectedBatchId })
       });
       const data = await res.json();
@@ -148,11 +141,9 @@ export default function AdminDashboard() {
   const handleCreateSection = async () => {
     if (!newSectionName || !selectedDeptId) return;
     try {
-      const baseUrl = import.meta.env.API_BASE_VARIABLE || 'http://localhost:3000';
-      const token = localStorage.getItem('cira_token');
-      const res = await fetch(`${baseUrl}/api/v1/departments/sections`, {
+      const res = await apiClient.fetch('/api/v1/departments/sections', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newSectionName, departmentId: selectedDeptId })
       });
       const data = await res.json();
@@ -165,15 +156,39 @@ export default function AdminDashboard() {
     } catch (err) { console.error(err); }
   };
 
+  const handleImportStudents = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    setImportingStudents(true);
+    setImportSummary(null);
+    try {
+      const response = await apiClient.fetch('/api/v1/admin/students/import', {
+        method: 'POST',
+        body: formData
+      });
+      const result = await response.json();
+      setImportSummary({
+        imported: result.data?.imported || 0,
+        rejected: result.data?.rejected || 0,
+        message: result.data?.rejected ? 'Review rejected rows before retrying.' : 'All rows imported successfully.',
+        rejectedRows: result.data?.rejectedRows || []
+      });
+    } catch (error: any) {
+      setImportSummary({ imported: 0, rejected: 0, message: error.message || 'Student import failed.', rejectedRows: [] });
+    } finally {
+      setImportingStudents(false);
+    }
+  };
+
   const handleDeleteDepartment = async (id: string) => {
     if (!window.confirm('Delete department? All sections inside will be lost.')) return;
     try {
-      const baseUrl = import.meta.env.API_BASE_VARIABLE || 'http://localhost:3000';
-      const token = localStorage.getItem('cira_token');
-      await fetch(`${baseUrl}/api/v1/departments/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      await apiClient.fetch(`/api/v1/departments/${id}`, { method: 'DELETE' });
       setDepartments(prev => prev.filter(d => d.id !== id));
       if (selectedDeptId === id) setSelectedDeptId('');
     } catch (err) { console.error(err); }
@@ -261,6 +276,42 @@ export default function AdminDashboard() {
 
       {activeTab === 'users' && (
         <div className="space-y-6">
+          <div className="rounded-xl border border-maroon/20 bg-cream/30 p-6 shadow-sm">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-maroon/10 text-maroon"><FileSpreadsheet className="h-5 w-5" /></div>
+              <div>
+                <h2 className="text-lg font-serif font-bold text-ink">Bulk import students</h2>
+                <p className="mt-1 text-xs leading-5 text-gray-body">Import a CSV or XLSX file. Students will be automatically grouped by Campus, Batch, Branch, and Section based on their Roll Number (e.g. <code>CH.SC.U4CSE24142</code>). Please ensure the <code>Date of Birth</code> column is formatted as DD/MM/YYYY for correct password generation.</p>
+              </div>
+            </div>
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+              <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-maroon px-6 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-maroon-deep hover:shadow-md">
+                <Upload className="h-4 w-4" />
+                {importingStudents ? 'Importing...' : 'Upload Student File'}
+                <input type="file" accept=".csv,.xlsx,.xls" className="sr-only" disabled={importingStudents} onChange={handleImportStudents} />
+              </label>
+              
+              <a href="/Student_Bulk_Import_Template.csv" download className="inline-flex items-center justify-center gap-2 rounded-lg bg-white border border-border-soft px-6 py-2.5 text-sm font-bold text-ink shadow-sm transition-all hover:-translate-y-0.5 hover:border-maroon hover:text-maroon">
+                <FileSpreadsheet className="h-4 w-4" />
+                Download Template
+              </a>
+            </div>
+            {importSummary && (
+              <div className={`mt-3 rounded-lg border px-4 py-3 text-sm ${importSummary.rejected ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-green-200 bg-green-50 text-green-700'}`}>
+                <p className="font-semibold">Imported: {importSummary.imported} · Rejected: {importSummary.rejected}. {importSummary.message}</p>
+                {importSummary.rejectedRows && importSummary.rejectedRows.length > 0 && (
+                  <div className="mt-2 max-h-32 overflow-y-auto rounded bg-white/50 p-2 text-xs">
+                    <ul className="list-inside list-disc space-y-1">
+                      {importSummary.rejectedRows.map((r, i) => (
+                        <li key={i}><strong>Row {r.row}:</strong> {r.reason}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           <div className="p-6 bg-white rounded-xl border border-border-soft shadow-sm">
             <h2 className="text-xl font-serif font-bold mb-4 text-ink">User Management</h2>
             <div className="overflow-x-auto">
@@ -364,6 +415,8 @@ export default function AdminDashboard() {
                         </div>
                       )}
                     </div>
+
+                    {/* Bulk Import removed from here */}
                   </div>
                 </>
               )}
