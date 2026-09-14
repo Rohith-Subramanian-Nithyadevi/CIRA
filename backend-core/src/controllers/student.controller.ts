@@ -420,9 +420,21 @@ export const getBenchmark = async (req: Request, res: Response) => {
     const userId = req.user?.userId;
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-    // Get all responses grouped by topic for this student AND all students
+    // 1. Find which quizzes this student has actually taken
+    const userAttempts = await prisma.quizAttempt.findMany({
+      where: { userId },
+      select: { quizId: true }
+    });
+    const userQuizIds = [...new Set(userAttempts.map(a => a.quizId))];
+
+    if (userQuizIds.length === 0) return res.json([]);
+
+    // 2. Fetch responses ONLY for the quizzes the student participated in (prevents full table scan)
     const allResponses = await prisma.quizResponse.findMany({
-      where: { marksAwarded: { not: null } },
+      where: { 
+        marksAwarded: { not: null },
+        attempt: { quizId: { in: userQuizIds } }
+      },
       include: {
         question: { select: { topic: true, marks: true } },
         attempt: { select: { userId: true } }
@@ -504,15 +516,14 @@ export const updateProfile = async (req: Request, res: Response) => {
     const userId = (req as any).user?.userId;
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
     
-    const { name, phone, rollNumber, departmentId, sectionId, password } = req.body;
+    // Security Fix: Students can only update name, phone, and password.
+    // They CANNOT self-reassign rollNumber, department, or section.
+    const { name, phone, password } = req.body;
     
     // Only update fields that are provided
     const data: any = {};
     if (name !== undefined) data.name = name;
     if (phone !== undefined) data.phone = phone;
-    if (rollNumber !== undefined) data.rollNumber = rollNumber;
-    if (departmentId !== undefined) data.departmentId = departmentId || null;
-    if (sectionId !== undefined) data.sectionId = (!sectionId || sectionId === 'all') ? null : sectionId;
     
     if (password) {
       const salt = await bcrypt.genSalt(10);

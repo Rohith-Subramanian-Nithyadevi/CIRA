@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { QuestionType } from '@prisma/client';
 import { prisma } from '../config/prisma';
-import { BadRequestError, ForbiddenError } from '../utils/errors';
+import { BadRequestError, ForbiddenError, UnauthorizedError } from '../utils/errors';
 
 // Get All Quizzes for logged in Faculty
 export const getQuizzes = async (req: Request, res: Response, next: NextFunction) => {
@@ -305,6 +305,16 @@ export const addQuestions = async (req: Request, res: Response, next: NextFuncti
 export const getSubmissions = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const quizId = req.params.quizId as string;
+    const userId = (req as any).user?.userId;
+    const userRole = (req as any).user?.role;
+
+    if (userRole !== 'ADMIN') {
+      const quiz = await prisma.quiz.findUnique({ where: { id: quizId }, select: { createdBy: true } });
+      if (!quiz) throw new BadRequestError('Quiz not found', 'NOT_FOUND');
+      if (quiz.createdBy !== userId) {
+        throw new UnauthorizedError('Not authorized to view submissions for this quiz', 'UNAUTHORIZED');
+      }
+    }
     
     const attempts = await prisma.quizAttempt.findMany({
       where: { quizId },

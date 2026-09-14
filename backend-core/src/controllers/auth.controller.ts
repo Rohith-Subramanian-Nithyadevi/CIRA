@@ -130,6 +130,9 @@ export const verifyEmail = async (req: Request, res: Response, next: NextFunctio
     if (user.isEmailVerified) throw new BadRequestError('Email already verified');
 
     if (user.verificationCode !== code) throw new BadRequestError('Invalid verification code');
+    if (user.verificationCodeExpiresAt && user.verificationCodeExpiresAt < new Date()) {
+      throw new BadRequestError('Verification code has expired. Please request a new one.');
+    }
 
     const updatedUser = await prisma.user.update({
       where: { id: user.id },
