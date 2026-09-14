@@ -60,7 +60,7 @@ app.use('/api/v1/batches', batchRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/student/exam', studentExamRoutes);
 app.use('/api/v1/student', studentDashboardRoutes);
-app.use('/api/v1/student-features', studentFeaturesRoutes);
+app.use('/api/v1/student', studentFeaturesRoutes);
 app.use('/api/v1/student/improvement', studentImprovementRoutes);
 
 // Health check route for the root
