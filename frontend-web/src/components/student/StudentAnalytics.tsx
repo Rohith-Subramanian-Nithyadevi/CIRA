@@ -168,12 +168,12 @@ export default function StudentAnalytics({ isDemo }: { isDemo?: boolean }) {
   const fetchData = async () => {
     try {
       const [tR, swR, hR, rR, bR, dR, sR] = await Promise.all([
-        apiClient.fetch('/api/v1/student-features/analytics/timeline').catch(() => null),
-        apiClient.fetch('/api/v1/student-features/analytics/strengths-weaknesses').catch(() => null),
-        apiClient.fetch('/api/v1/student-features/analytics/heatmap').catch(() => null),
-        apiClient.fetch('/api/v1/student-features/analytics/radar').catch(() => null),
-        apiClient.fetch('/api/v1/student-features/analytics/benchmark').catch(() => null),
-        apiClient.fetch('/api/v1/student-features/analytics/distribution').catch(() => null),
+        apiClient.fetch('/api/v1/student/analytics/timeline').catch(() => null),
+        apiClient.fetch('/api/v1/student/analytics/strengths-weaknesses').catch(() => null),
+        apiClient.fetch('/api/v1/student/analytics/heatmap').catch(() => null),
+        apiClient.fetch('/api/v1/student/analytics/radar').catch(() => null),
+        apiClient.fetch('/api/v1/student/analytics/benchmark').catch(() => null),
+        apiClient.fetch('/api/v1/student/analytics/distribution').catch(() => null),
         apiClient.fetch('/api/v1/student/improvement/sis').catch(() => null),
       ]);
       if (tR) setLT(await tR.json());

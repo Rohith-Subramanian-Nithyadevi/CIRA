@@ -24,7 +24,7 @@ export default function ResourceHub() {
   const fetchResources = async () => {
     try {
       // In a real app, this might come from the API. For Phase 2, if empty, we provide some dummy data
-      const res = await apiClient.fetch('/api/v1/student-features/resources');
+      const res = await apiClient.fetch('/api/v1/student/resources');
       const data = await res.json();
       
       if (Array.isArray(data) && data.length > 0) {
