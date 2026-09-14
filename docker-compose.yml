@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:15
@@ -50,16 +48,71 @@ services:
       - mongo1
       - mongo2
       - mongo3
-    restart: "no"
+    restart: "on-failure"
     entrypoint: >
-      mongosh --host mongo1:27017 --eval  ' rs.initiate({
-        _id: "rs0",
-        members: [
-          { _id: 0, host: "mongo1:27017" },
-          { _id: 1, host: "mongo2:27018" },
-          { _id: 2, host: "mongo3:27019" }
-        ]
-      }) '
+      bash -c "
+        until mongosh --host mongo1:27017 --eval 'db.adminCommand(\"ping\")' > /dev/null 2>&1; do
+          echo 'Waiting for mongo1 connection...';
+          sleep 1;
+        done;
+        mongosh --host mongo1:27017 --eval '
+          try {
+            rs.status();
+            console.log(\"Replica set already initialized\");
+          } catch (e) {
+            rs.initiate({
+              _id: \"rs0\",
+              members: [
+                { _id: 0, host: \"mongo1:27017\" },
+                { _id: 1, host: \"mongo2:27018\" },
+                { _id: 2, host: \"mongo3:27019\" }
+              ]
+            });
+          }
+        '
+      "
+
+  backend-core:
+    build:
+      context: ./backend-core
+      dockerfile: Dockerfile
+    container_name: cira_backend_core
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - DATABASE_URL=${DATABASE_URL:-postgresql://cira_user:cira_password@postgres:5432/cira_db}
+      - MONGO_URI=${MONGO_URI:-mongodb://mongo1:27017/cira-exams}
+      - JWT_SECRET=${JWT_SECRET:-cira-super-secret-jwt-key}
+    depends_on:
+      - postgres
+      - mongo-init
+    restart: unless-stopped
+
+  backend-ai:
+    build:
+      context: ./backend-ai
+      dockerfile: Dockerfile
+    container_name: cira_backend_ai
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - MONGO_URI=${MONGO_URI:-mongodb://mongo1:27017/cira-exams}
+    depends_on:
+      - mongo-init
+    restart: unless-stopped
+
+  frontend-web:
+    build:
+      context: ./frontend-web
+      dockerfile: Dockerfile
+    container_name: cira_frontend_web
+    ports:
+      - "80:80"
+    depends_on:
+      - backend-core
+    restart: unless-stopped
 
 volumes:
   postgres_data:

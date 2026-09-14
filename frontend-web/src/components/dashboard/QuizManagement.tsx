@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Card, CardContent } from '@/components/ui/card';
-import { Sparkles, Clipboard, Check, AlertCircle, Pencil, FileText } from 'lucide-react';
+import { Sparkles, Clipboard, Check, Pencil, FileText } from 'lucide-react';
 import { EmptyState } from '@/components/ui/EmptyState';
 
 // Helper functions for parsing questions
@@ -1355,11 +1355,8 @@ export default function QuizManagement() {
                   <label key={type} className="flex items-center space-x-2 cursor-pointer p-1.5 rounded hover:bg-cream/40 select-none">
                     <input
                       type="checkbox"
-                      checked={bulkConfig[type].selected}
-                      onChange={(e) => setBulkConfig({
-                        ...bulkConfig,
-                        [type]: { ...bulkConfig[type], selected: e.target.checked }
-                      })}
+                      checked={topicSections[0]?.config[type]?.selected || false}
+                      onChange={(e) => updateTopicSectionConfig(topicSections[0]?.id || 'topic-sec-1', type, 'selected', e.target.checked)}
                       className="w-3.5 h-3.5 rounded text-maroon focus:ring-maroon accent-maroon"
                     />
                     <span className="text-xs font-semibold text-ink">{type}</span>
@@ -1368,33 +1365,33 @@ export default function QuizManagement() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {bulkConfig.MCQ.selected && (
+                {topicSections[0]?.config.MCQ?.selected && (
                   <div className="space-y-1">
                     <Label className="text-[11px] font-bold text-maroon">MCQ Textbox</Label>
-                    <Textarea value={bulkConfig.MCQ.text} onChange={e => setBulkConfig({...bulkConfig, MCQ: {...bulkConfig.MCQ, text: e.target.value}})} placeholder="1. Question...\nA) Opt 1\nB) Opt 2\nAnswer: A" className="h-36 font-mono text-xs bg-white" />
+                    <Textarea value={topicSections[0]?.config.MCQ.text || ''} onChange={e => updateTopicSectionConfig(topicSections[0]?.id || 'topic-sec-1', 'MCQ', 'text', e.target.value)} placeholder="1. Question...\nA) Opt 1\nB) Opt 2\nAnswer: A" className="h-36 font-mono text-xs bg-white" />
                   </div>
                 )}
-                {bulkConfig.SHORT_WRITTEN.selected && (
+                {topicSections[0]?.config.SHORT_WRITTEN?.selected && (
                   <div className="space-y-1">
                     <Label className="text-[11px] font-bold text-maroon">Short Written Textbox</Label>
-                    <Textarea value={bulkConfig.SHORT_WRITTEN.text} onChange={e => setBulkConfig({...bulkConfig, SHORT_WRITTEN: {...bulkConfig.SHORT_WRITTEN, text: e.target.value}})} placeholder="1. Question...\nAnswer: key answer" className="h-36 font-mono text-xs bg-white" />
+                    <Textarea value={topicSections[0]?.config.SHORT_WRITTEN.text || ''} onChange={e => updateTopicSectionConfig(topicSections[0]?.id || 'topic-sec-1', 'SHORT_WRITTEN', 'text', e.target.value)} placeholder="1. Question...\nAnswer: key answer" className="h-36 font-mono text-xs bg-white" />
                   </div>
                 )}
-                {bulkConfig.NUMERICAL.selected && (
+                {topicSections[0]?.config.NUMERICAL?.selected && (
                   <div className="space-y-1">
                     <Label className="text-[11px] font-bold text-maroon">Numerical Textbox</Label>
-                    <Textarea value={bulkConfig.NUMERICAL.text} onChange={e => setBulkConfig({...bulkConfig, NUMERICAL: {...bulkConfig.NUMERICAL, text: e.target.value}})} placeholder="1. Question...\nAnswer: 42" className="h-36 font-mono text-xs bg-white" />
+                    <Textarea value={topicSections[0]?.config.NUMERICAL.text || ''} onChange={e => updateTopicSectionConfig(topicSections[0]?.id || 'topic-sec-1', 'NUMERICAL', 'text', e.target.value)} placeholder="1. Question...\nAnswer: 42" className="h-36 font-mono text-xs bg-white" />
                   </div>
                 )}
-                {bulkConfig.LONG_WRITTEN.selected && (
+                {topicSections[0]?.config.LONG_WRITTEN?.selected && (
                   <div className="space-y-1">
                     <Label className="text-[11px] font-bold text-maroon">Long Written Textbox</Label>
-                    <Textarea value={bulkConfig.LONG_WRITTEN.text} onChange={e => setBulkConfig({...bulkConfig, LONG_WRITTEN: {...bulkConfig.LONG_WRITTEN, text: e.target.value}})} placeholder="1. Question...\nAnswer: detailed points" className="h-36 font-mono text-xs bg-white" />
+                    <Textarea value={topicSections[0]?.config.LONG_WRITTEN.text || ''} onChange={e => updateTopicSectionConfig(topicSections[0]?.id || 'topic-sec-1', 'LONG_WRITTEN', 'text', e.target.value)} placeholder="1. Question...\nAnswer: detailed points" className="h-36 font-mono text-xs bg-white" />
                   </div>
                 )}
               </div>
 
-              {Object.values(bulkConfig).some(c => c.selected && c.text.trim()) && (
+              {topicSections.some(sec => Object.values(sec.config).some(c => c.selected && c.text.trim())) && (
                 <div className="flex justify-end pt-2">
                   <Button type="button" onClick={handleImportBulkQuestions} className="bg-maroon hover:bg-maroon-deep text-white text-xs font-bold rounded-full px-5 py-2">
                     Append Pasted Questions
