@@ -36,6 +36,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { SectionHeader } from '@/components/ui/facultyPrimitives';
 import { apiClient } from '@/lib/apiClient';
 import { clearSavedFilters, getFilterStorageKey, getStoredUserKey, readSavedFilters, writeSavedFilters } from '@/lib/facultyPersistence';
+import { downloadCsv } from '@/lib/csv';
 
 export const StudentReports = () => {
   // Shared Reference Data (cached with TanStack Query)
@@ -203,36 +204,10 @@ export const StudentReports = () => {
     }
   };
 
-  const exportToCSV = (data: any[], filename: string) => {
+  const exportToCSV = (data: any[], filename: string, columns?: string[]) => {
     if (!data || data.length === 0) return;
-    
-    // Extract headers dynamically from the first object
-    const headers = Object.keys(data[0]);
-    const csvRows = [];
-    
-    // Add header row
-    csvRows.push(headers.join(','));
-    
-    // Add data rows
-    for (const row of data) {
-      const values = headers.map(header => {
-        const val = row[header] === null || row[header] === undefined ? '' : String(row[header]);
-        // Escape quotes and wrap in quotes to handle commas in values
-        const escaped = val.replace(/"/g, '""');
-        return `"${escaped}"`;
-      });
-      csvRows.push(values.join(','));
-    }
-    
-    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.setAttribute('href', url);
-    a.setAttribute('download', `${filename}.csv`);
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
+    const dateStamp = new Date().toISOString().slice(0, 10);
+    downloadCsv(data, columns || Object.keys(data[0]), `${filename}_${dateStamp}`);
   };
 
   // API-backed states for real performance band analytics
@@ -372,12 +347,12 @@ export const StudentReports = () => {
   }
 
   return (
-    <div className="text-ink">
+    <div className="report-view text-ink">
       <SectionHeader
         eyebrow="Students and insights"
         title="Student Reports"
         description="Select an authorized branch, batch, section, or quiz to inspect returned performance data."
-        action={<button type="button" onClick={resetReportFilters} className="rounded-lg border border-border-soft bg-white px-3 py-2 text-sm font-semibold text-ink hover:bg-cream">Reset filters</button>}
+        action={<div className="flex gap-2"><button type="button" onClick={resetReportFilters} className="rounded-lg border border-border-soft bg-white px-3 py-2 text-sm font-semibold text-ink hover:bg-cream">Reset filters</button><button type="button" onClick={() => window.print()} className="rounded-lg border border-border-soft bg-white px-3 py-2 text-sm font-semibold text-ink hover:bg-cream print:hidden">Print</button></div>}
         className="mb-6"
       />
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
@@ -688,7 +663,7 @@ export const StudentReports = () => {
                   ))}
                 </select>
                 <button
-                  onClick={() => exportToCSV(yearData, `subject_performance_${selectedBatch}`)}
+                  onClick={() => exportToCSV(yearData, `performance_bands_${selectedBatch || 'all'}`, ['band', ...reportSubjects])}
                   disabled={reportsLoading || yearData.length === 0}
                   className="p-1.5 text-gray-body hover:text-maroon border border-border-soft rounded-lg hover:bg-cream transition-colors disabled:opacity-50"
                   title="Export to CSV"
@@ -779,7 +754,7 @@ export const StudentReports = () => {
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-lg font-serif font-bold text-ink">Performance by Section</h3>
               <button
-                onClick={() => exportToCSV(deptData, `section_performance_${selectedDept}`)}
+                onClick={() => exportToCSV(deptData, `performance_bands_${selectedDept || 'all'}`, ['name', 'Excellent', 'Average', 'Poor', 'averageScore', 'passRate', 'totalAttempts'])}
                 disabled={reportsLoading || deptData.length === 0}
                 className="p-1.5 text-gray-body hover:text-maroon border border-border-soft rounded-lg hover:bg-cream transition-colors disabled:opacity-50"
                 title="Export to CSV"

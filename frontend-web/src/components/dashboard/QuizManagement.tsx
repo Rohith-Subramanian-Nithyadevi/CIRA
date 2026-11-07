@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { clearDraft, clearSavedFilters, getDraftStorageKey, getFilterStorageKey, getStoredUserKey, readDraft, readSavedFilters, writeDraft, writeSavedFilters } from '@/lib/facultyPersistence';
 import { apiClient } from '@/lib/apiClient';
+import { downloadCsv } from '@/lib/csv';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -1583,11 +1584,22 @@ export default function QuizManagement() {
     };
 
     return (
-      <Card className="bg-white border border-border-soft text-ink shadow-sm rounded-xl">
+      <Card className="quiz-attempts-view bg-white border border-border-soft text-ink rounded-xl">
         <CardContent className="p-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-serif font-bold text-ink">View Submissions</h2>
-            <button onClick={() => setActiveView('list')} className="text-maroon hover:text-maroon-deep font-semibold text-sm">Back to Quizzes</button>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => downloadCsv(submissions.map(sub => ({
+                student: sub.user?.name,
+                rollNumber: sub.user?.rollNumber,
+                objectiveScore: sub.objectiveScore,
+                writtenScore: sub.writtenScore,
+                status: sub.status,
+                violation: sub.violationReason,
+              })), ['student', 'rollNumber', 'objectiveScore', 'writtenScore', 'status', 'violation'], `quiz_attempts_${activeQuizId || 'all'}_${new Date().toISOString().slice(0, 10)}`)} disabled={submissions.length === 0} className="rounded-lg border border-border-soft bg-white px-3 py-2 text-sm font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-50">Export CSV</button>
+              <button type="button" onClick={() => window.print()} className="rounded-lg border border-border-soft bg-white px-3 py-2 text-sm font-semibold text-ink print:hidden">Print</button>
+              <button onClick={() => setActiveView('list')} className="text-maroon hover:text-maroon-deep font-semibold text-sm">Back to Quizzes</button>
+            </div>
           </div>
           <div className="overflow-x-auto">
             <Table>

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { ChevronLeft, CheckCircle2, Circle, Search, Loader2 } from 'lucide-react';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { apiClient } from '@/lib/apiClient';
+import { downloadCsv } from '@/lib/csv';
 
 interface AssignmentSubmissionsViewProps {
   assignmentId: string;
@@ -125,8 +126,13 @@ export default function AssignmentSubmissionsView({ assignmentId, onBack }: Assi
     .filter((s: any) => filter === 'ALL' || s.status === filter || (filter === 'SUBMITTED' && s.status === 'GRADED'))
     .filter((s: any) => s.studentName.toLowerCase().includes(search.toLowerCase()) || s.rollNumber?.toLowerCase().includes(search.toLowerCase()));
 
+  const exportRoster = () => {
+    const dateStamp = new Date().toISOString().slice(0, 10);
+    downloadCsv(filteredSubmissions, ['studentName', 'rollNumber', 'status', 'grade', 'feedback'], `assignment_submissions_${data.assignment.id}_${filter.toLowerCase()}_${dateStamp}`);
+  };
+
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="assignment-roster space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center gap-4">
         <button onClick={onBack} className="rounded-full border border-border-soft bg-white/80 p-2 shadow-xs transition-all hover:-translate-x-0.5 hover:bg-cream hover:shadow-sm">
           <ChevronLeft className="w-6 h-6 text-gray-body" />
@@ -134,6 +140,10 @@ export default function AssignmentSubmissionsView({ assignmentId, onBack }: Assi
         <div>
           <h2 className="text-xl font-serif font-bold text-ink">{data.assignment.title}</h2>
           <p className="text-sm text-gray-body">Submissions & Grading</p>
+        </div>
+        <div className="ml-auto flex gap-2">
+          <button type="button" onClick={exportRoster} disabled={filteredSubmissions.length === 0} className="rounded-lg border border-border-soft bg-white px-3 py-2 text-sm font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-50">Export CSV</button>
+          <button type="button" onClick={() => window.print()} className="rounded-lg border border-border-soft bg-white px-3 py-2 text-sm font-semibold text-ink print:hidden">Print</button>
         </div>
       </div>
 
