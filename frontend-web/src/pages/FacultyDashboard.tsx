@@ -45,7 +45,7 @@ export default function FacultyDashboard() {
     <>
     <DashboardLayout title="Faculty Workspace" activeTab={activeTab} onTabChange={setActiveTab} facultyNavigation={facultyNavigation} onCommandPalette={() => setCommandPaletteOpen(true)}>
       {activeTab === 'profile' && <UserProfile />}
-      {activeTab === 'home' && <FacultyHome />}
+      {activeTab === 'home' && <FacultyHome onNavigate={setActiveTab} />}
       {activeTab === 'reports' && <StudentReports />}
       {activeTab === 'quizzes' && <QuizManagement />}
       {activeTab === 'assignments' && <AssignmentManagement />}
