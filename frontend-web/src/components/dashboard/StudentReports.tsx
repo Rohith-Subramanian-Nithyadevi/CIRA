@@ -33,7 +33,9 @@ import {
 import { useBatches, useDepartments } from '../../hooks/useReferenceData';
 import StudentProfileView from './StudentProfileView';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { SectionHeader } from '@/components/ui/facultyPrimitives';
 import { apiClient } from '@/lib/apiClient';
+import { clearSavedFilters, getFilterStorageKey, getStoredUserKey, readSavedFilters, writeSavedFilters } from '@/lib/facultyPersistence';
 
 export const StudentReports = () => {
   // Shared Reference Data (cached with TanStack Query)
@@ -43,10 +45,12 @@ export const StudentReports = () => {
   const [loading, setLoading] = useState(true);
   const [quizzes, setQuizzes] = useState<any[]>([]);
   
-  const [selectedBatch, setSelectedBatch] = useState<string | null>(null);
-  const [selectedDept, setSelectedDept] = useState<string | null>(null);
-  const [selectedSection, setSelectedSection] = useState<string | null>(null);
-  const [selectedQuiz, setSelectedQuiz] = useState<string | null>(null);
+  const reportFilterKey = getFilterStorageKey('reports', getStoredUserKey());
+  const savedReportFilters = readSavedFilters<{ batch?: string; department?: string; section?: string; quiz?: string }>(reportFilterKey);
+  const [selectedBatch, setSelectedBatch] = useState<string | null>(savedReportFilters?.batch || null);
+  const [selectedDept, setSelectedDept] = useState<string | null>(savedReportFilters?.department || null);
+  const [selectedSection, setSelectedSection] = useState<string | null>(savedReportFilters?.section || null);
+  const [selectedQuiz, setSelectedQuiz] = useState<string | null>(savedReportFilters?.quiz || null);
   
   // Branch-first scope selection followed by optional batch switching.
   const [isBranchDropdownOpen, setIsBranchDropdownOpen] = useState(false);
@@ -94,6 +98,36 @@ export const StudentReports = () => {
   const [searchedStudentId, setSearchedStudentId] = useState<string | null>(null);
   
   const [subjectFilter, setSubjectFilter] = useState<string>('All Subjects');
+
+  useEffect(() => {
+    if (selectedBatch && batches.length > 0 && !batches.some(batch => batch.id === selectedBatch)) setSelectedBatch(null);
+    if (selectedDept && departments.length > 0 && !departments.some(department => department.id === selectedDept)) {
+      setSelectedDept(null);
+      setSelectedSection(null);
+    }
+    if (selectedSection && selectedDept) {
+      const department = departments.find(item => item.id === selectedDept);
+      if (department && !department.sections?.some(section => section.id === selectedSection)) setSelectedSection(null);
+    }
+    if (selectedQuiz && quizzes.length > 0 && !quizzes.some(quiz => quiz.id === selectedQuiz)) setSelectedQuiz(null);
+  }, [batches, departments, quizzes, selectedBatch, selectedDept, selectedSection, selectedQuiz]);
+
+  useEffect(() => {
+    writeSavedFilters(reportFilterKey, {
+      batch: selectedBatch || '',
+      department: selectedDept || '',
+      section: selectedSection || '',
+      quiz: selectedQuiz || '',
+    });
+  }, [reportFilterKey, selectedBatch, selectedDept, selectedSection, selectedQuiz]);
+
+  const resetReportFilters = () => {
+    clearSavedFilters(reportFilterKey);
+    setSelectedBatch(null);
+    setSelectedDept(null);
+    setSelectedSection(null);
+    setSelectedQuiz(null);
+  };
 
   useEffect(() => {
     fetchInitialData();
@@ -339,6 +373,13 @@ export const StudentReports = () => {
 
   return (
     <div className="text-ink">
+      <SectionHeader
+        eyebrow="Students and insights"
+        title="Student Reports"
+        description="Select an authorized branch, batch, section, or quiz to inspect returned performance data."
+        action={<button type="button" onClick={resetReportFilters} className="rounded-lg border border-border-soft bg-white px-3 py-2 text-sm font-semibold text-ink hover:bg-cream">Reset filters</button>}
+        className="mb-6"
+      />
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         {/* Left: Enhanced Batch Dropdown and Breadcrumbs */}
         <div className="flex items-center flex-wrap gap-2 text-sm">

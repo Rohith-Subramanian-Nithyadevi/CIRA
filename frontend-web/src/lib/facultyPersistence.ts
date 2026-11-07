@@ -41,3 +41,15 @@ export const clearDraft = (key: string): void => {
     // Draft persistence is best effort when storage is unavailable.
   }
 };
+
+export const getFilterStorageKey = (scope: string, userKey = getStoredUserKey()): string =>
+  `${STORAGE_PREFIX}:filters:${userKey}:${scope}`;
+
+export const readSavedFilters = <T extends DraftForm>(key: string): T | null => readDraft<T>(key);
+
+export const writeSavedFilters = (key: string, filters: DraftForm): void => writeDraft(key, filters);
+
+export const clearSavedFilters = (key: string): void => clearDraft(key);
+
+export const dropStaleFilterValue = (value: string | null | undefined, validIds: readonly string[]): string | null =>
+  value && validIds.includes(value) ? value : null;

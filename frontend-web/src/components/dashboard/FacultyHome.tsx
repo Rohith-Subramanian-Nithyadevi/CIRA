@@ -21,7 +21,7 @@ import { useBatches, useDepartments } from '@/hooks/useReferenceData';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ConfirmationDialog, ErrorState, SectionHeader, StatCard, StatusBadge } from '@/components/ui/facultyPrimitives';
 import { apiClient } from '@/lib/apiClient';
-import { clearDraft, getDraftStorageKey, getStoredUserKey, readDraft, writeDraft } from '@/lib/facultyPersistence';
+import { clearDraft, clearSavedFilters, getDraftStorageKey, getFilterStorageKey, getStoredUserKey, readDraft, readSavedFilters, writeDraft, writeSavedFilters } from '@/lib/facultyPersistence';
 import { toast } from 'sonner';
 
 const sanitizeHtml = (value: string) => DOMPurify.sanitize(value || '', { ALLOWED_TAGS: ['b', 'strong', 'i', 'em', 'u', 's', 'strike', 'ol', 'ul', 'li', 'a', 'p', 'br'], ALLOWED_ATTR: ['href', 'target', 'rel'] });
@@ -73,6 +73,10 @@ export default function FacultyHome() {
   const [todos, setTodos] = useState<Task[]>([]);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const announcementFilterKey = getFilterStorageKey('announcements', getStoredUserKey());
+  const savedAnnouncementFilters = readSavedFilters<{ search?: string; surveysOnly?: boolean }>(announcementFilterKey);
+  const [announcementSearch, setAnnouncementSearch] = useState(savedAnnouncementFilters?.search || '');
+  const [surveysOnly, setSurveysOnly] = useState(Boolean(savedAnnouncementFilters?.surveysOnly));
   
   // UI States
   const [isAddingTask, setIsAddingTask] = useState(false);
@@ -137,6 +141,10 @@ export default function FacultyHome() {
     const timeout = window.setTimeout(() => writeDraft(announcementDraftKey, newAnnouncement), 500);
     return () => window.clearTimeout(timeout);
   }, [announcementDraftKey, newAnnouncement]);
+
+  useEffect(() => {
+    writeSavedFilters(announcementFilterKey, { search: announcementSearch, surveysOnly });
+  }, [announcementFilterKey, announcementSearch, surveysOnly]);
 
   useEffect(() => {
     fetchTasks();
@@ -361,6 +369,11 @@ export default function FacultyHome() {
       setAnnouncements(previous);
     }
   };
+
+  const visibleAnnouncements = announcements.filter(announcement =>
+    (!surveysOnly || announcement.isSurvey) &&
+    `${announcement.title || ''} ${announcement.content || ''}`.toLowerCase().includes(announcementSearch.toLowerCase())
+  );
 
   const openSurveyResponses = async (id: string) => {
     setViewingResponsesFor(id);
@@ -755,13 +768,20 @@ export default function FacultyHome() {
               <button type="submit" className="w-full py-2 bg-maroon hover:bg-maroon-deep text-white rounded-lg text-sm font-bold">Post</button>
             </form>
           </div>
-
           <div className="lg:col-span-2 space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <input aria-label="Search announcements" value={announcementSearch} onChange={event => setAnnouncementSearch(event.target.value)} placeholder="Search announcements..." className="h-10 w-full max-w-sm rounded-lg border border-border-soft bg-white px-3 text-sm text-ink outline-none focus:border-maroon focus:ring-2 focus:ring-maroon/20" />
+              <label className="flex items-center gap-2 text-sm font-semibold text-ink">
+                <input type="checkbox" checked={surveysOnly} onChange={event => setSurveysOnly(event.target.checked)} />
+                Surveys only
+              </label>
+              <button type="button" onClick={() => { clearSavedFilters(announcementFilterKey); setAnnouncementSearch(''); setSurveysOnly(false); }} className="rounded-lg border border-border-soft px-3 py-2 text-sm font-semibold text-ink hover:bg-cream">Reset filters</button>
+            </div>
             {loadingAnnouncements ? (
               Array.from({length: 3}).map((_, i) => <div key={i} className="h-32 bg-cream/40 rounded-xl animate-pulse" />)
-            ) : announcements.length === 0 ? (
+            ) : visibleAnnouncements.length === 0 ? (
               <EmptyState icon={<MessageSquare className="w-8 h-8 text-maroon" />} title="No announcements" description="You haven't posted any announcements yet." />
-            ) : announcements.map((ann) => (
+            ) : visibleAnnouncements.map((ann) => (
               <div key={ann.id} className={`p-5 rounded-xl border relative transition-all ${ann.isSurvey ? 'bg-maroon/5 border-maroon/20 shadow-xs' : 'bg-white border-border-soft shadow-xs'}`}>
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between mb-3 gap-3">
                   <div>

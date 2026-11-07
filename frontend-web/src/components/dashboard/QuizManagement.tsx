@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
-import { clearDraft, getDraftStorageKey, getStoredUserKey, readDraft, writeDraft } from '@/lib/facultyPersistence';
+import { clearDraft, clearSavedFilters, getDraftStorageKey, getFilterStorageKey, getStoredUserKey, readDraft, readSavedFilters, writeDraft, writeSavedFilters } from '@/lib/facultyPersistence';
 import { apiClient } from '@/lib/apiClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -339,6 +339,9 @@ const parseLongWritten = (rawText: string): any[] => {
 export default function QuizManagement() {
   const [activeView, setActiveView] = useState<'list' | 'create' | 'add_questions' | 'grade_submissions' | 'evaluate_attempt'>('list');
   const [quizzes, setQuizzes] = useState<any[]>([]);
+  const quizFilterKey = getFilterStorageKey('quizzes', getStoredUserKey());
+  const savedQuizFilters = readSavedFilters<{ search?: string }>(quizFilterKey);
+  const [quizSearch, setQuizSearch] = useState(savedQuizFilters?.search || '');
   const [departments, setDepartments] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
@@ -412,6 +415,10 @@ export default function QuizManagement() {
     const timeout = window.setTimeout(() => writeDraft(quizDraftKey, { formData, questions }), 500);
     return () => window.clearTimeout(timeout);
   }, [activeView, formData, questions, quizDraftKey]);
+
+  useEffect(() => {
+    writeSavedFilters(quizFilterKey, { search: quizSearch });
+  }, [quizFilterKey, quizSearch]);
 
   useEffect(() => {
     fetchQuizzes(1);
@@ -904,6 +911,7 @@ export default function QuizManagement() {
   const [creationMode, setCreationMode] = useState<'paste' | 'docx' | 'manual'>('paste');
 
   const availableSections = departments.filter(d => formData.targetDepartments.includes(d.id)).flatMap(d => d.sections || []);
+  const visibleQuizzes = quizzes.filter(quiz => `${quiz.title || ''} ${quiz.subject || ''}`.toLowerCase().includes(quizSearch.toLowerCase()));
 
   if (activeView === 'create') {
     return (
@@ -1745,6 +1753,10 @@ export default function QuizManagement() {
             + Create New Quiz
           </button>
         </div>
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <Input aria-label="Search quizzes" value={quizSearch} onChange={event => setQuizSearch(event.target.value)} placeholder="Search quizzes..." className="max-w-sm bg-white border-border-soft text-sm" />
+          <button type="button" onClick={() => { clearSavedFilters(quizFilterKey); setQuizSearch(''); }} className="rounded-lg border border-border-soft px-3 py-2 text-sm font-semibold text-ink hover:bg-cream">Reset filters</button>
+        </div>
 
         <div className="overflow-x-auto">
           <Table>
@@ -1759,7 +1771,7 @@ export default function QuizManagement() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {quizzes.length === 0 ? (
+              {visibleQuizzes.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="p-0 border-0">
                     <div className="py-8">
@@ -1768,7 +1780,7 @@ export default function QuizManagement() {
                   </TableCell>
                 </TableRow>
               ) : (
-                quizzes.map((quiz) => (
+                visibleQuizzes.map((quiz) => (
                   <TableRow key={quiz.id} className="border-b border-border-soft hover:bg-cream/20 transition-colors">
                     <TableCell className="font-semibold text-ink">{quiz.title}</TableCell>
                     <TableCell className="text-gray-body">{quiz.subject}</TableCell>

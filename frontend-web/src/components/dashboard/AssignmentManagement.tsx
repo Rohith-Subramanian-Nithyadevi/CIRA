@@ -10,7 +10,7 @@ import { ConfirmationDialog, ErrorState } from '@/components/ui/facultyPrimitive
 import { useBatches, useDepartments } from '@/hooks/useReferenceData';
 import AssignmentSubmissionsView from './AssignmentSubmissionsView';
 import { apiClient } from '@/lib/apiClient';
-import { clearDraft, getDraftStorageKey, getStoredUserKey, readDraft, writeDraft } from '@/lib/facultyPersistence';
+import { clearDraft, clearSavedFilters, getDraftStorageKey, getFilterStorageKey, getStoredUserKey, readDraft, readSavedFilters, writeDraft, writeSavedFilters } from '@/lib/facultyPersistence';
 
 const sanitizeHtml = (value: string) => DOMPurify.sanitize(value || '', { ALLOWED_TAGS: ['b', 'strong', 'i', 'em', 'u', 's', 'strike', 'ol', 'ul', 'li', 'a', 'p', 'br'], ALLOWED_ATTR: ['href', 'target', 'rel'] });
 
@@ -48,6 +48,9 @@ export default function AssignmentManagement() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [assignments, setAssignments] = useState<any[]>([]);
+  const assignmentFilterKey = getFilterStorageKey('assignments', getStoredUserKey());
+  const savedAssignmentFilters = readSavedFilters<{ search?: string }>(assignmentFilterKey);
+  const [assignmentSearch, setAssignmentSearch] = useState(savedAssignmentFilters?.search || '');
   const [isCreating, setIsCreating] = useState(false);
   const [activeAssignmentId, setActiveAssignmentId] = useState<string | null>(null);
   const [selectedAssignmentForSubmissions, setSelectedAssignmentForSubmissions] = useState<string | null>(null);
@@ -99,6 +102,10 @@ export default function AssignmentManagement() {
     }, 500);
     return () => window.clearTimeout(timeout);
   }, [draftKey, isCreating, title, description, targetBatchId, targetDeptId, targetSectionId]);
+
+  useEffect(() => {
+    writeSavedFilters(assignmentFilterKey, { search: assignmentSearch });
+  }, [assignmentFilterKey, assignmentSearch]);
 
   useEffect(() => {
     fetchAssignments(1);
@@ -203,6 +210,10 @@ export default function AssignmentManagement() {
     } catch (err) {}
   };
 
+  const visibleAssignments = assignments.filter(assignment =>
+    `${assignment.title || ''} ${assignment.description || ''}`.toLowerCase().includes(assignmentSearch.toLowerCase())
+  );
+
   if (selectedAssignmentForSubmissions) {
     return (
       <AssignmentSubmissionsView 
@@ -226,6 +237,10 @@ export default function AssignmentManagement() {
               + Create Assignment
             </button>
           )}
+        </div>
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <input aria-label="Search assignments" value={assignmentSearch} onChange={event => setAssignmentSearch(event.target.value)} placeholder="Search assignments..." className="h-10 w-full max-w-sm rounded-lg border border-border-soft bg-white px-3 text-sm text-ink outline-none focus:border-maroon focus:ring-2 focus:ring-maroon/20" />
+          <button type="button" onClick={() => { clearSavedFilters(assignmentFilterKey); setAssignmentSearch(''); }} className="rounded-lg border border-border-soft px-3 py-2 text-sm font-semibold text-ink hover:bg-cream">Reset filters</button>
         </div>
 
         {isCreating && (
@@ -307,10 +322,10 @@ export default function AssignmentManagement() {
         <div className="space-y-4">
           {loading ? (
              Array.from({length: 3}).map((_, i) => <div key={i} className="h-20 bg-cream/40 rounded-xl animate-pulse" />)
-          ) : assignments.length === 0 ? (
+          ) : visibleAssignments.length === 0 ? (
             <EmptyState icon={<FileText className="w-8 h-8 text-maroon" />} title="No Assignments" description="You haven't created any assignments yet." />
           ) : (
-            assignments.map(a => (
+            visibleAssignments.map(a => (
               <div key={a.id} className="p-5 border border-border-soft rounded-xl hover:bg-cream/20 flex justify-between items-start group transition-colors">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
