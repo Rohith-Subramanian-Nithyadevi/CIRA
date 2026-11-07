@@ -19,7 +19,10 @@ import {
 } from 'lucide-react';
 import { useBatches, useDepartments } from '@/hooks/useReferenceData';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { ConfirmationDialog, ErrorState, SectionHeader, StatCard, StatusBadge } from '@/components/ui/facultyPrimitives';
 import { apiClient } from '@/lib/apiClient';
+import { clearDraft, getDraftStorageKey, getStoredUserKey, readDraft, writeDraft } from '@/lib/facultyPersistence';
+import { toast } from 'sonner';
 
 const sanitizeHtml = (value: string) => DOMPurify.sanitize(value || '', { ALLOWED_TAGS: ['b', 'strong', 'i', 'em', 'u', 's', 'strike', 'ol', 'ul', 'li', 'a', 'p', 'br'], ALLOWED_ATTR: ['href', 'target', 'rel'] });
 
@@ -105,6 +108,35 @@ export default function FacultyHome() {
   const [announcementResponses, setAnnouncementResponses] = useState<AnnouncementResponse[]>([]);
   const [loadingResponses, setLoadingResponses] = useState(false);
   const [viewingAnnouncement, setViewingAnnouncement] = useState<Announcement | null>(null);
+  const [announcementToDelete, setAnnouncementToDelete] = useState<string | null>(null);
+  const [notificationError, setNotificationError] = useState<string | null>(null);
+  const [restoredAnnouncementDraft, setRestoredAnnouncementDraft] = useState(false);
+  const skipAnnouncementDraftWrite = useRef(false);
+  const announcementDraftKey = getDraftStorageKey('announcement', 'new', getStoredUserKey());
+
+  useEffect(() => {
+    const draft = readDraft<typeof newAnnouncement>(announcementDraftKey);
+    if (draft) {
+      setNewAnnouncement({
+        title: typeof draft.title === 'string' ? draft.title : '',
+        content: typeof draft.content === 'string' ? draft.content : '',
+        isSurvey: Boolean(draft.isSurvey),
+        batch: typeof draft.batch === 'string' ? draft.batch : 'All Batches',
+        department: typeof draft.department === 'string' ? draft.department : 'All Departments',
+        section: typeof draft.section === 'string' ? draft.section : 'All Sections',
+      });
+      setRestoredAnnouncementDraft(true);
+    }
+  }, [announcementDraftKey]);
+
+  useEffect(() => {
+    if (skipAnnouncementDraftWrite.current) {
+      skipAnnouncementDraftWrite.current = false;
+      return;
+    }
+    const timeout = window.setTimeout(() => writeDraft(announcementDraftKey, newAnnouncement), 500);
+    return () => window.clearTimeout(timeout);
+  }, [announcementDraftKey, newAnnouncement]);
 
   useEffect(() => {
     fetchTasks();
@@ -169,11 +201,17 @@ export default function FacultyHome() {
     try {
       setNotifLoading(true);
       const res = await apiClient.fetch('/api/v1/faculty/dashboard/notifications');
-      if (!res.ok) return; // Fail silently
+      if (!res.ok) {
+        setNotificationError('Notifications could not be loaded.');
+        return;
+      }
       const data = await res.json();
-      if (data?.success) setNotifications(data.data);
+      if (data?.success) {
+        setNotificationError(null);
+        setNotifications(data.data);
+      }
     } catch (_err) {
-      // Fail silently — do not crash dashboard if notifications fail
+      setNotificationError('Notifications could not be loaded.');
     } finally {
       notificationRequestInFlight.current = false;
       setNotifLoading(false);
@@ -282,16 +320,24 @@ export default function FacultyHome() {
       date: new Date().toISOString()
     };
 
-    setNewAnnouncement({ title: '', content: '', isSurvey: false, batch: 'All Batches', department: 'All Departments', section: 'All Sections' });
-    
     try {
       const res = await apiClient.fetch('/api/v1/faculty/dashboard/announcements', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
       const data = await res.json();
-      if (data?.success) setAnnouncements([{...data.data, date: data.data.date.split('T')[0], author: 'You'}, ...announcements]);
-    } catch (err) {}
+      if (data?.success) {
+        clearDraft(announcementDraftKey);
+        skipAnnouncementDraftWrite.current = true;
+        setRestoredAnnouncementDraft(false);
+        setNewAnnouncement({ title: '', content: '', isSurvey: false, batch: 'All Batches', department: 'All Departments', section: 'All Sections' });
+        setAnnouncements([{...data.data, date: data.data.date.split('T')[0], author: 'You'}, ...announcements]);
+      } else {
+        toast.error(data?.message || 'Failed to post announcement.');
+      }
+    } catch (err) {
+      toast.error('Failed to post announcement. Your draft was kept.');
+    }
   };
 
   const deleteAnnouncement = async (id: string) => {
@@ -335,6 +381,14 @@ export default function FacultyHome() {
   const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
   
   const unreadCount = notifications.filter(n => !n.read).length;
+  const upcomingEventCount = calendarEvents.filter((event) => {
+    const eventDate = new Date(`${event.date}T00:00:00`);
+    const daysFromToday = Math.floor((eventDate.getTime() - today.getTime()) / 86400000);
+    return daysFromToday >= 0 && daysFromToday <= 7;
+  }).length;
+  const openTaskCount = todos.filter((todo) => !todo.completed).length;
+  const storedUser = JSON.parse(localStorage.getItem('cira_user') || '{}') as { name?: string };
+  const userName = storedUser.name || 'Faculty';
 
   return (
     <div className="space-y-6 relative">
@@ -366,6 +420,18 @@ export default function FacultyHome() {
                   ))}
                 </div>
               )}
+
+              <ConfirmationDialog
+                open={Boolean(announcementToDelete)}
+                title="Delete announcement?"
+                description="This announcement will be permanently removed for all targeted students."
+                confirmLabel="Delete announcement"
+                onCancel={() => setAnnouncementToDelete(null)}
+                onConfirm={() => {
+                  if (announcementToDelete) deleteAnnouncement(announcementToDelete);
+                  setAnnouncementToDelete(null);
+                }}
+              />
             </div>
           </div>
         </div>
@@ -410,7 +476,7 @@ export default function FacultyHome() {
             <div className="p-4 border-t border-border-soft bg-cream/10 flex items-center justify-between">
               <button
                 type="button"
-                onClick={() => deleteAnnouncement(viewingAnnouncement.id)}
+                onClick={() => setAnnouncementToDelete(viewingAnnouncement.id)}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 border border-red-200 rounded-lg transition-colors cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -441,6 +507,21 @@ export default function FacultyHome() {
         </div>
       )}
 
+      <section className="space-y-5">
+        <SectionHeader
+          eyebrow="Faculty workspace"
+          title={`Good ${new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'}, ${userName}`}
+          description="Manage your academic operations from one place."
+          action={<StatusBadge status="info">Live workspace data</StatusBadge>}
+        />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard label="Open tasks" value={loadingTasks ? '—' : openTaskCount} description="Incomplete tasks returned by the faculty task service" />
+          <StatCard label="Upcoming events" value={loadingCalendar ? '—' : upcomingEventCount} description="Events scheduled in the next seven days" />
+          <StatCard label="Unread notifications" value={notifLoading && notifications.length === 0 ? '—' : unreadCount} description="Unread items from the notification service" />
+          <StatCard label="Announcements shown" value={loadingAnnouncements ? '—' : announcements.length} description="Announcements in the currently loaded page" />
+        </div>
+      </section>
+
       {/* Header */}
       <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-border-soft shadow-sm">
         <h2 className="text-xl font-serif font-bold text-ink">Dashboard</h2>
@@ -456,6 +537,7 @@ export default function FacultyHome() {
                 {notifLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-body" />}
               </div>
               <div className="max-h-72 overflow-y-auto divide-y divide-border-soft">
+                {notificationError && <ErrorState message={notificationError} onRetry={fetchNotifications} className="m-3 min-h-24" />}
                 {notifications.length === 0 ? (
                   <div className="p-4">
                     <EmptyState icon={<Bell className="w-6 h-6 text-maroon" />} title="No new notifications" description="You're all caught up!" className="min-h-[150px] p-4" />
@@ -630,6 +712,17 @@ export default function FacultyHome() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-1 bg-cream/40 p-5 rounded-xl border border-border-soft h-fit">
             <h4 className="text-sm font-bold text-ink mb-4">New Announcement</h4>
+            {restoredAnnouncementDraft && (
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-info/30 bg-info/5 px-3 py-2 text-sm text-ink" role="status">
+                <span>Restored draft from this device.</span>
+                <button type="button" className="font-semibold text-maroon underline" onClick={() => {
+                  clearDraft(announcementDraftKey);
+                  skipAnnouncementDraftWrite.current = true;
+                  setNewAnnouncement({ title: '', content: '', isSurvey: false, batch: 'All Batches', department: 'All Departments', section: 'All Sections' });
+                  setRestoredAnnouncementDraft(false);
+                }}>Discard</button>
+              </div>
+            )}
             <form onSubmit={handlePostAnnouncement} className="space-y-4">
               <input required type="text" placeholder="Title" className="w-full px-3 py-2 bg-white border border-border-soft rounded-lg text-sm" value={newAnnouncement.title} onChange={e => setNewAnnouncement({...newAnnouncement, title: e.target.value})} />
               <div className="space-y-2">

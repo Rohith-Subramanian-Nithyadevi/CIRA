@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
+import { clearDraft, getDraftStorageKey, getStoredUserKey, readDraft, writeDraft } from '@/lib/facultyPersistence';
 import { apiClient } from '@/lib/apiClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -383,6 +384,35 @@ export default function QuizManagement() {
   const [facultyFeedback, setFacultyFeedback] = useState('');
   const [parsedTotalMarks, setParsedTotalMarks] = useState(0);
   const [parsedTotalQuestions, setParsedTotalQuestions] = useState(0);
+  const [restoredQuizDraft, setRestoredQuizDraft] = useState(false);
+  const skipQuizDraftWrite = useRef(false);
+  const quizDraftKey = getDraftStorageKey('quiz', activeQuizId || editingQuizId || 'new', getStoredUserKey());
+
+  useEffect(() => {
+    if (activeView !== 'create') return;
+    const draft = readDraft<{
+      formData: typeof formData;
+      questions: any[];
+    }>(quizDraftKey);
+    if (draft) {
+      if (draft.formData && typeof draft.formData === 'object') setFormData(draft.formData);
+      if (Array.isArray(draft.questions)) setQuestions(draft.questions);
+      setRestoredQuizDraft(true);
+    } else {
+      setRestoredQuizDraft(false);
+    }
+  }, [activeView, quizDraftKey]);
+
+  useEffect(() => {
+    if (activeView !== 'create') return;
+    if (skipQuizDraftWrite.current) {
+      skipQuizDraftWrite.current = false;
+      return;
+    }
+    const timeout = window.setTimeout(() => writeDraft(quizDraftKey, { formData, questions }), 500);
+    return () => window.clearTimeout(timeout);
+  }, [activeView, formData, questions, quizDraftKey]);
+
   useEffect(() => {
     fetchQuizzes(1);
     fetchDepartments();
@@ -653,6 +683,9 @@ export default function QuizManagement() {
         const data = await res.json();
         if (data?.status !== 'success') throw new Error('Failed to update quiz: ' + data.message);
         toast.success('Quiz details updated successfully!');
+        clearDraft(quizDraftKey);
+        skipQuizDraftWrite.current = true;
+        setRestoredQuizDraft(false);
         setEditingQuizId(null);
         setActiveView('list');
         fetchQuizzes();
@@ -670,6 +703,9 @@ export default function QuizManagement() {
         
         if (data?.status === 'success') {
           toast.success('Quiz updated successfully!');
+          clearDraft(quizDraftKey);
+          skipQuizDraftWrite.current = true;
+          setRestoredQuizDraft(false);
           setActiveView('list');
           fetchQuizzes();
         } else {
@@ -699,6 +735,9 @@ export default function QuizManagement() {
 
         if (qData?.status === 'success') {
           toast.success('Quiz and Questions published successfully!');
+          clearDraft(quizDraftKey);
+          skipQuizDraftWrite.current = true;
+          setRestoredQuizDraft(false);
           setActiveView('list');
           fetchQuizzes();
         } else {
@@ -881,6 +920,21 @@ export default function QuizManagement() {
               <Button onClick={() => setActiveView('list')} variant="ghost" className="text-xs font-semibold text-gray-body">Cancel</Button>
             </div>
           </div>
+          {restoredQuizDraft && (
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-info/30 bg-info/5 px-3 py-2 text-sm text-ink" role="status">
+              <span>Restored draft from this device.</span>
+              <button type="button" className="font-semibold text-maroon underline" onClick={() => {
+                clearDraft(quizDraftKey);
+                skipQuizDraftWrite.current = true;
+                setFormData({
+                  title: '', subject: '', description: '', totalMarks: '', passingMarks: '',
+                  durationMinutes: '60', startDate: '', endDate: '', targetDepartments: [], targetSections: [],
+                });
+                setQuestions([{ type: 'MCQ', text: '', marks: 1, options: ['', '', '', ''], answerKey: '', topic: '' }]);
+                setRestoredQuizDraft(false);
+              }}>Discard</button>
+            </div>
+          )}
           
           <div className="space-y-6">
             {/* Metadata Fields */}

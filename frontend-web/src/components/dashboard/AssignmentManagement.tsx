@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
@@ -6,9 +6,11 @@ import DOMPurify from 'dompurify';
 import { Trash2, FileText } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { ConfirmationDialog, ErrorState } from '@/components/ui/facultyPrimitives';
 import { useBatches, useDepartments } from '@/hooks/useReferenceData';
 import AssignmentSubmissionsView from './AssignmentSubmissionsView';
 import { apiClient } from '@/lib/apiClient';
+import { clearDraft, getDraftStorageKey, getStoredUserKey, readDraft, writeDraft } from '@/lib/facultyPersistence';
 
 const sanitizeHtml = (value: string) => DOMPurify.sanitize(value || '', { ALLOWED_TAGS: ['b', 'strong', 'i', 'em', 'u', 's', 'strike', 'ol', 'ul', 'li', 'a', 'p', 'br'], ALLOWED_ATTR: ['href', 'target', 'rel'] });
 
@@ -49,16 +51,54 @@ export default function AssignmentManagement() {
   const [isCreating, setIsCreating] = useState(false);
   const [activeAssignmentId, setActiveAssignmentId] = useState<string | null>(null);
   const [selectedAssignmentForSubmissions, setSelectedAssignmentForSubmissions] = useState<string | null>(null);
+  const [assignmentToDelete, setAssignmentToDelete] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [targetBatchId, setTargetBatchId] = useState<string>('all');
   const [targetDeptId, setTargetDeptId] = useState<string>('all');
   const [targetSectionId, setTargetSectionId] = useState<string>('all');
+  const [restoredDraft, setRestoredDraft] = useState(false);
+  const skipDraftWrite = useRef(false);
 
   // Cached Reference Data
   const { batches } = useBatches();
   const { departments } = useDepartments(targetBatchId, { enabled: targetBatchId !== 'all' });
+  const draftKey = getDraftStorageKey('assignment', activeAssignmentId || 'new', getStoredUserKey());
+
+  useEffect(() => {
+    if (!isCreating) return;
+    const draft = readDraft<{
+      title: string;
+      description: string;
+      targetBatchId: string;
+      targetDeptId: string;
+      targetSectionId: string;
+    }>(draftKey);
+    if (draft) {
+      setTitle(draft.title || '');
+      setDescription(draft.description || '');
+      setTargetBatchId(draft.targetBatchId || 'all');
+      setTargetDeptId(draft.targetDeptId || 'all');
+      setTargetSectionId(draft.targetSectionId || 'all');
+      setRestoredDraft(true);
+    } else {
+      setRestoredDraft(false);
+    }
+  }, [draftKey, isCreating]);
+
+  useEffect(() => {
+    if (!isCreating) return;
+    if (skipDraftWrite.current) {
+      skipDraftWrite.current = false;
+      return;
+    }
+    const timeout = window.setTimeout(() => {
+      writeDraft(draftKey, { title, description, targetBatchId, targetDeptId, targetSectionId });
+    }, 500);
+    return () => window.clearTimeout(timeout);
+  }, [draftKey, isCreating, title, description, targetBatchId, targetDeptId, targetSectionId]);
 
   useEffect(() => {
     fetchAssignments(1);
@@ -69,6 +109,7 @@ export default function AssignmentManagement() {
       const res = await apiClient.fetch(`/api/v1/assignments/faculty?page=${pageNumber}&limit=10`);
       const data = await res.json();
       if (data?.success) {
+        setLoadError(null);
         const fetchedAssignments = Array.isArray(data.data) ? data.data : data.data.items;
         if (pageNumber === 1) {
           setAssignments(fetchedAssignments);
@@ -82,7 +123,7 @@ export default function AssignmentManagement() {
           setHasMore(false);
         }
       }
-    } catch (err) {} finally { setLoading(false); }
+    } catch (err) { setLoadError('Assignments could not be loaded.'); } finally { setLoading(false); }
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -119,6 +160,9 @@ export default function AssignmentManagement() {
       
       const data = await res.json();
       if (data?.success) {
+        clearDraft(draftKey);
+        skipDraftWrite.current = true;
+        setRestoredDraft(false);
         if (activeAssignmentId) {
           setAssignments(assignments.map(a => a.id === activeAssignmentId ? { ...a, ...payload } : a));
           // Refresh fully to get updated target counts
@@ -153,9 +197,9 @@ export default function AssignmentManagement() {
   };
 
   const handleDelete = async (id: string) => {
-    setAssignments(assignments.filter(a => a.id !== id));
     try {
       await apiClient.fetch(`/api/v1/assignments/faculty/${id}`, { method: 'DELETE' });
+      setAssignments(assignments.filter(a => a.id !== id));
     } catch (err) {}
   };
 
@@ -187,6 +231,21 @@ export default function AssignmentManagement() {
         {isCreating && (
           <div className="bg-cream/30 p-5 rounded-xl border border-border-soft mb-8">
             <h3 className="font-bold mb-4 text-ink">{activeAssignmentId ? 'Edit Assignment' : 'New Assignment'}</h3>
+            {restoredDraft && (
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-info/30 bg-info/5 px-3 py-2 text-sm text-ink" role="status">
+                <span>Restored draft from this device.</span>
+                <button type="button" className="font-semibold text-maroon underline" onClick={() => {
+                  clearDraft(draftKey);
+                  skipDraftWrite.current = true;
+                  setTitle('');
+                  setDescription('');
+                  setTargetBatchId('all');
+                  setTargetDeptId('all');
+                  setTargetSectionId('all');
+                  setRestoredDraft(false);
+                }}>Discard</button>
+              </div>
+            )}
             <form onSubmit={handleSave} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-gray-body mb-1">Title</label>
@@ -214,6 +273,18 @@ export default function AssignmentManagement() {
                     </select>
                   </div>
                 )}
+                {loadError && <ErrorState message={loadError} onRetry={() => fetchAssignments(1)} className="mb-6" />}
+                <ConfirmationDialog
+                  open={Boolean(assignmentToDelete)}
+                  title="Delete assignment?"
+                  description="This assignment will be permanently removed."
+                  confirmLabel="Delete assignment"
+                  onCancel={() => setAssignmentToDelete(null)}
+                  onConfirm={() => {
+                    if (assignmentToDelete) handleDelete(assignmentToDelete);
+                    setAssignmentToDelete(null);
+                  }}
+                />
                 {targetDeptId !== 'all' && (
                   <div>
                     <label className="block text-xs font-semibold text-gray-body mb-1">Target Section</label>
@@ -263,7 +334,7 @@ export default function AssignmentManagement() {
                 </div>
                 <div className="flex items-center gap-2">
                   <button onClick={() => handleEdit(a)} className="text-gray-body opacity-0 group-hover:opacity-100 p-2 hover:bg-cream rounded transition-all">Edit</button>
-                  <button onClick={() => handleDelete(a.id)} className="text-red-500 opacity-0 group-hover:opacity-100 p-2 hover:bg-red-50 rounded transition-all"><Trash2 className="w-5 h-5"/></button>
+                  <button aria-label={`Delete ${a.title}`} onClick={() => setAssignmentToDelete(a.id)} className="text-red-500 opacity-0 group-hover:opacity-100 p-2 hover:bg-red-50 rounded transition-all"><Trash2 className="w-5 h-5"/></button>
                 </div>
               </div>
             ))
