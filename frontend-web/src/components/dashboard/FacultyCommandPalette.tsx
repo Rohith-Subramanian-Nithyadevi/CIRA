@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Command, Loader2, Search } from 'lucide-react';
 import { AccessibleDialog, ErrorState } from '@/components/ui/facultyPrimitives';
 import { apiClient } from '@/lib/apiClient';
+import { useFacultyDemo } from '@/context/FacultyDemoContext';
+import { facultyDemoAnnouncements, facultyDemoAssignments, facultyDemoQuizzes } from '@/lib/facultyDemoData';
 
 interface PaletteItem {
   id: string;
@@ -19,6 +21,7 @@ interface FacultyCommandPaletteProps {
 const getList = (data: any): any[] => Array.isArray(data?.data) ? data.data : data?.data?.items || [];
 
 export default function FacultyCommandPalette({ open, onClose, onNavigate }: FacultyCommandPaletteProps) {
+  const isDemo = useFacultyDemo();
   const [query, setQuery] = useState('');
   const [quizzes, setQuizzes] = useState<any[]>([]);
   const [assignments, setAssignments] = useState<any[]>([]);
@@ -29,6 +32,12 @@ export default function FacultyCommandPalette({ open, onClose, onNavigate }: Fac
   const inputRef = useRef<HTMLInputElement>(null);
 
   const loadSource = async (source: 'quizzes' | 'assignments' | 'announcements') => {
+    if (isDemo) {
+      if (source === 'quizzes') setQuizzes(facultyDemoQuizzes);
+      if (source === 'assignments') setAssignments(facultyDemoAssignments);
+      if (source === 'announcements') setAnnouncements(facultyDemoAnnouncements);
+      return;
+    }
     const endpoints = {
       quizzes: '/api/v1/faculty/quiz?page=1&limit=50',
       assignments: '/api/v1/assignments/faculty?page=1&limit=50',

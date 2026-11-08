@@ -3,6 +3,8 @@ import { toast } from 'sonner';
 import { clearDraft, clearSavedFilters, getDraftStorageKey, getFilterStorageKey, getStoredUserKey, readDraft, readSavedFilters, writeDraft, writeSavedFilters } from '@/lib/facultyPersistence';
 import { apiClient } from '@/lib/apiClient';
 import { downloadCsv } from '@/lib/csv';
+import { useFacultyDemo } from '@/context/FacultyDemoContext';
+import { facultyDemoDepartments, facultyDemoQuizzes } from '@/lib/facultyDemoData';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -338,6 +340,7 @@ const parseLongWritten = (rawText: string): any[] => {
 };
 
 export default function QuizManagement() {
+  const isDemo = useFacultyDemo();
   const [activeView, setActiveView] = useState<'list' | 'create' | 'add_questions' | 'grade_submissions' | 'evaluate_attempt'>('list');
   const [quizzes, setQuizzes] = useState<any[]>([]);
   const quizFilterKey = getFilterStorageKey('quizzes', getStoredUserKey());
@@ -424,10 +427,15 @@ export default function QuizManagement() {
   useEffect(() => {
     fetchQuizzes(1);
     fetchDepartments();
-  }, []);
+  }, [isDemo]);
 
   const fetchQuizzes = async (pageNumber = 1) => {
     try {
+      if (isDemo) {
+        setQuizzes(facultyDemoQuizzes);
+        setHasMore(false);
+        return;
+      }
       const res = await apiClient.fetch(`/api/v1/faculty/quiz?page=${pageNumber}&limit=10`);
       const data = await res.json();
       if (data?.data) {
@@ -449,6 +457,10 @@ export default function QuizManagement() {
 
   const fetchDepartments = async () => {
     try {
+      if (isDemo) {
+        setDepartments(facultyDemoDepartments);
+        return;
+      }
       const res = await apiClient.fetch('/api/v1/departments');
       const data = await res.json();
       if (data?.data?.departments) setDepartments(data.data.departments);
@@ -511,6 +523,11 @@ export default function QuizManagement() {
 
   const handleDeleteQuiz = async (quizId: string) => {
     if (!window.confirm('Are you sure you want to delete this quiz?')) return;
+    if (isDemo) {
+      setQuizzes(previous => previous.filter(quiz => quiz.id !== quizId));
+      toast.success('Demo quiz deleted locally.');
+      return;
+    }
     try {
       const res = await apiClient.fetch(`/api/v1/faculty/quiz/${quizId}`, { method: 'DELETE' });
       const data = await res.json();
@@ -520,6 +537,11 @@ export default function QuizManagement() {
   };
 
   const handleTogglePublishAnswers = async (quizId: string, currentStatus: boolean) => {
+    if (isDemo) {
+      setQuizzes(previous => previous.map(quiz => quiz.id === quizId ? { ...quiz, answersPublished: !currentStatus } : quiz));
+      toast.success(`Demo answers ${!currentStatus ? 'published' : 'hidden'} locally.`);
+      return;
+    }
     try {
       const res = await apiClient.fetch(`/api/v1/faculty/quiz/${quizId}/publish`, {
         method: 'POST', 

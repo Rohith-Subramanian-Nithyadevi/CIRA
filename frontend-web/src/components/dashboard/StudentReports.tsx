@@ -37,11 +37,16 @@ import { SectionHeader } from '@/components/ui/facultyPrimitives';
 import { apiClient } from '@/lib/apiClient';
 import { clearSavedFilters, getFilterStorageKey, getStoredUserKey, readSavedFilters, writeSavedFilters } from '@/lib/facultyPersistence';
 import { downloadCsv } from '@/lib/csv';
+import { useFacultyDemo } from '@/context/FacultyDemoContext';
+import { facultyDemoBatches, facultyDemoDepartments, facultyDemoQuizzes, facultyDemoQuizAnalytics, facultyDemoReport } from '@/lib/facultyDemoData';
 
 export const StudentReports = () => {
+  const isDemo = useFacultyDemo();
   // Shared Reference Data (cached with TanStack Query)
   const { batches } = useBatches();
   const { departments } = useDepartments();
+  const availableBatches = isDemo ? facultyDemoBatches : batches;
+  const availableDepartments = isDemo ? facultyDemoDepartments : departments;
 
   const [loading, setLoading] = useState(true);
   const [quizzes, setQuizzes] = useState<any[]>([]);
@@ -81,7 +86,7 @@ export const StudentReports = () => {
   };
 
   const handleSelectBranch = (departmentId: string) => {
-    const branch = departments.find(department => department.id === departmentId);
+    const branch = availableDepartments.find(department => department.id === departmentId);
     setSelectedDept(departmentId);
     setSelectedBatch(branch?.batchId || null);
     setSelectedSection(null);
@@ -101,17 +106,17 @@ export const StudentReports = () => {
   const [subjectFilter, setSubjectFilter] = useState<string>('All Subjects');
 
   useEffect(() => {
-    if (selectedBatch && batches.length > 0 && !batches.some(batch => batch.id === selectedBatch)) setSelectedBatch(null);
-    if (selectedDept && departments.length > 0 && !departments.some(department => department.id === selectedDept)) {
+    if (selectedBatch && availableBatches.length > 0 && !availableBatches.some(batch => batch.id === selectedBatch)) setSelectedBatch(null);
+    if (selectedDept && availableDepartments.length > 0 && !availableDepartments.some(department => department.id === selectedDept)) {
       setSelectedDept(null);
       setSelectedSection(null);
     }
     if (selectedSection && selectedDept) {
-      const department = departments.find(item => item.id === selectedDept);
+      const department = availableDepartments.find(item => item.id === selectedDept);
       if (department && !department.sections?.some(section => section.id === selectedSection)) setSelectedSection(null);
     }
     if (selectedQuiz && quizzes.length > 0 && !quizzes.some(quiz => quiz.id === selectedQuiz)) setSelectedQuiz(null);
-  }, [batches, departments, quizzes, selectedBatch, selectedDept, selectedSection, selectedQuiz]);
+  }, [availableBatches, availableDepartments, quizzes, selectedBatch, selectedDept, selectedSection, selectedQuiz]);
 
   useEffect(() => {
     writeSavedFilters(reportFilterKey, {
@@ -146,6 +151,10 @@ export const StudentReports = () => {
 
   const fetchPostedQuizzes = async () => {
     try {
+      if (isDemo) {
+        setQuizzes(facultyDemoQuizzes);
+        return;
+      }
       const params = new URLSearchParams({ posted: 'true' });
       if (selectedDept) params.set('departmentId', selectedDept);
       if (selectedSection) params.set('sectionId', selectedSection);
@@ -159,7 +168,7 @@ export const StudentReports = () => {
 
   useEffect(() => {
     fetchPostedQuizzes();
-  }, [selectedDept, selectedSection]);
+  }, [selectedDept, selectedSection, isDemo]);
 
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -227,6 +236,14 @@ export const StudentReports = () => {
 
   const fetchPerformanceBands = async () => {
     try {
+      if (isDemo) {
+        setReportSummary(facultyDemoReport.summary);
+        setReportSubjects(facultyDemoReport.subjects);
+        setYearData(facultyDemoReport.yearData);
+        setDeptData(facultyDemoReport.deptData);
+        setReportsError(null);
+        return;
+      }
       setReportsLoading(true);
       setReportsError(null);
 
@@ -267,7 +284,7 @@ export const StudentReports = () => {
     if (selectedBatch || selectedDept) {
       fetchPerformanceBands();
     }
-  }, [selectedBatch, selectedDept, selectedSection]);
+  }, [selectedBatch, selectedDept, selectedSection, isDemo]);
 
   useEffect(() => {
     if (!selectedQuiz) {
@@ -279,6 +296,10 @@ export const StudentReports = () => {
       try {
         setQuizAnalyticsLoading(true);
         setQuizAnalyticsError(null);
+        if (isDemo) {
+          setQuizAnalytics(facultyDemoQuizAnalytics);
+          return;
+        }
         const res = await apiClient.fetch(`/api/v1/faculty/reports/quiz/${selectedQuiz}`);
         const json = await res.json();
         if (!res.ok) throw new Error(json.message || 'Failed to load quiz analytics.');
@@ -292,11 +313,11 @@ export const StudentReports = () => {
     };
 
     fetchQuizAnalytics();
-  }, [selectedQuiz]);
+  }, [selectedQuiz, isDemo]);
 
-  const activeDepartments = departments.filter(d => d.batchId === selectedBatch || !selectedBatch);
+  const activeDepartments = availableDepartments.filter(d => d.batchId === selectedBatch || !selectedBatch);
   const subjectsToShow = subjectFilter === 'All Subjects' ? reportSubjects : [subjectFilter];
-  const selectedBatchName = batches.find(b => b.id === selectedBatch)?.name || 'your selected batch';
+  const selectedBatchName = availableBatches.find(b => b.id === selectedBatch)?.name || 'your selected batch';
   const summaryPercentages = reportSummary?.percentages || { poor: 0, average: 0, excellent: 0 };
   const reportHasData = (reportSummary?.totalAttempts || 0) > 0;
   const primaryInsight = !reportHasData
@@ -364,7 +385,7 @@ export const StudentReports = () => {
               onClick={() => setIsBranchDropdownOpen(prev => !prev)}
               aria-haspopup="listbox"
               aria-expanded={isBranchDropdownOpen}
-              aria-label={`Branch: ${departments.find(department => department.id === selectedDept)?.name || 'Select Branch'}`}
+              aria-label={`Branch: ${availableDepartments.find(department => department.id === selectedDept)?.name || 'Select Branch'}`}
               className="flex items-center space-x-2.5 bg-white hover:bg-cream/70 border border-border-soft hover:border-maroon/50 shadow-xs px-3.5 py-2 rounded-xl transition-all cursor-pointer group"
               title="Select a branch before opening its reports"
             >
@@ -374,7 +395,7 @@ export const StudentReports = () => {
               <div className="text-left">
                 <span className="block text-[10px] uppercase font-bold text-gray-body/70 tracking-wider leading-none">Branch</span>
                 <span className="text-sm font-bold text-ink group-hover:text-maroon transition-colors leading-tight">
-                  {departments.find(department => department.id === selectedDept)?.name || 'Select Branch'}
+                  {availableDepartments.find(department => department.id === selectedDept)?.name || 'Select Branch'}
                 </span>
               </div>
               <ChevronDown className={`w-4 h-4 text-gray-body ml-1 transition-transform duration-200 ${isBranchDropdownOpen ? 'rotate-180 text-maroon' : ''}`} />
@@ -383,10 +404,10 @@ export const StudentReports = () => {
               <div role="listbox" aria-label="Available branches" className="absolute left-0 mt-2 w-64 bg-white border border-border-soft rounded-2xl shadow-xl z-50 p-2 animate-in fade-in slide-in-from-top-2 duration-150">
                 <div className="px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-gray-body border-b border-border-soft/60 mb-1 flex items-center justify-between">
                   <span>Select a branch</span>
-                  <span className="bg-cream text-maroon text-[10px] font-bold px-2 py-0.5 rounded-full border border-border-soft/60">{departments.length}</span>
+                  <span className="bg-cream text-maroon text-[10px] font-bold px-2 py-0.5 rounded-full border border-border-soft/60">{availableDepartments.length}</span>
                 </div>
                 <div className="max-h-60 overflow-y-auto space-y-1">
-                  {departments.map(branch => {
+                  {availableDepartments.map(branch => {
                     const isCurrent = branch.id === selectedDept;
                     return (
                       <button
@@ -398,7 +419,7 @@ export const StudentReports = () => {
                         className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-left text-sm transition-all ${isCurrent ? 'bg-maroon text-white font-bold shadow-xs' : 'hover:bg-cream/80 text-ink font-medium'}`}
                       >
                         <span>{branch.name}</span>
-                        <span className={`text-[10px] ${isCurrent ? 'text-white/80' : 'text-gray-body'}`}>{batches.find(batch => batch.id === branch.batchId)?.name || 'Batch'}</span>
+                        <span className={`text-[10px] ${isCurrent ? 'text-white/80' : 'text-gray-body'}`}>{availableBatches.find(batch => batch.id === branch.batchId)?.name || 'Batch'}</span>
                       </button>
                     );
                   })}
@@ -415,7 +436,7 @@ export const StudentReports = () => {
               onClick={() => setIsBatchDropdownOpen(prev => !prev)}
               aria-haspopup="listbox"
               aria-expanded={isBatchDropdownOpen}
-              aria-label={`Batch: ${batches.find(b => b.id === selectedBatch)?.name || 'Select Batch'}`}
+              aria-label={`Batch: ${availableBatches.find(b => b.id === selectedBatch)?.name || 'Select Batch'}`}
               className="flex items-center space-x-2.5 bg-white hover:bg-cream/70 border border-border-soft hover:border-maroon/50 shadow-xs px-3.5 py-2 rounded-xl transition-all cursor-pointer group"
               title="Click to switch or return to any batch"
             >
@@ -425,7 +446,7 @@ export const StudentReports = () => {
               <div className="text-left">
                 <span className="block text-[10px] uppercase font-bold text-gray-body/70 tracking-wider leading-none">Batch</span>
                 <span className="text-sm font-bold text-ink group-hover:text-maroon transition-colors leading-tight">
-                  {batches.find(b => b.id === selectedBatch)?.name || 'Select Batch'}
+                  {availableBatches.find(b => b.id === selectedBatch)?.name || 'Select Batch'}
                 </span>
               </div>
               <ChevronDown className={`w-4 h-4 text-gray-body ml-1 transition-transform duration-200 ${isBatchDropdownOpen ? 'rotate-180 text-maroon' : ''}`} />
@@ -435,13 +456,13 @@ export const StudentReports = () => {
             {isBatchDropdownOpen && (
               <div role="listbox" aria-label="Available batches" className="absolute left-0 mt-2 w-64 bg-white border border-border-soft rounded-2xl shadow-xl z-50 p-2 animate-in fade-in slide-in-from-top-2 duration-150">
                 <div className="px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-gray-body border-b border-border-soft/60 mb-1 flex items-center justify-between">
-                  <span>Available Batches</span>
+                  <span>Available batches</span>
                   <span className="bg-cream text-maroon text-[10px] font-bold px-2 py-0.5 rounded-full border border-border-soft/60">
-                    {batches.length}
+                    {availableBatches.length}
                   </span>
                 </div>
                 <div className="max-h-60 overflow-y-auto space-y-1">
-                  {batches.map(batch => {
+                  {availableBatches.map(batch => {
                     const isCurrent = batch.id === selectedBatch;
                     return (
                       <button
@@ -483,7 +504,7 @@ export const StudentReports = () => {
                 }`}
                 title="Return to Department"
               >
-                {departments.find(d => d.id === selectedDept)?.name || 'Department'}
+                {availableDepartments.find(d => d.id === selectedDept)?.name || 'Department'}
               </button>
             </>
           )}
@@ -501,7 +522,7 @@ export const StudentReports = () => {
                 }`}
                 title="Return to Section"
               >
-                Section {departments.find(d => d.id === selectedDept)?.sections?.find((s: any) => s.id === selectedSection)?.name || selectedSection}
+                Section {availableDepartments.find(d => d.id === selectedDept)?.sections?.find((s: any) => s.id === selectedSection)?.name || selectedSection}
               </button>
             </>
           )}
@@ -548,7 +569,7 @@ export const StudentReports = () => {
         </div>
       </div>
 
-      {!selectedDept && departments.length > 0 && (
+      {!selectedDept && availableDepartments.length > 0 && (
         <div className="rounded-2xl border border-maroon/20 bg-white/90 p-8 text-center shadow-sm animate-in fade-in duration-300">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-maroon/10 text-maroon">
             <Users className="h-7 w-7" />
@@ -567,7 +588,7 @@ export const StudentReports = () => {
         </div>
       )}
 
-      {!selectedDept && departments.length === 0 && (
+      {!selectedDept && availableDepartments.length === 0 && (
         <div className="space-y-6 animate-in fade-in duration-500">
           <section className="overflow-hidden rounded-2xl border border-maroon/20 bg-[linear-gradient(120deg,#fffaf2_0%,#ffffff_55%,#f8eee7_100%)] shadow-sm">
             <div className="border-b border-maroon/10 px-6 py-5 md:px-8">
@@ -643,7 +664,7 @@ export const StudentReports = () => {
             ))}
             {activeDepartments.length === 0 && (
               <div className="col-span-3">
-                <EmptyState icon={<GraduationCap className="w-8 h-8 text-maroon" />} title="No Departments" description="No departments found for this batch." />
+                <EmptyState icon={<GraduationCap className="w-8 h-8 text-maroon" />} title="No departments" description="No departments found for this batch." />
               </div>
             )}
           </div>
@@ -724,7 +745,7 @@ export const StudentReports = () => {
              <div>
                <h2 className="text-xl font-serif font-bold text-ink">Section Overview</h2>
                <p className="text-xs text-gray-body mt-0.5">
-                 {departments.find(d => d.id === selectedDept)?.name} &bull; Batch {batches.find(b => b.id === selectedBatch)?.name}
+                 {availableDepartments.find(d => d.id === selectedDept)?.name} &bull; Batch {availableBatches.find(b => b.id === selectedBatch)?.name}
                </p>
              </div>
              <button
@@ -738,7 +759,7 @@ export const StudentReports = () => {
              </button>
            </div>
            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-             {departments.find(d => d.id === selectedDept)?.sections?.map((sec: any) => (
+             {availableDepartments.find(d => d.id === selectedDept)?.sections?.map((sec: any) => (
                 <button
                   key={sec.id} 
                   onClick={() => setSelectedSection(sec.id)}
@@ -841,7 +862,7 @@ export const StudentReports = () => {
              <div>
                <h2 className="text-xl font-serif font-bold text-ink">Recent Assessments</h2>
                <p className="text-xs text-gray-body mt-0.5">
-                 {departments.find(d => d.id === selectedDept)?.name} &bull; Section {departments.find(d => d.id === selectedDept)?.sections?.find((s: any) => s.id === selectedSection)?.name || selectedSection}
+                 {availableDepartments.find(d => d.id === selectedDept)?.name} &bull; Section {availableDepartments.find(d => d.id === selectedDept)?.sections?.find((s: any) => s.id === selectedSection)?.name || selectedSection}
                </p>
              </div>
              <div className="flex items-center space-x-2 self-start sm:self-auto">
@@ -1153,3 +1174,4 @@ export const StudentReports = () => {
     </div>
   );
 };
+

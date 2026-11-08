@@ -8,6 +8,7 @@ import AssignmentManagement from '../components/dashboard/AssignmentManagement';
 import { FileText, Home, ListChecks, User, Users } from 'lucide-react';
 import type { DashboardNavGroup } from '../components/DashboardLayout';
 import FacultyCommandPalette from '../components/dashboard/FacultyCommandPalette';
+import { FacultyDemoProvider } from '../context/FacultyDemoContext';
 
 const facultyNavigation: DashboardNavGroup[] = [
   {
@@ -40,10 +41,12 @@ const facultyNavigation: DashboardNavGroup[] = [
 export default function FacultyDashboard() {
   const [activeTab, setActiveTab] = useState('home');
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [isDemo, setIsDemo] = useState(false);
 
   return (
+    <FacultyDemoProvider value={isDemo}>
     <>
-    <DashboardLayout title="Faculty Workspace" activeTab={activeTab} onTabChange={setActiveTab} facultyNavigation={facultyNavigation} onCommandPalette={() => setCommandPaletteOpen(true)}>
+    <DashboardLayout title="Faculty Workspace" activeTab={activeTab} onTabChange={setActiveTab} facultyNavigation={facultyNavigation} onCommandPalette={() => setCommandPaletteOpen(true)} isDemo={isDemo} onToggleDemo={setIsDemo} facultySidebarCollapsible>
       {activeTab === 'profile' && <UserProfile />}
       {activeTab === 'home' && <FacultyHome onNavigate={setActiveTab} />}
       {activeTab === 'reports' && <StudentReports />}
@@ -52,5 +55,6 @@ export default function FacultyDashboard() {
     </DashboardLayout>
     <FacultyCommandPalette open={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} onNavigate={setActiveTab} />
     </>
+    </FacultyDemoProvider>
   );
 }

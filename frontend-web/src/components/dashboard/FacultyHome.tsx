@@ -23,6 +23,8 @@ import { ConfirmationDialog, ErrorState, SectionHeader, StatCard, StatusBadge } 
 import { apiClient } from '@/lib/apiClient';
 import { clearDraft, clearSavedFilters, getDraftStorageKey, getFilterStorageKey, getStoredUserKey, readDraft, readSavedFilters, writeDraft, writeSavedFilters } from '@/lib/facultyPersistence';
 import { toast } from 'sonner';
+import { useFacultyDemo } from '@/context/FacultyDemoContext';
+import { facultyDemoAnnouncements, facultyDemoAssignments, facultyDemoCalendar, facultyDemoNotifications, facultyDemoTasks } from '@/lib/facultyDemoData';
 
 const sanitizeHtml = (value: string) => DOMPurify.sanitize(value || '', { ALLOWED_TAGS: ['b', 'strong', 'i', 'em', 'u', 's', 'strike', 'ol', 'ul', 'li', 'a', 'p', 'br'], ALLOWED_ATTR: ['href', 'target', 'rel'] });
 
@@ -63,6 +65,7 @@ interface Notification { id: string; type: string; message: string; createdAt: s
 interface FacultyHomeProps { onNavigate?: (destination: 'home' | 'reports' | 'quizzes' | 'assignments') => void; }
 
 export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
+  const isDemo = useFacultyDemo();
   // Loading States
   const [loadingTasks, setLoadingTasks] = useState(true);
   const [loadingCalendar, setLoadingCalendar] = useState(true);
@@ -161,7 +164,7 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
     // Poll for new notifications every 30 seconds
     const interval = setInterval(fetchNotifications, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [isDemo]);
 
   // Helper to convert Date or ISO string to local 'YYYY-MM-DD'
   const getLocalDateString = (d: Date | string): string => {
@@ -176,6 +179,10 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
     try {
       setLoadingTasks(true);
       setTasksError(null);
+      if (isDemo) {
+        setTodos(facultyDemoTasks);
+        return;
+      }
       const res = await apiClient.fetch('/api/v1/faculty/dashboard/tasks');
       const data = await res.json();
       if (data?.success) setTodos(data.data);
@@ -188,6 +195,10 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
     try {
       setLoadingCalendar(true);
       setCalendarError(null);
+      if (isDemo) {
+        setCalendarEvents(facultyDemoCalendar);
+        return;
+      }
       const res = await apiClient.fetch('/api/v1/faculty/dashboard/calendar');
       const data = await res.json();
       if (data?.success) setCalendarEvents(data.data.map((e: any) => ({ ...e, date: getLocalDateString(e.date) })));
@@ -200,6 +211,10 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
     try {
       setLoadingAgendaAssignments(true);
       setAgendaAssignmentsError(null);
+      if (isDemo) {
+        setAgendaAssignments(facultyDemoAssignments);
+        return;
+      }
       const res = await apiClient.fetch('/api/v1/assignments/faculty?page=1&limit=50');
       const data = await res.json();
       if (data?.success) {
@@ -214,6 +229,11 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
 
   const fetchAnnouncements = async (pageNumber = 1) => {
     try {
+      if (isDemo) {
+        setAnnouncements(pageNumber === 1 ? facultyDemoAnnouncements : []);
+        setHasMore(false);
+        return;
+      }
       const res = await apiClient.fetch(`/api/v1/faculty/dashboard/announcements?page=${pageNumber}&limit=10`);
       const data = await res.json();
       if (data?.success) {
@@ -239,6 +259,11 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
     notificationRequestInFlight.current = true;
     try {
       setNotifLoading(true);
+      if (isDemo) {
+        setNotificationError(null);
+        setNotifications(facultyDemoNotifications);
+        return;
+      }
       const res = await apiClient.fetch('/api/v1/faculty/dashboard/notifications');
       if (!res.ok) {
         setNotificationError('Notifications could not be loaded.');
@@ -265,11 +290,13 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
       // Optimistic update
       setNotifications(prev => prev.map(n => ({ ...n, read: true })));
       // Persist to backend (fire-and-forget)
-      unread.forEach(n => {
-        apiClient.fetch(`/api/v1/faculty/dashboard/notifications/${n.id}/read`, {
-          method: 'PATCH',
-        }).catch(() => {});
-      });
+      if (!isDemo) {
+        unread.forEach(n => {
+          apiClient.fetch(`/api/v1/faculty/dashboard/notifications/${n.id}/read`, {
+            method: 'PATCH',
+          }).catch(() => {});
+        });
+      }
     }
   };
 
@@ -278,6 +305,11 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
     if (!newTaskText.trim()) return;
     const t = newTaskText;
     setNewTaskText(''); setIsAddingTask(false);
+    if (isDemo) {
+      setTodos(previous => [...previous, { id: `demo-task-${Date.now()}`, task: t, completed: false, date: getLocalDateString(new Date()) }]);
+      toast.success('Demo task added locally.');
+      return;
+    }
     try {
       const res = await apiClient.fetch('/api/v1/faculty/dashboard/tasks', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -290,6 +322,10 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
 
   const toggleTodo = async (id: string, currentStatus: boolean) => {
     setTodos(todos.map(t => t.id === id ? { ...t, completed: !currentStatus } : t));
+    if (isDemo) {
+      toast.success('Demo task updated locally.');
+      return;
+    }
     try {
       await apiClient.fetch(`/api/v1/faculty/dashboard/tasks/${id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -301,6 +337,10 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
   const deleteTask = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setTodos(todos.filter(t => t.id !== id));
+    if (isDemo) {
+      toast.success('Demo task deleted locally.');
+      return;
+    }
     try {
       await apiClient.fetch(`/api/v1/faculty/dashboard/tasks/${id}`, { method: 'DELETE' });
     } catch (err) {}
@@ -314,6 +354,11 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
     // Send with noon UTC timestamp so date never shifts across timezones
     const date = `${localDateStr}T12:00:00.000Z`;
     setNewEventTitle(''); setShowEventForm(false);
+    if (isDemo) {
+      setCalendarEvents(previous => [...previous, { id: `demo-event-${Date.now()}`, title, date: localDateStr }]);
+      toast.success('Demo event added locally.');
+      return;
+    }
     try {
       const res = await apiClient.fetch('/api/v1/faculty/dashboard/calendar', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -326,6 +371,10 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
 
   const deleteCalendarEvent = async (id: string) => {
     setCalendarEvents(calendarEvents.filter(e => e.id !== id));
+    if (isDemo) {
+      toast.success('Demo event deleted locally.');
+      return;
+    }
     try {
       await apiClient.fetch(`/api/v1/faculty/dashboard/calendar/${id}`, { method: 'DELETE' });
     } catch (err) {}
@@ -359,6 +408,22 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
       date: new Date().toISOString()
     };
 
+    if (isDemo) {
+      setAnnouncements(previous => [{
+        id: `demo-announcement-${Date.now()}`,
+        ...payload,
+        date: payload.date.slice(0, 10),
+        author: 'You',
+        audience: audienceStr,
+      }, ...previous]);
+      clearDraft(announcementDraftKey);
+      skipAnnouncementDraftWrite.current = true;
+      setRestoredAnnouncementDraft(false);
+      setNewAnnouncement({ title: '', content: '', isSurvey: false, batch: 'All Batches', department: 'All Departments', section: 'All Sections' });
+      toast.success('Demo announcement published locally.');
+      return;
+    }
+
     try {
       const res = await apiClient.fetch('/api/v1/faculty/dashboard/announcements', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -388,6 +453,10 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
     if (viewingAnnouncement?.id === id) {
       setViewingAnnouncement(null);
     }
+    if (isDemo) {
+      toast.success('Demo announcement deleted locally.');
+      return;
+    }
     try {
       const res = await apiClient.fetch(`/api/v1/faculty/dashboard/announcements/${id}`, { method: 'DELETE' });
       const data = await res.json();
@@ -409,6 +478,11 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
   const openSurveyResponses = async (id: string) => {
     setViewingResponsesFor(id);
     setLoadingResponses(true);
+    if (isDemo) {
+      setAnnouncementResponses([]);
+      setLoadingResponses(false);
+      return;
+    }
     try {
       const res = await apiClient.fetch(`/api/v1/faculty/dashboard/announcements/${id}/responses`);
       const data = await res.json();
@@ -600,10 +674,10 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
           <StatusBadge status="info">{agenda.length} scheduled</StatusBadge>
         </div>
         <div className="mb-4 grid grid-cols-1 gap-2 md:grid-cols-3">
-          <div className="rounded-lg bg-cream/40 p-3 text-xs text-gray-body">{loadingTasks ? 'Loading tasks...' : tasksError ? 'Tasks unavailable' : todos.length ? `${todos.length} tasks loaded` : 'No tasks returned'}</div>
-          <div className="rounded-lg bg-cream/40 p-3 text-xs text-gray-body">{loadingCalendar ? 'Loading calendar...' : calendarError ? 'Calendar unavailable' : calendarEvents.length ? `${calendarEvents.length} events loaded` : 'No events returned'}</div>
+          <div className="rounded-lg bg-cream/40 p-3 text-xs text-gray-body">{loadingTasks ? 'Loading tasks...' : tasksError ? 'Tasks unavailable' : todos.length ? `${todos.length} task${todos.length === 1 ? '' : 's'} available` : 'No tasks scheduled'}</div>
+          <div className="rounded-lg bg-cream/40 p-3 text-xs text-gray-body">{loadingCalendar ? 'Loading calendar...' : calendarError ? 'Calendar unavailable' : calendarEvents.length ? `${calendarEvents.length} event${calendarEvents.length === 1 ? '' : 's'} scheduled` : 'No calendar events scheduled'}</div>
           <div className="rounded-lg bg-cream/40 p-3 text-xs text-gray-body">
-            {loadingAgendaAssignments ? 'Loading assignments...' : agendaAssignmentsError ? <><span>Assignments unavailable.</span> <button type="button" onClick={fetchAgendaAssignments} className="font-semibold text-maroon underline">Retry</button></> : assignmentDueDatesAvailable ? 'Assignment due dates included' : 'Assignment response has no due-date field'}
+            {loadingAgendaAssignments ? 'Loading assignments...' : agendaAssignmentsError ? <><span>Assignments unavailable.</span> <button type="button" onClick={fetchAgendaAssignments} className="font-semibold text-maroon underline">Retry</button></> : assignmentDueDatesAvailable ? 'Assignment due dates included' : 'Assignment deadlines unavailable'}
           </div>
         </div>
         {groupedAgenda.every(group => group.items.length === 0) && !loadingTasks && !loadingCalendar && !loadingAgendaAssignments ? (

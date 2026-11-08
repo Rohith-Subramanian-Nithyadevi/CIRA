@@ -161,6 +161,43 @@
     --sidebar-border: oklch(1 0 0 / 10%);
     --sidebar-ring: oklch(0.556 0 0);
   }
+  .dark body {
+    background: var(--bg-cream);
+  }
+  .dark .login-hero {
+    background: radial-gradient(circle, #2d2026 0%, #171317 100%) !important;
+  }
+  .dark .bg-white {
+    background-color: #1f1b1f;
+  }
+  .dark .bg-white\/80 {
+    background-color: rgb(31 27 31 / 0.88);
+  }
+  .dark .bg-white\/90 {
+    background-color: rgb(31 27 31 / 0.94);
+  }
+  .dark .bg-gray-50 {
+    background-color: #242124;
+  }
+  .dark .hover\:bg-white:hover {
+    background-color: #2a2529;
+  }
+  .dark .prose {
+    color: var(--ink);
+  }
+  .dark .prose :where(strong, h1, h2, h3, h4) {
+    color: var(--ink);
+  }
+  .dark input,
+  .dark textarea,
+  .dark select {
+    color: var(--ink);
+    background-color: #242124;
+  }
+  .dark input::placeholder,
+  .dark textarea::placeholder {
+    color: #9c9398;
+  }
   * {
     @apply border-border;
   }

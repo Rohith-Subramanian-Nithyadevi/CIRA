@@ -11,8 +11,15 @@ import { useBatches, useDepartments } from '@/hooks/useReferenceData';
 import AssignmentSubmissionsView from './AssignmentSubmissionsView';
 import { apiClient } from '@/lib/apiClient';
 import { clearDraft, clearSavedFilters, getDraftStorageKey, getFilterStorageKey, getStoredUserKey, readDraft, readSavedFilters, writeDraft, writeSavedFilters } from '@/lib/facultyPersistence';
+import { useFacultyDemo } from '@/context/FacultyDemoContext';
+import { facultyDemoAssignments, facultyDemoBatches, facultyDemoDepartments } from '@/lib/facultyDemoData';
 
 const sanitizeHtml = (value: string) => DOMPurify.sanitize(value || '', { ALLOWED_TAGS: ['b', 'strong', 'i', 'em', 'u', 's', 'strike', 'ol', 'ul', 'li', 'a', 'p', 'br'], ALLOWED_ATTR: ['href', 'target', 'rel'] });
+const formatAssignmentDate = (value: unknown, label: string) => {
+  if (!value) return `${label}: No date`;
+  const date = new Date(String(value));
+  return Number.isNaN(date.getTime()) ? `${label}: Date unavailable` : `${label}: ${date.toLocaleDateString()}`;
+};
 
 function RichTextEditor({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   const editor = useEditor({
@@ -44,6 +51,7 @@ function RichTextEditor({ value, onChange }: { value: string; onChange: (value: 
 }
 
 export default function AssignmentManagement() {
+  const isDemo = useFacultyDemo();
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
@@ -68,6 +76,8 @@ export default function AssignmentManagement() {
   // Cached Reference Data
   const { batches } = useBatches();
   const { departments } = useDepartments(targetBatchId, { enabled: targetBatchId !== 'all' });
+  const availableBatches = isDemo ? facultyDemoBatches : batches;
+  const availableDepartments = isDemo ? facultyDemoDepartments : departments;
   const draftKey = getDraftStorageKey('assignment', activeAssignmentId || 'new', getStoredUserKey());
 
   useEffect(() => {
@@ -109,10 +119,16 @@ export default function AssignmentManagement() {
 
   useEffect(() => {
     fetchAssignments(1);
-  }, []);
+  }, [isDemo]);
 
   const fetchAssignments = async (pageNumber = 1) => {
     try {
+      if (isDemo) {
+        setAssignments(facultyDemoAssignments);
+        setHasMore(false);
+        setLoadError(null);
+        return;
+      }
       const res = await apiClient.fetch(`/api/v1/assignments/faculty?page=${pageNumber}&limit=10`);
       const data = await res.json();
       if (data?.success) {
@@ -150,6 +166,17 @@ export default function AssignmentManagement() {
       targetDepartments: targetDeptId !== 'all' ? [targetDeptId] : [],
       targetSections: targetSectionId !== 'all' ? [targetSectionId] : []
     };
+
+    if (isDemo) {
+      const demoAssignment = { id: activeAssignmentId || `demo-assignment-${Date.now()}`, ...payload, _count: { submissions: 0 } };
+      setAssignments(previous => activeAssignmentId
+        ? previous.map(assignment => assignment.id === activeAssignmentId ? { ...assignment, ...demoAssignment } : assignment)
+        : [demoAssignment, ...previous]);
+      setIsCreating(false);
+      setActiveAssignmentId(null);
+      setTitle(''); setDescription(''); setTargetBatchId('all'); setTargetDeptId('all'); setTargetSectionId('all');
+      return;
+    }
 
     try {
       let res;
@@ -204,6 +231,10 @@ export default function AssignmentManagement() {
   };
 
   const handleDelete = async (id: string) => {
+    if (isDemo) {
+      setAssignments(previous => previous.filter(assignment => assignment.id !== id));
+      return;
+    }
     try {
       await apiClient.fetch(`/api/v1/assignments/faculty/${id}`, { method: 'DELETE' });
       setAssignments(assignments.filter(a => a.id !== id));
@@ -276,7 +307,7 @@ export default function AssignmentManagement() {
                   <label className="block text-xs font-semibold text-gray-body mb-1">Target Batch</label>
                   <select value={targetBatchId} onChange={e => setTargetBatchId(e.target.value)} className="w-full px-3 py-2 border border-border-soft rounded-lg text-sm">
                     <option value="all">All Batches</option>
-                    {batches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                    {availableBatches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                   </select>
                 </div>
                 {targetBatchId !== 'all' && (
@@ -284,7 +315,7 @@ export default function AssignmentManagement() {
                     <label className="block text-xs font-semibold text-gray-body mb-1">Target Department</label>
                     <select value={targetDeptId} onChange={e => {setTargetDeptId(e.target.value); setTargetSectionId('all');}} className="w-full px-3 py-2 border border-border-soft rounded-lg text-sm">
                       <option value="all">All Departments in Batch</option>
-                      {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                      {availableDepartments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                     </select>
                   </div>
                 )}
@@ -305,7 +336,7 @@ export default function AssignmentManagement() {
                     <label className="block text-xs font-semibold text-gray-body mb-1">Target Section</label>
                     <select value={targetSectionId} onChange={e => setTargetSectionId(e.target.value)} className="w-full px-3 py-2 border border-border-soft rounded-lg text-sm">
                       <option value="all">All Sections in Department</option>
-                      {departments.find(d => d.id === targetDeptId)?.sections?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                      {availableDepartments.find(d => d.id === targetDeptId)?.sections?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                     </select>
                   </div>
                 )}
@@ -337,7 +368,7 @@ export default function AssignmentManagement() {
                     dangerouslySetInnerHTML={{ __html: sanitizeHtml(a.description) || '<p>No description provided.</p>' }}
                   />
                   <div className="flex items-center gap-4 text-xs font-semibold mt-3">
-                    <span className="text-maroon bg-maroon/10 px-2 py-1 rounded-md">Assigned: {new Date(a.createdAt).toLocaleDateString()}</span>
+                    <span className="text-maroon bg-maroon/10 px-2 py-1 rounded-md">{formatAssignmentDate(a.dueDate, 'Due')}</span>
                     <button 
                       onClick={() => setSelectedAssignmentForSubmissions(a.id)}
                       className="text-gray-body border border-border-soft hover:bg-cream hover:text-ink px-3 py-1 rounded-md bg-white transition-colors flex items-center gap-2"

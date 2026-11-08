@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { CheckCircle2, Trash2, Loader2, Moon, Sun } from 'lucide-react';
+import { CheckCircle2, Trash2, Loader2 } from 'lucide-react';
+import { useTheme } from '@/context/ThemeContext';
 import { useBatches, useDepartments } from '@/hooks/useReferenceData';
 import { apiClient, getApiErrorMessage } from '@/lib/apiClient';
 
@@ -17,7 +18,7 @@ export default function UserProfile() {
   const [error, setError] = useState('');
 
   // Theme state
-  const [theme, setTheme] = useState(localStorage.getItem('cira_theme') || 'light');
+  const { theme, setTheme } = useTheme();
 
   // Enrollment state
   const [enrolledDepartments, setEnrolledDepartments] = useState<{ id: string; name: string; batchName?: string; type?: string; departmentName?: string }[]>([]);
@@ -65,16 +66,6 @@ export default function UserProfile() {
         .catch(console.error);
     }
   }, [role]);
-
-  const toggleTheme = (newTheme: string) => {
-    setTheme(newTheme);
-    localStorage.setItem('cira_theme', newTheme);
-    if (newTheme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  };
 
   const handleSave = async () => {
     setLoading(true);
@@ -218,23 +209,23 @@ export default function UserProfile() {
   return (
     <div className="max-w-2xl bg-white dark:bg-[#1A1A1A] rounded-xl border border-border-soft dark:border-gray-800 p-8 shadow-sm transition-colors duration-200">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-serif font-bold text-ink dark:text-cream">User Profile</h2>
+        <h2 className="text-2xl font-serif font-bold text-ink dark:text-ink">User Profile</h2>
         
         {/* Theme Toggle */}
         <div className="flex bg-cream dark:bg-gray-800 rounded-full p-1 border border-border-soft dark:border-gray-700">
           <button 
-            onClick={() => toggleTheme('light')} 
+            onClick={() => setTheme('light')} 
             className={`p-1.5 rounded-full transition-colors ${theme === 'light' ? 'bg-white shadow-sm text-maroon' : 'text-gray-body hover:text-ink dark:hover:text-cream'}`}
             title="Light Mode"
           >
-            <Sun className="w-4 h-4" />
+            Light
           </button>
           <button 
-            onClick={() => toggleTheme('dark')} 
+            onClick={() => setTheme('dark')} 
             className={`p-1.5 rounded-full transition-colors ${theme === 'dark' ? 'bg-gray-700 shadow-sm text-cream' : 'text-gray-body hover:text-ink dark:hover:text-cream'}`}
             title="Dark Mode"
           >
-            <Moon className="w-4 h-4" />
+            Dark
           </button>
         </div>
       </div>
@@ -251,7 +242,7 @@ export default function UserProfile() {
         </div>
       )}
 
-      <div className="space-y-6 text-ink dark:text-cream">
+      <div className="space-y-6 text-ink dark:text-ink">
         {/* Full Name */}
         <div>
           <label className="block text-sm font-semibold text-gray-body dark:text-gray-400 mb-1.5">Full Name</label>

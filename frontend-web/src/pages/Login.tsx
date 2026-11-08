@@ -480,7 +480,7 @@ export default function Login() {
       
       {/* LEFT COLUMN - 60% Width Panel with Original #FAF5EE Cream Color & DotField (Desktop Only) */}
       <div 
-        className="hidden lg:flex relative lg:w-[55%] xl:w-[60%] h-screen sticky top-0 flex-col justify-between p-10 xl:p-14 overflow-hidden border-r border-border-soft"
+        className="login-hero hidden lg:flex relative lg:w-[55%] xl:w-[60%] h-screen sticky top-0 flex-col justify-between p-10 xl:p-14 overflow-hidden border-r border-border-soft"
         style={{ background: 'radial-gradient(circle, #FAF5EE 0%, #EFE5D8 100%)' }}
       >
         
