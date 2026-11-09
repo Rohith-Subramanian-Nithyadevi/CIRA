@@ -3,6 +3,8 @@ import { ArrowLeft, AlertTriangle, BarChart3, CheckCircle2, Circle, Clipboard, C
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis } from 'recharts';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { apiClient } from '@/lib/apiClient';
+import { useFacultyDemo } from '@/context/FacultyDemoContext';
+import { getFacultyDemoStudentProfile } from '@/lib/facultyDemoData';
 
 interface StudentProfileViewProps {
   studentId: string;
@@ -93,6 +95,7 @@ function ScoreRing({ score }: { score: number | null }) {
 }
 
 export default function StudentProfileView({ studentId, onBack }: StudentProfileViewProps) {
+  const isDemo = useFacultyDemo();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<ProfileData | null>(null);
@@ -102,6 +105,12 @@ export default function StudentProfileView({ studentId, onBack }: StudentProfile
     try {
       setLoading(true);
       setError(null);
+      if (isDemo) {
+        const demoProfile = getFacultyDemoStudentProfile(studentId);
+        if (!demoProfile) throw new Error('Demo student profile was not found.');
+        setData(demoProfile);
+        return;
+      }
       const response = await apiClient.fetch(`/api/v1/faculty/students/${studentId}/profile`);
       const json = await response.json();
       if (!json?.data) throw new Error(json?.message || 'Student profile data could not be loaded.');
@@ -113,7 +122,7 @@ export default function StudentProfileView({ studentId, onBack }: StudentProfile
     }
   };
 
-  useEffect(() => { fetchProfile(); }, [studentId]);
+  useEffect(() => { fetchProfile(); }, [studentId, isDemo]);
 
   const derived = useMemo(() => {
     if (!data) return null;

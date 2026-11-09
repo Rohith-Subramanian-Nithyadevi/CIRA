@@ -38,7 +38,7 @@ import { apiClient } from '@/lib/apiClient';
 import { clearSavedFilters, getFilterStorageKey, getStoredUserKey, readSavedFilters, writeSavedFilters } from '@/lib/facultyPersistence';
 import { downloadCsv } from '@/lib/csv';
 import { useFacultyDemo } from '@/context/FacultyDemoContext';
-import { facultyDemoBatches, facultyDemoDepartments, facultyDemoQuizzes, facultyDemoQuizAnalytics, facultyDemoReport } from '@/lib/facultyDemoData';
+import { facultyDemoBatches, facultyDemoDepartments, facultyDemoQuizzes, facultyDemoReportForScope, getFacultyDemoQuizAnalytics, getFacultyDemoStudentByRoll } from '@/lib/facultyDemoData';
 
 export const StudentReports = () => {
   const isDemo = useFacultyDemo();
@@ -152,7 +152,11 @@ export const StudentReports = () => {
   const fetchPostedQuizzes = async () => {
     try {
       if (isDemo) {
-        setQuizzes(facultyDemoQuizzes);
+        const demoQuizzes = facultyDemoQuizzes.filter(quiz =>
+          (!selectedDept || quiz.targetDepartments.some(target => target.departmentId === selectedDept)) &&
+          (!selectedSection || quiz.targetSections.some(target => target.sectionId === selectedSection))
+        );
+        setQuizzes(demoQuizzes);
         return;
       }
       const params = new URLSearchParams({ posted: 'true' });
@@ -181,6 +185,17 @@ export const StudentReports = () => {
     try {
       setSearchLoading(true);
       setSearchError(null);
+
+      if (isDemo) {
+        const student = getFacultyDemoStudentByRoll(queryRoll);
+        if (!student) {
+          setSearchError(`No demo student matches roll number "${queryRoll}".`);
+          setSearchedStudentId(null);
+          return;
+        }
+        setSearchedStudentId(student.id);
+        return;
+      }
 
       const res = await apiClient.fetch(`/api/v1/faculty/students/search?rollNumber=${encodeURIComponent(queryRoll)}`);
 
@@ -237,10 +252,11 @@ export const StudentReports = () => {
   const fetchPerformanceBands = async () => {
     try {
       if (isDemo) {
-        setReportSummary(facultyDemoReport.summary);
-        setReportSubjects(facultyDemoReport.subjects);
-        setYearData(facultyDemoReport.yearData);
-        setDeptData(facultyDemoReport.deptData);
+        const report = facultyDemoReportForScope(selectedBatch, selectedDept, selectedSection);
+        setReportSummary(report.summary);
+        setReportSubjects(report.subjects);
+        setYearData(report.yearData);
+        setDeptData(report.deptData);
         setReportsError(null);
         return;
       }
@@ -297,7 +313,7 @@ export const StudentReports = () => {
         setQuizAnalyticsLoading(true);
         setQuizAnalyticsError(null);
         if (isDemo) {
-          setQuizAnalytics(facultyDemoQuizAnalytics);
+          setQuizAnalytics(getFacultyDemoQuizAnalytics(selectedQuiz, selectedSection));
           return;
         }
         const res = await apiClient.fetch(`/api/v1/faculty/reports/quiz/${selectedQuiz}`);
@@ -313,7 +329,7 @@ export const StudentReports = () => {
     };
 
     fetchQuizAnalytics();
-  }, [selectedQuiz, isDemo]);
+  }, [selectedQuiz, selectedSection, isDemo]);
 
   const activeDepartments = availableDepartments.filter(d => d.batchId === selectedBatch || !selectedBatch);
   const subjectsToShow = subjectFilter === 'All Subjects' ? reportSubjects : [subjectFilter];
@@ -1174,4 +1190,3 @@ export const StudentReports = () => {
     </div>
   );
 };
-
