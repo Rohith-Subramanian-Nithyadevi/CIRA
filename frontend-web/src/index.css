@@ -1,10 +1,57 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700;800&display=swap');
 @import "tw-animate-css";
-@import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+
+  .question-paper-print,
+  .question-paper-print * {
+    visibility: visible !important;
+  }
+
+  .question-paper-print {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
+  body {
+    background: white !important;
+  }
+
+  nav,
+  aside,
+  header,
+  button,
+  input,
+  select,
+  textarea,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  .report-view,
+  .assignment-roster,
+  .quiz-attempts-view {
+    color: #1A1A1A !important;
+    background: white !important;
+  }
+
+  .report-view *,
+  .assignment-roster *,
+  .quiz-attempts-view * {
+    box-shadow: none !important;
+  }
+}
 
 @layer base {
   html {
@@ -35,6 +82,15 @@
     --chip-peach: #F5E3D2;
     --cta-tan: #E8D6B8;
     --border-soft: #E7DDD0;
+    --success: #2f855a;
+    --warning: #b7791f;
+    --danger: #c53030;
+    --info: #2b6cb0;
+    --chart-maroon: #9B2242;
+    --chart-gold: #C58A3A;
+    --chart-blue: #2B6CB0;
+    --chart-teal: #2F855A;
+    --chart-plum: #805AD5;
 
     --background: oklch(1 0 0);
     --foreground: oklch(0.145 0 0);
@@ -80,6 +136,15 @@
     --chip-peach: #2c2c2c;
     --cta-tan: #343a40;
     --border-soft: #333333;
+    --success: #68d391;
+    --warning: #f6ad55;
+    --danger: #fc8181;
+    --info: #63b3ed;
+    --chart-maroon: #f687a5;
+    --chart-gold: #f6c56f;
+    --chart-blue: #90cdf4;
+    --chart-teal: #68d391;
+    --chart-plum: #b794f4;
 
     --background: oklch(0.145 0 0);
     --foreground: oklch(0.985 0 0);
@@ -113,6 +178,43 @@
     --sidebar-border: oklch(1 0 0 / 10%);
     --sidebar-ring: oklch(0.556 0 0);
   }
+  .dark body {
+    background: var(--bg-cream);
+  }
+  .dark .login-hero {
+    background: radial-gradient(circle, #2d2026 0%, #171317 100%) !important;
+  }
+  .dark .bg-white {
+    background-color: #1f1b1f;
+  }
+  .dark .bg-white\/80 {
+    background-color: rgb(31 27 31 / 0.88);
+  }
+  .dark .bg-white\/90 {
+    background-color: rgb(31 27 31 / 0.94);
+  }
+  .dark .bg-gray-50 {
+    background-color: #242124;
+  }
+  .dark .hover\:bg-white:hover {
+    background-color: #2a2529;
+  }
+  .dark .prose {
+    color: var(--ink);
+  }
+  .dark .prose :where(strong, h1, h2, h3, h4) {
+    color: var(--ink);
+  }
+  .dark input,
+  .dark textarea,
+  .dark select {
+    color: var(--ink);
+    background-color: #242124;
+  }
+  .dark input::placeholder,
+  .dark textarea::placeholder {
+    color: #9c9398;
+  }
   * {
     @apply border-border;
   }
@@ -129,5 +231,16 @@
 
   .text-gradient {
     @apply bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

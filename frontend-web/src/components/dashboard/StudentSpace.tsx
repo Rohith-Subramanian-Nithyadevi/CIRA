@@ -26,6 +26,10 @@ interface Announcement {
   audience?: string;
   faculty?: { name?: string; email?: string } | null;
   isSurvey: boolean;
+  isPoll?: boolean;
+  pollOptions?: string[];
+  pollStartsAt?: string | null;
+  pollExpiresAt?: string | null;
   responses?: AnnouncementResponse[];
 }
 
@@ -363,7 +367,7 @@ export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProp
           role="presentation"
         >
           <div 
-            className="bg-white rounded-2xl shadow-xl max-w-xl w-full max-h-[85vh] flex flex-col border border-border-soft overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+            className="bg-white rounded-2xl shadow-lg max-w-xl w-full max-h-[85vh] flex flex-col border border-border-soft overflow-hidden"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
@@ -418,7 +422,7 @@ export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProp
                     <div className="p-4 rounded-xl bg-green-50 border border-green-200 text-xs flex items-start gap-2.5">
                       <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0 mt-0.5" />
                       <div>
-                        <p className="font-bold text-green-800 mb-0.5">Your Submitted Feedback:</p>
+                        <p className="font-bold text-green-800 mb-0.5">{selectedAnnouncement.isPoll ? 'Your Poll Response:' : 'Your Submitted Feedback:'}</p>
                         <p className="text-green-950">{selectedAnnouncement.responses[0].response}</p>
                         {selectedAnnouncement.responses[0].submittedAt && (
                           <p className="text-[10px] text-green-700 mt-1">
@@ -431,15 +435,21 @@ export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProp
                     <div className="space-y-3 bg-cream/20 p-4 rounded-xl border border-border-soft">
                       <p className="text-xs font-bold text-ink flex items-center gap-1.5">
                         <MessageSquare className="w-3.5 h-3.5 text-maroon" />
-                        Provide Your Feedback / Response:
+                        {selectedAnnouncement.isPoll ? 'Choose one option:' : 'Provide Your Feedback / Response:'}
                       </p>
-                      <textarea
+                      {selectedAnnouncement.isPoll ? (
+                        <div role="radiogroup" aria-label="Poll options" className="space-y-2">
+                          {(selectedAnnouncement.pollOptions || []).map((option) => <label key={option} className="flex items-center gap-2 rounded-lg border border-border-soft bg-white p-3 text-sm">
+                            <input type="radio" name={`poll-${selectedAnnouncement.id}`} value={option} checked={responseText === option} onChange={() => setResponseText(option)} />{option}
+                          </label>)}
+                        </div>
+                      ) : <textarea
                         rows={3}
-                        placeholder="Type your feedback or survey response here..."
+                        placeholder="Type your feedback / survey response here..."
                         className="w-full text-xs p-3 rounded-lg border border-border-soft focus:outline-none focus:border-maroon resize-none bg-white"
                         value={responseText}
                         onChange={(e) => setResponseText(e.target.value)}
-                      />
+                      />}
                       <div className="flex justify-end gap-2">
                         <button
                           onClick={() => handleSurveySubmit(selectedAnnouncement.id)}

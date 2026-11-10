@@ -12,6 +12,7 @@ interface Question {
   text: string;
   marks: number;
   options?: any;
+  image?: string;
 }
 
 export default function ExamInterface() {
@@ -319,6 +320,7 @@ export default function ExamInterface() {
             <div className="prose max-w-none mb-8 text-ink font-semibold text-lg leading-relaxed">
               {currentQ.text}
             </div>
+            {currentQ.image && <img src={currentQ.image} alt="Question illustration" className="mb-8 max-h-96 max-w-full rounded-xl border border-border-soft object-contain" />}
 
             <div className="space-y-4">
               {currentQ.type === 'MCQ' && currentQ.options?.map((opt: string, idx: number) => (

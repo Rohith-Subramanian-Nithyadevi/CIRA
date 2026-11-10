@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import LandingPage from './pages/LandingPage';
@@ -10,6 +10,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import ExamDashboard from './pages/exam-portal/ExamDashboard';
 import ExamInterface from './pages/exam-portal/ExamInterface';
 import ExamResults from './pages/exam-portal/ExamResults';
+import { ThemeProvider } from './context/ThemeContext';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -23,6 +24,7 @@ const queryClient = new QueryClient({
 
 function App() {
   return (
+    <ThemeProvider>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
       <Toaster richColors position="top-right" />
@@ -65,6 +67,11 @@ function App() {
             <FacultyDashboard />
           </ProtectedRoute>
         } />
+        <Route path="/faculty/enrollment" element={
+          <ProtectedRoute allowedRoles={['FACULTY']}>
+            <Navigate to="/faculty/dashboard" replace />
+          </ProtectedRoute>
+        } />
 
         {/* Protected Student Routes */}
         <Route path="/student/dashboard" element={
@@ -78,6 +85,7 @@ function App() {
       </Routes>
     </BrowserRouter>
   </QueryClientProvider>
+  </ThemeProvider>
   );
 }
 

@@ -1,6 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
+import { clearDraft, clearSavedFilters, getDraftStorageKey, getFilterStorageKey, getStoredUserKey, readDraft, readSavedFilters, writeDraft, writeSavedFilters } from '@/lib/facultyPersistence';
 import { apiClient } from '@/lib/apiClient';
+import { downloadCsv } from '@/lib/csv';
+import { useFacultyDemo } from '@/context/FacultyDemoContext';
+import { facultyDemoDepartments, facultyDemoQuizzes } from '@/lib/facultyDemoData';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -335,9 +339,13 @@ const parseLongWritten = (rawText: string): any[] => {
   return parsed;
 };
 
-export default function QuizManagement() {
+export default function QuizManagement({ initialSubmissionsQuizId }: { initialSubmissionsQuizId?: string | null } = {}) {
+  const isDemo = useFacultyDemo();
   const [activeView, setActiveView] = useState<'list' | 'create' | 'add_questions' | 'grade_submissions' | 'evaluate_attempt'>('list');
   const [quizzes, setQuizzes] = useState<any[]>([]);
+  const quizFilterKey = getFilterStorageKey('quizzes', getStoredUserKey());
+  const savedQuizFilters = readSavedFilters<{ search?: string }>(quizFilterKey);
+  const [quizSearch, setQuizSearch] = useState(savedQuizFilters?.search || '');
   const [departments, setDepartments] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
@@ -383,13 +391,51 @@ export default function QuizManagement() {
   const [facultyFeedback, setFacultyFeedback] = useState('');
   const [parsedTotalMarks, setParsedTotalMarks] = useState(0);
   const [parsedTotalQuestions, setParsedTotalQuestions] = useState(0);
+  const [restoredQuizDraft, setRestoredQuizDraft] = useState(false);
+  const skipQuizDraftWrite = useRef(false);
+  const quizDraftKey = getDraftStorageKey('quiz', activeQuizId || editingQuizId || 'new', getStoredUserKey());
+
+  useEffect(() => {
+    if (activeView !== 'create') return;
+    const draft = readDraft<{
+      formData: typeof formData;
+      questions: any[];
+    }>(quizDraftKey);
+    if (draft) {
+      if (draft.formData && typeof draft.formData === 'object') setFormData(draft.formData);
+      if (Array.isArray(draft.questions)) setQuestions(draft.questions);
+      setRestoredQuizDraft(true);
+    } else {
+      setRestoredQuizDraft(false);
+    }
+  }, [activeView, quizDraftKey]);
+
+  useEffect(() => {
+    if (activeView !== 'create') return;
+    if (skipQuizDraftWrite.current) {
+      skipQuizDraftWrite.current = false;
+      return;
+    }
+    const timeout = window.setTimeout(() => writeDraft(quizDraftKey, { formData, questions }), 500);
+    return () => window.clearTimeout(timeout);
+  }, [activeView, formData, questions, quizDraftKey]);
+
+  useEffect(() => {
+    writeSavedFilters(quizFilterKey, { search: quizSearch });
+  }, [quizFilterKey, quizSearch]);
+
   useEffect(() => {
     fetchQuizzes(1);
     fetchDepartments();
-  }, []);
+  }, [isDemo]);
 
   const fetchQuizzes = async (pageNumber = 1) => {
     try {
+      if (isDemo) {
+        setQuizzes(facultyDemoQuizzes);
+        setHasMore(false);
+        return;
+      }
       const res = await apiClient.fetch(`/api/v1/faculty/quiz?page=${pageNumber}&limit=10`);
       const data = await res.json();
       if (data?.data) {
@@ -411,6 +457,10 @@ export default function QuizManagement() {
 
   const fetchDepartments = async () => {
     try {
+      if (isDemo) {
+        setDepartments(facultyDemoDepartments);
+        return;
+      }
       const res = await apiClient.fetch('/api/v1/departments');
       const data = await res.json();
       if (data?.data?.departments) setDepartments(data.data.departments);
@@ -473,6 +523,11 @@ export default function QuizManagement() {
 
   const handleDeleteQuiz = async (quizId: string) => {
     if (!window.confirm('Are you sure you want to delete this quiz?')) return;
+    if (isDemo) {
+      setQuizzes(previous => previous.filter(quiz => quiz.id !== quizId));
+      toast.success('Demo quiz deleted locally.');
+      return;
+    }
     try {
       const res = await apiClient.fetch(`/api/v1/faculty/quiz/${quizId}`, { method: 'DELETE' });
       const data = await res.json();
@@ -482,6 +537,11 @@ export default function QuizManagement() {
   };
 
   const handleTogglePublishAnswers = async (quizId: string, currentStatus: boolean) => {
+    if (isDemo) {
+      setQuizzes(previous => previous.map(quiz => quiz.id === quizId ? { ...quiz, answersPublished: !currentStatus } : quiz));
+      toast.success(`Demo answers ${!currentStatus ? 'published' : 'hidden'} locally.`);
+      return;
+    }
     try {
       const res = await apiClient.fetch(`/api/v1/faculty/quiz/${quizId}/publish`, {
         method: 'POST', 
@@ -653,6 +713,9 @@ export default function QuizManagement() {
         const data = await res.json();
         if (data?.status !== 'success') throw new Error('Failed to update quiz: ' + data.message);
         toast.success('Quiz details updated successfully!');
+        clearDraft(quizDraftKey);
+        skipQuizDraftWrite.current = true;
+        setRestoredQuizDraft(false);
         setEditingQuizId(null);
         setActiveView('list');
         fetchQuizzes();
@@ -670,6 +733,9 @@ export default function QuizManagement() {
         
         if (data?.status === 'success') {
           toast.success('Quiz updated successfully!');
+          clearDraft(quizDraftKey);
+          skipQuizDraftWrite.current = true;
+          setRestoredQuizDraft(false);
           setActiveView('list');
           fetchQuizzes();
         } else {
@@ -699,6 +765,9 @@ export default function QuizManagement() {
 
         if (qData?.status === 'success') {
           toast.success('Quiz and Questions published successfully!');
+          clearDraft(quizDraftKey);
+          skipQuizDraftWrite.current = true;
+          setRestoredQuizDraft(false);
           setActiveView('list');
           fetchQuizzes();
         } else {
@@ -833,6 +902,10 @@ export default function QuizManagement() {
     } catch (err) { console.error(err); }
   };
 
+  useEffect(() => {
+    if (initialSubmissionsQuizId) void handleOpenGradeView(initialSubmissionsQuizId);
+  }, [initialSubmissionsQuizId]);
+
   const handleOpenAttempt = (attempt: any) => {
     setActiveAttempt(attempt);
     setFacultyFeedback(attempt.facultyFeedback || '');
@@ -865,6 +938,7 @@ export default function QuizManagement() {
   const [creationMode, setCreationMode] = useState<'paste' | 'docx' | 'manual'>('paste');
 
   const availableSections = departments.filter(d => formData.targetDepartments.includes(d.id)).flatMap(d => d.sections || []);
+  const visibleQuizzes = quizzes.filter(quiz => `${quiz.title || ''} ${quiz.subject || ''}`.toLowerCase().includes(quizSearch.toLowerCase()));
 
   if (activeView === 'create') {
     return (
@@ -881,6 +955,21 @@ export default function QuizManagement() {
               <Button onClick={() => setActiveView('list')} variant="ghost" className="text-xs font-semibold text-gray-body">Cancel</Button>
             </div>
           </div>
+          {restoredQuizDraft && (
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-info/30 bg-info/5 px-3 py-2 text-sm text-ink" role="status">
+              <span>Restored draft from this device.</span>
+              <button type="button" className="font-semibold text-maroon underline" onClick={() => {
+                clearDraft(quizDraftKey);
+                skipQuizDraftWrite.current = true;
+                setFormData({
+                  title: '', subject: '', description: '', totalMarks: '', passingMarks: '',
+                  durationMinutes: '60', startDate: '', endDate: '', targetDepartments: [], targetSections: [],
+                });
+                setQuestions([{ type: 'MCQ', text: '', marks: 1, options: ['', '', '', ''], answerKey: '', topic: '' }]);
+                setRestoredQuizDraft(false);
+              }}>Discard</button>
+            </div>
+          )}
           
           <div className="space-y-6">
             {/* Metadata Fields */}
@@ -1521,11 +1610,22 @@ export default function QuizManagement() {
     };
 
     return (
-      <Card className="bg-white border border-border-soft text-ink shadow-sm rounded-xl">
+      <Card className="quiz-attempts-view bg-white border border-border-soft text-ink rounded-xl">
         <CardContent className="p-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-serif font-bold text-ink">View Submissions</h2>
-            <button onClick={() => setActiveView('list')} className="text-maroon hover:text-maroon-deep font-semibold text-sm">Back to Quizzes</button>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => downloadCsv(submissions.map(sub => ({
+                student: sub.user?.name,
+                rollNumber: sub.user?.rollNumber,
+                objectiveScore: sub.objectiveScore,
+                writtenScore: sub.writtenScore,
+                status: sub.status,
+                violation: sub.violationReason,
+              })), ['student', 'rollNumber', 'objectiveScore', 'writtenScore', 'status', 'violation'], `quiz_attempts_${activeQuizId || 'all'}_${new Date().toISOString().slice(0, 10)}`)} disabled={submissions.length === 0} className="rounded-lg border border-border-soft bg-white px-3 py-2 text-sm font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-50">Export CSV</button>
+              <button type="button" onClick={() => window.print()} className="rounded-lg border border-border-soft bg-white px-3 py-2 text-sm font-semibold text-ink print:hidden">Print</button>
+              <button onClick={() => setActiveView('list')} className="text-maroon hover:text-maroon-deep font-semibold text-sm">Back to Quizzes</button>
+            </div>
           </div>
           <div className="overflow-x-auto">
             <Table>
@@ -1691,6 +1791,10 @@ export default function QuizManagement() {
             + Create New Quiz
           </button>
         </div>
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <Input aria-label="Search quizzes" value={quizSearch} onChange={event => setQuizSearch(event.target.value)} placeholder="Search quizzes..." className="max-w-sm bg-white border-border-soft text-sm" />
+          <button type="button" onClick={() => { clearSavedFilters(quizFilterKey); setQuizSearch(''); }} className="rounded-lg border border-border-soft px-3 py-2 text-sm font-semibold text-ink hover:bg-cream">Reset filters</button>
+        </div>
 
         <div className="overflow-x-auto">
           <Table>
@@ -1705,7 +1809,7 @@ export default function QuizManagement() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {quizzes.length === 0 ? (
+              {visibleQuizzes.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="p-0 border-0">
                     <div className="py-8">
@@ -1714,7 +1818,7 @@ export default function QuizManagement() {
                   </TableCell>
                 </TableRow>
               ) : (
-                quizzes.map((quiz) => (
+                visibleQuizzes.map((quiz) => (
                   <TableRow key={quiz.id} className="border-b border-border-soft hover:bg-cream/20 transition-colors">
                     <TableCell className="font-semibold text-ink">{quiz.title}</TableCell>
                     <TableCell className="text-gray-body">{quiz.subject}</TableCell>

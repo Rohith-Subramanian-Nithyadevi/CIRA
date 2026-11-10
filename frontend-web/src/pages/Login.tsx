@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { apiClient } from '../lib/apiClient';
+import { getFacultyEmailError, normalizeFacultyEmail } from '../lib/facultyEmail';
 import DotField from '../components/ui/DotField';
 
 interface Batch {
@@ -39,6 +40,9 @@ export default function Login() {
   // Form states
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const facultyEmailError = !isLogin && role === 'FACULTY' && email.trim()
+    ? getFacultyEmailError(email)
+    : null;
   const [personalEmail, setPersonalEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -268,8 +272,8 @@ export default function Login() {
       return;
     }
 
-    if (role === 'FACULTY' && !email.toLowerCase().endsWith('@amrita.edu') && !email.toLowerCase().endsWith('@ch.students.amrita.edu')) {
-      toast.error("Faculty college email must end with @amrita.edu");
+    if (role === 'FACULTY' && getFacultyEmailError(email)) {
+      toast.error(getFacultyEmailError(email) || 'Use a valid faculty email ending in @ch.amrita.edu.');
       setLoading(false);
       return;
     }
@@ -298,7 +302,7 @@ export default function Login() {
         idToken: firebaseIdToken,
         role,
         name,
-        email: email.toLowerCase(),
+        email: role === 'FACULTY' ? normalizeFacultyEmail(email) : email.toLowerCase().trim(),
         phone,
       };
 
@@ -337,6 +341,11 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
 
+    if (!isLogin && role === 'FACULTY' && getFacultyEmailError(email)) {
+      toast.error(getFacultyEmailError(email) || 'Use a valid faculty email ending in @ch.amrita.edu.');
+      setLoading(false);
+      return;
+    }
     if (!isLogin) {
       if (password !== confirmPassword) {
         toast.error("Passwords do not match.");
@@ -380,7 +389,7 @@ export default function Login() {
       const endpoint = isLogin ? '/api/v1/auth/login' : '/api/v1/auth/register';
       
       const payload: any = isLogin ? { email, password } : { 
-        email, personalEmail, password, name, phone, role
+        email: !isLogin && role === 'FACULTY' ? normalizeFacultyEmail(email) : email.trim(), personalEmail, password, name, phone, role
       };
 
       if (!isLogin && role === 'STUDENT') {
@@ -480,7 +489,7 @@ export default function Login() {
       
       {/* LEFT COLUMN - 60% Width Panel with Original #FAF5EE Cream Color & DotField (Desktop Only) */}
       <div 
-        className="hidden lg:flex relative lg:w-[55%] xl:w-[60%] h-screen sticky top-0 flex-col justify-between p-10 xl:p-14 overflow-hidden border-r border-border-soft"
+        className="login-hero hidden lg:flex relative lg:w-[55%] xl:w-[60%] h-screen sticky top-0 flex-col justify-between p-10 xl:p-14 overflow-hidden border-r border-border-soft"
         style={{ background: 'radial-gradient(circle, #FAF5EE 0%, #EFE5D8 100%)' }}
       >
         
@@ -780,7 +789,8 @@ export default function Login() {
 
               <div className="space-y-1">
                 <Label htmlFor="onboardingCollegeEmail" className="text-xs font-semibold text-ink">College Email Address</Label>
-                <Input id="onboardingCollegeEmail" type="email" required value={email} onChange={(e) => setEmail(e.target.value.toLowerCase())} className="h-10 rounded-lg bg-white border border-border-soft text-xs px-3" placeholder={role === 'STUDENT' ? "username@ch.students.amrita.edu" : "username@amrita.edu"} />
+                <Input id="onboardingCollegeEmail" type="email" required value={email} onChange={(e) => setEmail(e.target.value.toLowerCase())} aria-invalid={role === 'FACULTY' && Boolean(facultyEmailError)} aria-describedby={role === 'FACULTY' && facultyEmailError ? 'onboarding-faculty-email-error' : undefined} className="h-10 rounded-lg bg-white border border-border-soft text-xs px-3" placeholder={role === 'STUDENT' ? "username@ch.students.amrita.edu" : "username@ch.amrita.edu"} />
+                {role === 'FACULTY' && facultyEmailError && <p id="onboarding-faculty-email-error" className="text-xs text-red-700" role="alert">{facultyEmailError}</p>}
               </div>
 
               <Button type="submit" disabled={loading} className="w-full h-11 text-xs font-semibold rounded-lg bg-maroon hover:bg-maroon-deep text-white shadow-sm transition-all mt-2">
@@ -913,9 +923,12 @@ export default function Login() {
                   required 
                   value={email} 
                   onChange={(e) => setEmail(e.target.value.toLowerCase())} 
+                  aria-invalid={Boolean(facultyEmailError)}
+                  aria-describedby={facultyEmailError ? 'faculty-email-error' : undefined}
                   className="h-11 rounded-lg bg-white border border-border-soft focus:border-maroon focus:ring-1 focus:ring-maroon text-ink text-sm px-3.5 placeholder:text-gray-body/50" 
-                  placeholder={isLogin ? "Your username or email" : (role === 'STUDENT' ? "username@ch.students.amrita.edu" : "username@amrita.edu")} 
+                  placeholder={isLogin ? "Your username or email" : (role === 'STUDENT' ? "username@ch.students.amrita.edu" : "username@ch.amrita.edu")} 
                 />
+                {facultyEmailError && <p id="faculty-email-error" className="text-xs text-red-700" role="alert">{facultyEmailError}</p>}
               </div>
 
               {!isLogin && (
