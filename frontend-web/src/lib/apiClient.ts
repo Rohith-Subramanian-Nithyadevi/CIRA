@@ -63,6 +63,12 @@ export const apiClient = {
 
 export const getApiErrorMessage = (error: unknown, fallback: string): string => {
   if (error instanceof ApiError) {
+    if (error.code === 'ERR_FEATURE_UNAVAILABLE') {
+      return error.message.replace(/\s+\(ERR_FEATURE_UNAVAILABLE\)$/, '');
+    }
+    if (error.status >= 500) {
+      return fallback;
+    }
     return error.message;
   }
   return error instanceof Error ? error.message : fallback;

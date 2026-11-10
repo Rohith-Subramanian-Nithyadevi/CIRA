@@ -30,7 +30,6 @@ import {
   TrendingUp,
   Info
 } from 'lucide-react';
-import { useBatches, useDepartments } from '../../hooks/useReferenceData';
 import StudentProfileView from './StudentProfileView';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SectionHeader } from '@/components/ui/facultyPrimitives';
@@ -42,11 +41,19 @@ import { facultyDemoBatches, facultyDemoDepartments, facultyDemoQuizzes, faculty
 
 export const StudentReports = () => {
   const isDemo = useFacultyDemo();
-  // Shared Reference Data (cached with TanStack Query)
-  const { batches } = useBatches();
-  const { departments } = useDepartments();
-  const availableBatches = isDemo ? facultyDemoBatches : batches;
-  const availableDepartments = isDemo ? facultyDemoDepartments : departments;
+  const [authorizedFilterOptions, setAuthorizedFilterOptions] = useState<{ years: number[]; departments: any[]; sections: any[] }>({ years: [], departments: [], sections: [] });
+  const [filterOptionsLoading, setFilterOptionsLoading] = useState(!isDemo);
+  const [filterOptionsError, setFilterOptionsError] = useState<string | null>(null);
+  const [filterOptionsRetry, setFilterOptionsRetry] = useState(0);
+  const availableBatches = isDemo
+    ? facultyDemoBatches
+    : authorizedFilterOptions.years.map((startYear) => ({ id: String(startYear), name: String(startYear), startYear }));
+  const availableDepartments = isDemo
+    ? facultyDemoDepartments
+    : authorizedFilterOptions.departments.map((department) => ({
+        ...department,
+        sections: authorizedFilterOptions.sections.filter((section) => section.departmentId === department.id),
+      }));
 
   const [loading, setLoading] = useState(true);
   const [quizzes, setQuizzes] = useState<any[]>([]);
@@ -57,6 +64,31 @@ export const StudentReports = () => {
   const [selectedDept, setSelectedDept] = useState<string | null>(savedReportFilters?.department || null);
   const [selectedSection, setSelectedSection] = useState<string | null>(savedReportFilters?.section || null);
   const [selectedQuiz, setSelectedQuiz] = useState<string | null>(savedReportFilters?.quiz || null);
+
+  useEffect(() => {
+    if (isDemo) {
+      setAuthorizedFilterOptions({
+        years: [...new Set(facultyDemoBatches.map((batch) => batch.startYear))],
+        departments: facultyDemoDepartments,
+        sections: facultyDemoDepartments.flatMap((department) => department.sections),
+      });
+      setFilterOptionsLoading(false);
+      setFilterOptionsError(null);
+      return;
+    }
+    const controller = new AbortController();
+    const params = new URLSearchParams();
+    if (selectedBatch && /^\d{4}$/.test(selectedBatch)) params.set('year', selectedBatch);
+    if (selectedDept) params.set('departmentId', selectedDept);
+    setFilterOptionsLoading(true);
+    setFilterOptionsError(null);
+    apiClient.fetch(`/api/v1/faculty/students/filter-options?${params.toString()}`, { signal: controller.signal })
+      .then((response) => response.json())
+      .then((json) => { if (!controller.signal.aborted) setAuthorizedFilterOptions(json.data || { years: [], departments: [], sections: [] }); })
+      .catch((err) => { if (!controller.signal.aborted) setFilterOptionsError(err.message || 'Could not load your assigned classes.'); })
+      .finally(() => { if (!controller.signal.aborted) setFilterOptionsLoading(false); });
+    return () => controller.abort();
+  }, [isDemo, selectedBatch, selectedDept, filterOptionsRetry]);
   
   // Branch-first scope selection followed by optional batch switching.
   const [isBranchDropdownOpen, setIsBranchDropdownOpen] = useState(false);
@@ -88,7 +120,8 @@ export const StudentReports = () => {
   const handleSelectBranch = (departmentId: string) => {
     const branch = availableDepartments.find(department => department.id === departmentId);
     setSelectedDept(departmentId);
-    setSelectedBatch(branch?.batchId || null);
+    const demoBatch = isDemo ? branch?.batchId : undefined;
+    setSelectedBatch(demoBatch || (branch?.startYear ? String(branch.startYear) : selectedBatch));
     setSelectedSection(null);
     setSelectedQuiz(null);
     setIsBranchDropdownOpen(false);
@@ -113,7 +146,7 @@ export const StudentReports = () => {
     }
     if (selectedSection && selectedDept) {
       const department = availableDepartments.find(item => item.id === selectedDept);
-      if (department && !department.sections?.some(section => section.id === selectedSection)) setSelectedSection(null);
+      if (department && !department.sections?.some((section: { id: string }) => section.id === selectedSection)) setSelectedSection(null);
     }
     if (selectedQuiz && quizzes.length > 0 && !quizzes.some(quiz => quiz.id === selectedQuiz)) setSelectedQuiz(null);
   }, [availableBatches, availableDepartments, quizzes, selectedBatch, selectedDept, selectedSection, selectedQuiz]);
@@ -133,6 +166,8 @@ export const StudentReports = () => {
     setSelectedDept(null);
     setSelectedSection(null);
     setSelectedQuiz(null);
+    setSearchTerm('');
+    setSearchedStudentId(null);
   };
 
   useEffect(() => {
@@ -151,6 +186,7 @@ export const StudentReports = () => {
 
   const fetchPostedQuizzes = async () => {
     try {
+      setQuizzes([]);
       if (isDemo) {
         const demoQuizzes = facultyDemoQuizzes.filter(quiz =>
           (!selectedDept || quiz.targetDepartments.some(target => target.departmentId === selectedDept)) &&
@@ -172,7 +208,7 @@ export const StudentReports = () => {
 
   useEffect(() => {
     fetchPostedQuizzes();
-  }, [selectedDept, selectedSection, isDemo]);
+  }, [selectedBatch, selectedDept, selectedSection, isDemo]);
 
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -185,6 +221,7 @@ export const StudentReports = () => {
     try {
       setSearchLoading(true);
       setSearchError(null);
+      setSearchedStudentId(null);
 
       if (isDemo) {
         const student = getFacultyDemoStudentByRoll(queryRoll);
@@ -197,7 +234,11 @@ export const StudentReports = () => {
         return;
       }
 
-      const res = await apiClient.fetch(`/api/v1/faculty/students/search?rollNumber=${encodeURIComponent(queryRoll)}`);
+      const searchParams = new URLSearchParams({ rollNumber: queryRoll });
+      if (selectedBatch && /^\d{4}$/.test(selectedBatch)) searchParams.set('year', selectedBatch);
+      if (selectedDept) searchParams.set('departmentId', selectedDept);
+      if (selectedSection) searchParams.set('sectionId', selectedSection);
+      const res = await apiClient.fetch(`/api/v1/faculty/students/search?${searchParams.toString()}`);
 
       const json = await res.json();
 
@@ -236,11 +277,13 @@ export const StudentReports = () => {
 
   // API-backed states for real performance band analytics
   const [reportsLoading, setReportsLoading] = useState(false);
+  const performanceRequestId = useRef(0);
   const [reportsError, setReportsError] = useState<string | null>(null);
   const [reportSummary, setReportSummary] = useState<any>(null);
   const [reportSubjects, setReportSubjects] = useState<string[]>([]);
   const [quizAnalytics, setQuizAnalytics] = useState<any>(null);
   const [quizAnalyticsLoading, setQuizAnalyticsLoading] = useState(false);
+  const quizAnalyticsRequestId = useRef(0);
   const [quizAnalyticsError, setQuizAnalyticsError] = useState<string | null>(null);
   const [yearData, setYearData] = useState<any[]>([
     { band: 'Poor' },
@@ -250,9 +293,11 @@ export const StudentReports = () => {
   const [deptData, setDeptData] = useState<any[]>([]);
 
   const fetchPerformanceBands = async () => {
+    const requestId = ++performanceRequestId.current;
     try {
       if (isDemo) {
-        const report = facultyDemoReportForScope(selectedBatch, selectedDept, selectedSection);
+        const demoBatchId = facultyDemoBatches.find(batch => String(batch.startYear) === selectedBatch || batch.id === selectedBatch)?.id || null;
+        const report = facultyDemoReportForScope(demoBatchId, selectedDept, selectedSection);
         setReportSummary(report.summary);
         setReportSubjects(report.subjects);
         setYearData(report.yearData);
@@ -262,9 +307,13 @@ export const StudentReports = () => {
       }
       setReportsLoading(true);
       setReportsError(null);
+      setReportSummary(null);
+      setReportSubjects([]);
+      setYearData([{ band: 'Poor' }, { band: 'Average' }, { band: 'Excellent' }]);
+      setDeptData([]);
 
       const params = new URLSearchParams();
-      if (selectedBatch) params.append('batchId', selectedBatch);
+      if (selectedBatch && /^\d{4}$/.test(selectedBatch)) params.append('year', selectedBatch);
       if (selectedDept) params.append('departmentId', selectedDept);
       if (selectedSection) params.append('sectionId', selectedSection);
 
@@ -278,6 +327,7 @@ export const StudentReports = () => {
       }
 
       const json = await res.json();
+      if (requestId !== performanceRequestId.current) return;
       if (json?.data) {
         setReportSummary(json.data.summary || null);
         setReportSubjects(json.data.subjects || []);
@@ -290,21 +340,24 @@ export const StudentReports = () => {
       }
     } catch (err: any) {
       console.error(err);
-      setReportsError(err.message || 'An error occurred while fetching report data.');
+      if (requestId === performanceRequestId.current) setReportsError(err.message || 'An error occurred while fetching report data.');
     } finally {
-      setReportsLoading(false);
+      if (requestId === performanceRequestId.current) setReportsLoading(false);
     }
   };
 
   useEffect(() => {
-    if (selectedBatch || selectedDept) {
+    if (!filterOptionsLoading) {
       fetchPerformanceBands();
     }
-  }, [selectedBatch, selectedDept, selectedSection, isDemo]);
+  }, [selectedBatch, selectedDept, selectedSection, isDemo, filterOptionsLoading]);
 
   useEffect(() => {
+    const requestId = ++quizAnalyticsRequestId.current;
     if (!selectedQuiz) {
       setQuizAnalytics(null);
+      setQuizAnalyticsError(null);
+      setQuizAnalyticsLoading(false);
       return;
     }
 
@@ -312,28 +365,37 @@ export const StudentReports = () => {
       try {
         setQuizAnalyticsLoading(true);
         setQuizAnalyticsError(null);
+        setQuizAnalytics(null);
         if (isDemo) {
-          setQuizAnalytics(getFacultyDemoQuizAnalytics(selectedQuiz, selectedSection));
+          if (requestId === quizAnalyticsRequestId.current) setQuizAnalytics(getFacultyDemoQuizAnalytics(selectedQuiz, selectedSection));
           return;
         }
-        const res = await apiClient.fetch(`/api/v1/faculty/reports/quiz/${selectedQuiz}`);
+        const params = new URLSearchParams();
+        if (selectedBatch && /^\d{4}$/.test(selectedBatch)) params.set('year', selectedBatch);
+        if (selectedDept) params.set('departmentId', selectedDept);
+        if (selectedSection) params.set('sectionId', selectedSection);
+        const res = await apiClient.fetch(`/api/v1/faculty/reports/quiz/${selectedQuiz}?${params.toString()}`);
         const json = await res.json();
         if (!res.ok) throw new Error(json.message || 'Failed to load quiz analytics.');
-        setQuizAnalytics(json.data || null);
+        if (requestId === quizAnalyticsRequestId.current) setQuizAnalytics(json.data || null);
       } catch (err: any) {
-        setQuizAnalytics(null);
-        setQuizAnalyticsError(err.message || 'Failed to load quiz analytics.');
+        if (requestId === quizAnalyticsRequestId.current) {
+          setQuizAnalytics(null);
+          setQuizAnalyticsError(err.message || 'Failed to load quiz analytics.');
+        }
       } finally {
-        setQuizAnalyticsLoading(false);
+        if (requestId === quizAnalyticsRequestId.current) setQuizAnalyticsLoading(false);
       }
     };
 
     fetchQuizAnalytics();
-  }, [selectedQuiz, selectedSection, isDemo]);
+  }, [selectedQuiz, selectedBatch, selectedDept, selectedSection, isDemo]);
 
-  const activeDepartments = availableDepartments.filter(d => d.batchId === selectedBatch || !selectedBatch);
+  const activeDepartments = isDemo
+    ? availableDepartments.filter(d => d.batchId === selectedBatch || !selectedBatch)
+    : availableDepartments;
   const subjectsToShow = subjectFilter === 'All Subjects' ? reportSubjects : [subjectFilter];
-  const selectedBatchName = availableBatches.find(b => b.id === selectedBatch)?.name || 'your selected batch';
+  const selectedBatchName = selectedBatch ? `Year ${availableBatches.find(b => b.id === selectedBatch)?.name || selectedBatch}` : 'your assigned classes';
   const summaryPercentages = reportSummary?.percentages || { poor: 0, average: 0, excellent: 0 };
   const reportHasData = (reportSummary?.totalAttempts || 0) > 0;
   const primaryInsight = !reportHasData
@@ -345,7 +407,7 @@ export const StudentReports = () => {
         : 'The cohort is mixed. Use the topic and section views below to target support where it will have the most impact.';
 
   const quizDetails = useMemo(() => {
-    if (!selectedDept || !selectedSection || !selectedQuiz) return null;
+    if (!selectedQuiz) return null;
     
     const quizMetadata = quizzes.find(q => q.id === selectedQuiz);
     
@@ -392,9 +454,41 @@ export const StudentReports = () => {
         action={<div className="flex gap-2"><button type="button" onClick={resetReportFilters} className="rounded-lg border border-border-soft bg-white px-3 py-2 text-sm font-semibold text-ink hover:bg-cream">Reset filters</button><button type="button" onClick={() => window.print()} className="rounded-lg border border-border-soft bg-white px-3 py-2 text-sm font-semibold text-ink hover:bg-cream print:hidden">Print</button></div>}
         className="mb-6"
       />
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+      <div className="mb-8 flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
+        {!isDemo && <div className="grid w-full gap-3 rounded-2xl border border-border-soft bg-white p-4 shadow-sm sm:grid-cols-2 xl:grid-cols-4" aria-label="Report filters">
+          <label className="space-y-1 text-xs font-semibold text-gray-body">Year
+            <select value={selectedBatch || ''} onChange={(event) => handleSelectBatch(event.target.value)} disabled={filterOptionsLoading || Boolean(filterOptionsError)} className="h-10 w-full rounded-lg border border-border-soft bg-white px-3 text-sm text-ink disabled:opacity-60">
+              <option value="">All assigned years</option>{availableBatches.map((batch) => <option key={batch.id} value={batch.id}>{batch.startYear}</option>)}
+            </select>
+          </label>
+          <label className="space-y-1 text-xs font-semibold text-gray-body">Department
+            <select value={selectedDept || ''} onChange={(event) => event.target.value ? handleSelectBranch(event.target.value) : handleResetToBatch()} disabled={filterOptionsLoading || Boolean(filterOptionsError)} className="h-10 w-full rounded-lg border border-border-soft bg-white px-3 text-sm text-ink disabled:opacity-60">
+              <option value="">All assigned departments</option>{availableDepartments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
+            </select>
+          </label>
+          <label className="space-y-1 text-xs font-semibold text-gray-body">Section
+            <select value={selectedSection || ''} onChange={(event) => { setSelectedSection(event.target.value || null); setSelectedQuiz(null); }} disabled={!selectedDept || filterOptionsLoading || Boolean(filterOptionsError)} className="h-10 w-full rounded-lg border border-border-soft bg-white px-3 text-sm text-ink disabled:opacity-60">
+              <option value="">All assigned sections</option>{(availableDepartments.find((department) => department.id === selectedDept)?.sections || []).map((section: any) => <option key={section.id} value={section.id}>{section.name}</option>)}
+            </select>
+          </label>
+          <label className="space-y-1 text-xs font-semibold text-gray-body">Assessment / quiz
+            <select value={selectedQuiz || ''} onChange={(event) => setSelectedQuiz(event.target.value || null)} className="h-10 w-full rounded-lg border border-border-soft bg-white px-3 text-sm text-ink">
+              <option value="">All assessments</option>{quizzes.map((quiz) => <option key={quiz.id} value={quiz.id}>{quiz.title}</option>)}
+            </select>
+          </label>
+          <div className="flex flex-wrap items-center gap-2 sm:col-span-2 xl:col-span-4">
+            {selectedBatch && <button onClick={() => handleSelectBatch('')} className="rounded-full border border-maroon/20 bg-cream px-3 py-1 text-xs font-semibold text-maroon">Year {selectedBatch} ×</button>}
+            {selectedDept && <button onClick={handleResetToBatch} className="rounded-full border border-maroon/20 bg-cream px-3 py-1 text-xs font-semibold text-maroon">{availableDepartments.find((department) => department.id === selectedDept)?.name || 'Department'} ×</button>}
+            {selectedSection && <button onClick={() => setSelectedSection(null)} className="rounded-full border border-maroon/20 bg-cream px-3 py-1 text-xs font-semibold text-maroon">Section {availableDepartments.find((department) => department.id === selectedDept)?.sections?.find((section: any) => section.id === selectedSection)?.name || selectedSection} ×</button>}
+            {selectedQuiz && <button onClick={() => setSelectedQuiz(null)} className="rounded-full border border-maroon/20 bg-cream px-3 py-1 text-xs font-semibold text-maroon">{quizzes.find((quiz) => quiz.id === selectedQuiz)?.title || 'Assessment'} ×</button>}
+            {searchTerm.trim() && <button onClick={() => setSearchTerm('')} className="rounded-full border border-maroon/20 bg-cream px-3 py-1 text-xs font-semibold text-maroon">Search: {searchTerm.trim()} ×</button>}
+            {(selectedBatch || selectedDept || selectedSection || selectedQuiz || searchTerm) && <button onClick={resetReportFilters} className="ml-auto text-xs font-semibold text-gray-body underline">Clear filters</button>}
+          </div>
+        </div>}
+        {filterOptionsError && !isDemo && <div role="alert" className="flex w-full items-center justify-between rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{filterOptionsError}<button onClick={() => setFilterOptionsRetry((value) => value + 1)} className="inline-flex items-center gap-1 font-semibold"><RefreshCw className="h-4 w-4" />Retry</button></div>}
+        {filterOptionsLoading && !isDemo && <p className="text-xs font-medium text-gray-body"><Loader2 className="mr-2 inline h-4 w-4 animate-spin text-maroon" />Loading authorized filters…</p>}
         {/* Left: Enhanced Batch Dropdown and Breadcrumbs */}
-        <div className="flex items-center flex-wrap gap-2 text-sm">
+        <div className={`${isDemo ? 'flex' : 'hidden'} items-center flex-wrap gap-2 text-sm`}>
           <div className="relative" ref={branchDropdownRef}>
             <button
               type="button"
@@ -417,7 +511,7 @@ export const StudentReports = () => {
               <ChevronDown className={`w-4 h-4 text-gray-body ml-1 transition-transform duration-200 ${isBranchDropdownOpen ? 'rotate-180 text-maroon' : ''}`} />
             </button>
             {isBranchDropdownOpen && (
-              <div role="listbox" aria-label="Available branches" className="absolute left-0 mt-2 w-64 bg-white border border-border-soft rounded-2xl shadow-xl z-50 p-2 animate-in fade-in slide-in-from-top-2 duration-150">
+              <div role="listbox" aria-label="Available branches" className="absolute left-0 mt-2 w-64 bg-white border border-border-soft rounded-2xl shadow-lg z-50 p-2">
                 <div className="px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-gray-body border-b border-border-soft/60 mb-1 flex items-center justify-between">
                   <span>Select a branch</span>
                   <span className="bg-cream text-maroon text-[10px] font-bold px-2 py-0.5 rounded-full border border-border-soft/60">{availableDepartments.length}</span>
@@ -470,7 +564,7 @@ export const StudentReports = () => {
 
             {/* Dropdown Menu Popover */}
             {isBatchDropdownOpen && (
-              <div role="listbox" aria-label="Available batches" className="absolute left-0 mt-2 w-64 bg-white border border-border-soft rounded-2xl shadow-xl z-50 p-2 animate-in fade-in slide-in-from-top-2 duration-150">
+              <div role="listbox" aria-label="Available batches" className="absolute left-0 mt-2 w-64 bg-white border border-border-soft rounded-2xl shadow-lg z-50 p-2">
                 <div className="px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-gray-body border-b border-border-soft/60 mb-1 flex items-center justify-between">
                   <span>Available batches</span>
                   <span className="bg-cream text-maroon text-[10px] font-bold px-2 py-0.5 rounded-full border border-border-soft/60">
@@ -568,7 +662,7 @@ export const StudentReports = () => {
             )}
           </form>
           {searchError && (
-            <div className="mt-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2.5 flex items-center justify-between animate-in fade-in shadow-sm">
+            <div className="mt-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2.5 flex items-center justify-between shadow-sm">
               <div className="flex items-center space-x-1.5">
                 <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-600" />
                 <span>{searchError}</span>
@@ -586,7 +680,7 @@ export const StudentReports = () => {
       </div>
 
       {!selectedDept && availableDepartments.length > 0 && (
-        <div className="rounded-2xl border border-maroon/20 bg-white/90 p-8 text-center shadow-sm animate-in fade-in duration-300">
+        <div className="rounded-2xl border border-maroon/20 bg-white/90 p-8 text-center shadow-sm">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-maroon/10 text-maroon">
             <Users className="h-7 w-7" />
           </div>
@@ -597,7 +691,7 @@ export const StudentReports = () => {
           <button
             type="button"
             onClick={() => setIsBranchDropdownOpen(true)}
-            className="mt-5 rounded-lg bg-maroon px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-maroon-deep hover:shadow-md"
+            className="mt-5 rounded-lg bg-maroon px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-maroon-deep"
           >
             Choose Branch
           </button>
@@ -605,7 +699,7 @@ export const StudentReports = () => {
       )}
 
       {!selectedDept && availableDepartments.length === 0 && (
-        <div className="space-y-6 animate-in fade-in duration-500">
+        <div className="space-y-6">
           <section className="overflow-hidden rounded-2xl border border-maroon/20 bg-[linear-gradient(120deg,#fffaf2_0%,#ffffff_55%,#f8eee7_100%)] shadow-sm">
             <div className="border-b border-maroon/10 px-6 py-5 md:px-8">
               <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -668,7 +762,7 @@ export const StudentReports = () => {
               <button
                 key={dept.id}
                 onClick={() => setSelectedDept(dept.id)}
-                className="w-full text-left bg-white border border-border-soft rounded-xl p-6 hover:border-maroon/40 transition-all hover:-translate-y-1 hover:shadow-sm"
+                className="w-full text-left bg-white border border-border-soft rounded-xl p-6 hover:border-maroon/40 transition-all hover:shadow-sm"
               >
                 <h3 className="text-lg font-bold text-ink mb-1">{dept.name}</h3>
                 <p className="text-xs text-gray-body mb-4">Click to view section details</p>
@@ -756,7 +850,7 @@ export const StudentReports = () => {
       )}
 
       {selectedDept && !selectedSection && (
-        <div className="space-y-6 animate-in fade-in duration-500">
+        <div className="space-y-6">
            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
              <div>
                <h2 className="text-xl font-serif font-bold text-ink">Section Overview</h2>
@@ -873,7 +967,7 @@ export const StudentReports = () => {
       )}
 
       {selectedSection && !selectedQuiz && (
-        <div className="space-y-6 animate-in fade-in duration-500">
+        <div className="space-y-6">
            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
              <div>
                <h2 className="text-xl font-serif font-bold text-ink">Recent Assessments</h2>
@@ -906,7 +1000,6 @@ export const StudentReports = () => {
                   onClick={() => setSelectedQuiz(quiz.id)}
                   className="w-full text-left bg-white border border-border-soft rounded-xl p-6 hover:border-maroon/40 transition-all shadow-sm group relative overflow-hidden"
                 >
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-maroon/5 rounded-full blur-3xl group-hover:bg-maroon/10 transition-all"></div>
                   <h3 className="text-lg font-bold text-ink mb-1 relative z-10">{quiz.title}</h3>
                   <p className="text-xs text-gray-body mb-4 relative z-10">Conducted on {new Date(quiz.createdAt).toLocaleDateString()}</p>
                   <div className="flex items-center text-maroon text-xs font-bold relative z-10">
@@ -928,7 +1021,7 @@ export const StudentReports = () => {
       )}
 
       {selectedQuiz && quizDetails && (
-        <div className="space-y-6 animate-in fade-in duration-500">
+        <div className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
             <div>
               <h2 className="text-xl font-serif font-bold text-ink">{quizDetails.title}</h2>
@@ -1178,7 +1271,7 @@ export const StudentReports = () => {
                     <p className="text-gray-body text-xs leading-relaxed">This is based only on marked responses with topic labels.</p>
                   </div>
                 )}
-                <button className="w-full mt-4 py-2.5 bg-maroon hover:bg-maroon-deep text-white rounded-full transition-all font-bold text-xs shadow-sm hover:scale-105 active:scale-95">
+                <button className="w-full mt-4 py-2.5 bg-maroon hover:bg-maroon-deep text-white rounded-full transition-all font-bold text-xs shadow-sm">
                   Generate Remedial Assignments
                 </button>
               </div>

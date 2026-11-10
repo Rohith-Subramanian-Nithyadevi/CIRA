@@ -339,7 +339,7 @@ const parseLongWritten = (rawText: string): any[] => {
   return parsed;
 };
 
-export default function QuizManagement() {
+export default function QuizManagement({ initialSubmissionsQuizId }: { initialSubmissionsQuizId?: string | null } = {}) {
   const isDemo = useFacultyDemo();
   const [activeView, setActiveView] = useState<'list' | 'create' | 'add_questions' | 'grade_submissions' | 'evaluate_attempt'>('list');
   const [quizzes, setQuizzes] = useState<any[]>([]);
@@ -901,6 +901,10 @@ export default function QuizManagement() {
       if (data?.status === 'success') setSubmissions(data.data);
     } catch (err) { console.error(err); }
   };
+
+  useEffect(() => {
+    if (initialSubmissionsQuizId) void handleOpenGradeView(initialSubmissionsQuizId);
+  }, [initialSubmissionsQuizId]);
 
   const handleOpenAttempt = (attempt: any) => {
     setActiveAttempt(attempt);

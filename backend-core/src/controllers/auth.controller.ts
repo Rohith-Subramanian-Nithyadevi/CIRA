@@ -4,14 +4,16 @@ import { prisma } from '../config/prisma';
 import { z } from 'zod';
 import { generateToken } from '../utils/jwt';
 import { BadRequestError, UnauthorizedError, NotFoundError, ForbiddenError } from '../utils/errors';
-import { sendVerificationEmail, sendAdminApprovalRequestEmail, sendPasswordResetEmail } from '../utils/email';
+import { sendVerificationEmail, sendAdminApprovalRequestEmail } from '../utils/email';
 import { verifyFirebaseToken } from '../config/firebase';
+import { normalizeFacultyEmail } from '../utils/faculty-security';
+import { issuePasswordReset } from '../services/password-reset.service';
 
 
 const registerSchema = z.object({
   role: z.enum(['STUDENT', 'FACULTY']),
   name: z.string().min(1, 'Name is required'),
-  email: z.string().email(),
+  email: z.string().trim().email(),
   personalEmail: z.string().email('Valid personal email is required'),
   password: z.string().min(8, 'Password must be at least 8 characters long'),
   phone: z.string().optional(),
@@ -36,6 +38,9 @@ const loginSchema = z.object({
 export const register = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const validatedData = registerSchema.parse(req.body);
+    if (validatedData.role === 'FACULTY') {
+      validatedData.email = normalizeFacultyEmail(validatedData.email);
+    }
 
     const existingUser = await prisma.user.findFirst({
       where: {
@@ -316,26 +321,7 @@ export const forgotPassword = async (req: Request, res: Response, next: NextFunc
       });
     }
 
-    if ((user as any).authProvider === 'GOOGLE' || user.password?.includes('SSO_')) {
-      throw new BadRequestError('Password reset is not available for accounts created via Google Sign-In. Please log in using Google.', 'ERR_GOOGLE_AUTH_ACCOUNT');
-    }
-
-    if (!user.personalEmail) {
-      throw new BadRequestError('No personal email configured for this account. Please contact an administrator.');
-    }
-
-    const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15-minute OTP validity
-
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { 
-        verificationCode: resetCode,
-        verificationCodeExpiresAt: expiresAt
-      }
-    });
-
-    await sendPasswordResetEmail(user.personalEmail, resetCode);
+    await issuePasswordReset(user);
 
     res.status(200).json({
       status: 'success',
@@ -490,17 +476,15 @@ export const firebaseAuthRegister = async (req: Request, res: Response, next: Ne
     if (!name) throw new BadRequestError('Name is required');
     if (!email) throw new BadRequestError('College email is required');
 
+    const collegeEmail = role === 'FACULTY'
+      ? normalizeFacultyEmail(email)
+      : email.toLowerCase().trim();
     const decoded = await verifyFirebaseToken(idToken);
     const googlePersonalEmail = decoded.email.toLowerCase();
-    const collegeEmail = email.toLowerCase();
 
     // Domain validation on College Email
     if (role === 'STUDENT' && !collegeEmail.endsWith('@ch.students.amrita.edu')) {
       throw new BadRequestError('Student college email must end with @ch.students.amrita.edu');
-    }
-
-    if (role === 'FACULTY' && !collegeEmail.endsWith('@amrita.edu') && !collegeEmail.endsWith('@ch.students.amrita.edu')) {
-      throw new BadRequestError('Faculty college email must end with @amrita.edu');
     }
 
     const existingUser = await prisma.user.findFirst({

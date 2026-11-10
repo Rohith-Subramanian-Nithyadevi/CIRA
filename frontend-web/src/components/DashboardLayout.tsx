@@ -2,6 +2,7 @@ import { LayoutDashboard, Users, BookOpen, LogOut, FileText, CheckSquare, Settin
 import { useNavigate } from 'react-router-dom';
 import React, { useEffect, useRef, useState } from 'react';
 import { useTheme } from '../context/ThemeContext';
+import { FacultyNotificationBell } from './dashboard/FacultyNotifications';
 
 export interface DashboardNavItem {
   id: string;
@@ -43,7 +44,7 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
   };
 
   const getNavClass = (tab: string) => {
-    return `flex items-center w-full px-3 py-2 rounded-lg transition-all font-medium text-sm ${activeTab === tab
+    return `flex items-center w-full px-3 py-2 rounded-lg transition-colors font-medium text-sm ${activeTab === tab
       ? 'bg-maroon/5 dark:bg-maroon/20 text-maroon dark:text-red-400 font-semibold border border-maroon dark:border-maroon/50 shadow-sm'
       : 'text-gray-body dark:text-gray-400 hover:text-ink dark:hover:text-white hover:bg-cream-edge/30 dark:hover:bg-gray-800 border border-transparent'
       }`;
@@ -262,7 +263,7 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
           </button>
           {mobileNavOpen && (
             <div className="fixed inset-0 z-40 bg-black/40 md:hidden" onMouseDown={(event) => { if (event.target === event.currentTarget) setMobileNavOpen(false); }}>
-              <aside ref={mobileNavRef} role="dialog" aria-modal="true" aria-label="Faculty navigation" className="flex h-full w-72 max-w-[85vw] flex-col bg-white shadow-xl">
+              <aside ref={mobileNavRef} role="dialog" aria-modal="true" aria-label="Faculty navigation" className="flex h-full w-72 max-w-[85vw] flex-col bg-white shadow-lg">
                 <div className="flex h-16 items-center justify-between border-b border-border-soft px-5">
                   <span className="font-bold text-ink">CIRA Workspace</span>
                   <button type="button" aria-label="Close faculty navigation" onClick={() => setMobileNavOpen(false)} className="rounded-lg p-2 text-gray-body hover:bg-cream focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maroon/30">
@@ -285,10 +286,10 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
-        <div className="h-16 shrink-0 flex items-center justify-between px-4 sm:px-8 border-b border-border-soft dark:border-gray-800 bg-white/80 dark:bg-[#1A1A1A]/80 backdrop-blur-md transition-colors duration-200">
-          <h2 className="text-xl font-serif font-bold text-ink dark:text-white">{title}</h2>
+        <div className="h-16 shrink-0 flex items-center justify-between pl-14 pr-3 sm:px-8 border-b border-border-soft dark:border-gray-800 bg-white/80 dark:bg-[#1A1A1A]/80 backdrop-blur-md transition-colors duration-200">
+          <h2 className="min-w-0 flex-1 truncate text-base font-serif font-bold text-ink dark:text-white sm:text-xl">{title}</h2>
 
-          <div className="flex items-center gap-2 sm:gap-6">
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2 lg:gap-6">
             <button
               type="button"
               onClick={toggleTheme}
@@ -303,10 +304,11 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
                 <Search className="h-4 w-4" aria-hidden="true" /> <span className="hidden sm:inline">Search</span> <kbd className="hidden rounded border border-border-soft px-1.5 py-0.5 text-[10px] sm:inline">Ctrl K</kbd>
               </button>
             )}
+            {useFacultyNavigation && <FacultyNotificationBell onNavigate={onTabChange} />}
             {onToggleDemo && (role === 'STUDENT' || role === 'FACULTY') && (
-              <div className="flex items-center gap-2 bg-cream-edge/30 dark:bg-gray-800/50 px-3 py-1.5 rounded-full border border-border-soft dark:border-gray-700">
+              <div className="flex items-center gap-2 bg-cream-edge/30 dark:bg-gray-800/50 px-2 sm:px-3 py-1.5 rounded-full border border-border-soft dark:border-gray-700">
                 <Database className="w-4 h-4 text-maroon dark:text-red-400" />
-                <span className="text-xs font-bold text-ink dark:text-ink">Demo Data</span>
+                <span className="hidden text-xs font-bold text-ink dark:text-ink lg:inline">Demo Data</span>
                 <button
                   onClick={() => onToggleDemo(!isDemo)}
                   className={`w-8 h-4 rounded-full flex items-center transition-colors ${isDemo ? 'bg-maroon dark:bg-red-500' : 'bg-gray-300 dark:bg-gray-600'}`}
@@ -330,7 +332,7 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
           </div>
         </div>
 
-        <div id="main-content" className="flex-1 overflow-y-auto p-8">
+        <div id="main-content" className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           {children}
         </div>
       </main>

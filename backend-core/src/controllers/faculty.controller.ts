@@ -3,6 +3,9 @@ import bcrypt from 'bcryptjs';
 import { prisma } from '../config/prisma';
 import { z } from 'zod';
 import { NotFoundError, ForbiddenError, BadRequestError, UnauthorizedError } from '../utils/errors';
+import { parseFacultyPasswordChange } from '../utils/faculty-security';
+import { buildFacultyStudentWhere } from '../utils/faculty-student-scope';
+import { issuePasswordReset } from '../services/password-reset.service';
 
 const evaluateSchema = z.object({
   student_id: z.string(),
@@ -166,41 +169,85 @@ export const getEnrolledDepartments = async (req: Request, res: Response, next: 
 
 export const getStudents = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = req.user!.userId;
+    const page = Math.max(1, Number.parseInt(String(req.query.page || '1'), 10) || 1);
+    const limit = Math.min(100, Math.max(1, Number.parseInt(String(req.query.limit || '25'), 10) || 25));
+    const filters = getStudentFilters(req);
+    const where = buildFacultyStudentWhere(req.facultyScope, filters, req.user?.role === 'ADMIN');
+    const [total, records] = await Promise.all([
+      prisma.user.count({ where }),
+      prisma.user.findMany({
+        where,
+        orderBy: [{ name: 'asc' }, { rollNumber: 'asc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+        select: {
+          id: true, name: true, rollNumber: true, departmentId: true, sectionId: true,
+          department: { select: { id: true, name: true, batch: { select: { id: true, name: true, startYear: true } } } },
+          section: { select: { id: true, name: true } },
+        },
+      }),
+    ]);
+    const students = records.map((student) => ({
+      id: student.id,
+      name: student.name,
+      rollNumber: student.rollNumber,
+      departmentId: student.departmentId,
+      department: student.department?.name || 'Unassigned',
+      year: student.department?.batch?.startYear ?? null,
+      sectionId: student.sectionId,
+      section: student.section?.name || 'Unassigned',
+    }));
 
-    // Get departments mapped to this faculty
-    const mappedDepts = await prisma.facultyDepartment.findMany({
-      where: { userId },
-      select: { departmentId: true }
-    });
-    const mappedSecs = await prisma.facultySection.findMany({
-      where: { userId },
-      select: { sectionId: true }
-    });
-    
-    const deptIds = mappedDepts.map(d => d.departmentId);
-    const secIds = mappedSecs.map(s => s.sectionId);
+    res.status(200).json({ status: 'success', data: { students, pagination: { page, limit, total, pages: Math.ceil(total / limit) } } });
+  } catch (error) {
+    next(error);
+  }
+};
 
-    // Fetch students belonging to those departments or sections
-    const students = await prisma.user.findMany({
-      where: {
-        role: 'STUDENT',
-        OR: [
-          { departmentId: { in: deptIds } },
-          { sectionId: { in: secIds } }
-        ]
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        rollNumber: true,
-        department: { select: { name: true } },
-        section: { select: { name: true } }
-      }
-    });
+const getStudentFilters = (req: Request) => {
+  const rawYear = req.query.year;
+  const year = rawYear === undefined || rawYear === '' ? undefined : Number(rawYear);
+  if (year !== undefined && !Number.isInteger(year)) throw new BadRequestError('Year must be a valid integer.', 'ERR_INVALID_YEAR');
+  return {
+    year,
+    departmentId: typeof req.query.departmentId === 'string' ? req.query.departmentId : undefined,
+    sectionId: typeof req.query.sectionId === 'string' ? req.query.sectionId : undefined,
+    batchId: typeof req.query.batchId === 'string' ? req.query.batchId : undefined,
+    search: typeof req.query.search === 'string' ? req.query.search : undefined,
+  };
+};
 
-    res.status(200).json({ status: 'success', data: { students } });
+export const getStudentFilterOptions = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const filters = getStudentFilters(req);
+    const isAdmin = req.user?.role === 'ADMIN';
+    const scope = req.facultyScope;
+    const [yearRecords, departmentRecords, sectionRecords] = await Promise.all([
+      prisma.user.findMany({ where: buildFacultyStudentWhere(scope, {}, isAdmin), select: { department: { select: { batch: { select: { startYear: true } } } } } }),
+      prisma.user.findMany({ where: buildFacultyStudentWhere(scope, { year: filters.year }, isAdmin), select: { department: { select: { id: true, name: true, batchId: true, batch: { select: { startYear: true } } } } } }),
+      prisma.user.findMany({ where: buildFacultyStudentWhere(scope, { year: filters.year, departmentId: filters.departmentId }, isAdmin), select: { section: { select: { id: true, name: true, departmentId: true } } } }),
+    ]);
+    const years = [...new Set(yearRecords.map((row) => row.department?.batch?.startYear).filter((year): year is number => typeof year === 'number'))].sort((a, b) => b - a);
+    const departments = [...new Map(departmentRecords.flatMap((row) => row.department ? [[row.department.id, { ...row.department, startYear: row.department.batch.startYear }] as const] : [])).values()].sort((a, b) => a.name.localeCompare(b.name));
+    const sections = [...new Map(sectionRecords.flatMap((row) => row.section ? [[row.section.id, row.section] as const] : [])).values()].sort((a, b) => a.name.localeCompare(b.name));
+    res.status(200).json({ status: 'success', data: { years, departments, sections } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const resetStudentPassword = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    if (req.user?.role !== 'FACULTY' || !req.user.userId) {
+      throw new ForbiddenError('Only assigned faculty can initiate a student password reset.', 'ERR_FORBIDDEN_STUDENT_RESET');
+    }
+    const student = await prisma.user.findFirst({
+      where: { AND: [buildFacultyStudentWhere(req.facultyScope), { id: req.params.studentId as string }] },
+      select: { id: true, role: true, authProvider: true, password: true, personalEmail: true },
+    });
+    if (!student) throw new NotFoundError('Student was not found in your assigned classes.', 'ERR_STUDENT_OUT_OF_SCOPE');
+    await issuePasswordReset(student);
+    res.status(200).json({ status: 'success', message: 'Password reset instructions were sent to the student’s registered recovery email.' });
   } catch (error) {
     next(error);
   }
@@ -209,8 +256,7 @@ export const getStudents = async (req: Request, res: Response, next: NextFunctio
 export const searchStudent = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const rollNumber = req.query.rollNumber as string;
-    const userId = (req as any).user?.userId;
-    const userRole = (req as any).user?.role;
+    const isAdmin = req.user?.role === 'ADMIN';
 
     if (!rollNumber || typeof rollNumber !== 'string' || rollNumber.trim().length === 0) {
       throw new BadRequestError('Roll number query parameter is required', 'ERR_INVALID_ROLL');
@@ -221,11 +267,10 @@ export const searchStudent = async (req: Request, res: Response, next: NextFunct
     // Query student by rollNumber (case-insensitive)
     const student = await prisma.user.findFirst({
       where: {
-        role: 'STUDENT',
-        rollNumber: {
-          equals: trimmedRoll,
-          mode: 'insensitive'
-        }
+        AND: [
+          buildFacultyStudentWhere(req.facultyScope, getStudentFilters(req), isAdmin),
+          { rollNumber: { equals: trimmedRoll, mode: 'insensitive' } },
+        ],
       },
       include: {
         department: {
@@ -268,28 +313,6 @@ export const searchStudent = async (req: Request, res: Response, next: NextFunct
 
     if (!student) {
       throw new NotFoundError(`No student found with roll number "${trimmedRoll}"`, 'ERR_STUDENT_NOT_FOUND');
-    }
-
-    // Faculty scoping authorization
-    if (userRole !== 'ADMIN') {
-      const deptMappings = await prisma.facultyDepartment.findMany({
-        where: { userId },
-        select: { departmentId: true }
-      });
-      const secMappings = await prisma.facultySection.findMany({
-        where: { userId },
-        select: { sectionId: true }
-      });
-      const mappedDeptIds = deptMappings.map(m => m.departmentId);
-      const mappedSecIds = secMappings.map(m => m.sectionId);
-
-      const hasMappings = mappedDeptIds.length > 0 || mappedSecIds.length > 0;
-      const inMappedDept = student.departmentId && mappedDeptIds.includes(student.departmentId);
-      const inMappedSec = student.sectionId && mappedSecIds.includes(student.sectionId);
-
-      if (hasMappings && !inMappedDept && !inMappedSec) {
-        throw new ForbiddenError('You are not authorized to view this student', 'ERR_FORBIDDEN');
-      }
     }
 
     // Format quiz history with real scores and topic breakdowns
@@ -362,15 +385,14 @@ export const searchStudent = async (req: Request, res: Response, next: NextFunct
 export const getStudentProfile = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const studentId = req.params.studentId as string;
-    const facultyId = (req as any).user?.userId;
-    const userRole = (req as any).user?.role;
+    const isAdmin = req.user?.role === 'ADMIN';
 
     if (!studentId) {
       throw new BadRequestError('Student ID is required', 'ERR_INVALID_STUDENT_ID');
     }
 
-    const student = await prisma.user.findUnique({
-      where: { id: studentId, role: 'STUDENT' },
+    const student = await prisma.user.findFirst({
+      where: { AND: [buildFacultyStudentWhere(req.facultyScope, {}, isAdmin), { id: studentId }] },
       include: {
         department: { include: { batch: true } },
         section: true,
@@ -387,28 +409,6 @@ export const getStudentProfile = async (req: Request, res: Response, next: NextF
 
     if (!student) {
       throw new NotFoundError(`No student found with ID "${studentId}"`, 'ERR_STUDENT_NOT_FOUND');
-    }
-
-    // Faculty scoping authorization
-    if (userRole !== 'ADMIN') {
-      const deptMappings = await prisma.facultyDepartment.findMany({
-        where: { userId: facultyId },
-        select: { departmentId: true }
-      });
-      const secMappings = await prisma.facultySection.findMany({
-        where: { userId: facultyId },
-        select: { sectionId: true }
-      });
-      const mappedDeptIds = deptMappings.map(m => m.departmentId);
-      const mappedSecIds = secMappings.map(m => m.sectionId);
-
-      const hasMappings = mappedDeptIds.length > 0 || mappedSecIds.length > 0;
-      const inMappedDept = student.departmentId && mappedDeptIds.includes(student.departmentId);
-      const inMappedSec = student.sectionId && mappedSecIds.includes(student.sectionId);
-
-      if (hasMappings && !inMappedDept && !inMappedSec) {
-        throw new ForbiddenError('You are not authorized to view this student', 'ERR_FORBIDDEN');
-      }
     }
 
     // Format quiz history
@@ -520,6 +520,40 @@ export const updateFacultyProfile = async (req: Request, res: Response, next: Ne
   try {
     const userId = (req as any).user?.userId;
     if (!userId) throw new UnauthorizedError('Unauthorized');
+
+    if ((req as any).user?.role === 'FACULTY') {
+      const { currentPassword, newPassword } = parseFacultyPasswordChange(req.body);
+      const faculty = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { password: true, authProvider: true },
+      });
+      if (!faculty) throw new NotFoundError('Faculty account not found.', 'ERR_USER_NOT_FOUND');
+      if (faculty.authProvider === 'GOOGLE') {
+        throw new BadRequestError('Use your Google account to change this password.', 'ERR_EXTERNAL_PASSWORD_CHANGE');
+      }
+      if (!(await bcrypt.compare(currentPassword, faculty.password))) {
+        throw new UnauthorizedError('Current password is incorrect.', 'ERR_CURRENT_PASSWORD_INVALID');
+      }
+
+      const salt = await bcrypt.genSalt(10);
+      const updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: { password: await bcrypt.hash(newPassword, salt) },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          personalEmail: true,
+          role: true,
+          phone: true,
+          employeeId: true,
+          subject: true,
+          approvalStatus: true,
+          createdAt: true,
+        },
+      });
+      return res.json({ success: true, data: updatedUser });
+    }
 
     const { name, phone, password, employeeId, subject } = req.body;
     const data: any = {};

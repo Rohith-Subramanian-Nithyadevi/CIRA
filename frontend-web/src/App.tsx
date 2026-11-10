@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import LandingPage from './pages/LandingPage';
@@ -65,6 +65,11 @@ function App() {
         <Route path="/faculty/dashboard" element={
           <ProtectedRoute allowedRoles={['FACULTY']}>
             <FacultyDashboard />
+          </ProtectedRoute>
+        } />
+        <Route path="/faculty/enrollment" element={
+          <ProtectedRoute allowedRoles={['FACULTY']}>
+            <Navigate to="/faculty/dashboard" replace />
           </ProtectedRoute>
         } />
 

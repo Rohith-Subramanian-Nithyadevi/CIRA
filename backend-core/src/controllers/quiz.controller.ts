@@ -270,6 +270,10 @@ export const addQuestions = async (req: Request, res: Response, next: NextFuncti
   try {
     const quizId = req.params.quizId as string;
     const { questions } = req.body; // Array of questions
+    const actor = (req as any).user;
+    const quiz = await prisma.quiz.findUnique({ where: { id: quizId }, select: { id: true, title: true, subject: true, createdBy: true } });
+    if (!quiz) throw new BadRequestError('Quiz not found', 'NOT_FOUND');
+    if (actor?.role !== 'ADMIN' && quiz.createdBy !== actor?.userId) throw new UnauthorizedError('Not authorized to manage questions for this quiz', 'UNAUTHORIZED');
 
     if (!Array.isArray(questions)) {
       throw new BadRequestError('Questions must be an array', 'INVALID_INPUT');
@@ -278,18 +282,26 @@ export const addQuestions = async (req: Request, res: Response, next: NextFuncti
     // Insert all questions (For simplicity, we delete existing and recreate, or just create new ones)
     // A robust version would upsert based on question IDs. Here we just create.
     const createdQuestions = await prisma.$transaction(
-      questions.map((q: any) =>
+      questions.map((q: any, sortOrder: number) =>
         prisma.question.create({
           data: {
             quizId,
+            ownerId: quiz.createdBy,
+            category: 'TEST_QUIZ',
+            subject: q.subject ?? quiz.subject,
             type: q.type as QuestionType,
             text: q.text,
+            topic: q.topic ?? null,
+            subtopic: q.subtopic ?? null,
+            difficulty: q.difficulty ?? null,
+            tags: Array.isArray(q.tags) ? q.tags : [],
             marks: Number(q.marks) || 1,
             negativeMarks: Number(q.negativeMarks) || 0,
             options: q.options ?? undefined,
             answerKey: q.answerKey ?? undefined,
             explanation: q.explanation ?? undefined,
             image: q.image ?? undefined,
+            usages: { create: { category: 'TEST_QUIZ', quizId, assessmentTitle: quiz.title, marks: Number(q.marks) || 1, sortOrder } },
           }
         })
       )

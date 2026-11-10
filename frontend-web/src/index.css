@@ -1,12 +1,29 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700;800&display=swap');
 @import "tw-animate-css";
-@import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @media print {
+  body * {
+    visibility: hidden !important;
+  }
+
+  .question-paper-print,
+  .question-paper-print * {
+    visibility: visible !important;
+  }
+
+  .question-paper-print {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
   body {
     background: white !important;
   }
@@ -214,5 +231,16 @@
 
   .text-gradient {
     @apply bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

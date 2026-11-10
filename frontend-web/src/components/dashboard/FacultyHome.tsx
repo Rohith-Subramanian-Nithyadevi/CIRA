@@ -7,7 +7,6 @@ import {
   Calendar as CalendarIcon, 
   CheckCircle2, 
   Circle, 
-  Bell, 
   Plus, 
   ChevronLeft, 
   ChevronRight, 
@@ -21,10 +20,11 @@ import { useBatches, useDepartments } from '@/hooks/useReferenceData';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ConfirmationDialog, ErrorState, SectionHeader, StatCard, StatusBadge } from '@/components/ui/facultyPrimitives';
 import { apiClient } from '@/lib/apiClient';
+import FacultyPolls from './FacultyPolls';
 import { clearDraft, clearSavedFilters, getDraftStorageKey, getFilterStorageKey, getStoredUserKey, readDraft, readSavedFilters, writeDraft, writeSavedFilters } from '@/lib/facultyPersistence';
 import { toast } from 'sonner';
 import { useFacultyDemo } from '@/context/FacultyDemoContext';
-import { facultyDemoAnnouncements, facultyDemoAssignments, facultyDemoCalendar, facultyDemoNotifications, facultyDemoTasks } from '@/lib/facultyDemoData';
+import { facultyDemoAnnouncements, facultyDemoAssignments, facultyDemoCalendar, facultyDemoTasks } from '@/lib/facultyDemoData';
 
 const sanitizeHtml = (value: string) => DOMPurify.sanitize(value || '', { ALLOWED_TAGS: ['b', 'strong', 'i', 'em', 'u', 's', 'strike', 'ol', 'ul', 'li', 'a', 'p', 'br'], ALLOWED_ATTR: ['href', 'target', 'rel'] });
 
@@ -61,7 +61,6 @@ interface Task { id: string; task: string; completed: boolean; date: string; }
 interface CalendarEvent { id: string; title: string; date: string; }
 interface Announcement { id: string; title: string; content: string; date: string; author?: string; isSurvey: boolean; audience: string; _count?: { responses: number }; facultyId?: string; }
 interface AnnouncementResponse { id: string; response: string; submittedAt: string; user: { name: string; rollNumber: string } }
-interface Notification { id: string; type: string; message: string; createdAt: string; read: boolean; }
 interface FacultyHomeProps { onNavigate?: (destination: 'home' | 'reports' | 'quizzes' | 'assignments') => void; }
 
 export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
@@ -112,17 +111,12 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
   const [showEventForm, setShowEventForm] = useState(false);
   const [newEventTitle, setNewEventTitle] = useState('');
   
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [notifLoading, setNotifLoading] = useState(false);
-  const notificationRequestInFlight = useRef(false);
   
   const [viewingResponsesFor, setViewingResponsesFor] = useState<string | null>(null);
   const [announcementResponses, setAnnouncementResponses] = useState<AnnouncementResponse[]>([]);
   const [loadingResponses, setLoadingResponses] = useState(false);
   const [viewingAnnouncement, setViewingAnnouncement] = useState<Announcement | null>(null);
   const [announcementToDelete, setAnnouncementToDelete] = useState<string | null>(null);
-  const [notificationError, setNotificationError] = useState<string | null>(null);
   const [restoredAnnouncementDraft, setRestoredAnnouncementDraft] = useState(false);
   const skipAnnouncementDraftWrite = useRef(false);
   const announcementDraftKey = getDraftStorageKey('announcement', 'new', getStoredUserKey());
@@ -160,10 +154,6 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
     fetchCalendarEvents();
     fetchAnnouncements(1);
     fetchAgendaAssignments();
-    fetchNotifications();
-    // Poll for new notifications every 30 seconds
-    const interval = setInterval(fetchNotifications, 30000);
-    return () => clearInterval(interval);
   }, [isDemo]);
 
   // Helper to convert Date or ISO string to local 'YYYY-MM-DD'
@@ -252,52 +242,6 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
         }
       }
     } catch (err) {} finally { setLoadingAnnouncements(false); }
-  };
-
-  const fetchNotifications = async () => {
-    if (notificationRequestInFlight.current) return;
-    notificationRequestInFlight.current = true;
-    try {
-      setNotifLoading(true);
-      if (isDemo) {
-        setNotificationError(null);
-        setNotifications(facultyDemoNotifications);
-        return;
-      }
-      const res = await apiClient.fetch('/api/v1/faculty/dashboard/notifications');
-      if (!res.ok) {
-        setNotificationError('Notifications could not be loaded.');
-        return;
-      }
-      const data = await res.json();
-      if (data?.success) {
-        setNotificationError(null);
-        setNotifications(data.data);
-      }
-    } catch (_err) {
-      setNotificationError('Notifications could not be loaded.');
-    } finally {
-      notificationRequestInFlight.current = false;
-      setNotifLoading(false);
-    }
-  };
-
-  const handleOpenNotifications = async () => {
-    setShowNotifications(prev => !prev);
-    // Mark all currently unread notifications as read
-    const unread = notifications.filter(n => !n.read);
-    if (unread.length > 0) {
-      // Optimistic update
-      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-      // Persist to backend (fire-and-forget)
-      if (!isDemo) {
-        unread.forEach(n => {
-          apiClient.fetch(`/api/v1/faculty/dashboard/notifications/${n.id}/read`, {
-            method: 'PATCH',
-          }).catch(() => {});
-        });
-      }
-    }
   };
 
   // --- TASKS LOGIC ---
@@ -498,7 +442,6 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
   const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
   const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
   
-  const unreadCount = notifications.filter(n => !n.read).length;
   const upcomingEventCount = calendarEvents.filter((event) => {
     const eventDate = new Date(`${event.date}T00:00:00`);
     const daysFromToday = Math.floor((eventDate.getTime() - today.getTime()) / 86400000);
@@ -537,7 +480,7 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
     <div className="space-y-6 relative">
       {viewingResponsesFor && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" role="presentation">
-          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col" role="dialog" aria-modal="true" aria-labelledby="survey-responses-title">
+          <div className="bg-white rounded-xl shadow-lg max-w-2xl w-full max-h-[80vh] flex flex-col" role="dialog" aria-modal="true" aria-labelledby="survey-responses-title">
             <div className="p-4 border-b border-border-soft flex justify-between items-center">
               <h3 id="survey-responses-title" className="font-bold font-serif text-ink">Survey Responses</h3>
               <button aria-label="Close survey responses" onClick={() => setViewingResponsesFor(null)}><X className="w-5 h-5 text-gray-body" /></button>
@@ -583,7 +526,7 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
       {/* Announcement Details Modal */}
       {viewingAnnouncement && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 backdrop-blur-xs" role="presentation" onClick={() => setViewingAnnouncement(null)}>
-          <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[85vh] flex flex-col border border-border-soft overflow-hidden" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl shadow-lg max-w-2xl w-full max-h-[85vh] flex flex-col border border-border-soft overflow-hidden" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
             <div className="p-5 border-b border-border-soft flex justify-between items-start gap-4 bg-cream/20">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap mb-1.5">
@@ -660,7 +603,6 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard label="Open tasks" value={loadingTasks ? '—' : openTaskCount} description="Incomplete tasks returned by the faculty task service" />
           <StatCard label="Upcoming events" value={loadingCalendar ? '—' : upcomingEventCount} description="Events scheduled in the next seven days" />
-          <StatCard label="Unread notifications" value={notifLoading && notifications.length === 0 ? '—' : unreadCount} description="Unread items from the notification service" />
           <StatCard label="Announcements shown" value={loadingAnnouncements ? '—' : announcements.length} description="Announcements in the currently loaded page" />
         </div>
       </section>
@@ -703,51 +645,14 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
         )}
       </section>
 
-      {/* Header */}
-      <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-border-soft shadow-sm">
-        <h2 className="text-xl font-serif font-bold text-ink">Dashboard</h2>
-        <div className="relative">
-          <button aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`} aria-expanded={showNotifications} aria-controls="faculty-notifications" onClick={handleOpenNotifications} className="p-2 hover:bg-cream rounded-full relative transition-colors">
-            <Bell className="w-5 h-5 text-ink" />
-            {unreadCount > 0 && <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>}
-          </button>
-          {showNotifications && (
-            <div id="faculty-notifications" role="region" aria-label="Notifications" className="absolute right-0 top-12 w-80 bg-white border border-border-soft rounded-xl shadow-xl z-50 overflow-hidden">
-              <div className="px-4 py-3 border-b border-border-soft flex justify-between items-center">
-                <h4 className="font-bold text-sm text-ink">Notifications</h4>
-                {notifLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-body" />}
-              </div>
-              <div className="max-h-72 overflow-y-auto divide-y divide-border-soft">
-                {notificationError && <ErrorState message={notificationError} onRetry={fetchNotifications} className="m-3 min-h-24" />}
-                {notifications.length === 0 ? (
-                  <div className="p-4">
-                    <EmptyState icon={<Bell className="w-6 h-6 text-maroon" />} title="No new notifications" description="You're all caught up!" className="min-h-[150px] p-4" />
-                  </div>
-                ) : (
-                  notifications.map(n => (
-                    <div key={n.id} className={`px-4 py-3 flex items-start gap-3 transition-colors ${!n.read ? 'bg-cream/40' : ''}`}>
-                      <div className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${!n.read ? 'bg-maroon' : 'bg-transparent'}`} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs text-ink leading-snug">{n.message}</p>
-                        <p className="text-xs text-gray-body mt-0.5">{new Date(n.createdAt).toLocaleString()}</p>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
         
         {/* Calendar */}
         <div className="xl:col-span-8 space-y-6">
-          <div className="bg-white border border-border-soft p-6 rounded-xl shadow-sm">
-            <div className="flex items-center justify-between mb-6">
+          <div className="bg-white border border-border-soft p-4 sm:p-6 rounded-xl shadow-sm">
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-lg font-bold flex items-center text-ink font-serif"><CalendarIcon className="w-5 h-5 mr-2 text-maroon" /> Calendar</h3>
-              <div className="flex items-center gap-4 bg-cream rounded-lg p-1 border border-border-soft">
+              <div className="flex items-center gap-2 sm:gap-4 bg-cream rounded-lg p-1 border border-border-soft">
                 <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))} className="p-1 hover:bg-cream-edge/30 rounded text-ink"><ChevronLeft className="w-4 h-4" /></button>
                 <span className="text-sm font-medium w-32 text-center text-ink">{monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}</span>
                 <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))} className="p-1 hover:bg-cream-edge/30 rounded text-ink"><ChevronRight className="w-4 h-4" /></button>
@@ -758,20 +663,20 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
               <ErrorState message={calendarError} onRetry={fetchCalendarEvents} />
             ) : loadingCalendar ? (
               <div className="space-y-2">
-                <div className="grid grid-cols-7 gap-2">
+                <div className="grid min-w-0 grid-cols-7 gap-1 sm:gap-2">
                   {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => <div key={day} className="text-center text-xs font-semibold text-gray-body uppercase py-2">{day}</div>)}
                 </div>
-                <div className="grid grid-cols-7 gap-2">
+                <div className="grid min-w-0 grid-cols-7 gap-1 sm:gap-2">
                   {Array.from({ length: 35 }).map((_, i) => <div key={i} className="h-14 rounded-lg bg-cream/40 animate-pulse" />)}
                 </div>
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-7 gap-2 mb-2">
+                <div className="grid min-w-0 grid-cols-7 gap-1 mb-2 sm:gap-2">
                   {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => <div key={day} className="text-center text-xs font-semibold text-gray-body uppercase py-2">{day}</div>)}
                 </div>
                 
-                <div className="grid grid-cols-7 gap-2">
+                <div className="grid min-w-0 grid-cols-7 gap-1 sm:gap-2">
                   {Array.from({ length: firstDayOfMonth }).map((_, i) => <div key={`empty-${i}`} className="h-14 rounded-lg" />)}
                   
                   {Array.from({ length: daysInMonth }).map((_, i) => {
@@ -789,7 +694,7 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
                       <div 
                         key={day} 
                         onClick={() => { if(!isPast) setSelectedDate(selectedDate?.getTime() === dateObj.getTime() ? null : dateObj); setShowEventForm(false); }} 
-                        className={`relative h-14 p-1.5 rounded-lg flex flex-col items-center justify-center transition-all border ${
+                        className={`relative h-14 min-w-0 p-1.5 rounded-lg flex flex-col items-center justify-center transition-colors border ${
                           isPast 
                             ? 'bg-gray-50/40 border-transparent opacity-40 cursor-not-allowed' 
                             : 'cursor-pointer'
@@ -1015,6 +920,7 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
             )}
           </div>
         </div>
+        <FacultyPolls isDemo={isDemo} />
       </div>
     </div>
   );
