@@ -146,6 +146,73 @@ export const facultyDemoQuizzes = [
   },
 ];
 
+export const facultyDemoQuestionBank = [
+  {
+    id: 'demo-bank-assignment-bfs', ownerId: 'demo-faculty', ownership: 'owned', category: 'ASSIGNMENT',
+    subject: 'Computer Science', type: 'SHORT_WRITTEN', text: 'Trace breadth-first search from vertex A and list the visit order.',
+    topic: 'Graph Traversal', subtopic: 'Breadth-first search', difficulty: 'Medium', tags: ['graphs', 'bfs'], marks: 5,
+    negativeMarks: 0, options: null, answerKey: 'A, B, C, D (depending on the supplied graph)',
+    explanation: 'Award marks for the queue state and visit order at each step.', image: null,
+    usages: [{ category: 'ASSIGNMENT', assessmentTitle: 'Graph Algorithms Worksheet' }],
+    reuse: { eligible: true, usedInOppositeCategory: false, warning: null },
+  },
+  {
+    id: 'demo-bank-assignment-queue', ownerId: 'demo-faculty', ownership: 'owned', category: 'ASSIGNMENT',
+    subject: 'Computer Science', type: 'MCQ', text: 'Which data structure is typically used to manage the BFS frontier?',
+    topic: 'Graph Traversal', subtopic: 'Breadth-first search', difficulty: 'Easy', tags: ['graphs', 'queues'], marks: 2,
+    negativeMarks: 0, options: ['Stack', 'Queue', 'Priority queue', 'Hash map'], answerKey: 'Queue',
+    explanation: 'BFS visits vertices in first-in, first-out order.', image: null,
+    usages: [], reuse: { eligible: true, usedInOppositeCategory: false, warning: null },
+  },
+  {
+    id: 'demo-bank-assignment-match', ownerId: 'demo-faculty', ownership: 'owned', category: 'ASSIGNMENT',
+    subject: 'Computer Science', type: 'MATCHING', text: 'Match each data structure to its common operation.',
+    topic: 'Data Structures', subtopic: 'Operations', difficulty: 'Medium', tags: ['matching', 'structures'], marks: 4,
+    negativeMarks: 0, options: [{ left: 'Stack', right: 'LIFO' }, { left: 'Queue', right: 'FIFO' }],
+    answerKey: [{ left: 'Stack', right: 'LIFO' }, { left: 'Queue', right: 'FIFO' }],
+    explanation: 'Both pairs must be correct for full marks.', image: null,
+    usages: [], reuse: { eligible: true, usedInOppositeCategory: false, warning: null },
+  },
+  {
+    id: 'demo-bank-test-binary', ownerId: 'demo-faculty', ownership: 'owned', category: 'TEST_QUIZ',
+    subject: 'Computer Science', type: 'MCQ', text: 'What is the worst-case time complexity of binary search on a sorted array?',
+    topic: 'Algorithms', subtopic: 'Searching', difficulty: 'Easy', tags: ['complexity', 'search'], marks: 2,
+    negativeMarks: 0, options: ['O(1)', 'O(log n)', 'O(n)', 'O(n log n)'], answerKey: 'O(log n)',
+    explanation: 'Each comparison halves the remaining search interval.', image: null,
+    usages: [{ category: 'TEST_QUIZ', assessmentTitle: 'Data Structures Midterm' }],
+    reuse: { eligible: true, usedInOppositeCategory: false, warning: null },
+  },
+  {
+    id: 'demo-bank-test-stack', ownerId: 'demo-faculty', ownership: 'owned', category: 'TEST_QUIZ',
+    subject: 'Programming', type: 'NUMERICAL', text: 'A stack starts empty. Push 4, push 7, then pop once. What value remains on top?',
+    topic: 'Data Structures', subtopic: 'Stacks', difficulty: 'Easy', tags: ['stack', 'trace'], marks: 3,
+    negativeMarks: 0, options: null, answerKey: '4',
+    explanation: 'The pop removes 7, leaving 4 on top.', image: null,
+    usages: [], reuse: { eligible: true, usedInOppositeCategory: false, warning: null },
+  },
+  {
+    id: 'demo-bank-reused-graph', ownerId: 'demo-faculty', ownership: 'owned', category: 'TEST_QUIZ',
+    subject: 'Computer Science', type: 'TRUE_FALSE', text: 'A depth-first traversal can be implemented with a stack.',
+    topic: 'Graph Traversal', subtopic: 'Depth-first search', difficulty: 'Medium', tags: ['graphs', 'reuse-demo'], marks: 1,
+    negativeMarks: 0, options: ['True', 'False'], answerKey: true,
+    explanation: 'Recursive DFS uses the call stack; iterative DFS uses an explicit stack.', image: null,
+    usages: [{ category: 'ASSIGNMENT', assessmentTitle: 'Graph Algorithms Worksheet' }],
+    reuse: { eligible: false, usedInOppositeCategory: true, warning: 'This question has been used in the opposite assessment category.' },
+  },
+];
+
+export const facultyDemoQuestionPapers = [
+  {
+    id: 'demo-paper-midterm', title: 'Algorithms Readiness Quiz', subject: 'Computer Science',
+    instructions: 'Choose the best answer. Show your working for the numerical question.',
+    category: 'TEST_QUIZ', paperStatus: 'PUBLISHED', durationMinutes: 30, totalMarks: 5,
+    classLabel: 'CSE · Section A', classId: 'demo-section-a',
+    questions: facultyDemoQuestionBank
+      .filter(question => ['demo-bank-test-binary', 'demo-bank-test-stack'].includes(question.id))
+      .map(question => ({ ...question, marks: question.id === 'demo-bank-test-binary' ? 2 : 3, wasReused: false })),
+  },
+];
+
 export const facultyDemoQuizAttempts = facultyDemoQuizzes.flatMap(quiz => facultyDemoStudents.flatMap((student, studentIndex) => {
   if (quiz.id === 'demo-quiz-1' && student.sectionId !== 'demo-section-a') return [];
   if (quiz.id === 'demo-quiz-2' && studentIndex >= 48) return [];

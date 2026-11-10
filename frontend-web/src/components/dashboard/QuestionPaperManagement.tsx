@@ -2,10 +2,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, Download, Loader2, Plus, Printer, RefreshCw, Save, Send } from 'lucide-react';
 import { apiClient, getApiErrorMessage } from '@/lib/apiClient';
 import { Button } from '@/components/ui/button';
+import { useFacultyDemo } from '@/context/FacultyDemoContext';
+import { facultyDemoQuestionBank, facultyDemoQuestionPapers } from '@/lib/facultyDemoData';
 
 type Paper = { id: string; title: string; subject?: string; instructions?: string; category: 'ASSIGNMENT' | 'TEST_QUIZ'; paperStatus: string; durationMinutes: number; totalMarks: number; questions: any[]; classLabel?: string; classId?: string; };
 type SchoolClass = { id: string; type: 'DEPARTMENT' | 'SECTION'; name: string; };
-type BankQuestion = { id: string; text: string; type: string; subject?: string; topic?: string; difficulty?: string; marks: number; image?: string; reuse?: { usedInOppositeCategory: boolean; warning?: string }; };
+type BankQuestion = { id: string; text: string; type: string; subject?: string; topic?: string; difficulty?: string; marks: number; image?: string | null; reuse?: { usedInOppositeCategory: boolean; warning?: string | null }; };
 
 const api = async (url: string, init?: RequestInit) => {
   const response = await apiClient.fetch(url, { ...init, headers: { 'Content-Type': 'application/json', ...init?.headers } });
@@ -15,17 +17,31 @@ const api = async (url: string, init?: RequestInit) => {
 };
 
 export default function QuestionPaperManagement({ onSubmissions }: { onSubmissions: (quizId: string) => void }) {
+  const isDemo = useFacultyDemo();
   const [papers, setPapers] = useState<Paper[]>([]); const [classes, setClasses] = useState<SchoolClass[]>([]); const [bank, setBank] = useState<BankQuestion[]>([]);
   const [paper, setPaper] = useState<Paper | null>(null); const [category, setCategory] = useState<Paper['category']>('TEST_QUIZ');
   const [title, setTitle] = useState(''); const [subject, setSubject] = useState(''); const [instructions, setInstructions] = useState(''); const [classId, setClassId] = useState(''); const [selected, setSelected] = useState<Record<string, number>>({});
   const [includeReused, setIncludeReused] = useState(false); const [count, setCount] = useState(10); const [difficulty, setDifficulty] = useState(''); const [topic, setTopic] = useState('');
   const [editorOpen, setEditorOpen] = useState(false);
   const [loading, setLoading] = useState(true); const [saving, setSaving] = useState(false); const [error, setError] = useState(''); const [preview, setPreview] = useState(false);
-  const load = useCallback(async () => { setLoading(true); setError(''); try { const [p, c] = await Promise.all([api('/api/v1/faculty/quiz/question-papers'), api('/api/v1/faculty/quiz/question-papers/classes')]); setPapers(p || []); setClasses(c?.classes || []); } catch (e) { setError(getApiErrorMessage(e, 'We could not load Question Papers. Please try again, or contact your administrator if the problem continues.')); } finally { setLoading(false); } }, []);
+  const load = useCallback(async () => { setLoading(true); setError(''); try {
+    if (isDemo) {
+      setPapers(facultyDemoQuestionPapers as Paper[]);
+      setClasses([{ id: 'demo-section-a', type: 'SECTION', name: 'CSE · Section A' }]);
+      return;
+    }
+    const [p, c] = await Promise.all([api('/api/v1/faculty/quiz/question-papers'), api('/api/v1/faculty/quiz/question-papers/classes')]); setPapers(p || []); setClasses(c?.classes || []);
+  } catch (e) { setError(getApiErrorMessage(e, 'We could not load Question Papers. Please try again, or contact your administrator if the problem continues.')); } finally { setLoading(false); } }, [isDemo]);
   useEffect(() => { void load(); }, [load]);
-  const loadBank = async (nextCategory = category, reused = includeReused) => { const response = await api(`/api/v1/faculty/quiz/question-bank?category=${nextCategory}&limit=100&includeReused=${reused}`); setBank(response.items || []); };
+  const loadBank = async (nextCategory = category, reused = includeReused) => {
+    if (isDemo) {
+      setBank(facultyDemoQuestionBank.filter((question) => question.category === nextCategory && (reused || !question.reuse.usedInOppositeCategory)) as BankQuestion[]);
+      return;
+    }
+    const response = await api(`/api/v1/faculty/quiz/question-bank?category=${nextCategory}&limit=100&includeReused=${reused}`); setBank(response.items || []);
+  };
   const openNew = async (nextCategory: Paper['category']) => { setEditorOpen(true); setCategory(nextCategory); setPaper(null); setTitle(''); setSubject(''); setInstructions(''); setSelected({}); setClassId(''); setError(''); await loadBank(nextCategory); };
-  const openPaper = async (item: Paper) => { setEditorOpen(true); const loaded = await api(`/api/v1/faculty/quiz/question-papers/${item.id}`); const reused = loaded.questions.some((q: any) => q.wasReused); setPaper(loaded); setCategory(item.category); setTitle(item.title); setSubject(item.subject || ''); setInstructions(item.instructions || ''); setClassId(loaded.classId || ''); setSelected(Object.fromEntries(loaded.questions.map((q: any) => [q.id, Number(q.marks)]))); setIncludeReused(reused); await loadBank(item.category, reused); setPreview(false); };
+  const openPaper = async (item: Paper) => { setEditorOpen(true); const loaded = isDemo ? item : await api(`/api/v1/faculty/quiz/question-papers/${item.id}`); const reused = loaded.questions.some((q: any) => q.wasReused); setPaper(loaded); setCategory(item.category); setTitle(item.title); setSubject(item.subject || ''); setInstructions(item.instructions || ''); setClassId(loaded.classId || ''); setSelected(Object.fromEntries(loaded.questions.map((q: any) => [q.id, Number(q.marks)]))); setIncludeReused(reused); await loadBank(item.category, reused); setPreview(false); };
   const currentClass = classes.find((item) => item.id === classId);
   const readOnly = paper?.paperStatus === 'PUBLISHED' || paper?.paperStatus === 'CLOSED';
   const total = Object.values(selected).reduce((sum, marks) => sum + Number(marks || 0), 0);
@@ -41,8 +57,9 @@ export default function QuestionPaperManagement({ onSubmissions }: { onSubmissio
   if (loading) return <div className="flex items-center gap-2 p-8 text-stone-600"><Loader2 className="animate-spin" />Loading question papers…</div>;
   if (error && papers.length === 0) return <div className="m-6 rounded-xl border border-rose-200 bg-rose-50 p-5 text-rose-900">{error}<Button className="ml-3" variant="outline" onClick={() => void load()}><RefreshCw className="mr-2 h-4 w-4" />Retry</Button></div>;
   return <main className="question-paper-management space-y-5 p-4 md:p-7">
-    <div className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-semibold text-stone-900">Question Papers</h1><p className="text-sm text-stone-600">Create assignments and tests using the shared question bank.</p></div><Button onClick={() => void openNew('TEST_QUIZ')}><Plus className="mr-2 h-4 w-4" />New Paper</Button></div>
-    {!editorOpen && <div className="grid gap-3 lg:grid-cols-2"><Button variant="outline" onClick={() => void openNew('ASSIGNMENT')}>Create Assignment</Button><Button variant="outline" onClick={() => void openNew('TEST_QUIZ')}>Create Test / Quiz</Button>{papers.map((item) => <article key={item.id} className="rounded-xl border border-stone-200 bg-white p-4"><div className="flex min-w-0 flex-col justify-between gap-3 sm:flex-row"><div className="min-w-0"><h2 className="break-words font-semibold">{item.title}</h2><p className="text-sm text-stone-600">{item.category === 'ASSIGNMENT' ? 'Assignment' : 'Test / Quiz'} · {item.classLabel || 'Class not selected'} · {item.paperStatus}</p><p className="text-sm">{item.questions.length} questions · {item.totalMarks} marks</p></div><Button variant="outline" onClick={() => void openPaper(item)}>View / Edit</Button></div><div className="mt-3 flex flex-wrap gap-2"><Button variant="ghost" onClick={() => { void openPaper(item).then(() => setPreview(true)); }}>Preview / Print</Button>{item.paperStatus === 'PUBLISHED' && <Button variant="ghost" onClick={() => onSubmissions(item.id)}>Submissions</Button>}</div></article>)}</div>}
+    <div className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-semibold text-stone-900">Question Papers</h1><p className="text-sm text-stone-600">Create assignments and tests using the shared question bank.</p></div><Button disabled={isDemo} title={isDemo ? 'Turn off Demo Data to create saved papers.' : undefined} onClick={() => void openNew('TEST_QUIZ')}><Plus className="mr-2 h-4 w-4" />New Paper</Button></div>
+    {isDemo && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Showing a sample published paper and sample questions. These examples are read-only; turn off Demo Data to create saved papers.</p>}
+    {!editorOpen && <div className="grid gap-3 lg:grid-cols-2">{!isDemo && <><Button variant="outline" onClick={() => void openNew('ASSIGNMENT')}>Create Assignment</Button><Button variant="outline" onClick={() => void openNew('TEST_QUIZ')}>Create Test / Quiz</Button></>}{papers.map((item) => <article key={item.id} className="rounded-xl border border-stone-200 bg-white p-4"><div className="flex min-w-0 flex-col justify-between gap-3 sm:flex-row"><div className="min-w-0"><h2 className="break-words font-semibold">{item.title}</h2><p className="text-sm text-stone-600">{item.category === 'ASSIGNMENT' ? 'Assignment' : 'Test / Quiz'} · {item.classLabel || 'Class not selected'} · {item.paperStatus}</p><p className="text-sm">{item.questions.length} questions · {item.totalMarks} marks</p></div><Button variant="outline" onClick={() => void openPaper(item)}>{isDemo ? 'View sample paper' : 'View / Edit'}</Button></div><div className="mt-3 flex flex-wrap gap-2"><Button variant="ghost" onClick={() => { void openPaper(item).then(() => setPreview(true)); }}>Preview / Print</Button>{!isDemo && item.paperStatus === 'PUBLISHED' && <Button variant="ghost" onClick={() => onSubmissions(item.id)}>Submissions</Button>}</div></article>)}</div>}
     {paper === null && error && <p role="alert" className="text-rose-700">{error}<Button variant="ghost" onClick={() => void load()}>Retry</Button></p>}
     {editorOpen && !preview && <section className="min-w-0 space-y-4 rounded-xl border border-stone-200 bg-white p-4 sm:p-5"><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-lg font-semibold">{paper ? 'Edit draft' : category === 'ASSIGNMENT' ? 'New assignment' : 'New test / quiz'}</h2><Button variant="ghost" onClick={() => { setPaper(null); setTitle(''); setEditorOpen(false); }}>Close</Button></div>
       <div className="grid min-w-0 gap-3 lg:grid-cols-2"><label className="min-w-0 text-sm">Title<input disabled={readOnly} className="mt-1 w-full rounded-md border p-2" value={title} onChange={(e) => setTitle(e.target.value)} /></label><label className="min-w-0 text-sm">Subject<input disabled={readOnly} className="mt-1 w-full rounded-md border p-2" value={subject} onChange={(e) => setSubject(e.target.value)} /></label><label className="min-w-0 text-sm">Class<select disabled={readOnly} className="mt-1 w-full rounded-md border p-2" value={classId} onChange={(e) => setClassId(e.target.value)}><option value="">Select authorized class</option>{classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label><label className="min-w-0 text-sm">Instructions<textarea disabled={readOnly} className="mt-1 w-full rounded-md border p-2" value={instructions} onChange={(e) => setInstructions(e.target.value)} /></label></div>
