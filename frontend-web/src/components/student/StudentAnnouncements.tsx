@@ -210,10 +210,11 @@ export default function StudentAnnouncements({ isDemo }: { isDemo?: boolean }) {
           <button
             onClick={fetchAnnouncements}
             disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 border border-border-soft text-ink font-semibold rounded-lg hover:bg-cream/40 transition-colors text-sm w-fit cursor-pointer"
+            title="Refresh announcements"
+            aria-label="Refresh announcements"
+            className="p-2 border border-border-soft text-ink font-semibold rounded-lg hover:bg-cream/40 transition-colors w-fit cursor-pointer"
           >
             <RefreshCw className={`w-4 h-4 text-maroon ${loading ? 'animate-spin' : ''}`} />
-            Refresh
           </button>
         </div>
 

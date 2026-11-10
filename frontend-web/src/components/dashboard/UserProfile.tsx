@@ -81,18 +81,21 @@ export default function UserProfile() {
     setError('');
     
     try {
-      const payload: any = { name, phone };
       if (role === 'STUDENT') {
-        payload.rollNumber = rollNumber;
-        payload.departmentId = enrollDeptId || undefined;
-        payload.sectionId = enrollSectionId === 'all' ? undefined : (enrollSectionId || undefined);
-      }
-      
-      if (password) {
-        payload.password = password;
-      }
-      
-      if (role === 'STUDENT') {
+        const payload: any = {
+          departmentId: enrollDeptId || undefined,
+          sectionId: enrollSectionId === 'all' ? undefined : (enrollSectionId || undefined)
+        };
+        
+        if (password) {
+          if (password.length < 8) {
+            setError('Password must be at least 8 characters long.');
+            setLoading(false);
+            return;
+          }
+          payload.password = password;
+        }
+        
         const res = await apiClient.fetch('/api/v1/student/profile', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -104,12 +107,10 @@ export default function UserProfile() {
           // update local user
           const updatedUser = { ...user, ...resData.data };
           localStorage.setItem('cira_user', JSON.stringify(updatedUser));
-          setName(updatedUser.name || '');
-          setPhone(updatedUser.phone || '');
-          setRollNumber(updatedUser.rollNumber || '');
           setEnrollBatchId(updatedUser.department?.batchId || updatedUser.department?.batch?.id || enrollBatchId);
           setEnrollDeptId(updatedUser.departmentId || enrollDeptId);
           setEnrollSectionId(updatedUser.sectionId || enrollSectionId);
+          setPassword('');
           window.dispatchEvent(new Event('cira_user_updated'));
           setSuccess('Profile updated successfully!');
           setIsEditing(false);
@@ -132,6 +133,7 @@ export default function UserProfile() {
           localStorage.setItem('cira_user', JSON.stringify(updatedUser));
           setName(updatedUser.name || '');
           setPhone(updatedUser.phone || '');
+          setPassword('');
           window.dispatchEvent(new Event('cira_user_updated'));
           setSuccess('Profile updated successfully!');
           setIsEditing(false);
@@ -257,11 +259,19 @@ export default function UserProfile() {
           <label className="block text-sm font-semibold text-gray-body dark:text-gray-400 mb-1.5">Full Name</label>
           <input
             type="text"
-            disabled={!isEditing}
+            disabled={role === 'STUDENT' ? true : !isEditing}
+            readOnly={role === 'STUDENT'}
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full px-4 py-2 bg-white dark:bg-[#222] border border-border-soft dark:border-gray-700 rounded-lg focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon transition-colors disabled:opacity-75 disabled:cursor-not-allowed"
+            className={`w-full px-4 py-2 border rounded-lg transition-colors ${
+              role === 'STUDENT'
+                ? 'bg-cream/40 dark:bg-gray-800/40 border-border-soft dark:border-gray-700 text-gray-body dark:text-gray-500 cursor-not-allowed font-medium'
+                : 'bg-white dark:bg-[#222] border-border-soft dark:border-gray-700 focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon disabled:opacity-75 disabled:cursor-not-allowed'
+            }`}
           />
+          {role === 'STUDENT' && (
+            <p className="text-xs text-gray-body/60 dark:text-gray-500 mt-1">Official record — contact Admin to modify.</p>
+          )}
         </div>
 
         {/* Email (read-only) */}
@@ -270,10 +280,11 @@ export default function UserProfile() {
           <input
             type="email"
             disabled
+            readOnly
             value={user.email || ''}
             className="w-full px-4 py-2 bg-cream/40 dark:bg-gray-800/40 border border-border-soft dark:border-gray-700 rounded-lg text-gray-body dark:text-gray-500 cursor-not-allowed font-medium"
           />
-          <p className="text-xs text-gray-body/60 dark:text-gray-500 mt-1">Email address cannot be changed.</p>
+          <p className="text-xs text-gray-body/60 dark:text-gray-500 mt-1">Official record — email address cannot be changed.</p>
         </div>
 
         {/* Phone */}
@@ -281,11 +292,19 @@ export default function UserProfile() {
           <label className="block text-sm font-semibold text-gray-body dark:text-gray-400 mb-1.5">Phone Number</label>
           <input
             type="text"
-            disabled={!isEditing}
+            disabled={role === 'STUDENT' ? true : !isEditing}
+            readOnly={role === 'STUDENT'}
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            className="w-full px-4 py-2 bg-white dark:bg-[#222] border border-border-soft dark:border-gray-700 rounded-lg focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon transition-colors disabled:opacity-75 disabled:cursor-not-allowed"
+            className={`w-full px-4 py-2 border rounded-lg transition-colors ${
+              role === 'STUDENT'
+                ? 'bg-cream/40 dark:bg-gray-800/40 border-border-soft dark:border-gray-700 text-gray-body dark:text-gray-500 cursor-not-allowed font-medium'
+                : 'bg-white dark:bg-[#222] border-border-soft dark:border-gray-700 focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon disabled:opacity-75 disabled:cursor-not-allowed'
+            }`}
           />
+          {role === 'STUDENT' && (
+            <p className="text-xs text-gray-body/60 dark:text-gray-500 mt-1">Official record — contact Admin to modify.</p>
+          )}
         </div>
         
         {/* Roll Number (Student Only) */}
@@ -294,23 +313,25 @@ export default function UserProfile() {
             <label className="block text-sm font-semibold text-gray-body dark:text-gray-400 mb-1.5">Roll Number</label>
             <input
               type="text"
-              disabled={!isEditing}
+              disabled
+              readOnly
               value={rollNumber}
-              onChange={(e) => setRollNumber(e.target.value)}
-              className="w-full px-4 py-2 bg-white dark:bg-[#222] border border-border-soft dark:border-gray-700 rounded-lg focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon transition-colors disabled:opacity-75 disabled:cursor-not-allowed"
+              className="w-full px-4 py-2 bg-cream/40 dark:bg-gray-800/40 border border-border-soft dark:border-gray-700 rounded-lg text-gray-body dark:text-gray-500 cursor-not-allowed font-medium"
             />
+            <p className="text-xs text-gray-body/60 dark:text-gray-500 mt-1">Official record — contact Admin to modify.</p>
           </div>
         )}
 
-        {/* Password (only visible in edit mode) */}
+        {/* Password (visible in edit mode) */}
         {isEditing && (
-          <div>
-            <label className="block text-sm font-semibold text-gray-body dark:text-gray-400 mb-1.5">New Password (Optional)</label>
+          <div className="p-4 rounded-xl bg-cream/30 dark:bg-gray-800/30 border border-border-soft dark:border-gray-700 space-y-2">
+            <label className="block text-sm font-semibold text-ink dark:text-cream">Change Password</label>
+            <p className="text-xs text-gray-body dark:text-gray-400">Enter a new password (min. 8 characters) or leave blank to keep your current password.</p>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Leave blank to keep current password"
+              placeholder="Enter new password"
               className="w-full px-4 py-2 bg-white dark:bg-[#222] border border-border-soft dark:border-gray-700 rounded-lg focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon transition-colors placeholder:text-gray-body/40 dark:placeholder:text-gray-600"
             />
           </div>

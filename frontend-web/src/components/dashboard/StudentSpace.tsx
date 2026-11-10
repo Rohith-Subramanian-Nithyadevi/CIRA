@@ -1,7 +1,16 @@
 import { useState, useEffect } from 'react';
-import { TrendingUp, Bell, Loader2, ArrowRight, Trash2, X, MessageSquare, CheckCircle2, Send, Calendar } from 'lucide-react';
+import { TrendingUp, Bell, Loader2, ArrowRight, Trash2, X, MessageSquare, CheckCircle2, Send, Calendar, ListTodo, Circle, Plus, Clock } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import { apiClient } from '@/lib/apiClient';
+
+interface Task {
+  id: string;
+  title: string;
+  description?: string;
+  estimatedTime?: number;
+  completed: boolean;
+  date: string;
+}
 
 interface SISData {
   sis: number;
@@ -76,6 +85,12 @@ export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProp
   const [responseText, setResponseText] = useState('');
   const [submittingSurvey, setSubmittingSurvey] = useState(false);
 
+  // Daily Action Plan states
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [streak, setStreak] = useState(0);
+  const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [addingTask, setAddingTask] = useState(false);
+
   const user = JSON.parse(localStorage.getItem('cira_user') || '{}');
   const userStorageKey = `cira_dismissed_announcements_${user.id || 'default'}`;
 
@@ -132,16 +147,77 @@ export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProp
     }
   };
 
+  const handleToggleTask = async (id: string, currentStatus: boolean) => {
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: !currentStatus } : t));
+    if (isDemo) return;
+    try {
+      await apiClient.fetch(`/api/v1/student/tasks/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ completed: !currentStatus })
+      });
+      fetchOverviewData();
+    } catch (err) {
+      console.error('Failed to toggle task', err);
+    }
+  };
+
+  const handleAddTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTaskTitle.trim()) return;
+    const title = newTaskTitle.trim();
+    setNewTaskTitle('');
+    if (isDemo) {
+      setTasks(prev => [...prev, { id: Date.now().toString(), title, completed: false, date: new Date().toISOString() }]);
+      return;
+    }
+    setAddingTask(true);
+    try {
+      const res = await apiClient.fetch('/api/v1/student/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          date: new Date().toISOString()
+        })
+      });
+      const data = await res.json();
+      if (data && data.id) {
+        setTasks(prev => [...prev, data]);
+      }
+    } catch (err) {
+      console.error('Failed to add task', err);
+    } finally {
+      setAddingTask(false);
+    }
+  };
+
+  const handleDeleteTask = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setTasks(prev => prev.filter(t => t.id !== id));
+    if (isDemo) return;
+    try {
+      await apiClient.fetch(`/api/v1/student/tasks/${id}`, { method: 'DELETE' });
+    } catch (err) {
+      console.error('Failed to delete task', err);
+    }
+  };
+
   const fetchOverviewData = () => {
     Promise.all([
       apiClient.fetch('/api/v1/student/improvement/sis').then(r => r.json()).catch(() => null),
       apiClient.fetch('/api/v1/student/announcements').then(r => r.json()).catch(() => null),
-    ]).then(([sisRes, annRes]) => {
+      apiClient.fetch('/api/v1/student/tasks').then(r => r.json()).catch(() => null),
+    ]).then(([sisRes, annRes, tasksRes]) => {
       if (sisRes?.success) setSIS(sisRes.data);
       if (annRes?.success) {
         const dismissed = getDismissedIds();
         const active = (annRes.data || []).filter((a: any) => !dismissed.includes(a.id));
         setAnnouncements(active);
+      }
+      if (tasksRes) {
+        setTasks(tasksRes.tasks || []);
+        if (tasksRes.streak !== undefined) setStreak(tasksRes.streak);
       }
     }).finally(() => setLoading(false));
   };
@@ -162,6 +238,12 @@ export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProp
       ];
       const dismissed = getDismissedIds();
       setAnnouncements(demoAnn.filter(a => !dismissed.includes(a.id)));
+      setTasks([
+        { id: 'demo-1', title: 'Review Operating Systems process scheduling notes', completed: true, date: new Date().toISOString(), estimatedTime: 30 },
+        { id: 'demo-2', title: 'Complete Dynamic Programming practice questions', completed: false, date: new Date().toISOString(), estimatedTime: 45 },
+        { id: 'demo-3', title: 'Prepare for Friday Verbal Assessment', completed: false, date: new Date().toISOString(), estimatedTime: 20 },
+      ]);
+      setStreak(4);
       setLoading(false);
       return;
     }
@@ -340,6 +422,118 @@ export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProp
                 </div>
               );
             })}
+          </div>
+        )}
+      </div>
+
+      <div className="h-px w-full" style={{ background: C.creamEdge }} />
+
+      {/* ── DAILY ACTION PLAN ── */}
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-lg bg-cream-edge/60 text-maroon flex items-center justify-center">
+              <ListTodo className="w-5 h-5" style={{ color: C.maroon }} />
+            </div>
+            <div>
+              <h3 className="text-lg font-serif font-bold text-ink leading-tight">Daily Action Plan</h3>
+              <p className="text-xs text-gray-body">Your prioritized study checklist and daily tasks</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {streak > 0 && (
+              <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-maroon/10 text-maroon border border-maroon/20 flex items-center gap-1">
+                <TrendingUp className="w-3.5 h-3.5" />
+                {streak} Day Streak
+              </span>
+            )}
+            {tasks.length > 0 && (
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-cream-edge/40 text-gray-body border border-border-soft">
+                {tasks.filter(t => t.completed).length} / {tasks.length} Done
+              </span>
+            )}
+            {onNavigateTab && (
+              <button 
+                onClick={() => onNavigateTab('todo')} 
+                className="text-xs font-bold text-maroon hover:text-maroon-deep flex items-center gap-1 group py-1 px-2.5 rounded-lg hover:bg-cream-edge/40 transition-colors cursor-pointer"
+              >
+                <span>Full Planner</span>
+                <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Quick Add Form */}
+        <form onSubmit={handleAddTask} className="flex gap-2 mb-3.5">
+          <input
+            type="text"
+            placeholder="Add a new study task or action item..."
+            value={newTaskTitle}
+            onChange={(e) => setNewTaskTitle(e.target.value)}
+            className="flex-1 px-4 py-2 text-xs md:text-sm bg-white border border-border-soft rounded-xl focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon transition-all"
+          />
+          <button
+            type="submit"
+            disabled={addingTask || !newTaskTitle.trim()}
+            className="px-4 py-2 bg-maroon hover:bg-maroon-deep text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
+          >
+            {addingTask ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-4 h-4" />}
+            <span>Add</span>
+          </button>
+        </form>
+
+        {/* Tasks List */}
+        {tasks.length === 0 ? (
+          <div className="py-6 px-6 text-center rounded-xl border border-dashed bg-cream/30 flex items-center justify-center gap-3" style={{ borderColor: C.border }}>
+            <ListTodo className="w-4 h-4 text-gray-body/50" />
+            <p className="text-sm font-medium" style={{ color: C.gray }}>No tasks planned for today. Add one above to stay on track!</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {tasks.map(task => (
+              <div
+                key={task.id}
+                onClick={() => handleToggleTask(task.id, task.completed)}
+                className={`group flex items-center justify-between gap-3 p-3.5 rounded-xl border transition-all cursor-pointer ${
+                  task.completed ? 'bg-cream/30 border-transparent opacity-65' : 'bg-white hover:bg-cream/20 hover:border-maroon/30 shadow-xs'
+                }`}
+                style={{ borderColor: task.completed ? undefined : C.border }}
+              >
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); handleToggleTask(task.id, task.completed); }}
+                    className="shrink-0 text-maroon hover:scale-110 transition-transform cursor-pointer"
+                  >
+                    {task.completed ? (
+                      <CheckCircle2 className="w-5 h-5 text-green-700" />
+                    ) : (
+                      <Circle className="w-5 h-5 text-gray-body/50 group-hover:text-maroon transition-colors" />
+                    )}
+                  </button>
+                  <span className={`text-sm font-medium text-ink truncate ${task.completed ? 'line-through text-gray-body' : ''}`}>
+                    {task.title}
+                  </span>
+                </div>
+                <div className="shrink-0 flex items-center gap-2">
+                  {task.estimatedTime ? (
+                    <span className="text-[11px] text-gray-body flex items-center gap-1 px-2 py-0.5 rounded-md bg-cream/60 border border-border-soft">
+                      <Clock className="w-3 h-3 text-maroon/70" />
+                      {task.estimatedTime}m
+                    </span>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={(e) => handleDeleteTask(task.id, e)}
+                    className="p-1 text-gray-body/40 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                    title="Delete task"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
