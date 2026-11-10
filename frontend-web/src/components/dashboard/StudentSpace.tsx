@@ -1,16 +1,8 @@
 import { useState, useEffect } from 'react';
-import { TrendingUp, Bell, Loader2, ArrowRight, Trash2, X, MessageSquare, CheckCircle2, Send, Calendar, ListTodo, Circle, Plus, Clock } from 'lucide-react';
+import { TrendingUp, Bell, Loader2, ArrowRight, Trash2, X, MessageSquare, CheckCircle2, Send, Calendar } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import { apiClient } from '@/lib/apiClient';
-
-interface Task {
-  id: string;
-  title: string;
-  description?: string;
-  estimatedTime?: number;
-  completed: boolean;
-  date: string;
-}
+import StudyPlanner from '../student/StudyPlanner';
 
 interface SISData {
   sis: number;
@@ -43,8 +35,8 @@ interface StudentSpaceProps {
   onNavigateTab?: (tab: string) => void;
 }
 
-// Color palette (matches site)
-const C = { maroon: '#9B2242', good: '#2A6B4A', danger: '#C13535', warn: '#C07820', gray: '#6B6560', ink: '#1A1A1A', border: '#E7DDD0', cream: '#FAF5EE', creamEdge: '#EFE5D8' };
+// Color palette helper
+const C = { maroon: '#9B2242', good: '#2A6B4A', danger: '#C13535', warn: '#C07820' };
 
 const sanitizeHtml = (value: string) => DOMPurify.sanitize(value || '', {
   ALLOWED_TAGS: ['b', 'strong', 'i', 'em', 'u', 's', 'strike', 'ol', 'ul', 'li', 'a', 'p', 'br', 'span', 'h1', 'h2', 'h3', 'h4'],
@@ -58,18 +50,18 @@ function SISRing({ sis, insufficient }: { sis: number; insufficient: boolean }) 
   return (
     <div className="relative flex items-center justify-center" style={{ width: 120, height: 120 }}>
       <svg width="120" height="120" style={{ transform: 'rotate(-90deg)' }}>
-        <circle cx="60" cy="60" r={r} fill="none" stroke={C.creamEdge} strokeWidth="10" />
-        <circle cx="60" cy="60" r={r} fill="none" stroke={C.maroon} strokeWidth="10"
+        <circle cx="60" cy="60" r={r} fill="none" className="stroke-cream-edge dark:stroke-neutral-800" strokeWidth="10" />
+        <circle cx="60" cy="60" r={r} fill="none" className="stroke-maroon dark:stroke-red-400" strokeWidth="10"
           strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
           style={{ transition: 'stroke-dasharray 1s ease' }} />
       </svg>
       <div className="absolute text-center">
         {insufficient ? (
-          <span className="text-xs text-gray-body font-medium">No data</span>
+          <span className="text-xs text-gray-body dark:text-neutral-400 font-medium">No data</span>
         ) : (
           <>
-            <div className="text-3xl font-bold text-ink leading-none">{sis}</div>
-            <div className="text-[10px] text-gray-body font-semibold">/100</div>
+            <div className="text-3xl font-bold text-ink dark:text-neutral-100 leading-none">{sis}</div>
+            <div className="text-[10px] text-gray-body dark:text-neutral-400 font-semibold">/100</div>
           </>
         )}
       </div>
@@ -84,12 +76,6 @@ export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProp
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
   const [responseText, setResponseText] = useState('');
   const [submittingSurvey, setSubmittingSurvey] = useState(false);
-
-  // Daily Action Plan states
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [streak, setStreak] = useState(0);
-  const [newTaskTitle, setNewTaskTitle] = useState('');
-  const [addingTask, setAddingTask] = useState(false);
 
   const user = JSON.parse(localStorage.getItem('cira_user') || '{}');
   const userStorageKey = `cira_dismissed_announcements_${user.id || 'default'}`;
@@ -147,77 +133,16 @@ export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProp
     }
   };
 
-  const handleToggleTask = async (id: string, currentStatus: boolean) => {
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: !currentStatus } : t));
-    if (isDemo) return;
-    try {
-      await apiClient.fetch(`/api/v1/student/tasks/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ completed: !currentStatus })
-      });
-      fetchOverviewData();
-    } catch (err) {
-      console.error('Failed to toggle task', err);
-    }
-  };
-
-  const handleAddTask = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newTaskTitle.trim()) return;
-    const title = newTaskTitle.trim();
-    setNewTaskTitle('');
-    if (isDemo) {
-      setTasks(prev => [...prev, { id: Date.now().toString(), title, completed: false, date: new Date().toISOString() }]);
-      return;
-    }
-    setAddingTask(true);
-    try {
-      const res = await apiClient.fetch('/api/v1/student/tasks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title,
-          date: new Date().toISOString()
-        })
-      });
-      const data = await res.json();
-      if (data && data.id) {
-        setTasks(prev => [...prev, data]);
-      }
-    } catch (err) {
-      console.error('Failed to add task', err);
-    } finally {
-      setAddingTask(false);
-    }
-  };
-
-  const handleDeleteTask = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setTasks(prev => prev.filter(t => t.id !== id));
-    if (isDemo) return;
-    try {
-      await apiClient.fetch(`/api/v1/student/tasks/${id}`, { method: 'DELETE' });
-    } catch (err) {
-      console.error('Failed to delete task', err);
-    }
-  };
-
   const fetchOverviewData = () => {
     Promise.all([
       apiClient.fetch('/api/v1/student/improvement/sis').then(r => r.json()).catch(() => null),
       apiClient.fetch('/api/v1/student/announcements').then(r => r.json()).catch(() => null),
-      apiClient.fetch('/api/v1/student/tasks').then(r => r.json()).catch(() => null),
-    ]).then(([sisRes, annRes, tasksRes]) => {
+    ]).then(([sisRes, annRes]) => {
       if (sisRes?.success) setSIS(sisRes.data);
       if (annRes?.success) {
         const dismissed = getDismissedIds();
         const active = (annRes.data || []).filter((a: any) => !dismissed.includes(a.id));
         setAnnouncements(active);
-      }
-      if (tasksRes) {
-        setTasks(tasksRes.tasks || []);
-        if (tasksRes.streak !== undefined) setStreak(tasksRes.streak);
       }
     }).finally(() => setLoading(false));
   };
@@ -238,12 +163,6 @@ export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProp
       ];
       const dismissed = getDismissedIds();
       setAnnouncements(demoAnn.filter(a => !dismissed.includes(a.id)));
-      setTasks([
-        { id: 'demo-1', title: 'Review Operating Systems process scheduling notes', completed: true, date: new Date().toISOString(), estimatedTime: 30 },
-        { id: 'demo-2', title: 'Complete Dynamic Programming practice questions', completed: false, date: new Date().toISOString(), estimatedTime: 45 },
-        { id: 'demo-3', title: 'Prepare for Friday Verbal Assessment', completed: false, date: new Date().toISOString(), estimatedTime: 20 },
-      ]);
-      setStreak(4);
       setLoading(false);
       return;
     }
@@ -263,31 +182,31 @@ export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProp
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
   if (loading) {
-    return <div className="flex items-center justify-center h-48"><Loader2 className="w-6 h-6 animate-spin text-gray-body" /></div>;
+    return <div className="flex items-center justify-center h-48"><Loader2 className="w-6 h-6 animate-spin text-gray-body dark:text-neutral-400" /></div>;
   }
 
   return (
-    <div className="bg-white rounded-2xl border shadow-sm p-8 w-full space-y-10" style={{ borderColor: C.border }}>
+    <div className="bg-white dark:bg-[#1A1A1A] rounded-2xl border border-border-soft dark:border-neutral-800 shadow-sm p-6 sm:p-8 w-full space-y-10 transition-colors duration-200">
       {/* ── WELCOME ── */}
       <div>
         <div className="flex flex-col md:flex-row md:items-start justify-between gap-8">
           
           {/* Welcome text + stats */}
           <div className="flex-1">
-            <h2 className="text-3xl font-serif font-bold text-ink mb-1">{greeting}, {user.name?.split(' ')[0] ?? 'Student'}</h2>
-            <p className="text-base mb-8" style={{ color: C.gray }}>Here is your overview for today.</p>
+            <h2 className="text-3xl font-serif font-bold text-ink dark:text-neutral-100 mb-1">{greeting}, {user.name?.split(' ')[0] ?? 'Student'}</h2>
+            <p className="text-base mb-8 text-gray-body dark:text-neutral-400">Here is your overview for today.</p>
 
             <div className="flex flex-wrap items-center gap-x-12 gap-y-6">
-              <div className="border-l-2 pl-4 py-1" style={{ borderColor: C.maroon }}>
-                <p className="text-[10px] uppercase tracking-widest font-bold mb-1" style={{ color: C.gray }}>Performance</p>
-                <p className="text-2xl font-bold text-ink leading-none">{sis?.latestScore ?? 0}<span className="text-sm font-normal text-gray-body ml-0.5">%</span></p>
+              <div className="border-l-2 pl-4 py-1 border-maroon dark:border-red-400">
+                <p className="text-[10px] uppercase tracking-widest font-bold mb-1 text-gray-body dark:text-neutral-400">Performance</p>
+                <p className="text-2xl font-bold text-ink dark:text-neutral-100 leading-none">{sis?.latestScore ?? 0}<span className="text-sm font-normal text-gray-body dark:text-neutral-400 ml-0.5">%</span></p>
               </div>
-              <div className="border-l-2 pl-4 py-1" style={{ borderColor: C.border }}>
-                <p className="text-[10px] uppercase tracking-widest font-bold mb-1" style={{ color: C.gray }}>Assessments</p>
-                <p className="text-2xl font-bold text-ink leading-none">{sis?.attemptCount ?? 0}</p>
+              <div className="border-l-2 pl-4 py-1 border-border-soft dark:border-neutral-700">
+                <p className="text-[10px] uppercase tracking-widest font-bold mb-1 text-gray-body dark:text-neutral-400">Assessments</p>
+                <p className="text-2xl font-bold text-ink dark:text-neutral-100 leading-none">{sis?.attemptCount ?? 0}</p>
               </div>
-              <div className="border-l-2 pl-4 py-1" style={{ borderColor: C.border }}>
-                <p className="text-[10px] uppercase tracking-widest font-bold mb-1" style={{ color: C.gray }}>Improvement</p>
+              <div className="border-l-2 pl-4 py-1 border-border-soft dark:border-neutral-700">
+                <p className="text-[10px] uppercase tracking-widest font-bold mb-1 text-gray-body dark:text-neutral-400">Improvement</p>
                 <p className="text-2xl font-bold leading-none" style={{ color: (sis?.trend ?? 0) >= 0 ? C.good : C.danger }}>
                   {(sis?.trend ?? 0) >= 0 ? '+' : ''}{sis?.trend ?? 0}%
                 </p>
@@ -296,10 +215,10 @@ export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProp
           </div>
 
           {/* SIS Ring */}
-          <div className="flex flex-col items-center shrink-0 bg-cream/30 p-6 rounded-2xl border" style={{ borderColor: C.creamEdge }}>
+          <div className="flex flex-col items-center shrink-0 bg-cream/30 dark:bg-neutral-900/40 p-6 rounded-2xl border border-cream-edge dark:border-neutral-800">
             <SISRing sis={sis?.sis ?? 0} insufficient={!sis || sis.insufficientData} />
             <div className="text-center mt-4">
-              <p className="text-[10px] uppercase tracking-widest font-bold" style={{ color: C.gray }}>Improvement Score</p>
+              <p className="text-[10px] uppercase tracking-widest font-bold text-gray-body dark:text-neutral-400">Improvement Score</p>
               {sis && !sis.insufficientData && sis.trend !== 0 && (
                 <span className="text-sm font-semibold mt-1 block" style={{ color: sis.trend > 0 ? C.good : C.danger }}>
                   {sis.trend > 0 ? `▲ +${sis.trend}` : `▼ ${sis.trend}`} pts vs last
@@ -310,30 +229,30 @@ export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProp
         </div>
       </div>
 
-      <div className="h-px w-full" style={{ background: C.creamEdge }} />
+      <div className="h-px w-full bg-border-soft dark:bg-neutral-800" />
 
       {/* ── ANNOUNCEMENTS ── */}
       <div>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-lg bg-cream-edge/60 text-maroon flex items-center justify-center">
-              <Bell className="w-5 h-5" style={{ color: C.maroon }} />
+            <div className="p-2 rounded-lg bg-cream-edge/60 dark:bg-neutral-800 text-maroon dark:text-red-400 flex items-center justify-center">
+              <Bell className="w-5 h-5 text-maroon dark:text-red-400" />
             </div>
             <div>
-              <h3 className="text-lg font-serif font-bold text-ink leading-tight">Announcements & Notices</h3>
-              <p className="text-xs text-gray-body">Recent updates and notices targeted for your class</p>
+              <h3 className="text-lg font-serif font-bold text-ink dark:text-neutral-100 leading-tight">Announcements & Notices</h3>
+              <p className="text-xs text-gray-body dark:text-neutral-400">Recent updates and notices targeted for your class</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
             {announcements.length > 0 && (
-              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-cream-edge/40 text-gray-body border border-border-soft">
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-cream-edge/40 dark:bg-neutral-800 text-gray-body dark:text-neutral-300 border border-border-soft dark:border-neutral-700">
                 {announcements.length} {announcements.length === 1 ? 'Notice' : 'Notices'}
               </span>
             )}
             {onNavigateTab && (
               <button 
                 onClick={() => onNavigateTab('announcements')} 
-                className="text-xs font-bold text-maroon hover:text-maroon-deep flex items-center gap-1 group py-1 px-2.5 rounded-lg hover:bg-cream-edge/40 transition-colors"
+                className="text-xs font-bold text-maroon dark:text-red-400 hover:text-maroon-deep dark:hover:text-red-300 flex items-center gap-1 group py-1 px-2.5 rounded-lg hover:bg-cream-edge/40 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
               >
                 <span>View All</span>
                 <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
@@ -343,16 +262,16 @@ export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProp
         </div>
         
         {announcements.length === 0 ? (
-          <div className="py-6 px-6 text-center rounded-xl border border-dashed bg-cream/30 flex items-center justify-center gap-3" style={{ borderColor: C.border }}>
-            <Bell className="w-4 h-4 text-gray-body/50" />
-            <p className="text-sm font-medium" style={{ color: C.gray }}>No announcements for your batch right now.</p>
+          <div className="py-6 px-6 text-center rounded-xl border border-dashed border-border-soft dark:border-neutral-800 bg-cream/30 dark:bg-neutral-900/30 flex items-center justify-center gap-3">
+            <Bell className="w-4 h-4 text-gray-body/50 dark:text-neutral-500" />
+            <p className="text-sm font-medium text-gray-body dark:text-neutral-400">No announcements for your batch right now.</p>
           </div>
         ) : (
           <div className="space-y-2.5">
             {announcements.map((ann) => {
               const formattedDate = new Date(ann.date).toLocaleDateString(undefined, { 
                 month: 'short', 
-                day: 'numeric',
+                day: 'numeric', 
                 year: 'numeric' 
               });
               const hasResponded = !!ann.responses?.[0];
@@ -361,37 +280,36 @@ export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProp
                 <div 
                   key={ann.id} 
                   onClick={() => setSelectedAnnouncement(ann)}
-                  className="group relative flex items-center justify-between gap-4 p-4 rounded-xl border bg-white hover:bg-cream/20 hover:border-maroon/30 transition-all duration-150 shadow-sm cursor-pointer"
-                  style={{ borderColor: C.border }}
+                  className="group relative flex items-center justify-between gap-4 p-4 rounded-xl border border-border-soft dark:border-neutral-800 bg-white dark:bg-[#202020] hover:bg-cream/20 dark:hover:bg-neutral-800/60 hover:border-maroon/30 dark:hover:border-red-400/30 transition-all duration-150 shadow-xs cursor-pointer"
                 >
                   {/* Left: Indicator + Title + Meta */}
                   <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                    <div className="w-2.5 h-2.5 rounded-full shrink-0 bg-maroon shadow-sm ring-4 ring-maroon/10" />
+                    <div className="w-2.5 h-2.5 rounded-full shrink-0 bg-maroon dark:bg-red-400 shadow-xs ring-4 ring-maroon/10 dark:ring-red-400/10" />
                     
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-bold text-ink text-sm group-hover:text-maroon transition-colors line-clamp-1">
+                        <span className="font-bold text-ink dark:text-neutral-100 text-sm group-hover:text-maroon dark:group-hover:text-red-400 transition-colors line-clamp-1">
                           {ann.title}
                         </span>
 
                         {ann.isSurvey && (
                           <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full shrink-0 ${
-                            hasResponded ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-maroon text-white'
+                            hasResponded ? 'bg-green-100 dark:bg-green-950/40 text-green-800 dark:text-green-300 border border-green-200 dark:border-green-800' : 'bg-maroon text-white'
                           }`}>
                             {hasResponded ? 'Responded' : 'Survey'}
                           </span>
                         )}
 
                         {ann.audience && ann.audience !== 'ALL' && ann.audience !== 'All Students' && (
-                          <span className="text-[10px] font-semibold text-gray-body border border-border-soft px-2 py-0.5 rounded-full bg-cream/60 truncate max-w-[200px]" title={ann.audience}>
+                          <span className="text-[10px] font-semibold text-gray-body dark:text-neutral-400 border border-border-soft dark:border-neutral-700 px-2 py-0.5 rounded-full bg-cream/60 dark:bg-neutral-800 truncate max-w-[200px]" title={ann.audience}>
                             {ann.audience}
                           </span>
                         )}
                       </div>
 
-                      <div className="flex items-center gap-3 text-xs text-gray-body mt-1">
-                        <span>From <strong className="text-ink/80">{ann.faculty?.name || 'Faculty'}</strong></span>
-                        <span className="text-gray-body/40">•</span>
+                      <div className="flex items-center gap-3 text-xs text-gray-body dark:text-neutral-400 mt-1">
+                        <span>From <strong className="text-ink/80 dark:text-neutral-200">{ann.faculty?.name || 'Faculty'}</strong></span>
+                        <span className="text-gray-body/40 dark:text-neutral-600">•</span>
                         <span>{formattedDate}</span>
                       </div>
                     </div>
@@ -405,7 +323,7 @@ export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProp
                         e.stopPropagation();
                         setSelectedAnnouncement(ann);
                       }}
-                      className="px-2.5 py-1 text-xs font-semibold text-gray-body group-hover:text-maroon hover:bg-cream-edge/40 rounded-lg flex items-center gap-1 transition-colors"
+                      className="px-2.5 py-1 text-xs font-semibold text-gray-body dark:text-neutral-400 group-hover:text-maroon dark:group-hover:text-red-400 hover:bg-cream-edge/40 dark:hover:bg-neutral-700 rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
                     >
                       <span>View</span>
                       <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
@@ -413,7 +331,7 @@ export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProp
                     <button
                       type="button"
                       onClick={(e) => handleDismiss(ann.id, e)}
-                      className="p-1.5 text-gray-body/60 hover:text-red-600 hover:bg-red-50 rounded-lg border border-transparent hover:border-red-100 transition-colors"
+                      className="p-1.5 text-gray-body/60 dark:text-neutral-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg border border-transparent hover:border-red-100 transition-colors cursor-pointer"
                       title="Delete notice"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -426,147 +344,42 @@ export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProp
         )}
       </div>
 
-      <div className="h-px w-full" style={{ background: C.creamEdge }} />
+      <div className="h-px w-full bg-border-soft dark:bg-neutral-800" />
 
-      {/* ── DAILY ACTION PLAN ── */}
+      {/* ── THE WHOLE ACTION PLAN (EMBEDDED DIRECTLY) ── */}
       <div>
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-lg bg-cream-edge/60 text-maroon flex items-center justify-center">
-              <ListTodo className="w-5 h-5" style={{ color: C.maroon }} />
-            </div>
-            <div>
-              <h3 className="text-lg font-serif font-bold text-ink leading-tight">Daily Action Plan</h3>
-              <p className="text-xs text-gray-body">Your prioritized study checklist and daily tasks</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            {streak > 0 && (
-              <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-maroon/10 text-maroon border border-maroon/20 flex items-center gap-1">
-                <TrendingUp className="w-3.5 h-3.5" />
-                {streak} Day Streak
-              </span>
-            )}
-            {tasks.length > 0 && (
-              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-cream-edge/40 text-gray-body border border-border-soft">
-                {tasks.filter(t => t.completed).length} / {tasks.length} Done
-              </span>
-            )}
-            {onNavigateTab && (
-              <button 
-                onClick={() => onNavigateTab('todo')} 
-                className="text-xs font-bold text-maroon hover:text-maroon-deep flex items-center gap-1 group py-1 px-2.5 rounded-lg hover:bg-cream-edge/40 transition-colors cursor-pointer"
-              >
-                <span>Full Planner</span>
-                <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Quick Add Form */}
-        <form onSubmit={handleAddTask} className="flex gap-2 mb-3.5">
-          <input
-            type="text"
-            placeholder="Add a new study task or action item..."
-            value={newTaskTitle}
-            onChange={(e) => setNewTaskTitle(e.target.value)}
-            className="flex-1 px-4 py-2 text-xs md:text-sm bg-white border border-border-soft rounded-xl focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon transition-all"
-          />
-          <button
-            type="submit"
-            disabled={addingTask || !newTaskTitle.trim()}
-            className="px-4 py-2 bg-maroon hover:bg-maroon-deep text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
-          >
-            {addingTask ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-4 h-4" />}
-            <span>Add</span>
-          </button>
-        </form>
-
-        {/* Tasks List */}
-        {tasks.length === 0 ? (
-          <div className="py-6 px-6 text-center rounded-xl border border-dashed bg-cream/30 flex items-center justify-center gap-3" style={{ borderColor: C.border }}>
-            <ListTodo className="w-4 h-4 text-gray-body/50" />
-            <p className="text-sm font-medium" style={{ color: C.gray }}>No tasks planned for today. Add one above to stay on track!</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {tasks.map(task => (
-              <div
-                key={task.id}
-                onClick={() => handleToggleTask(task.id, task.completed)}
-                className={`group flex items-center justify-between gap-3 p-3.5 rounded-xl border transition-all cursor-pointer ${
-                  task.completed ? 'bg-cream/30 border-transparent opacity-65' : 'bg-white hover:bg-cream/20 hover:border-maroon/30 shadow-xs'
-                }`}
-                style={{ borderColor: task.completed ? undefined : C.border }}
-              >
-                <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); handleToggleTask(task.id, task.completed); }}
-                    className="shrink-0 text-maroon hover:scale-110 transition-transform cursor-pointer"
-                  >
-                    {task.completed ? (
-                      <CheckCircle2 className="w-5 h-5 text-green-700" />
-                    ) : (
-                      <Circle className="w-5 h-5 text-gray-body/50 group-hover:text-maroon transition-colors" />
-                    )}
-                  </button>
-                  <span className={`text-sm font-medium text-ink truncate ${task.completed ? 'line-through text-gray-body' : ''}`}>
-                    {task.title}
-                  </span>
-                </div>
-                <div className="shrink-0 flex items-center gap-2">
-                  {task.estimatedTime ? (
-                    <span className="text-[11px] text-gray-body flex items-center gap-1 px-2 py-0.5 rounded-md bg-cream/60 border border-border-soft">
-                      <Clock className="w-3 h-3 text-maroon/70" />
-                      {task.estimatedTime}m
-                    </span>
-                  ) : null}
-                  <button
-                    type="button"
-                    onClick={(e) => handleDeleteTask(task.id, e)}
-                    className="p-1 text-gray-body/40 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                    title="Delete task"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        <StudyPlanner />
       </div>
-      
+
       {/* ── EMPTY STATE for new students ── */}
       {!sis || sis.insufficientData ? (
-        <div className="bg-cream/40 rounded-xl border border-dashed p-8 text-center mt-8" style={{ borderColor: C.border }}>
-          <TrendingUp className="w-10 h-10 mx-auto mb-3" style={{ color: C.maroon, opacity: 0.4 }} />
-          <h3 className="font-semibold text-ink mb-1">Your analytics will appear here</h3>
-          <p className="text-sm" style={{ color: C.gray }}>
+        <div className="bg-cream/40 dark:bg-neutral-900/40 rounded-xl border border-dashed border-border-soft dark:border-neutral-800 p-8 text-center mt-8">
+          <TrendingUp className="w-10 h-10 mx-auto mb-3 text-maroon dark:text-red-400 opacity-60" />
+          <h3 className="font-semibold text-ink dark:text-neutral-100 mb-1">Your analytics will appear here</h3>
+          <p className="text-sm text-gray-body dark:text-neutral-400">
             Complete {sis ? `${3 - sis.attemptCount} more` : 'at least 3'} assessments to unlock your full improvement dashboard.
           </p>
         </div>
       ) : null}
 
-      {/* ── ANNOUNCEMENT DETAIL MODAL ── */}
+      {/* ── ANNOUNCEMENT DETAIL MODAL (CLEAN LIGHT/DARK SCRIM, NO BLACKOUT) ── */}
       {selectedAnnouncement && (
         <div 
-          className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 backdrop-blur-xs"
+          className="fixed inset-0 z-50 bg-black/20 dark:bg-black/50 backdrop-blur-[2px] flex items-center justify-center p-4 transition-all duration-200"
           onClick={() => setSelectedAnnouncement(null)}
           role="presentation"
         >
           <div 
-            className="bg-white rounded-2xl shadow-xl max-w-xl w-full max-h-[85vh] flex flex-col border border-border-soft overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+            className="bg-white dark:bg-[#1E1E1E] rounded-2xl shadow-2xl max-w-xl w-full max-h-[85vh] flex flex-col border border-border-soft dark:border-neutral-800 overflow-hidden animate-in fade-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
           >
             {/* Modal Header */}
-            <div className="p-5 border-b border-border-soft flex items-start justify-between gap-4 bg-cream/20">
+            <div className="p-5 border-b border-border-soft dark:border-neutral-800 flex items-start justify-between gap-4 bg-cream/20 dark:bg-neutral-900/40">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap mb-1.5">
-                  <h3 className="font-bold font-serif text-lg text-ink leading-snug">
+                  <h3 className="font-bold font-serif text-lg text-ink dark:text-neutral-100 leading-snug">
                     {selectedAnnouncement.title}
                   </h3>
                   {selectedAnnouncement.isSurvey && (
@@ -575,23 +388,23 @@ export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProp
                     </span>
                   )}
                   {selectedAnnouncement.audience && (
-                    <span className="text-[10px] font-semibold text-gray-body border border-border-soft px-2 py-0.5 rounded-md bg-white">
+                    <span className="text-[10px] font-semibold text-gray-body dark:text-neutral-400 border border-border-soft dark:border-neutral-700 px-2 py-0.5 rounded-md bg-white dark:bg-neutral-800">
                       {selectedAnnouncement.audience}
                     </span>
                   )}
                 </div>
-                <div className="flex items-center gap-2 text-xs text-gray-body flex-wrap">
+                <div className="flex items-center gap-2 text-xs text-gray-body dark:text-neutral-400 flex-wrap">
                   <span className="flex items-center gap-1">
-                    <Calendar className="w-3.5 h-3.5 text-maroon" />
+                    <Calendar className="w-3.5 h-3.5 text-maroon dark:text-red-400" />
                     {new Date(selectedAnnouncement.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                   </span>
                   <span>•</span>
-                  <span>From <strong className="text-ink">{selectedAnnouncement.faculty?.name || 'Faculty Member'}</strong></span>
+                  <span>From <strong className="text-ink dark:text-neutral-200">{selectedAnnouncement.faculty?.name || 'Faculty Member'}</strong></span>
                 </div>
               </div>
               <button 
                 onClick={() => setSelectedAnnouncement(null)} 
-                className="p-1.5 text-gray-body hover:text-ink hover:bg-cream-edge/50 rounded-lg transition-colors"
+                className="p-1.5 text-gray-body dark:text-neutral-400 hover:text-ink dark:hover:text-white hover:bg-cream-edge/50 dark:hover:bg-neutral-800 rounded-lg transition-colors cursor-pointer"
                 title="Close"
               >
                 <X className="w-5 h-5" />
@@ -599,38 +412,38 @@ export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProp
             </div>
 
             {/* Modal Body: Content */}
-            <div className="p-6 overflow-y-auto flex-1 space-y-5">
+            <div className="p-6 overflow-y-auto flex-1 space-y-5 text-ink dark:text-neutral-200">
               <div 
-                className="text-sm leading-relaxed text-ink/90 rich-text-content"
+                className="text-sm leading-relaxed text-ink/90 dark:text-neutral-200 rich-text-content"
                 dangerouslySetInnerHTML={{ __html: sanitizeHtml(selectedAnnouncement.content) || '<p>No content provided.</p>' }}
               />
 
               {/* Survey Section */}
               {selectedAnnouncement.isSurvey && (
-                <div className="pt-4 border-t border-border-soft">
+                <div className="pt-4 border-t border-border-soft dark:border-neutral-800">
                   {selectedAnnouncement.responses?.[0] ? (
-                    <div className="p-4 rounded-xl bg-green-50 border border-green-200 text-xs flex items-start gap-2.5">
-                      <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0 mt-0.5" />
+                    <div className="p-4 rounded-xl bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800/60 text-xs flex items-start gap-2.5">
+                      <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400 shrink-0 mt-0.5" />
                       <div>
-                        <p className="font-bold text-green-800 mb-0.5">Your Submitted Feedback:</p>
-                        <p className="text-green-950">{selectedAnnouncement.responses[0].response}</p>
+                        <p className="font-bold text-green-800 dark:text-green-300 mb-0.5">Your Submitted Feedback:</p>
+                        <p className="text-green-950 dark:text-green-200">{selectedAnnouncement.responses[0].response}</p>
                         {selectedAnnouncement.responses[0].submittedAt && (
-                          <p className="text-[10px] text-green-700 mt-1">
+                          <p className="text-[10px] text-green-700 dark:text-green-400 mt-1">
                             Submitted on {new Date(selectedAnnouncement.responses[0].submittedAt).toLocaleString()}
                           </p>
                         )}
                       </div>
                     </div>
                   ) : (
-                    <div className="space-y-3 bg-cream/20 p-4 rounded-xl border border-border-soft">
-                      <p className="text-xs font-bold text-ink flex items-center gap-1.5">
-                        <MessageSquare className="w-3.5 h-3.5 text-maroon" />
+                    <div className="space-y-3 bg-cream/20 dark:bg-neutral-900/40 p-4 rounded-xl border border-border-soft dark:border-neutral-800">
+                      <p className="text-xs font-bold text-ink dark:text-neutral-200 flex items-center gap-1.5">
+                        <MessageSquare className="w-3.5 h-3.5 text-maroon dark:text-red-400" />
                         Provide Your Feedback / Response:
                       </p>
                       <textarea
                         rows={3}
                         placeholder="Type your feedback or survey response here..."
-                        className="w-full text-xs p-3 rounded-lg border border-border-soft focus:outline-none focus:border-maroon resize-none bg-white"
+                        className="w-full text-xs p-3 rounded-lg border border-border-soft dark:border-neutral-700 focus:outline-none focus:border-maroon resize-none bg-white dark:bg-[#252525] text-ink dark:text-neutral-100 shadow-xs"
                         value={responseText}
                         onChange={(e) => setResponseText(e.target.value)}
                       />
@@ -651,11 +464,11 @@ export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProp
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 border-t border-border-soft bg-cream/10 flex items-center justify-between">
+            <div className="p-4 border-t border-border-soft dark:border-neutral-800 bg-cream/10 dark:bg-neutral-900/20 flex items-center justify-between">
               <button
                 type="button"
                 onClick={() => handleDismiss(selectedAnnouncement.id)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 border border-red-200/60 rounded-lg transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 border border-red-200/60 dark:border-red-900/40 rounded-lg transition-colors cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 Delete from My Notices
@@ -667,14 +480,14 @@ export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProp
                       setSelectedAnnouncement(null);
                       onNavigateTab('announcements');
                     }}
-                    className="px-3.5 py-1.5 text-xs font-semibold text-maroon hover:bg-cream-edge/30 rounded-lg transition-colors cursor-pointer"
+                    className="px-3.5 py-1.5 text-xs font-semibold text-maroon dark:text-red-400 hover:bg-cream-edge/30 dark:hover:bg-neutral-800 rounded-lg transition-colors cursor-pointer"
                   >
                     Go to Announcements Tab
                   </button>
                 )}
                 <button
                   onClick={() => setSelectedAnnouncement(null)}
-                  className="px-4 py-1.5 text-xs font-semibold text-ink bg-white hover:bg-cream-edge/40 border border-border-soft rounded-lg transition-colors cursor-pointer"
+                  className="px-4 py-1.5 text-xs font-semibold text-ink dark:text-neutral-200 bg-white dark:bg-[#252525] hover:bg-cream-edge/40 dark:hover:bg-neutral-800 border border-border-soft dark:border-neutral-700 rounded-lg transition-colors cursor-pointer"
                 >
                   Close
                 </button>

@@ -1,6 +1,7 @@
 import { LayoutDashboard, Users, BookOpen, LogOut, FileText, CheckSquare, Settings, User, Home, BookMarked, Target, Database, Bell, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import React, { useState } from 'react';
+import ThemeToggle from './ui/ThemeToggle';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -52,7 +53,7 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
     <div className="min-h-screen bg-cream dark:bg-[#111] flex text-ink dark:text-cream font-sans transition-colors duration-200">
       {/* Sidebar */}
       <aside className={`${isCollapsed ? 'w-20' : 'w-64'} border-r border-border-soft dark:border-gray-800 bg-white dark:bg-[#1A1A1A] flex flex-col hidden md:flex transition-all duration-200 ease-in-out`}>
-        <div className={`h-16 flex items-center ${isCollapsed ? 'justify-center px-2' : 'justify-between px-4 sm:px-6'} border-b border-border-soft dark:border-gray-800 shrink-0`}>
+        <div className={`h-16 flex items-center ${isCollapsed ? 'justify-between px-3' : 'justify-between px-4 sm:px-6'} border-b border-border-soft dark:border-gray-800 shrink-0`}>
           {!isCollapsed ? (
             <>
               <div className="flex items-center min-w-0 mr-2">
@@ -69,14 +70,17 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
               </button>
             </>
           ) : (
-            <button
-              onClick={toggleSidebar}
-              title="Expand sidebar"
-              aria-label="Expand sidebar"
-              className="p-2 rounded-lg text-gray-body hover:text-ink dark:hover:text-white hover:bg-cream-edge/50 dark:hover:bg-gray-800 transition-colors cursor-pointer"
-            >
-              <ChevronRight className="w-5 h-5 text-maroon" />
-            </button>
+            <div className="w-full flex items-center justify-between px-1">
+              <img src="/img/favicon.ico" alt="CIRA Logo" className="w-7 h-7 object-contain shrink-0" />
+              <button
+                onClick={toggleSidebar}
+                title="Expand sidebar"
+                aria-label="Expand sidebar"
+                className="p-1.5 rounded-lg text-maroon dark:text-red-400 hover:bg-cream-edge/50 dark:hover:bg-gray-800 transition-colors cursor-pointer shrink-0"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
           )}
         </div>
 
@@ -165,10 +169,6 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
                 <Target className={`w-5 h-5 shrink-0 ${isCollapsed ? '' : 'mr-3'}`} />
                 {!isCollapsed && <span className="truncate">My Goals</span>}
               </button>
-              <button title={isCollapsed ? "Action Plan" : undefined} aria-current={activeTab === 'todo' ? 'page' : undefined} onClick={() => onTabChange('todo')} className={getNavClass('todo')}>
-                <CheckSquare className={`w-5 h-5 shrink-0 ${isCollapsed ? '' : 'mr-3'}`} />
-                {!isCollapsed && <span className="truncate">Action Plan</span>}
-              </button>
               <button title={isCollapsed ? "Assignments" : undefined} aria-current={activeTab === 'assignments' ? 'page' : undefined} onClick={() => onTabChange('assignments')} className={getNavClass('assignments')}>
                 <FileText className={`w-5 h-5 shrink-0 ${isCollapsed ? '' : 'mr-3'}`} />
                 {!isCollapsed && <span className="truncate">Assignments</span>}
@@ -206,7 +206,9 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
         <div className="h-16 shrink-0 flex items-center justify-between px-8 border-b border-border-soft dark:border-gray-800 bg-white/80 dark:bg-[#1A1A1A]/80 backdrop-blur-md transition-colors duration-200">
           <h2 className="text-xl font-serif font-bold text-ink dark:text-white">{title}</h2>
 
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4 sm:gap-6">
+            <ThemeToggle />
+
             {role === 'STUDENT' && onToggleDemo && (
               <div className="flex items-center gap-2 bg-cream-edge/30 dark:bg-gray-800/50 px-3 py-1.5 rounded-full border border-border-soft dark:border-gray-700">
                 <Database className="w-4 h-4 text-maroon dark:text-red-400" />

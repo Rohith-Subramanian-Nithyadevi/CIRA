@@ -5,7 +5,6 @@ import DashboardLayout from '../components/DashboardLayout';
 import StudentSpace from '../components/dashboard/StudentSpace';
 import StudentAnnouncements from '../components/student/StudentAnnouncements';
 import UserProfile from '../components/dashboard/UserProfile';
-import StudyPlanner from '../components/student/StudyPlanner';
 import ResourceHub from '../components/student/ResourceHub';
 import StudentAnalytics from '../components/student/StudentAnalytics';
 import TopicPerformance from '../components/student/TopicPerformance';
@@ -58,7 +57,7 @@ export default function StudentDashboard() {
     >
       {activeTab === 'profile' && <UserProfile />}
       
-      {activeTab === 'overview' && (
+      {(activeTab === 'overview' || activeTab === 'todo') && (
         <div className="space-y-6">
           <StudentSpace isDemo={isDemo} onNavigateTab={setActiveTab} />
         </div>
@@ -69,7 +68,6 @@ export default function StudentDashboard() {
       {activeTab === 'topics' && <TopicPerformance isDemo={isDemo} />}
       {activeTab === 'goals' && <GoalTracker />}
 
-      {activeTab === 'todo' && <StudyPlanner />}
       {activeTab === 'analytics' && <StudentAnalytics isDemo={isDemo} />}
       {activeTab === 'resources' && <ResourceHub />}
       
