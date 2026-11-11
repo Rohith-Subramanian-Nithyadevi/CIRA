@@ -167,11 +167,30 @@ export default function StudentProfileView({ studentId, onBack }: StudentProfile
   }, [data]);
 
   if (loading) {
-    return <div className="space-y-5 animate-pulse"><div className="h-6 w-40 rounded bg-cream/70" /><div className="h-44 rounded-2xl border border-border-soft bg-white/80" /><div className="grid gap-4 md:grid-cols-3">{Array.from({ length: 3 }).map((_, index) => <div key={index} className="h-28 rounded-xl bg-cream/60" />)}</div><div className="h-80 rounded-2xl bg-white/80" /></div>;
+    return (
+      <div className="space-y-5 animate-pulse">
+        <div className="h-6 w-40 rounded bg-cream/70 dark:bg-neutral-800" />
+        <div className="h-44 rounded-2xl border border-border-soft bg-white/80 dark:bg-[#1E1E22]" />
+        <div className="grid gap-4 md:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, index) => <div key={index} className="h-28 rounded-xl bg-cream/60 dark:bg-neutral-800" />)}
+        </div>
+        <div className="h-80 rounded-2xl bg-white/80 dark:bg-[#1E1E22]" />
+      </div>
+    );
   }
 
   if (error || !data || !derived) {
-    return <div className="rounded-2xl border border-red-200 bg-red-50 p-8 text-center"><AlertTriangle className="mx-auto mb-3 h-10 w-10 text-red-500" /><h2 className="text-lg font-bold text-red-800">Unable to load student profile</h2><p className="mt-2 text-sm text-red-700">{error || 'No profile data was returned.'}</p><div className="mt-5 flex justify-center gap-2"><button type="button" onClick={fetchProfile} className="inline-flex items-center gap-2 rounded-lg bg-maroon px-4 py-2 text-sm font-semibold text-white"><RefreshCw className="h-4 w-4" /> Retry</button><button type="button" onClick={onBack} className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700">Go back</button></div></div>;
+    return (
+      <div className="rounded-2xl border border-red-200 dark:border-red-900/50 bg-red-50/90 dark:bg-red-950/30 p-8 text-center">
+        <AlertTriangle className="mx-auto mb-3 h-10 w-10 text-red-500" />
+        <h2 className="text-lg font-bold text-red-800 dark:text-red-400">Unable to load student profile</h2>
+        <p className="mt-2 text-sm text-red-700 dark:text-red-300">{error || 'No profile data was returned.'}</p>
+        <div className="mt-5 flex justify-center gap-2">
+          <button type="button" onClick={fetchProfile} className="inline-flex items-center gap-2 rounded-lg bg-maroon px-4 py-2 text-sm font-semibold text-white"><RefreshCw className="h-4 w-4" /> Retry</button>
+          <button type="button" onClick={onBack} className="rounded-lg border border-red-200 dark:border-red-900/50 bg-white dark:bg-[#1E1E22] px-4 py-2 text-sm font-semibold text-red-700 dark:text-red-400">Go back</button>
+        </div>
+      </div>
+    );
   }
 
   const assignmentPercentage = data.assignmentCompletion.total > 0 ? Math.round((data.assignmentCompletion.completed / data.assignmentCompletion.total) * 100) : null;
@@ -183,10 +202,10 @@ export default function StudentProfileView({ studentId, onBack }: StudentProfile
     <div className="space-y-6 text-ink print:bg-white">
       <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
         <button type="button" onClick={onBack} className="inline-flex items-center gap-2 text-sm font-bold text-maroon hover:text-maroon-deep"><ArrowLeft className="h-4 w-4" /> Back to Students & Reports</button>
-        <button type="button" onClick={() => window.print()} className="inline-flex items-center gap-2 rounded-lg border border-border-soft bg-white px-3 py-2 text-sm font-semibold text-ink hover:bg-cream"><Printer className="h-4 w-4" /> Print profile</button>
+        <button type="button" onClick={() => window.print()} className="inline-flex items-center gap-2 rounded-lg border border-border-soft bg-white dark:bg-[#1E1E22] px-3 py-2 text-sm font-semibold text-ink hover:bg-cream"><Printer className="h-4 w-4" /> Print profile</button>
       </div>
 
-      <section className="rounded-2xl border border-border-soft bg-white/90 p-5 shadow-sm">
+      <section className="rounded-2xl border border-border-soft bg-white/90 dark:bg-[#1E1E22] p-5 shadow-sm">
         <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-4">
             <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-maroon/10 text-2xl font-bold text-maroon">{initials || <User className="h-8 w-8" />}</div>
@@ -202,9 +221,9 @@ export default function StudentProfileView({ studentId, onBack }: StudentProfile
       </section>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <div className="flex items-center gap-4 rounded-xl border border-border-soft bg-white/90 p-5 shadow-sm"><ScoreRing score={derived.average} /><div><p className="text-xs font-bold uppercase tracking-wider text-gray-body">Overall average</p><p className="mt-1 text-sm text-gray-body">{derived.quizzes.length ? `Across ${derived.quizzes.length} evaluated assessment${derived.quizzes.length === 1 ? '' : 's'}` : 'No evaluated assessments'}</p></div></div>
-        <div className="rounded-xl border border-border-soft bg-white/90 p-5 shadow-sm"><p className="text-xs font-bold uppercase tracking-wider text-gray-body">Academic summary</p><div className="mt-3 grid grid-cols-2 gap-3"><div><p className="text-2xl font-bold text-ink">{derived.quizzes.length}</p><p className="text-xs text-gray-body">Assessments</p></div><div><p className="text-2xl font-bold text-ink">{data.assignmentCompletion.total}</p><p className="text-xs text-gray-body">Assignments</p></div></div><p className="mt-4 text-xs text-gray-body">{derived.trend === null ? 'Improvement trend needs at least two scores.' : `${derived.trend >= 0 ? '+' : ''}${derived.trend} points from the previous evaluated assessment.`}</p></div>
-        <div className="rounded-xl border border-border-soft bg-white/90 p-5 shadow-sm"><p className="text-xs font-bold uppercase tracking-wider text-gray-body">Assignment progress</p><p className="mt-3 text-3xl font-bold text-ink">{assignmentPercentage === null ? '—' : `${assignmentPercentage}%`}</p><p className="mt-1 text-sm text-gray-body">{data.assignmentCompletion.total ? `${data.assignmentCompletion.completed} of ${data.assignmentCompletion.total} assigned items submitted` : 'No assignment records returned'}</p><div className="mt-4 h-2 rounded-full bg-cream dark:bg-[#302b2f]">{assignmentPercentage !== null && <div className="h-full rounded-full bg-green-600" style={{ width: `${assignmentPercentage}%` }} />}</div></div>
+        <div className="flex items-center gap-4 rounded-xl border border-border-soft bg-white/90 dark:bg-[#1E1E22] p-5 shadow-sm"><ScoreRing score={derived.average} /><div><p className="text-xs font-bold uppercase tracking-wider text-gray-body">Overall average</p><p className="mt-1 text-sm text-gray-body">{derived.quizzes.length ? `Across ${derived.quizzes.length} evaluated assessment${derived.quizzes.length === 1 ? '' : 's'}` : 'No evaluated assessments'}</p></div></div>
+        <div className="rounded-xl border border-border-soft bg-white/90 dark:bg-[#1E1E22] p-5 shadow-sm"><p className="text-xs font-bold uppercase tracking-wider text-gray-body">Academic summary</p><div className="mt-3 grid grid-cols-2 gap-3"><div><p className="text-2xl font-bold text-ink">{derived.quizzes.length}</p><p className="text-xs text-gray-body">Assessments</p></div><div><p className="text-2xl font-bold text-ink">{data.assignmentCompletion.total}</p><p className="text-xs text-gray-body">Assignments</p></div></div><p className="mt-4 text-xs text-gray-body">{derived.trend === null ? 'Improvement trend needs at least two scores.' : `${derived.trend >= 0 ? '+' : ''}${derived.trend} points from the previous evaluated assessment.`}</p></div>
+        <div className="rounded-xl border border-border-soft bg-white/90 dark:bg-[#1E1E22] p-5 shadow-sm"><p className="text-xs font-bold uppercase tracking-wider text-gray-body">Assignment progress</p><p className="mt-3 text-3xl font-bold text-ink">{assignmentPercentage === null ? '—' : `${assignmentPercentage}%`}</p><p className="mt-1 text-sm text-gray-body">{data.assignmentCompletion.total ? `${data.assignmentCompletion.completed} of ${data.assignmentCompletion.total} assigned items submitted` : 'No assignment records returned'}</p><div className="mt-4 h-2 rounded-full bg-cream dark:bg-[#302b2f]">{assignmentPercentage !== null && <div className="h-full rounded-full bg-green-600" style={{ width: `${assignmentPercentage}%` }} />}</div></div>
       </div>
 
       <div className="flex flex-wrap gap-2 border-b border-border-soft print:hidden">

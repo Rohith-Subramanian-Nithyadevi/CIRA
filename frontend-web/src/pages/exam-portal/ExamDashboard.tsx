@@ -8,6 +8,7 @@ export default function ExamDashboard() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    document.documentElement.classList.remove('dark');
     const fetchQuizzes = async () => {
       try {
         const res = await apiClient.fetch('/api/v1/student/exam/eligible');

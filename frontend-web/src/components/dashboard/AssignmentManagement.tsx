@@ -35,7 +35,7 @@ function RichTextEditor({ value, onChange }: { value: string; onChange: (value: 
     immediatelyRender: false,
     editorProps: {
       attributes: {
-        class: 'min-h-[120px] w-full rounded-lg border border-border-soft bg-white px-3 py-2 text-sm focus:outline-none prose prose-sm max-w-none',
+        class: 'min-h-[120px] w-full rounded-lg border border-border-soft bg-white dark:bg-[#18181B] text-ink px-3 py-2 text-sm focus:outline-none prose prose-sm dark:prose-invert max-w-none',
       },
     },
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
@@ -255,7 +255,7 @@ export default function AssignmentManagement() {
   }
 
   return (
-    <Card className="bg-white border border-border-soft text-ink shadow-sm rounded-xl">
+    <Card className="bg-white dark:bg-[#1E1E22] border border-border-soft text-ink shadow-sm rounded-xl">
       <CardContent className="p-6">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-serif font-bold text-ink">Assignment Management</h2>
@@ -275,7 +275,7 @@ export default function AssignmentManagement() {
         </div>
 
         {isCreating && (
-          <div className="bg-cream/30 p-5 rounded-xl border border-border-soft mb-8">
+          <div className="bg-cream/30 dark:bg-[#242429] p-5 rounded-xl border border-border-soft mb-8">
             <h3 className="font-bold mb-4 text-ink">{activeAssignmentId ? 'Edit Assignment' : 'New Assignment'}</h3>
             {restoredDraft && (
               <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-info/30 bg-info/5 px-3 py-2 text-sm text-ink" role="status">
@@ -295,7 +295,7 @@ export default function AssignmentManagement() {
             <form onSubmit={handleSave} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-gray-body mb-1">Title</label>
-                <input required type="text" value={title} onChange={e => setTitle(e.target.value)} className="w-full px-3 py-2 border border-border-soft rounded-lg text-sm" placeholder="Assignment Title" />
+                <input required type="text" value={title} onChange={e => setTitle(e.target.value)} className="w-full px-3 py-2 bg-white dark:bg-[#18181B] text-ink border border-border-soft rounded-lg text-sm" placeholder="Assignment Title" />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-body mb-1">Description</label>
@@ -305,7 +305,7 @@ export default function AssignmentManagement() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-gray-body mb-1">Target Batch</label>
-                  <select value={targetBatchId} onChange={e => setTargetBatchId(e.target.value)} className="w-full px-3 py-2 border border-border-soft rounded-lg text-sm">
+                  <select value={targetBatchId} onChange={e => setTargetBatchId(e.target.value)} className="w-full px-3 py-2 bg-white dark:bg-[#18181B] text-ink border border-border-soft rounded-lg text-sm">
                     <option value="all">All Batches</option>
                     {availableBatches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                   </select>
@@ -313,7 +313,7 @@ export default function AssignmentManagement() {
                 {targetBatchId !== 'all' && (
                   <div>
                     <label className="block text-xs font-semibold text-gray-body mb-1">Target Department</label>
-                    <select value={targetDeptId} onChange={e => {setTargetDeptId(e.target.value); setTargetSectionId('all');}} className="w-full px-3 py-2 border border-border-soft rounded-lg text-sm">
+                    <select value={targetDeptId} onChange={e => {setTargetDeptId(e.target.value); setTargetSectionId('all');}} className="w-full px-3 py-2 bg-white dark:bg-[#18181B] text-ink border border-border-soft rounded-lg text-sm">
                       <option value="all">All Departments in Batch</option>
                       {availableDepartments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                     </select>
@@ -334,7 +334,7 @@ export default function AssignmentManagement() {
                 {targetDeptId !== 'all' && (
                   <div>
                     <label className="block text-xs font-semibold text-gray-body mb-1">Target Section</label>
-                    <select value={targetSectionId} onChange={e => setTargetSectionId(e.target.value)} className="w-full px-3 py-2 border border-border-soft rounded-lg text-sm">
+                    <select value={targetSectionId} onChange={e => setTargetSectionId(e.target.value)} className="w-full px-3 py-2 bg-white dark:bg-[#18181B] text-ink border border-border-soft rounded-lg text-sm">
                       <option value="all">All Sections in Department</option>
                       {availableDepartments.find(d => d.id === targetDeptId)?.sections?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                     </select>
@@ -343,7 +343,7 @@ export default function AssignmentManagement() {
               </div>
               
               <div className="flex justify-end gap-3 pt-4 border-t border-border-soft">
-                <button type="button" onClick={() => { setIsCreating(false); setActiveAssignmentId(null); }} className="px-4 py-2 border border-border-soft rounded-lg text-sm font-semibold hover:bg-gray-50">Cancel</button>
+                <button type="button" onClick={() => { setIsCreating(false); setActiveAssignmentId(null); }} className="px-4 py-2 border border-border-soft rounded-lg text-sm font-semibold hover:bg-gray-50 dark:hover:bg-[#18181B]">Cancel</button>
                 <button type="submit" className="px-4 py-2 bg-maroon text-white rounded-lg text-sm font-semibold hover:bg-maroon-deep">{activeAssignmentId ? 'Save Changes' : 'Publish Assignment'}</button>
               </div>
             </form>
@@ -371,7 +371,7 @@ export default function AssignmentManagement() {
                     <span className="text-maroon bg-maroon/10 px-2 py-1 rounded-md">{formatAssignmentDate(a.dueDate, 'Due')}</span>
                     <button 
                       onClick={() => setSelectedAssignmentForSubmissions(a.id)}
-                      className="text-gray-body border border-border-soft hover:bg-cream hover:text-ink px-3 py-1 rounded-md bg-white transition-colors flex items-center gap-2"
+                      className="text-gray-body border border-border-soft hover:bg-cream hover:text-ink px-3 py-1 rounded-md bg-white dark:bg-[#242429] transition-colors flex items-center gap-2"
                     >
                       <FileText className="w-3.5 h-3.5" />
                       View Submissions ({a._count?.submissions || 0})
@@ -380,7 +380,7 @@ export default function AssignmentManagement() {
                 </div>
                 <div className="flex items-center gap-2">
                   <button onClick={() => handleEdit(a)} className="text-gray-body opacity-0 group-hover:opacity-100 p-2 hover:bg-cream rounded transition-all">Edit</button>
-                  <button aria-label={`Delete ${a.title}`} onClick={() => setAssignmentToDelete(a.id)} className="text-red-500 opacity-0 group-hover:opacity-100 p-2 hover:bg-red-50 rounded transition-all"><Trash2 className="w-5 h-5"/></button>
+                  <button aria-label={`Delete ${a.title}`} onClick={() => handleDelete(a.id)} className="text-red-500 opacity-0 group-hover:opacity-100 p-2 hover:bg-red-50 dark:hover:bg-red-950/30 rounded transition-all"><Trash2 className="w-5 h-5"/></button>
                 </div>
               </div>
             ))

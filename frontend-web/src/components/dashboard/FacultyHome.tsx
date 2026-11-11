@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
@@ -42,7 +43,7 @@ function RichTextEditor({ value, onChange }: { value: string; onChange: (value: 
     immediatelyRender: false,
     editorProps: {
       attributes: {
-        class: 'min-h-[120px] w-full rounded-lg border border-border-soft bg-white px-3 py-2 text-sm focus:outline-none prose prose-sm max-w-none',
+        class: 'min-h-[120px] w-full rounded-lg border border-border-soft bg-white dark:bg-[#18181B] text-ink px-3 py-2 text-sm focus:outline-none prose prose-sm dark:prose-invert max-w-none',
       },
     },
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
@@ -478,9 +479,9 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
 
   return (
     <div className="space-y-6 relative">
-      {viewingResponsesFor && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" role="presentation">
-          <div className="bg-white rounded-xl shadow-lg max-w-2xl w-full max-h-[80vh] flex flex-col" role="dialog" aria-modal="true" aria-labelledby="survey-responses-title">
+      {viewingResponsesFor && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[100] bg-black/15 dark:bg-black/55 backdrop-blur-[2px] flex items-center justify-center p-4" role="presentation">
+          <div className="bg-white dark:bg-[#1E1E22] border border-border-soft rounded-xl shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col" role="dialog" aria-modal="true" aria-labelledby="survey-responses-title">
             <div className="p-4 border-b border-border-soft flex justify-between items-center">
               <h3 id="survey-responses-title" className="font-bold font-serif text-ink">Survey Responses</h3>
               <button aria-label="Close survey responses" onClick={() => setViewingResponsesFor(null)}><X className="w-5 h-5 text-gray-body" /></button>
@@ -493,7 +494,7 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
               ) : (
                 <div className="space-y-4">
                   {announcementResponses.map(r => (
-                    <div key={r.id} className="bg-cream/30 border border-border-soft p-4 rounded-lg">
+                    <div key={r.id} className="bg-cream/30 dark:bg-[#242429] border border-border-soft p-4 rounded-lg">
                       <div className="flex justify-between items-start mb-2">
                         <div>
                           <p className="font-bold text-sm text-ink">{r.user.name}</p>
@@ -520,14 +521,15 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
               />
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Announcement Details Modal */}
-      {viewingAnnouncement && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 backdrop-blur-xs" role="presentation" onClick={() => setViewingAnnouncement(null)}>
-          <div className="bg-white rounded-2xl shadow-lg max-w-2xl w-full max-h-[85vh] flex flex-col border border-border-soft overflow-hidden" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
-            <div className="p-5 border-b border-border-soft flex justify-between items-start gap-4 bg-cream/20">
+      {viewingAnnouncement && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[100] bg-black/15 dark:bg-black/55 flex items-center justify-center p-4 backdrop-blur-[2px]" role="presentation" onClick={() => setViewingAnnouncement(null)}>
+          <div className="bg-white dark:bg-[#1E1E22] rounded-2xl shadow-xl max-w-2xl w-full max-h-[85vh] flex flex-col border border-border-soft overflow-hidden" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
+            <div className="p-5 border-b border-border-soft flex justify-between items-start gap-4 bg-cream/20 dark:bg-[#242429]">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap mb-1.5">
                   <h3 className="font-bold font-serif text-lg text-ink leading-snug">{viewingAnnouncement.title}</h3>
@@ -536,7 +538,7 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
                       Survey
                     </span>
                   )}
-                  <span className="text-[10px] font-semibold text-gray-body uppercase border px-2 py-0.5 rounded bg-white">
+                  <span className="text-[10px] font-semibold text-gray-body uppercase border border-border-soft px-2 py-0.5 rounded bg-white dark:bg-[#18181B]">
                     Target: {viewingAnnouncement.audience}
                   </span>
                 </div>
@@ -559,11 +561,11 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
               />
             </div>
 
-            <div className="p-4 border-t border-border-soft bg-cream/10 flex items-center justify-between">
+            <div className="p-4 border-t border-border-soft bg-cream/10 dark:bg-[#242429] flex items-center justify-between">
               <button
                 type="button"
                 onClick={() => setAnnouncementToDelete(viewingAnnouncement.id)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 border border-red-200 rounded-lg transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 dark:text-red-400 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 border border-red-200 dark:border-red-900/50 rounded-lg transition-colors cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 Delete Announcement
@@ -583,14 +585,15 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
                 )}
                 <button
                   onClick={() => setViewingAnnouncement(null)}
-                  className="px-4 py-1.5 text-xs font-semibold text-ink bg-white hover:bg-cream-edge/40 border border-border-soft rounded-lg transition-colors cursor-pointer"
+                  className="px-4 py-1.5 text-xs font-semibold text-ink bg-white dark:bg-[#18181B] hover:bg-cream-edge/40 border border-border-soft rounded-lg transition-colors cursor-pointer"
                 >
                   Close
                 </button>
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       <section className="space-y-5">
@@ -607,7 +610,7 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
         </div>
       </section>
 
-      <section className="rounded-xl border border-border-soft bg-white p-5 shadow-sm" aria-labelledby="today-agenda-title">
+      <section className="rounded-xl border border-border-soft bg-white dark:bg-[#1E1E22] p-5 shadow-sm" aria-labelledby="today-agenda-title">
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 id="today-agenda-title" className="font-serif text-xl font-bold text-ink">Today agenda</h2>
@@ -616,9 +619,9 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
           <StatusBadge status="info">{agenda.length} scheduled</StatusBadge>
         </div>
         <div className="mb-4 grid grid-cols-1 gap-2 md:grid-cols-3">
-          <div className="rounded-lg bg-cream/40 p-3 text-xs text-gray-body">{loadingTasks ? 'Loading tasks...' : tasksError ? 'Tasks unavailable' : todos.length ? `${todos.length} task${todos.length === 1 ? '' : 's'} available` : 'No tasks scheduled'}</div>
-          <div className="rounded-lg bg-cream/40 p-3 text-xs text-gray-body">{loadingCalendar ? 'Loading calendar...' : calendarError ? 'Calendar unavailable' : calendarEvents.length ? `${calendarEvents.length} event${calendarEvents.length === 1 ? '' : 's'} scheduled` : 'No calendar events scheduled'}</div>
-          <div className="rounded-lg bg-cream/40 p-3 text-xs text-gray-body">
+          <div className="rounded-lg bg-cream/40 dark:bg-[#242429] p-3 text-xs text-gray-body">{loadingTasks ? 'Loading tasks...' : tasksError ? 'Tasks unavailable' : todos.length ? `${todos.length} task${todos.length === 1 ? '' : 's'} available` : 'No tasks scheduled'}</div>
+          <div className="rounded-lg bg-cream/40 dark:bg-[#242429] p-3 text-xs text-gray-body">{loadingCalendar ? 'Loading calendar...' : calendarError ? 'Calendar unavailable' : calendarEvents.length ? `${calendarEvents.length} event${calendarEvents.length === 1 ? '' : 's'} scheduled` : 'No calendar events scheduled'}</div>
+          <div className="rounded-lg bg-cream/40 dark:bg-[#242429] p-3 text-xs text-gray-body">
             {loadingAgendaAssignments ? 'Loading assignments...' : agendaAssignmentsError ? <><span>Assignments unavailable.</span> <button type="button" onClick={fetchAgendaAssignments} className="font-semibold text-maroon underline">Retry</button></> : assignmentDueDatesAvailable ? 'Assignment due dates included' : 'Assignment deadlines unavailable'}
           </div>
         </div>
@@ -627,12 +630,12 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
         ) : (
           <div className="grid gap-4 md:grid-cols-3">
             {groupedAgenda.map(group => (
-              <div key={group.group} className="rounded-lg border border-border-soft bg-cream/20 p-3">
+              <div key={group.group} className="rounded-lg border border-border-soft bg-cream/20 dark:bg-[#242429] p-3">
                 <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-gray-body">{group.group}</h3>
                 {group.items.length === 0 ? <p className="text-sm text-gray-body">No items</p> : (
                   <div className="space-y-2">
                     {group.items.map(item => (
-                      <button key={item.id} type="button" onClick={() => onNavigate?.(item.destination)} className="w-full rounded-lg border border-border-soft bg-white p-3 text-left hover:border-maroon/40">
+                      <button key={item.id} type="button" onClick={() => onNavigate?.(item.destination)} className="w-full rounded-lg border border-border-soft bg-white dark:bg-[#18181B] p-3 text-left hover:border-maroon/40">
                         <span className="block text-sm font-semibold text-ink">{item.title}</span>
                         <span className="mt-1 block text-xs text-gray-body">{item.source} · {new Date(`${item.date}T00:00:00`).toLocaleDateString()}</span>
                       </button>
@@ -649,7 +652,7 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
         
         {/* Calendar */}
         <div className="xl:col-span-8 space-y-6">
-          <div className="bg-white border border-border-soft p-4 sm:p-6 rounded-xl shadow-sm">
+          <div className="bg-white dark:bg-[#1E1E22] border border-border-soft p-4 sm:p-6 rounded-xl shadow-sm">
             <div className="mb-6 flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-lg font-bold flex items-center text-ink font-serif"><CalendarIcon className="w-5 h-5 mr-2 text-maroon" /> Calendar</h3>
               <div className="flex items-center gap-2 sm:gap-4 bg-cream rounded-lg p-1 border border-border-soft">
@@ -696,14 +699,14 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
                         onClick={() => { if(!isPast) setSelectedDate(selectedDate?.getTime() === dateObj.getTime() ? null : dateObj); setShowEventForm(false); }} 
                         className={`relative h-14 min-w-0 p-1.5 rounded-lg flex flex-col items-center justify-center transition-colors border ${
                           isPast 
-                            ? 'bg-gray-50/40 border-transparent opacity-40 cursor-not-allowed' 
+                            ? 'bg-gray-50/40 dark:bg-neutral-800/30 border-transparent opacity-40 cursor-not-allowed' 
                             : 'cursor-pointer'
                         } ${
                           isSelected 
                             ? 'border-maroon bg-maroon/5 ring-1 ring-maroon shadow-2xs' 
                             : isToday 
                             ? 'border-maroon/50 bg-maroon/5'
-                            : 'bg-white border-border-soft/70 hover:border-maroon/40 hover:bg-cream/20'
+                            : 'bg-white dark:bg-[#242429] border-border-soft/70 hover:border-maroon/40 hover:bg-cream/20'
                         }`}
                       >
                         {/* Event dot in the top right corner of the date box */}
@@ -727,7 +730,7 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
             )}
             
             {selectedDate && (
-              <div className="mt-6 p-4 bg-cream/30 rounded-xl border border-border-soft flex flex-col gap-3">
+              <div className="mt-6 p-4 bg-cream/30 dark:bg-[#242429] rounded-xl border border-border-soft flex flex-col gap-3">
                 <div className="flex justify-between items-center">
                   <h4 className="text-sm font-semibold text-ink">Events for {selectedDate.toLocaleDateString()}</h4>
                   <button onClick={() => setSelectedDate(null)} className="text-gray-body hover:text-ink"><X className="w-4 h-4" /></button>
@@ -735,7 +738,7 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
                 
                 <div className="space-y-2 mb-2">
                   {calendarEvents.filter(e => e.date === getLocalDateString(selectedDate)).map(ev => (
-                    <div key={ev.id} className="text-sm bg-white p-2 rounded border border-border-soft flex items-center justify-between group">
+                    <div key={ev.id} className="text-sm bg-white dark:bg-[#1E1E22] p-2 rounded border border-border-soft flex items-center justify-between group text-ink">
                       <div className="flex items-center"><div className="w-1.5 h-1.5 rounded-full bg-maroon mr-2 shrink-0" />{ev.title}</div>
                       <button onClick={(e) => { e.stopPropagation(); deleteCalendarEvent(ev.id); }} className="text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="w-3.5 h-3.5"/></button>
                     </div>
@@ -743,10 +746,10 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
                 </div>
 
                 {!showEventForm ? (
-                  <button onClick={() => setShowEventForm(true)} className="w-full py-2 bg-white border border-border-soft hover:border-maroon/30 text-ink rounded-lg text-sm font-medium transition-colors">+ Add Event</button>
+                  <button onClick={() => setShowEventForm(true)} className="w-full py-2 bg-white dark:bg-[#1E1E22] border border-border-soft hover:border-maroon/30 text-ink rounded-lg text-sm font-medium transition-colors">+ Add Event</button>
                 ) : (
                   <div className="flex gap-2">
-                    <input autoFocus type="text" placeholder="Event Title..." className="flex-1 px-3 py-1.5 text-sm border border-border-soft rounded-lg focus:outline-none focus:border-maroon" value={newEventTitle} onChange={e => setNewEventTitle(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddEvent()} />
+                    <input autoFocus type="text" placeholder="Event Title..." className="flex-1 px-3 py-1.5 text-sm bg-white dark:bg-[#18181B] text-ink border border-border-soft rounded-lg focus:outline-none focus:border-maroon" value={newEventTitle} onChange={e => setNewEventTitle(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddEvent()} />
                     <button onClick={handleAddEvent} className="px-3 py-1.5 bg-maroon text-white text-sm font-semibold rounded-lg hover:bg-maroon-deep transition-colors">Save</button>
                   </div>
                 )}
@@ -757,7 +760,7 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
 
         {/* Tasks */}
         <div className="xl:col-span-4 space-y-6">
-          <div className="bg-white border border-border-soft p-6 flex flex-col h-[500px] rounded-xl shadow-sm">
+          <div className="bg-white dark:bg-[#1E1E22] border border-border-soft p-6 flex flex-col h-[500px] rounded-xl shadow-sm">
             <h3 className="text-lg font-bold mb-6 flex items-center text-ink font-serif"><ListTodo className="w-5 h-5 mr-2 text-maroon" /> Tasks</h3>
             <div className="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar">
               {tasksError ? (
@@ -767,7 +770,7 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
               ) : todos.length === 0 ? (
                 <EmptyState icon={<ListTodo className="w-8 h-8 text-maroon" />} title="No tasks" description="You have no tasks created yet. Add one below!" />
               ) : todos.map(todo => (
-                <div key={todo.id} className={`p-3 rounded-lg border transition-colors flex gap-3 group ${todo.completed ? 'bg-green-50/5 border-green-500/20 text-gray-body/70' : 'bg-cream/20 border-border-soft text-ink hover:border-maroon/20 hover:bg-cream/40'}`}>
+                <div key={todo.id} className={`p-3 rounded-lg border transition-colors flex gap-3 group ${todo.completed ? 'bg-green-50/5 border-green-500/20 text-gray-body/70' : 'bg-cream/20 dark:bg-[#242429] border-border-soft text-ink hover:border-maroon/20 hover:bg-cream/40'}`}>
                   <button type="button" aria-label={`${todo.completed ? 'Mark incomplete' : 'Mark complete'}: ${todo.task}`} className="mt-0.5 shrink-0" onClick={() => toggleTodo(todo.id, todo.completed)}>
                     {todo.completed ? <CheckCircle2 className="w-4 h-4 text-green-600" /> : <Circle className="w-4 h-4 text-gray-body/60" />}
                   </button>
@@ -775,7 +778,7 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
                     <p className={`text-sm ${todo.completed ? 'line-through text-gray-body/60' : 'font-medium text-ink'}`}>{todo.task}</p>
                     <p className="text-[10px] text-gray-body mt-1 uppercase tracking-wider">{new Date(todo.date).toLocaleDateString()}</p>
                   </button>
-                  <button aria-label={`Delete task: ${todo.task}`} onClick={(e) => deleteTask(todo.id, e)} className="text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-50 rounded"><Trash2 className="w-4 h-4" /></button>
+                  <button aria-label={`Delete task: ${todo.task}`} onClick={(e) => deleteTask(todo.id, e)} className="text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-50 dark:hover:bg-red-950/30 rounded"><Trash2 className="w-4 h-4" /></button>
                 </div>
               ))}
             </div>
@@ -784,10 +787,10 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
                 <button onClick={() => setIsAddingTask(true)} className="w-full py-2.5 flex items-center justify-center gap-2 bg-cream hover:bg-cream-edge/60 border border-border-soft text-ink rounded-lg text-sm font-semibold transition-colors"><Plus className="w-4 h-4" /> Add Task</button>
               ) : (
                 <div className="flex flex-col gap-2">
-                  <input autoFocus type="text" placeholder="Task description..." className="w-full px-3 py-2 border border-border-soft rounded-lg text-sm focus:outline-none focus:border-maroon" value={newTaskText} onChange={e => setNewTaskText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddTask()} />
+                  <input autoFocus type="text" placeholder="Task description..." className="w-full px-3 py-2 bg-white dark:bg-[#18181B] text-ink border border-border-soft rounded-lg text-sm focus:outline-none focus:border-maroon" value={newTaskText} onChange={e => setNewTaskText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddTask()} />
                   <div className="flex gap-2">
                     <button onClick={handleAddTask} className="flex-1 py-1.5 bg-maroon text-white text-sm font-semibold rounded-lg hover:bg-maroon-deep transition-colors">Save</button>
-                    <button onClick={() => { setIsAddingTask(false); setNewTaskText(''); }} className="flex-1 py-1.5 bg-white border border-border-soft text-ink text-sm font-semibold rounded-lg">Cancel</button>
+                    <button onClick={() => { setIsAddingTask(false); setNewTaskText(''); }} className="flex-1 py-1.5 bg-white dark:bg-[#242429] border border-border-soft text-ink text-sm font-semibold rounded-lg">Cancel</button>
                   </div>
                 </div>
               )}
@@ -797,10 +800,10 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
       </div>
 
       {/* Announcements */}
-      <div className="bg-white border border-border-soft p-6 rounded-xl shadow-sm">
+      <div className="bg-white dark:bg-[#1E1E22] border border-border-soft p-6 rounded-xl shadow-sm">
         <h3 className="text-lg font-bold mb-6 flex items-center text-ink font-serif"><MessageSquare className="w-5 h-5 mr-2 text-maroon" /> Announcements</h3>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-1 bg-cream/40 p-5 rounded-xl border border-border-soft h-fit">
+          <div className="lg:col-span-1 bg-cream/40 dark:bg-[#242429] p-5 rounded-xl border border-border-soft h-fit">
             <h4 className="text-sm font-bold text-ink mb-4">New Announcement</h4>
             {restoredAnnouncementDraft && (
               <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-info/30 bg-info/5 px-3 py-2 text-sm text-ink" role="status">
@@ -814,21 +817,21 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
               </div>
             )}
             <form onSubmit={handlePostAnnouncement} className="space-y-4">
-              <input required type="text" placeholder="Title" className="w-full px-3 py-2 bg-white border border-border-soft rounded-lg text-sm" value={newAnnouncement.title} onChange={e => setNewAnnouncement({...newAnnouncement, title: e.target.value})} />
+              <input required type="text" placeholder="Title" className="w-full px-3 py-2 bg-white dark:bg-[#18181B] text-ink border border-border-soft rounded-lg text-sm" value={newAnnouncement.title} onChange={e => setNewAnnouncement({...newAnnouncement, title: e.target.value})} />
               <div className="space-y-2">
                 <p className="text-xs font-semibold text-gray-body uppercase">Target Audience</p>
-                <select className="w-full px-3 py-2 bg-white border rounded-lg text-sm" value={newAnnouncement.batch} onChange={e => setNewAnnouncement({...newAnnouncement, batch: e.target.value, department: 'All Departments', section: 'All Sections'})}>
+                <select className="w-full px-3 py-2 bg-white dark:bg-[#18181B] text-ink border border-border-soft rounded-lg text-sm" value={newAnnouncement.batch} onChange={e => setNewAnnouncement({...newAnnouncement, batch: e.target.value, department: 'All Departments', section: 'All Sections'})}>
                   <option value="All Batches">All Batches</option>
                   {batches.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
                 </select>
                 {newAnnouncement.batch !== 'All Batches' && (
-                  <select className="w-full px-3 py-2 bg-white border rounded-lg text-sm" value={newAnnouncement.department} onChange={e => setNewAnnouncement({...newAnnouncement, department: e.target.value, section: 'All Sections'})}>
+                  <select className="w-full px-3 py-2 bg-white dark:bg-[#18181B] text-ink border border-border-soft rounded-lg text-sm" value={newAnnouncement.department} onChange={e => setNewAnnouncement({...newAnnouncement, department: e.target.value, section: 'All Sections'})}>
                     <option value="All Departments">All Departments</option>
                     {departments.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
                   </select>
                 )}
                 {newAnnouncement.batch !== 'All Batches' && newAnnouncement.department !== 'All Departments' && (
-                  <select className="w-full px-3 py-2 bg-white border rounded-lg text-sm" value={newAnnouncement.section} onChange={e => setNewAnnouncement({...newAnnouncement, section: e.target.value})}>
+                  <select className="w-full px-3 py-2 bg-white dark:bg-[#18181B] text-ink border border-border-soft rounded-lg text-sm" value={newAnnouncement.section} onChange={e => setNewAnnouncement({...newAnnouncement, section: e.target.value})}>
                     <option value="All Sections">All Sections</option>
                     {departments.find(d => d.name === newAnnouncement.department)?.sections?.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
                   </select>
@@ -859,7 +862,7 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
             ) : visibleAnnouncements.length === 0 ? (
               <EmptyState icon={<MessageSquare className="w-8 h-8 text-maroon" />} title="No announcements" description="You haven't posted any announcements yet." />
             ) : visibleAnnouncements.map((ann) => (
-              <div key={ann.id} className={`p-5 rounded-xl border relative transition-all ${ann.isSurvey ? 'bg-maroon/5 border-maroon/20 shadow-xs' : 'bg-white border-border-soft shadow-xs'}`}>
+              <div key={ann.id} className={`p-5 rounded-xl border relative transition-all ${ann.isSurvey ? 'bg-maroon/5 dark:bg-maroon/10 border-maroon/20 shadow-xs' : 'bg-white dark:bg-[#242429] border-border-soft shadow-xs'}`}>
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between mb-3 gap-3">
                   <div>
                     <div className="flex items-center gap-2 mb-1.5 flex-wrap">

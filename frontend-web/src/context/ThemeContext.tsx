@@ -24,6 +24,17 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('cira_theme', theme);
   }, [theme]);
 
+  useEffect(() => {
+    const onThemeChanged = (e: Event) => {
+      const next = (e as CustomEvent<{ theme?: Theme }>).detail?.theme;
+      if (next === 'light' || next === 'dark') {
+        setThemeState(next);
+      }
+    };
+    window.addEventListener('cira_theme_changed', onThemeChanged);
+    return () => window.removeEventListener('cira_theme_changed', onThemeChanged);
+  }, []);
+
   const value = useMemo<ThemeContextValue>(() => ({
     theme,
     setTheme: setThemeState,

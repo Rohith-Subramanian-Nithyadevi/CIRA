@@ -1,8 +1,12 @@
+import { useEffect } from 'react';
 import CoreIdeologyCanvas from '../components/CoreIdeologyCanvas';
 import DistributionHub from '../components/DistributionHub';
 import { ShieldCheck, Activity, Cpu, Award } from 'lucide-react';
 
 export default function LandingPage() {
+  useEffect(() => {
+    document.documentElement.classList.remove('dark');
+  }, []);
   return (
     <div className="min-h-screen bg-cream font-sans text-ink selection:bg-maroon/20">
       

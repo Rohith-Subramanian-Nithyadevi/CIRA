@@ -150,14 +150,14 @@ export default function AssignmentSubmissionsView({ assignmentId, onBack }: Assi
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {Array.from({ length: 4 }).map((_, index) => <div key={index} className="h-24 rounded-xl border border-border-soft bg-cream/40 animate-pulse" />)}
         </div>
-        <div className="h-96 rounded-2xl border border-border-soft bg-white/80 animate-pulse" />
+        <div className="h-96 rounded-2xl border border-border-soft bg-white/80 dark:bg-[#1E1E22] animate-pulse" />
       </div>
     );
   }
 
   if (!data) return (
-    <div className="rounded-2xl border border-red-200 bg-red-50/90 p-8 text-center font-semibold text-red-700 shadow-sm">
-      <p>{loadError || 'Failed to load submissions.'}</p>
+    <div className="rounded-2xl border border-red-200 dark:border-red-900/50 bg-red-50/90 dark:bg-red-950/30 p-8 text-center font-semibold text-red-700 dark:text-red-400 shadow-sm">
+      <p>{loadError || 'Failed to load submissions. Please try again.'}</p>
       <button type="button" onClick={() => { setLoading(true); fetchSubmissions(); }} className="mt-4 rounded-lg bg-maroon px-4 py-2 text-sm text-white">Retry</button>
     </div>
   );
@@ -174,7 +174,7 @@ export default function AssignmentSubmissionsView({ assignmentId, onBack }: Assi
   return (
     <div className="assignment-roster space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center gap-4">
-        <button onClick={onBack} className="rounded-full border border-border-soft bg-white/80 p-2 shadow-xs transition-all hover:-translate-x-0.5 hover:bg-cream hover:shadow-sm">
+        <button onClick={onBack} className="rounded-full border border-border-soft bg-white/80 dark:bg-[#1E1E22] p-2 shadow-xs transition-all hover:-translate-x-0.5 hover:bg-cream hover:shadow-sm">
           <ChevronLeft className="w-6 h-6 text-gray-body" />
         </button>
         <div>
@@ -188,33 +188,33 @@ export default function AssignmentSubmissionsView({ assignmentId, onBack }: Assi
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <div className="rounded-xl border border-border-soft bg-white/90 p-4 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+        <div className="rounded-xl border border-border-soft bg-white/90 dark:bg-[#1E1E22] p-4 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
           <div className="text-2xl font-bold text-ink">{data.summary.totalAssigned}</div>
           <div className="text-xs font-semibold text-gray-body uppercase tracking-wider">Assigned</div>
         </div>
-        <div className="rounded-xl border border-border-soft bg-white/90 p-4 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
-          <div className="text-2xl font-bold text-blue-600">{data.summary.submitted}</div>
+        <div className="rounded-xl border border-border-soft bg-white/90 dark:bg-[#1E1E22] p-4 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+          <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{data.summary.submitted}</div>
           <div className="text-xs font-semibold text-gray-body uppercase tracking-wider">Submitted</div>
         </div>
-        <div className="rounded-xl border border-border-soft bg-white/90 p-4 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
-          <div className="text-2xl font-bold text-green-600">{data.summary.graded}</div>
+        <div className="rounded-xl border border-border-soft bg-white/90 dark:bg-[#1E1E22] p-4 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+          <div className="text-2xl font-bold text-green-600 dark:text-green-400">{data.summary.graded}</div>
           <div className="text-xs font-semibold text-gray-body uppercase tracking-wider">Graded</div>
         </div>
-        <div className="rounded-xl border border-border-soft bg-white/90 p-4 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
-          <div className="text-2xl font-bold text-orange-500">{data.summary.pending}</div>
+        <div className="rounded-xl border border-border-soft bg-white/90 dark:bg-[#1E1E22] p-4 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+          <div className="text-2xl font-bold text-orange-500 dark:text-orange-400">{data.summary.pending}</div>
           <div className="text-xs font-semibold text-gray-body uppercase tracking-wider">Pending</div>
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-border-soft bg-white/90 shadow-sm backdrop-blur-sm">
-        <div className="flex flex-col items-start justify-between gap-3 border-b border-border-soft bg-cream/30 p-4 sm:flex-row sm:items-center">
+      <div className="overflow-hidden rounded-2xl border border-border-soft bg-white/90 dark:bg-[#1E1E22] shadow-sm backdrop-blur-sm">
+        <div className="flex flex-col items-start justify-between gap-3 border-b border-border-soft bg-cream/30 dark:bg-[#242429] p-4 sm:flex-row sm:items-center">
           <div className="flex gap-2">
             {(['ALL', 'SUBMITTED', 'GRADED', 'NOT_SUBMITTED'] as const).map(f => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
                 aria-pressed={filter === f}
-                className={`rounded-full border px-3 py-1.5 text-xs font-bold transition-all duration-200 ${filter === f ? 'border-maroon bg-maroon text-white shadow-sm' : 'border-border-soft bg-white text-gray-body hover:-translate-y-0.5 hover:bg-cream hover:text-ink'}`}
+                className={`rounded-full border px-3 py-1.5 text-xs font-bold transition-all duration-200 ${filter === f ? 'border-maroon bg-maroon text-white shadow-sm' : 'border-border-soft bg-white dark:bg-[#18181B] text-gray-body hover:-translate-y-0.5 hover:bg-cream hover:text-ink'}`}
               >
                 {f.replace('_', ' ')}
               </button>
@@ -228,7 +228,7 @@ export default function AssignmentSubmissionsView({ assignmentId, onBack }: Assi
               placeholder="Search students..." 
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="w-full sm:w-64 rounded-full border border-border-soft bg-white/90 py-1.5 pl-9 pr-4 text-sm transition-shadow focus:outline-none focus:ring-2 focus:ring-maroon/20 focus:shadow-sm"
+              className="w-full sm:w-64 rounded-full border border-border-soft bg-white/90 dark:bg-[#18181B] text-ink py-1.5 pl-9 pr-4 text-sm transition-shadow focus:outline-none focus:ring-2 focus:ring-maroon/20 focus:shadow-sm"
             />
           </div>
         </div>
@@ -260,15 +260,15 @@ export default function AssignmentSubmissionsView({ assignmentId, onBack }: Assi
                       <div className="text-xs text-gray-body font-mono mt-0.5">{s.rollNumber || 'No Roll #'}</div>
                     </td>
                     <td className="p-4">
-                      {s.status === 'GRADED' && <span className="inline-flex items-center gap-1.5 text-xs font-bold text-green-700 bg-green-100 px-2.5 py-1 rounded-full"><CheckCircle2 className="w-3.5 h-3.5" /> Graded</span>}
-                      {s.status === 'SUBMITTED' && <span className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 bg-blue-100 px-2.5 py-1 rounded-full"><Circle className="w-3.5 h-3.5 fill-blue-700" /> Submitted</span>}
-                      {s.status === 'NOT_SUBMITTED' && <span className="inline-flex items-center gap-1.5 text-xs font-bold text-gray-body bg-gray-100 px-2.5 py-1 rounded-full"><Circle className="w-3.5 h-3.5" /> Pending</span>}
+                      {s.status === 'GRADED' && <span className="inline-flex items-center gap-1.5 text-xs font-bold text-green-700 dark:text-green-300 bg-green-100 dark:bg-green-950/50 px-2.5 py-1 rounded-full"><CheckCircle2 className="w-3.5 h-3.5" /> Graded</span>}
+                      {s.status === 'SUBMITTED' && <span className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-950/50 px-2.5 py-1 rounded-full"><Circle className="w-3.5 h-3.5 fill-blue-700 dark:fill-blue-300" /> Submitted</span>}
+                      {s.status === 'NOT_SUBMITTED' && <span className="inline-flex items-center gap-1.5 text-xs font-bold text-gray-body bg-gray-100 dark:bg-neutral-800 px-2.5 py-1 rounded-full"><Circle className="w-3.5 h-3.5" /> Pending</span>}
                     </td>
                     <td className="p-4">
                       {s.status !== 'NOT_SUBMITTED' ? (
                         <div className="space-y-1">
                           <div className="text-xs text-gray-body">Submitted: {new Date(s.submittedAt).toLocaleString()}</div>
-                          {s.fileUrl && <a href={s.fileUrl} target="_blank" rel="noreferrer" className="text-sm font-semibold text-blue-600 hover:underline line-clamp-1 block">View Attachment</a>}
+                          {s.fileUrl && <a href={s.fileUrl} target="_blank" rel="noreferrer" className="text-sm font-semibold text-blue-600 dark:text-blue-400 hover:underline line-clamp-1 block">View Attachment</a>}
                           {s.submissionText && <div className="text-sm text-ink line-clamp-2 italic border-l-2 border-border-soft pl-2 bg-cream/30 p-1.5 rounded-r">"{s.submissionText}"</div>}
                         </div>
                       ) : (
@@ -285,7 +285,7 @@ export default function AssignmentSubmissionsView({ assignmentId, onBack }: Assi
                               placeholder={`Grade / ${data.assignment.maxMarks}`} 
                               value={gradingState[s.submissionId].grade}
                               onChange={e => setGradingState(prev => ({ ...prev, [s.submissionId]: { ...prev[s.submissionId], grade: e.target.value, error: '' } }))}
-                              className="w-24 rounded-lg border border-border-soft bg-white px-3 py-1.5 text-sm text-ink transition-shadow focus:border-maroon focus:outline-none focus:ring-2 focus:ring-maroon/10"
+                              className="w-24 rounded-lg border border-border-soft bg-white dark:bg-[#18181B] px-3 py-1.5 text-sm text-ink transition-shadow focus:border-maroon focus:outline-none focus:ring-2 focus:ring-maroon/10"
                             />
                             <button 
                               onClick={() => handleSaveGrade(s.submissionId)}
@@ -300,7 +300,7 @@ export default function AssignmentSubmissionsView({ assignmentId, onBack }: Assi
                             placeholder="Add feedback..."
                             value={gradingState[s.submissionId].feedback}
                             onChange={e => setGradingState(prev => ({ ...prev, [s.submissionId]: { ...prev[s.submissionId], feedback: e.target.value } }))}
-                            className="w-full rounded-lg border border-border-soft bg-white px-3 py-1.5 text-xs text-ink transition-shadow focus:border-maroon focus:outline-none focus:ring-2 focus:ring-maroon/10"
+                            className="w-full rounded-lg border border-border-soft bg-white dark:bg-[#18181B] px-3 py-1.5 text-xs text-ink transition-shadow focus:border-maroon focus:outline-none focus:ring-2 focus:ring-maroon/10"
                             rows={2}
                           />
                           {gradingState[s.submissionId].error && (

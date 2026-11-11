@@ -78,6 +78,7 @@
     --maroon-deep: #8A1E3A;
     --ink: #1A1A1A;
     --gray-body: #6B6560;
+    --surface: #FFFFFF;
     --white: #FFFFFF;
     --chip-peach: #F5E3D2;
     --cta-tan: #E8D6B8;
@@ -126,16 +127,17 @@
     --sidebar-ring: oklch(0.708 0 0);
   }
   .dark {
-    --bg-cream: #121212;
-    --bg-cream-edge: #1e1e1e;
-    --maroon: #d6336c; /* Slightly lighter maroon for contrast */
-    --maroon-deep: #a61e4d;
-    --ink: #f8f9fa;
-    --gray-body: #adb5bd;
-    --white: #1A1A1A;
-    --chip-peach: #2c2c2c;
-    --cta-tan: #343a40;
-    --border-soft: #333333;
+    --bg-cream: #111113;
+    --bg-cream-edge: #1E1E22;
+    --maroon: #C82850; /* Accessible rose-maroon for dark surfaces */
+    --maroon-deep: #A61B3F;
+    --ink: #F4F4F5;
+    --gray-body: #A1A1AA;
+    --surface: #1A1A1E;
+    --white: #1A1A1E;
+    --chip-peach: #2A2225;
+    --cta-tan: #2E2B27;
+    --border-soft: #2E2E33;
     --success: #68d391;
     --warning: #f6ad55;
     --danger: #fc8181;

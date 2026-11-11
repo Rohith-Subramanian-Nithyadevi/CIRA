@@ -102,15 +102,15 @@ const DEMO_DATA = {
 const CT = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
   return (
-    <div style={{ fontFamily: 'Inter, sans-serif' }} className="bg-white border border-border-soft rounded-lg shadow-xl px-3.5 py-2.5 text-xs min-w-[130px]">
-      <p className="font-semibold text-ink mb-1.5 pb-1.5 border-b border-border-soft">{label}</p>
+    <div style={{ fontFamily: 'Inter, sans-serif' }} className="bg-white dark:bg-[#25252A] border border-border-soft dark:border-neutral-700 rounded-lg shadow-xl px-3.5 py-2.5 text-xs min-w-[130px]">
+      <p className="font-semibold text-ink dark:text-neutral-100 mb-1.5 pb-1.5 border-b border-border-soft dark:border-neutral-700">{label}</p>
       {payload.map((p: any, i: number) => (
         <div key={i} className="flex items-center justify-between gap-4 mt-1">
-          <span className="flex items-center gap-1.5 text-gray-body">
+          <span className="flex items-center gap-1.5 text-gray-body dark:text-neutral-400">
             <span className="w-1.5 h-1.5 rounded-full" style={{ background: p.color || p.payload?.fill || C.maroon }} />
             {p.name}
           </span>
-          <span className="font-bold text-ink tabular-nums">
+          <span className="font-bold text-ink dark:text-neutral-100 tabular-nums">
             {p.value}{typeof p.value === 'number' && p.name !== 'count' && p.name !== 'completed' && p.name !== 'learned' ? '%' : ''}
           </span>
         </div>
@@ -121,20 +121,20 @@ const CT = ({ active, payload, label }: any) => {
 
 const Eyebrow = ({ label, title }: { label: string; title: string }) => (
   <div className="mb-5">
-    <p className="text-[9px] tracking-[0.12em] uppercase font-bold text-gray-body mb-0.5">{label}</p>
-    <h3 className="text-[15px] font-semibold text-ink">{title}</h3>
+    <p className="text-[9px] tracking-[0.12em] uppercase font-bold text-gray-body dark:text-neutral-400 mb-0.5">{label}</p>
+    <h3 className="text-[15px] font-semibold text-ink dark:text-neutral-100">{title}</h3>
   </div>
 );
 
 const Stat = ({ label, value, accent }: { label: string; value: string; accent?: boolean }) => (
   <div>
-    <p className="text-[9px] tracking-[0.1em] uppercase font-semibold text-gray-body/70">{label}</p>
-    <p className={`text-sm font-bold mt-0.5 ${accent ? 'text-maroon' : 'text-ink'}`}>{value}</p>
+    <p className="text-[9px] tracking-[0.1em] uppercase font-semibold text-gray-body/70 dark:text-neutral-400">{label}</p>
+    <p className={`text-sm font-bold mt-0.5 ${accent ? 'text-maroon dark:text-rose-400' : 'text-ink dark:text-neutral-100'}`}>{value}</p>
   </div>
 );
 
 const MiniBar = ({ value, danger, color }: { value: number; danger?: boolean; color?: string }) => (
-  <div className="h-1.5 rounded-full overflow-hidden" style={{ background: C.creamEdge }}>
+  <div className="h-1.5 rounded-full overflow-hidden bg-cream-edge dark:bg-neutral-800">
     <div
       className="h-full rounded-full transition-all duration-700"
       style={{ width: `${value}%`, background: color || (danger ? C.danger : C.maroon) }}
@@ -212,10 +212,13 @@ export default function StudentAnalytics({ isDemo }: { isDemo?: boolean }) {
   const classAvgVal  = benchmarkData.length ? Math.round(benchmarkData.reduce((s, d) => s + d.classAvg, 0) / benchmarkData.length) : 70;
   const bestPeriod   = timelineData.length ? timelineData.reduce((b, d) => d.score > b.score ? d : b, timelineData[0]).name : '—';
 
+  const chartMuted = '#9CA3AF';
+  const chartText = '#94A3B8';
+
   if (loading) return (
     <div className="space-y-5">
-      <div className="grid grid-cols-3 gap-4">{[1,2,3].map(i => <div key={i} className="h-32 rounded-xl animate-pulse" style={{ background: C.cream }} />)}</div>
-      <div className="grid grid-cols-2 gap-5">{[1,2,3,4].map(i => <div key={i} className="h-60 rounded-xl animate-pulse" style={{ background: C.cream }} />)}</div>
+      <div className="grid grid-cols-3 gap-4">{[1,2,3].map(i => <div key={i} className="h-32 rounded-xl animate-pulse bg-cream-edge/60 dark:bg-neutral-800/60" />)}</div>
+      <div className="grid grid-cols-2 gap-5">{[1,2,3,4].map(i => <div key={i} className="h-60 rounded-xl animate-pulse bg-cream-edge/60 dark:bg-neutral-800/60" />)}</div>
     </div>
   );
 
@@ -225,15 +228,15 @@ export default function StudentAnalytics({ isDemo }: { isDemo?: boolean }) {
       {/* Header and Tabs */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-serif font-bold text-ink">Analytics Dashboard</h2>
-          <p className="text-sm mt-0.5" style={{ color: C.gray }}>Aggregated insights across all assessments and resources</p>
+          <h2 className="text-xl font-serif font-bold text-ink dark:text-neutral-100">Analytics Dashboard</h2>
+          <p className="text-sm mt-0.5 text-gray-body dark:text-neutral-400">Aggregated insights across all assessments and resources</p>
         </div>
         
-        <div className="flex p-1 bg-cream-edge/40 rounded-lg border border-border-soft shrink-0">
+        <div className="flex p-1 bg-cream-edge/40 dark:bg-neutral-800/80 rounded-lg border border-border-soft dark:border-neutral-700 shrink-0">
           <button
             onClick={() => setActiveTab('quiz')}
-            className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors flex items-center gap-2 ${
-              activeTab === 'quiz' ? 'bg-white text-maroon shadow-sm border border-border-soft' : 'text-gray-body hover:text-ink hover:bg-cream-edge/20 border border-transparent'
+            className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors flex items-center gap-2 cursor-pointer ${
+              activeTab === 'quiz' ? 'bg-white dark:bg-[#1E1E22] text-maroon dark:text-rose-400 shadow-sm border border-border-soft dark:border-neutral-700' : 'text-gray-body dark:text-neutral-400 hover:text-ink dark:hover:text-white hover:bg-cream-edge/20 border border-transparent'
             }`}
           >
             <TrendingUp className="w-4 h-4" />
@@ -241,8 +244,8 @@ export default function StudentAnalytics({ isDemo }: { isDemo?: boolean }) {
           </button>
           <button
             onClick={() => setActiveTab('resource')}
-            className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors flex items-center gap-2 ${
-              activeTab === 'resource' ? 'bg-white text-maroon shadow-sm border border-border-soft' : 'text-gray-body hover:text-ink hover:bg-cream-edge/20 border border-transparent'
+            className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors flex items-center gap-2 cursor-pointer ${
+              activeTab === 'resource' ? 'bg-white dark:bg-[#1E1E22] text-maroon dark:text-rose-400 shadow-sm border border-border-soft dark:border-neutral-700' : 'text-gray-body dark:text-neutral-400 hover:text-ink dark:hover:text-white hover:bg-cream-edge/20 border border-transparent'
             }`}
           >
             <BookOpen className="w-4 h-4" />
@@ -258,26 +261,26 @@ export default function StudentAnalytics({ isDemo }: { isDemo?: boolean }) {
           {/* ── SIS & SUMMARY CARDS ── */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {/* SIS Card (Takes up 2 columns) */}
-            <div className="md:col-span-2 bg-white rounded-xl border shadow-sm p-6" style={{ borderColor: C.border }}>
+            <div className="md:col-span-2 bg-white dark:bg-[#1E1E22] rounded-xl border border-border-soft dark:border-neutral-800 shadow-sm p-6">
               <Eyebrow label="Improvement Index" title="Student Improvement Score (SIS)" />
               
               {!sis || sis.insufficientData ? (
-                <div className="py-8 text-center text-sm italic" style={{ color: C.gray }}>Need more data to calculate SIS.</div>
+                <div className="py-8 text-center text-sm italic text-gray-body dark:text-neutral-400">Need more data to calculate SIS.</div>
               ) : (
                 <div className="flex flex-col sm:flex-row items-center gap-8">
                   <div className="text-center shrink-0">
                     <div className="relative flex items-center justify-center w-28 h-28">
                       <svg width="112" height="112" style={{ transform: 'rotate(-90deg)' }}>
-                        <circle cx="56" cy="56" r="46" fill="none" stroke={C.creamEdge} strokeWidth="10" />
+                        <circle cx="56" cy="56" r="46" fill="none" className="stroke-cream-edge dark:stroke-neutral-800" strokeWidth="10" />
                         <circle cx="56" cy="56" r="46" fill="none" stroke={C.maroon} strokeWidth="10"
                           strokeDasharray={`${(sis.sis / 100) * (2 * Math.PI * 46)} ${(2 * Math.PI * 46)}`} strokeLinecap="round" />
                       </svg>
                       <div className="absolute text-center">
-                        <div className="text-3xl font-bold text-ink leading-none">{sis.sis}</div>
+                        <div className="text-3xl font-bold text-ink dark:text-neutral-100 leading-none">{sis.sis}</div>
                       </div>
                     </div>
                     <div className="mt-3">
-                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: '#EBF5EE', color: C.good }}>
+                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/50 text-[#2A6B4A] dark:text-emerald-300">
                         {sis.trend > 0 ? `▲ +${sis.trend}% Improved` : 'Stable'}
                       </span>
                     </div>
@@ -291,8 +294,8 @@ export default function StudentAnalytics({ isDemo }: { isDemo?: boolean }) {
                     ] as [string, number, string][]).map(([label, val]) => (
                       <div key={label}>
                         <div className="flex justify-between text-xs mb-1">
-                          <span style={{ color: C.gray }}>{label}</span>
-                          <span className="font-bold text-ink">{Math.round(val)}</span>
+                          <span className="text-gray-body dark:text-neutral-400">{label}</span>
+                          <span className="font-bold text-ink dark:text-neutral-100">{Math.round(val)}</span>
                         </div>
                         <MiniBar value={val} color={val >= 75 ? C.good : val >= 55 ? C.maroon : C.danger} />
                       </div>
@@ -303,25 +306,30 @@ export default function StudentAnalytics({ isDemo }: { isDemo?: boolean }) {
             </div>
 
             {/* Quick Stats */}
-            <div className="bg-white rounded-xl border shadow-sm overflow-hidden flex flex-col" style={{ borderColor: C.border }}>
+            <div className="bg-white dark:bg-[#1E1E22] rounded-xl border border-border-soft dark:border-neutral-800 shadow-sm overflow-hidden flex flex-col">
               <div className="h-[3px]" style={{ background: `linear-gradient(90deg, ${C.maroon}, ${C.maroonMid})` }} />
               <div className="p-6 flex flex-col justify-between flex-1">
                 <Eyebrow label="Performance" title="Overall Snapshot" />
                 <div>
                   <div className="flex items-end gap-1">
-                    <span className="text-4xl font-bold tabular-nums leading-none" style={{ color: C.ink }}>{latestScore}</span>
-                    <span className="text-sm mb-0.5 font-medium" style={{ color: C.gray }}>% avg</span>
+                    <span className="text-4xl font-bold tabular-nums leading-none text-ink dark:text-neutral-100">{latestScore}</span>
+                    <span className="text-sm mb-0.5 font-medium text-gray-body dark:text-neutral-400">% avg</span>
                   </div>
                   <div className="mt-2.5">
                     <span
-                      className="text-[11px] font-semibold px-2 py-0.5 rounded-full"
-                      style={{ background: trend > 0 ? '#EBF5EE' : trend < 0 ? '#FAEAEA' : C.cream, color: trend > 0 ? C.good : trend < 0 ? C.danger : C.gray }}
+                      className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+                        trend > 0
+                          ? 'bg-emerald-50 dark:bg-emerald-950/50 text-[#2A6B4A] dark:text-emerald-300'
+                          : trend < 0
+                          ? 'bg-red-50 dark:bg-red-950/50 text-[#C13535] dark:text-red-300'
+                          : 'bg-cream dark:bg-neutral-800 text-gray-body dark:text-neutral-400'
+                      }`}
                     >
                       {trend > 0 ? `▲ +${trend}%` : trend < 0 ? `▼ ${trend}%` : '─  Stable'} vs last period
                     </span>
                   </div>
                 </div>
-                <div className="pt-4 mt-auto border-t grid grid-cols-2 gap-x-4" style={{ borderColor: C.border }}>
+                <div className="pt-4 mt-auto border-t border-border-soft dark:border-neutral-800 grid grid-cols-2 gap-x-4">
                   <Stat label="Total Quizzes" value={timelineData.reduce((acc, curr) => acc + (curr.assessmentCount || 0), 0).toString() || '—'} />
                   <Stat label="Best Period" value={bestPeriod} />
                 </div>
@@ -331,37 +339,37 @@ export default function StudentAnalytics({ isDemo }: { isDemo?: boolean }) {
 
           {/* ── ROW 1: Area Line + Radar ── */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            <div className="bg-white p-6 rounded-xl border shadow-sm" style={{ borderColor: C.border }}>
+            <div className="bg-white dark:bg-[#1E1E22] p-6 rounded-xl border border-border-soft dark:border-neutral-800 shadow-sm">
               <Eyebrow label="Performance Trend" title="Am I improving over time?" />
               <div className="h-56">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={timelineData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <defs>
                       <linearGradient id="sg" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={C.maroon} stopOpacity={0.15}/>
+                        <stop offset="5%" stopColor={C.maroon} stopOpacity={0.2}/>
                         <stop offset="95%" stopColor={C.maroon} stopOpacity={0}/>
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={C.creamEdge} />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: C.gray, fontSize: 11 }} dy={8} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fill: C.gray, fontSize: 11 }} domain={[40, 100]} tickFormatter={v => `${v}%`} />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#33333840" />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: chartMuted, fontSize: 11 }} dy={8} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fill: chartMuted, fontSize: 11 }} domain={[40, 100]} tickFormatter={v => `${v}%`} />
                     <RechartsTooltip content={<CT />} />
-                    <ReferenceLine y={classAvgVal} stroke={C.border} strokeDasharray="4 4" label={{ value: 'Class Avg', position: 'insideTopRight', fontSize: 10, fill: C.gray }} />
+                    <ReferenceLine y={classAvgVal} stroke="#8884d840" strokeDasharray="4 4" label={{ value: 'Class Avg', position: 'insideTopRight', fontSize: 10, fill: chartMuted }} />
                     <Area type="monotone" dataKey="score" name="Score" stroke={C.maroon} strokeWidth={3} fill="url(#sg)" dot={{ r: 5, fill: C.maroon, strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 7, strokeWidth: 0 }} />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
             </div>
 
-            <div className="bg-white p-6 rounded-xl border shadow-sm" style={{ borderColor: C.border }}>
+            <div className="bg-white dark:bg-[#1E1E22] p-6 rounded-xl border border-border-soft dark:border-neutral-800 shadow-sm">
               <Eyebrow label="Skill Balance" title="What is my skill profile?" />
               <div className="h-56">
                 <ResponsiveContainer width="100%" height="100%">
                   <RadarChart cx="50%" cy="50%" outerRadius="75%" data={radarData}>
-                    <PolarGrid stroke={C.border} />
-                    <PolarAngleAxis dataKey="subject" tick={{ fill: C.ink, fontSize: 11, fontWeight: 600 }} />
+                    <PolarGrid stroke="#52525B50" />
+                    <PolarAngleAxis dataKey="subject" tick={{ fill: chartText, fontSize: 11, fontWeight: 600 }} />
                     <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
-                    <Radar name="Score" dataKey="A" stroke={C.maroon} fill={C.maroon} fillOpacity={0.2} strokeWidth={2} dot={{ r: 3, fill: C.maroon }} />
+                    <Radar name="Score" dataKey="A" stroke={C.maroon} fill={C.maroon} fillOpacity={0.22} strokeWidth={2} dot={{ r: 3, fill: C.maroon }} />
                     <RechartsTooltip content={<CT />} />
                   </RadarChart>
                 </ResponsiveContainer>
@@ -371,16 +379,16 @@ export default function StudentAnalytics({ isDemo }: { isDemo?: boolean }) {
 
           {/* ── ROW 2: Strengths + Weaknesses ── */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            <div className="bg-white p-6 rounded-xl border shadow-sm" style={{ borderColor: C.border }}>
+            <div className="bg-white dark:bg-[#1E1E22] p-6 rounded-xl border border-border-soft dark:border-neutral-800 shadow-sm">
               <Eyebrow label="Top Strengths" title="What am I good at?" />
               <div className="space-y-4">
                 {!strengthsWeaknesses.strengths.length
-                  ? <p className="text-sm italic" style={{ color: C.gray }}>No data yet.</p>
+                  ? <p className="text-sm italic text-gray-body dark:text-neutral-400">No data yet.</p>
                   : strengthsWeaknesses.strengths.map((item, i) => (
                     <div key={i}>
                       <div className="flex justify-between items-center mb-1.5">
-                        <span className="text-sm font-medium" style={{ color: C.ink }}>{item.topic}</span>
-                        <span className="text-xs font-bold tabular-nums" style={{ color: C.good }}>{item.score}%</span>
+                        <span className="text-sm font-medium text-ink dark:text-neutral-200">{item.topic}</span>
+                        <span className="text-xs font-bold tabular-nums text-[#2A6B4A] dark:text-emerald-400">{item.score}%</span>
                       </div>
                       <MiniBar value={item.score} color={C.good} />
                     </div>
@@ -388,16 +396,16 @@ export default function StudentAnalytics({ isDemo }: { isDemo?: boolean }) {
               </div>
             </div>
 
-            <div className="bg-white p-6 rounded-xl border shadow-sm" style={{ borderColor: C.border }}>
+            <div className="bg-white dark:bg-[#1E1E22] p-6 rounded-xl border border-border-soft dark:border-neutral-800 shadow-sm">
               <Eyebrow label="Needs Work" title="What am I weak at?" />
               <div className="space-y-4">
                 {!strengthsWeaknesses.weaknesses.length
-                  ? <p className="text-sm italic" style={{ color: C.gray }}>No data yet.</p>
+                  ? <p className="text-sm italic text-gray-body dark:text-neutral-400">No data yet.</p>
                   : strengthsWeaknesses.weaknesses.map((item, i) => (
                     <div key={i}>
                       <div className="flex justify-between items-center mb-1.5">
-                        <span className="text-sm font-medium" style={{ color: C.ink }}>{item.topic}</span>
-                        <span className="text-xs font-bold tabular-nums" style={{ color: C.danger }}>{item.score}%</span>
+                        <span className="text-sm font-medium text-ink dark:text-neutral-200">{item.topic}</span>
+                        <span className="text-xs font-bold tabular-nums text-[#C13535] dark:text-red-400">{item.score}%</span>
                       </div>
                       <MiniBar value={item.score} danger />
                     </div>
@@ -408,37 +416,37 @@ export default function StudentAnalytics({ isDemo }: { isDemo?: boolean }) {
 
           {/* ── ROW 3: Benchmark + Distribution ── */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            <div className="bg-white p-6 rounded-xl border shadow-sm" style={{ borderColor: C.border }}>
+            <div className="bg-white dark:bg-[#1E1E22] p-6 rounded-xl border border-border-soft dark:border-neutral-800 shadow-sm">
               <Eyebrow label="Peer Comparison" title="How do I compare?" />
               <div className="h-60">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={benchmarkData} layout="vertical" margin={{ left: -20, right: 10 }} barCategoryGap="28%">
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={C.creamEdge} />
-                    <XAxis type="number" domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fill: C.gray, fontSize: 10 }} tickFormatter={v => `${v}%`} />
-                    <YAxis dataKey="topic" type="category" axisLine={false} tickLine={false} tick={{ fill: C.ink, fontSize: 10, fontWeight: 600 }} />
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#52525B30" />
+                    <XAxis type="number" domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fill: chartMuted, fontSize: 10 }} tickFormatter={v => `${v}%`} />
+                    <YAxis dataKey="topic" type="category" axisLine={false} tickLine={false} tick={{ fill: chartText, fontSize: 10, fontWeight: 600 }} />
                     <RechartsTooltip content={<CT />} />
-                    <Legend iconSize={8} wrapperStyle={{ fontSize: '11px', paddingTop: '10px', color: C.gray }} />
-                    <Bar dataKey="topper"   name="Topper"    fill={C.creamEdge}  radius={[0,4,4,0]} barSize={8} />
-                    <Bar dataKey="classAvg" name="Class Avg" fill={C.warn}       radius={[0,4,4,0]} barSize={8} />
-                    <Bar dataKey="you"      name="You"       fill={C.maroon}     radius={[0,4,4,0]} barSize={8} />
+                    <Legend iconSize={8} wrapperStyle={{ fontSize: '11px', paddingTop: '10px', color: chartMuted }} />
+                    <Bar dataKey="topper"   name="Topper"    fill="#9CA3AF"    radius={[0,4,4,0]} barSize={8} />
+                    <Bar dataKey="classAvg" name="Class Avg" fill={C.warn}     radius={[0,4,4,0]} barSize={8} />
+                    <Bar dataKey="you"      name="You"       fill={C.maroon}   radius={[0,4,4,0]} barSize={8} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </div>
 
-            <div className="bg-white p-6 rounded-xl border shadow-sm" style={{ borderColor: C.border }}>
+            <div className="bg-white dark:bg-[#1E1E22] p-6 rounded-xl border border-border-soft dark:border-neutral-800 shadow-sm">
               <Eyebrow label="Score Distribution" title="How consistent am I?" />
               <div className="h-60">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={distributionData} margin={{ left: -20 }} barCategoryGap="15%">
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={C.creamEdge} />
-                    <XAxis dataKey="range" axisLine={false} tickLine={false} tick={{ fill: C.gray, fontSize: 10 }} dy={6} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fill: C.gray, fontSize: 10 }} />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#52525B30" />
+                    <XAxis dataKey="range" axisLine={false} tickLine={false} tick={{ fill: chartMuted, fontSize: 10 }} dy={6} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fill: chartMuted, fontSize: 10 }} />
                     <RechartsTooltip content={<CT />} />
                     <Bar dataKey="count" name="count" radius={[4,4,0,0]} maxBarSize={40}>
                       {distributionData.map((entry, i) => {
                         const peak = entry.range === '71–80' || entry.range === '81–90';
-                        return <Cell key={i} fill={peak ? C.maroon : C.creamEdge} />;
+                        return <Cell key={i} fill={peak ? C.maroon : '#9CA3AF66'} />;
                       })}
                     </Bar>
                   </BarChart>
@@ -448,10 +456,10 @@ export default function StudentAnalytics({ isDemo }: { isDemo?: boolean }) {
           </div>
 
           {/* ── HEATMAP ── */}
-          <div className="bg-white p-6 rounded-xl border shadow-sm overflow-hidden" style={{ borderColor: C.border }}>
+          <div className="bg-white dark:bg-[#1E1E22] p-6 rounded-xl border border-border-soft dark:border-neutral-800 shadow-sm overflow-hidden">
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
               <Eyebrow label="Skill Evolution" title="How have skills changed each semester?" />
-              <div className="flex flex-wrap items-center gap-3 text-[10px] font-semibold" style={{ color: C.gray }}>
+              <div className="flex flex-wrap items-center gap-3 text-[10px] font-semibold text-gray-body dark:text-neutral-400">
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: '#8A1E1E' }}/>&lt;50</span>
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: '#B84020' }}/>50–69</span>
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: '#9B6B1A' }}/>70–84</span>
@@ -461,22 +469,22 @@ export default function StudentAnalytics({ isDemo }: { isDemo?: boolean }) {
             <div className="overflow-x-auto -mx-6 px-6">
               <table className="w-full text-sm min-w-[600px]">
                 <thead>
-                  <tr className="border-b" style={{ borderColor: C.creamEdge }}>
-                    <th className="text-left text-[11px] font-semibold pb-3 pr-6" style={{ color: C.gray }}>Topic</th>
+                  <tr className="border-b border-border-soft dark:border-neutral-800">
+                    <th className="text-left text-[11px] font-semibold pb-3 pr-6 text-gray-body dark:text-neutral-400">Topic</th>
                     {['Sem 3','Sem 4','Sem 5','Sem 6'].map(s => (
-                      <th key={s} className="text-center text-[11px] font-semibold pb-3 px-2" style={{ color: C.gray }}>{s}</th>
+                      <th key={s} className="text-center text-[11px] font-semibold pb-3 px-2 text-gray-body dark:text-neutral-400">{s}</th>
                     ))}
-                    <th className="text-center text-[11px] font-semibold pb-3 pl-4" style={{ color: C.gray }}>Net Change</th>
+                    <th className="text-center text-[11px] font-semibold pb-3 pl-4 text-gray-body dark:text-neutral-400">Net Change</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border-soft">
+                <tbody className="divide-y divide-border-soft dark:divide-neutral-800">
                   {heatmapData.length === 0 ? (
-                    <tr><td colSpan={6} className="py-8 text-center text-sm italic" style={{ color: C.gray }}>No data yet. Use sample data to preview.</td></tr>
+                    <tr><td colSpan={6} className="py-8 text-center text-sm italic text-gray-body dark:text-neutral-400">No data yet. Use sample data to preview.</td></tr>
                   ) : heatmapData.map((row: any, i) => {
                     const delta = (row.s4 || 0) - (row.s1 || 0);
                     return (
-                      <tr key={i} className="hover:bg-cream/30 transition-colors">
-                        <td className="py-3 pr-6 text-xs font-semibold" style={{ color: C.ink }}>{row.topic}</td>
+                      <tr key={i} className="hover:bg-cream/30 dark:hover:bg-neutral-800/40 transition-colors">
+                        <td className="py-3 pr-6 text-xs font-semibold text-ink dark:text-neutral-200">{row.topic}</td>
                         {[row.s1, row.s2, row.s3, row.s4].map((score: number, j: number) => {
                           const { bg, text } = heatBg(score || 0);
                           return (
@@ -488,7 +496,13 @@ export default function StudentAnalytics({ isDemo }: { isDemo?: boolean }) {
                           );
                         })}
                         <td className="py-3 pl-4 text-center">
-                          <span className="text-xs font-bold px-2 py-1 rounded-md" style={{ background: delta > 0 ? '#EBF5EE' : delta < 0 ? '#FAEAEA' : C.cream, color: delta > 0 ? C.good : delta < 0 ? C.danger : C.gray }}>
+                          <span className={`text-xs font-bold px-2 py-1 rounded-md ${
+                            delta > 0
+                              ? 'bg-emerald-50 dark:bg-emerald-950/50 text-[#2A6B4A] dark:text-emerald-300'
+                              : delta < 0
+                              ? 'bg-red-50 dark:bg-red-950/50 text-[#C13535] dark:text-red-300'
+                              : 'bg-cream dark:bg-neutral-800 text-gray-body dark:text-neutral-400'
+                          }`}>
                             {delta > 0 ? `+${delta}` : delta < 0 ? String(delta) : '—'}
                           </span>
                         </td>
@@ -508,49 +522,49 @@ export default function StudentAnalytics({ isDemo }: { isDemo?: boolean }) {
         <div className="space-y-6 animate-in fade-in duration-300">
           
           {sheetAnalytics.length === 0 ? (
-            <div className="bg-cream/40 p-8 rounded-xl border border-dashed border-border-soft text-center text-gray-body text-sm">
+            <div className="bg-cream/40 dark:bg-neutral-900/40 p-8 rounded-xl border border-dashed border-border-soft dark:border-neutral-800 text-center text-gray-body dark:text-neutral-400 text-sm">
               No sheet analytics data available. Start solving sheet questions to see your progress!
             </div>
           ) : (
             sheetAnalytics.map(sheet => (
               <div key={sheet.id} className="space-y-6">
                 <div className="flex items-center gap-2 mb-2">
-                  <BookOpen className="w-5 h-5 text-maroon" />
-                  <h3 className="text-xl font-serif font-bold text-ink">{sheet.title}</h3>
+                  <BookOpen className="w-5 h-5 text-maroon dark:text-rose-400" />
+                  <h3 className="text-xl font-serif font-bold text-ink dark:text-neutral-100">{sheet.title}</h3>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                  <div className="bg-white p-6 rounded-xl border shadow-sm flex flex-col justify-center" style={{ borderColor: C.border }}>
+                  <div className="bg-white dark:bg-[#1E1E22] p-6 rounded-xl border border-border-soft dark:border-neutral-800 shadow-sm flex flex-col justify-center">
                     <div className="flex items-center gap-5">
-                      <div className="p-3.5 bg-maroon/5 rounded-full border" style={{ borderColor: C.maroonFaint }}>
-                        <CheckCircle2 className="w-6 h-6 text-maroon" />
+                      <div className="p-3.5 bg-maroon/5 dark:bg-rose-500/15 rounded-full border border-maroon/15 dark:border-rose-500/30">
+                        <CheckCircle2 className="w-6 h-6 text-maroon dark:text-rose-400" />
                       </div>
                       <div>
-                        <p className="text-[9px] tracking-[0.12em] uppercase font-bold text-gray-body mb-1">Total Questions</p>
-                        <p className="text-3xl font-bold text-ink leading-none">{sheet.totalQuestions}</p>
+                        <p className="text-[9px] tracking-[0.12em] uppercase font-bold text-gray-body dark:text-neutral-400 mb-1">Total Questions</p>
+                        <p className="text-3xl font-bold text-ink dark:text-neutral-100 leading-none">{sheet.totalQuestions}</p>
                       </div>
                     </div>
                   </div>
-                  <div className="bg-white p-6 rounded-xl border shadow-sm flex flex-col justify-center" style={{ borderColor: C.border }}>
+                  <div className="bg-white dark:bg-[#1E1E22] p-6 rounded-xl border border-border-soft dark:border-neutral-800 shadow-sm flex flex-col justify-center">
                     <div className="flex items-center gap-5">
-                      <div className="p-3.5 rounded-full border" style={{ background: '#EBF5EE', borderColor: '#D1E6DA' }}>
-                        <BookOpen className="w-6 h-6" style={{ color: C.good }} />
+                      <div className="p-3.5 rounded-full border bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/50">
+                        <BookOpen className="w-6 h-6 text-[#2A6B4A] dark:text-emerald-400" />
                       </div>
                       <div>
-                        <p className="text-[9px] tracking-[0.12em] uppercase font-bold text-gray-body mb-1">Solved</p>
-                        <p className="text-3xl font-bold text-ink leading-none">{sheet.solvedQuestions}</p>
+                        <p className="text-[9px] tracking-[0.12em] uppercase font-bold text-gray-body dark:text-neutral-400 mb-1">Solved</p>
+                        <p className="text-3xl font-bold text-ink dark:text-neutral-100 leading-none">{sheet.solvedQuestions}</p>
                       </div>
                     </div>
                   </div>
-                  <div className="bg-white p-6 rounded-xl border shadow-sm flex flex-col justify-center" style={{ borderColor: C.border }}>
+                  <div className="bg-white dark:bg-[#1E1E22] p-6 rounded-xl border border-border-soft dark:border-neutral-800 shadow-sm flex flex-col justify-center">
                     <div className="flex items-center gap-5">
-                      <div className="p-3.5 rounded-full border" style={{ background: '#FDF5E8', borderColor: '#F2D7B4' }}>
-                        <TrendingUp className="w-6 h-6" style={{ color: C.warn }} />
+                      <div className="p-3.5 rounded-full border bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/50">
+                        <TrendingUp className="w-6 h-6 text-[#C07820] dark:text-amber-400" />
                       </div>
                       <div className="flex-1 w-full">
-                        <p className="text-[9px] tracking-[0.12em] uppercase font-bold text-gray-body mb-1">Overall Progress</p>
+                        <p className="text-[9px] tracking-[0.12em] uppercase font-bold text-gray-body dark:text-neutral-400 mb-1">Overall Progress</p>
                         <div className="flex justify-between items-end mb-1">
-                          <p className="text-xl font-bold text-ink leading-none">{sheet.progress}%</p>
+                          <p className="text-xl font-bold text-ink dark:text-neutral-100 leading-none">{sheet.progress}%</p>
                         </div>
                         <MiniBar value={sheet.progress} color={sheet.progress > 75 ? C.good : sheet.progress > 40 ? C.warn : C.danger} />
                       </div>
@@ -559,38 +573,38 @@ export default function StudentAnalytics({ isDemo }: { isDemo?: boolean }) {
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                  <div className="bg-white p-6 rounded-xl border shadow-sm" style={{ borderColor: C.border }}>
+                  <div className="bg-white dark:bg-[#1E1E22] p-6 rounded-xl border border-border-soft dark:border-neutral-800 shadow-sm">
                     <Eyebrow label="Skill Net" title="Topic Mastery Radar" />
                     <div className="h-64">
                       {sheet.topicStats && sheet.topicStats.length > 0 ? (
                         <ResponsiveContainer width="100%" height="100%">
                           <RadarChart cx="50%" cy="50%" outerRadius="70%" data={sheet.topicStats}>
-                            <PolarGrid stroke={C.border} />
-                            <PolarAngleAxis dataKey="subject" tick={{ fill: C.ink, fontSize: 10, fontWeight: 500 }} />
+                            <PolarGrid stroke="#52525B50" />
+                            <PolarAngleAxis dataKey="subject" tick={{ fill: chartText, fontSize: 10, fontWeight: 500 }} />
                             <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
-                            <Radar name="Completion %" dataKey="A" stroke={C.maroon} fill={C.maroon} fillOpacity={0.2} strokeWidth={2} dot={{ r: 3, fill: C.maroon }} />
+                            <Radar name="Completion %" dataKey="A" stroke={C.maroon} fill={C.maroon} fillOpacity={0.22} strokeWidth={2} dot={{ r: 3, fill: C.maroon }} />
                             <RechartsTooltip content={<CT />} />
                           </RadarChart>
                         </ResponsiveContainer>
                       ) : (
-                        <div className="flex items-center justify-center h-full text-sm text-gray-body italic">No topic stats available</div>
+                        <div className="flex items-center justify-center h-full text-sm text-gray-body dark:text-neutral-400 italic">No topic stats available</div>
                       )}
                     </div>
                   </div>
 
-                  <div className="bg-white p-6 rounded-xl border shadow-sm flex flex-col gap-6" style={{ borderColor: C.border }}>
+                  <div className="bg-white dark:bg-[#1E1E22] p-6 rounded-xl border border-border-soft dark:border-neutral-800 shadow-sm flex flex-col gap-6">
                     <div>
                       <Eyebrow label="Strongest Topics" title="High Completion Rate" />
                       <div className="space-y-3">
                         {sheet.strongTopics?.length ? sheet.strongTopics.map((topic: any, i: number) => (
                           <div key={i}>
                             <div className="flex justify-between items-center mb-1">
-                              <span className="text-sm font-medium text-ink truncate mr-4">{topic.name}</span>
-                              <span className="text-xs font-bold text-green-700">{topic.score}%</span>
+                              <span className="text-sm font-medium text-ink dark:text-neutral-200 truncate mr-4">{topic.name}</span>
+                              <span className="text-xs font-bold text-green-700 dark:text-emerald-400">{topic.score}%</span>
                             </div>
                             <MiniBar value={topic.score} color={C.good} />
                           </div>
-                        )) : <div className="text-xs text-gray-body italic">Not enough data</div>}
+                        )) : <div className="text-xs text-gray-body dark:text-neutral-400 italic">Not enough data</div>}
                       </div>
                     </div>
                     <div>
@@ -599,18 +613,18 @@ export default function StudentAnalytics({ isDemo }: { isDemo?: boolean }) {
                         {sheet.weakTopics?.length ? sheet.weakTopics.map((topic: any, i: number) => (
                           <div key={i}>
                             <div className="flex justify-between items-center mb-1">
-                              <span className="text-sm font-medium text-ink truncate mr-4">{topic.name}</span>
-                              <span className="text-xs font-bold text-red-700">{topic.score}%</span>
+                              <span className="text-sm font-medium text-ink dark:text-neutral-200 truncate mr-4">{topic.name}</span>
+                              <span className="text-xs font-bold text-red-700 dark:text-red-400">{topic.score}%</span>
                             </div>
                             <MiniBar value={topic.score} danger />
                           </div>
-                        )) : <div className="text-xs text-gray-body italic">Not enough data</div>}
+                        )) : <div className="text-xs text-gray-body dark:text-neutral-400 italic">Not enough data</div>}
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <hr className="my-8 border-border-soft" />
+                <hr className="my-8 border-border-soft dark:border-neutral-800" />
               </div>
             ))
           )}
