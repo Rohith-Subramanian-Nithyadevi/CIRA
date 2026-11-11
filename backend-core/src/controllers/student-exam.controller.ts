@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { ResponseStatus, QuestionType } from '@prisma/client';
 import { prisma } from '../config/prisma';
 import { BadRequestError, ForbiddenError, UnauthorizedError } from '../utils/errors';
+import { assertStudentOwnsAttempt } from '../utils/faculty-security';
 
 // Get eligible quizzes for the logged-in student
 export const getEligibleQuizzes = async (req: Request, res: Response, next: NextFunction) => {
@@ -23,6 +24,7 @@ export const getEligibleQuizzes = async (req: Request, res: Response, next: Next
     const quizzes = await prisma.quiz.findMany({
       where: {
         AND: [
+          { paperStatus: 'PUBLISHED' },
           {
             OR: [
               { targetDepartments: { some: { departmentId: user.departmentId || '' } } },
@@ -72,8 +74,11 @@ export const startExam = async (req: Request, res: Response, next: NextFunction)
     });
 
     // Check quiz schedule before allowing new attempt
-    const quizMetadata = await prisma.quiz.findUnique({ where: { id: quizId } });
+    const quizMetadata = await prisma.quiz.findUnique({ where: { id: quizId }, include: { targetDepartments: true, targetSections: true, targetStudents: true } });
     if (!quizMetadata) throw new BadRequestError('Quiz not found', 'NOT_FOUND');
+    const student = await prisma.user.findUnique({ where: { id: userId }, select: { departmentId: true, sectionId: true } });
+    const targeted = quizMetadata.targetDepartments.some((target) => target.departmentId === student?.departmentId) || quizMetadata.targetSections.some((target) => target.sectionId === student?.sectionId) || quizMetadata.targetStudents.some((target) => target.userId === userId);
+    if (quizMetadata.paperStatus !== 'PUBLISHED' || !targeted) throw new ForbiddenError('This assessment is not available to your class.', 'FORBIDDEN');
     
     if (!attempt) {
       const now = new Date();
@@ -121,11 +126,18 @@ export const startExam = async (req: Request, res: Response, next: NextFunction)
       where: { id: quizId },
       include: {
         questions: {
-          select: { id: true, type: true, text: true, marks: true, negativeMarks: true, options: true, quizId: true } // Exclude answerKey
-        }
+          select: { id: true, type: true, text: true, marks: true, negativeMarks: true, options: true, quizId: true, image: true } // Exclude answerKey
+        },
+        questionUsages: { where: { isFinalized: true }, include: { question: { select: { id: true, type: true, text: true, marks: true, negativeMarks: true, options: true, image: true } } }, orderBy: { sortOrder: 'asc' } }
       }
     });
 
+    if (quiz) {
+      const usedIds = new Set(quiz.questions.map((question: any) => question.id));
+      const paperQuestions = quiz.questionUsages.filter((usage: any) => !usedIds.has(usage.questionId)).map((usage: any) => ({ ...usage.question, marks: usage.marks, quizId }));
+      quiz.questions = [...quiz.questions, ...paperQuestions] as any;
+      delete (quiz as any).questionUsages;
+    }
     if (quiz && quiz.questions) {
       quiz.questions = quiz.questions.map((q: any) => {
         if (q.type === 'MATCHING' && Array.isArray(q.options)) {
@@ -154,16 +166,14 @@ export const saveResponse = async (req: Request, res: Response, next: NextFuncti
       throw new BadRequestError('Invalid or submitted attempt', 'FORBIDDEN');
     }
 
-    const currentUserId = (req as any).user?.userId;
-    if (currentUserId && attempt.userId !== currentUserId) {
-      throw new ForbiddenError('You can only save responses to your own exam attempts.', 'ERR_FORBIDDEN_ATTEMPT_OWNERSHIP');
-    }
+    const currentUser = (req as any).user;
+    assertStudentOwnsAttempt(currentUser, attempt);
 
     // Cross-quiz validation: verify questionId strictly belongs to the quiz of this attempt
     const question = await prisma.question.findFirst({
       where: {
         id: questionId,
-        quizId: attempt.quizId
+        OR: [{ quizId: attempt.quizId }, { usages: { some: { quizId: attempt.quizId } } }]
       },
       select: { id: true }
     });
@@ -204,24 +214,23 @@ export const submitExam = async (req: Request, res: Response, next: NextFunction
       where: { id: attemptId },
       include: {
         responses: true,
-        quiz: { include: { questions: true } }
+        quiz: { include: { questions: true, questionUsages: { where: { isFinalized: true }, include: { question: true } } } }
       }
     });
 
     if (!attempt) throw new BadRequestError('Attempt not found', 'NOT_FOUND');
     if (attempt.status !== 'IN_PROGRESS') throw new BadRequestError('Exam already submitted', 'FORBIDDEN');
 
-    const currentUserId = (req as any).user?.userId;
-    if (currentUserId && attempt.userId !== currentUserId) {
-      throw new ForbiddenError('You can only submit your own exam attempt.', 'ERR_FORBIDDEN_ATTEMPT_SUBMIT');
-    }
+    assertStudentOwnsAttempt((req as any).user, attempt);
 
+    const usedQuestionIds = new Set(attempt.quiz.questions.map((question: any) => question.id));
+    const gradingQuestions = [...attempt.quiz.questions, ...attempt.quiz.questionUsages.filter((usage: any) => !usedQuestionIds.has(usage.questionId)).map((usage: any) => ({ ...usage.question, marks: usage.marks }))];
     let objectiveScore = 0;
 
     // Auto Evaluate
     for (const response of attempt.responses) {
       if (response.status === 'ANSWERED' || response.status === 'ANSWERED_AND_MARKED_FOR_REVIEW') {
-        const question = attempt.quiz.questions.find((q: any) => q.id === response.questionId);
+        const question = gradingQuestions.find((q: any) => q.id === response.questionId);
         if (question) {
           // Objective evaluation logic based on type
           const isObjective = ['MCQ', 'MULTI_SELECT', 'TRUE_FALSE', 'MATCHING', 'NUMERICAL', 'FILL_BLANK'].includes(question.type);

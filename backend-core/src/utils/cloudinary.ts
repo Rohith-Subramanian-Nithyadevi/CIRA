@@ -39,3 +39,15 @@ export const uploadToCloudinary = async (localFilePath: string): Promise<string 
     }
   }
 };
+
+export const uploadToCloudinaryBuffer = (buffer: Buffer, mimeType: string): Promise<string | null> => new Promise((resolve) => {
+  if (!process.env.CLOUDINARY_CLOUD_NAME || !buffer.length) return resolve(null);
+  const allowed = new Set(['image/png', 'image/jpeg', 'image/webp']);
+  if (!allowed.has(mimeType)) return resolve(null);
+  const stream = cloudinary.uploader.upload_stream({
+    folder: 'cira-quiz-images',
+    resource_type: 'image',
+    allowed_formats: ['png', 'jpg', 'jpeg', 'webp'],
+  }, (error: unknown, result?: { secure_url?: string }) => resolve(error || !result?.secure_url ? null : result.secure_url));
+  stream.end(buffer);
+});

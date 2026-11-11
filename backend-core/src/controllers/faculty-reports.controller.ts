@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../config/prisma';
-import { ForbiddenError, NotFoundError } from '../utils/errors';
+import { BadRequestError, NotFoundError } from '../utils/errors';
+import { buildFacultyStudentWhere } from '../utils/faculty-student-scope';
 
 /**
  * Get aggregated performance band statistics for Batch / Department / Section
@@ -8,12 +9,14 @@ import { ForbiddenError, NotFoundError } from '../utils/errors';
  */
 export const getPerformanceBands = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = (req as any).user?.userId;
     const userRole = (req as any).user?.role;
 
     const batchId = req.query.batchId as string | undefined;
     const departmentId = req.query.departmentId as string | undefined;
     const sectionId = req.query.sectionId as string | undefined;
+    const rawYear = req.query.year;
+    const year = rawYear === undefined || rawYear === '' ? undefined : Number(rawYear);
+    if (year !== undefined && !Number.isInteger(year)) throw new BadRequestError('Year must be a valid integer.', 'ERR_INVALID_YEAR');
 
     const quizTargetScope: any = sectionId
       ? {
@@ -26,63 +29,7 @@ export const getPerformanceBands = async (req: Request, res: Response, next: Nex
         ? { targetDepartments: { some: { departmentId } } }
         : undefined;
 
-    // Faculty authorization scoping
-    let mappedDeptIds: string[] = [];
-    if (userRole !== 'ADMIN') {
-      const mappings = await prisma.facultyDepartment.findMany({
-        where: { userId },
-        select: { departmentId: true }
-      });
-      mappedDeptIds = mappings.map(m => m.departmentId);
-
-      // If specific department is requested, verify faculty is assigned
-      if (departmentId && mappedDeptIds.length > 0 && !mappedDeptIds.includes(departmentId)) {
-        throw new ForbiddenError('You are not authorized to view reports for this department', 'ERR_FORBIDDEN');
-      }
-
-      // If specific section is requested, verify its department is assigned
-      if (sectionId) {
-        const targetSection = await prisma.section.findUnique({
-          where: { id: sectionId },
-          select: { departmentId: true }
-        });
-        if (!targetSection) {
-          throw new NotFoundError('Section not found', 'ERR_NOT_FOUND');
-        }
-        if (mappedDeptIds.length > 0 && !mappedDeptIds.includes(targetSection.departmentId)) {
-          throw new ForbiddenError('You are not authorized to view reports for this section', 'ERR_FORBIDDEN');
-        }
-      }
-
-      // If batch requested, verify at least one department in batch belongs to faculty if mappings exist
-      if (batchId && !departmentId && mappedDeptIds.length > 0) {
-        const batchDepts = await prisma.department.findMany({
-          where: { batchId, id: { in: mappedDeptIds } },
-          select: { id: true }
-        });
-        if (batchDepts.length === 0) {
-          throw new ForbiddenError('You are not authorized for departments in this batch', 'ERR_FORBIDDEN');
-        }
-      }
-    }
-
-    // Build Student Filter
-    const studentWhere: any = { role: 'STUDENT' };
-
-    if (sectionId) {
-      studentWhere.sectionId = sectionId;
-    } else if (departmentId) {
-      studentWhere.departmentId = departmentId;
-    } else if (batchId) {
-      if (userRole !== 'ADMIN' && mappedDeptIds.length > 0) {
-        studentWhere.departmentId = { in: mappedDeptIds };
-        studentWhere.department = { batchId };
-      } else {
-        studentWhere.department = { batchId };
-      }
-    } else if (userRole !== 'ADMIN' && mappedDeptIds.length > 0) {
-      studentWhere.departmentId = { in: mappedDeptIds };
-    }
+    const studentWhere = buildFacultyStudentWhere(req.facultyScope, { year, batchId, departmentId, sectionId }, userRole === 'ADMIN');
 
     // Fetch students with their completed quiz attempts
     const students = await prisma.user.findMany({
@@ -115,9 +62,10 @@ export const getPerformanceBands = async (req: Request, res: Response, next: Nex
 
     // Fetch sections if department is specified
     let sections: { id: string; name: string }[] = [];
-    if (departmentId) {
+    const scopedSectionIds = [...new Set(students.map((student) => student.sectionId).filter((id): id is string => Boolean(id)))];
+    if (departmentId && scopedSectionIds.length) {
       sections = await prisma.section.findMany({
-        where: { departmentId },
+        where: { id: { in: scopedSectionIds }, departmentId },
         select: { id: true, name: true },
         orderBy: { name: 'asc' }
       });
@@ -232,9 +180,16 @@ export const getPerformanceBands = async (req: Request, res: Response, next: Nex
 
 export const getQuizAnalytics = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = (req as any).user?.userId;
     const userRole = (req as any).user?.role;
     const quizId = req.params.quizId as string;
+    const rawYear = req.query.year;
+    const year = rawYear === undefined || rawYear === '' ? undefined : Number(rawYear);
+    if (year !== undefined && !Number.isInteger(year)) throw new BadRequestError('Year must be a valid integer.', 'ERR_INVALID_YEAR');
+    const studentWhere = buildFacultyStudentWhere(req.facultyScope, {
+      year,
+      departmentId: typeof req.query.departmentId === 'string' ? req.query.departmentId : undefined,
+      sectionId: typeof req.query.sectionId === 'string' ? req.query.sectionId : undefined,
+    }, userRole === 'ADMIN');
 
     const quiz = await prisma.quiz.findUnique({
       where: { id: quizId },
@@ -266,8 +221,7 @@ export const getQuizAnalytics = async (req: Request, res: Response, next: NextFu
         quizId,
         status: { in: ['SUBMITTED', 'EVALUATED'] },
         user: {
-          role: 'STUDENT',
-          ...(audienceFilters.length ? { OR: audienceFilters } : {})
+          AND: [studentWhere, ...(audienceFilters.length ? [{ OR: audienceFilters }] : [])]
         }
       },
       select: {

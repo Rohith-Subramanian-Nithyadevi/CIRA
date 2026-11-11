@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { ChevronLeft, CheckCircle2, Circle, Search, Loader2 } from 'lucide-react';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { apiClient } from '@/lib/apiClient';
+import { downloadCsv } from '@/lib/csv';
+import { useFacultyDemo } from '@/context/FacultyDemoContext';
+import { facultyDemoSubmissions } from '@/lib/facultyDemoData';
 
 interface AssignmentSubmissionsViewProps {
   assignmentId: string;
@@ -9,21 +12,35 @@ interface AssignmentSubmissionsViewProps {
 }
 
 export default function AssignmentSubmissionsView({ assignmentId, onBack }: AssignmentSubmissionsViewProps) {
+  const isDemo = useFacultyDemo();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'ALL' | 'SUBMITTED' | 'GRADED' | 'NOT_SUBMITTED'>('ALL');
   const [search, setSearch] = useState('');
   const [gradingState, setGradingState] = useState<{ [key: string]: { grade: string, feedback: string, saving: boolean, error: string } }>({});
 
   useEffect(() => {
     fetchSubmissions();
-  }, [assignmentId]);
+  }, [assignmentId, isDemo]);
 
   const fetchSubmissions = async () => {
     try {
+      if (isDemo) {
+        const demo = facultyDemoSubmissions(assignmentId);
+        setData(demo);
+        const initialGrading: any = {};
+        demo.submissions.forEach((s: any) => {
+          if (s.status === 'SUBMITTED' || s.status === 'GRADED') initialGrading[s.submissionId] = { grade: s.grade?.toString() || '', feedback: s.feedback || '', saving: false, error: '' };
+        });
+        setGradingState(initialGrading);
+        setLoadError(null);
+        return;
+      }
       const res = await apiClient.fetch(`/api/v1/assignments/faculty/${assignmentId}/submissions`);
       const json = await res.json();
       if (json.success) {
+        setLoadError(null);
         setData(json.data);
         
         // Initialize grading state
@@ -40,8 +57,8 @@ export default function AssignmentSubmissionsView({ assignmentId, onBack }: Assi
         });
         setGradingState(initialGrading);
       }
-    } catch (err) {
-      console.error(err);
+    } catch (_err) {
+      setLoadError('Submissions could not be loaded.');
     } finally {
       setLoading(false);
     }
@@ -63,6 +80,25 @@ export default function AssignmentSubmissionsView({ assignmentId, onBack }: Assi
     }
 
     setGradingState(prev => ({ ...prev, [submissionId]: { ...currentState, saving: true, error: '' } }));
+
+    if (isDemo) {
+      setGradingState(prev => ({ ...prev, [submissionId]: { ...currentState, saving: false, error: '' } }));
+      setData((previous: any) => {
+        const submissions = previous.submissions.map((submission: any) => submission.submissionId === submissionId
+          ? { ...submission, status: 'GRADED', grade: numericGrade, feedback: currentState.feedback }
+          : submission);
+        return {
+        ...previous,
+        summary: {
+          ...previous.summary,
+          graded: submissions.filter((submission: any) => submission.status === 'GRADED').length,
+          submitted: submissions.filter((submission: any) => submission.status === 'SUBMITTED' || submission.status === 'GRADED').length,
+        },
+        submissions,
+      };
+      });
+      return;
+    }
 
     try {
       const res = await apiClient.fetch(`/api/v1/assignments/faculty/${assignmentId}/submissions/${submissionId}/grade`, {
@@ -119,14 +155,28 @@ export default function AssignmentSubmissionsView({ assignmentId, onBack }: Assi
     );
   }
 
+<<<<<<< HEAD
   if (!data) return <div className="rounded-2xl border border-red-200 dark:border-red-900/50 bg-red-50/90 dark:bg-red-950/30 p-8 text-center font-semibold text-red-700 dark:text-red-400 shadow-sm">Failed to load submissions. Please try again.</div>;
+=======
+  if (!data) return (
+    <div className="rounded-2xl border border-red-200 bg-red-50/90 p-8 text-center font-semibold text-red-700 shadow-sm">
+      <p>{loadError || 'Failed to load submissions.'}</p>
+      <button type="button" onClick={() => { setLoading(true); fetchSubmissions(); }} className="mt-4 rounded-lg bg-maroon px-4 py-2 text-sm text-white">Retry</button>
+    </div>
+  );
+>>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
 
   const filteredSubmissions = data.submissions
     .filter((s: any) => filter === 'ALL' || s.status === filter || (filter === 'SUBMITTED' && s.status === 'GRADED'))
     .filter((s: any) => s.studentName.toLowerCase().includes(search.toLowerCase()) || s.rollNumber?.toLowerCase().includes(search.toLowerCase()));
 
+  const exportRoster = () => {
+    const dateStamp = new Date().toISOString().slice(0, 10);
+    downloadCsv(filteredSubmissions, ['studentName', 'rollNumber', 'status', 'grade', 'feedback'], `assignment_submissions_${data.assignment.id}_${filter.toLowerCase()}_${dateStamp}`);
+  };
+
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="assignment-roster space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center gap-4">
         <button onClick={onBack} className="rounded-full border border-border-soft bg-white/80 dark:bg-[#1E1E22] p-2 shadow-xs transition-all hover:-translate-x-0.5 hover:bg-cream hover:shadow-sm">
           <ChevronLeft className="w-6 h-6 text-gray-body" />
@@ -135,10 +185,19 @@ export default function AssignmentSubmissionsView({ assignmentId, onBack }: Assi
           <h2 className="text-xl font-serif font-bold text-ink">{data.assignment.title}</h2>
           <p className="text-sm text-gray-body">Submissions & Grading</p>
         </div>
+        <div className="ml-auto flex gap-2">
+          <button type="button" onClick={exportRoster} disabled={filteredSubmissions.length === 0} className="rounded-lg border border-border-soft bg-white px-3 py-2 text-sm font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-50">Export CSV</button>
+          <button type="button" onClick={() => window.print()} className="rounded-lg border border-border-soft bg-white px-3 py-2 text-sm font-semibold text-ink print:hidden">Print</button>
+        </div>
       </div>
 
+<<<<<<< HEAD
       <div className="grid grid-cols-4 gap-4">
         <div className="rounded-xl border border-border-soft bg-white/90 dark:bg-[#1E1E22] p-4 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+=======
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div className="rounded-xl border border-border-soft bg-white/90 p-4 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+>>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
           <div className="text-2xl font-bold text-ink">{data.summary.totalAssigned}</div>
           <div className="text-xs font-semibold text-gray-body uppercase tracking-wider">Assigned</div>
         </div>
@@ -178,7 +237,11 @@ export default function AssignmentSubmissionsView({ assignmentId, onBack }: Assi
               placeholder="Search students..." 
               value={search}
               onChange={e => setSearch(e.target.value)}
+<<<<<<< HEAD
               className="w-64 rounded-full border border-border-soft bg-white/90 dark:bg-[#18181B] text-ink py-1.5 pl-9 pr-4 text-sm transition-shadow focus:outline-none focus:ring-2 focus:ring-maroon/20 focus:shadow-sm"
+=======
+              className="w-full sm:w-64 rounded-full border border-border-soft bg-white/90 py-1.5 pl-9 pr-4 text-sm transition-shadow focus:outline-none focus:ring-2 focus:ring-maroon/20 focus:shadow-sm"
+>>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
             />
           </div>
         </div>

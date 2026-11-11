@@ -14,9 +14,16 @@ export const errorHandler = (
   let statusCode = 500;
   let error = {
     code: 'ERR_INTERNAL_SERVER',
-    message: err.message || 'An unexpected error occurred.',
+    message: 'Something went wrong while processing your request. Please try again, and contact your administrator if the problem continues.',
     details: null as any,
   };
+
+  // Prisma's missing-column error usually means the application is ahead of
+  // the database schema. Keep the diagnosis in server logs, not the API body.
+  if ((err as any).code === 'P2022') {
+    error.code = 'ERR_FEATURE_UNAVAILABLE';
+    error.message = 'This section is temporarily unavailable while a system update is completed. Please try again later or contact your administrator.';
+  }
 
   if (err instanceof AppError) {
     statusCode = err.statusCode;
@@ -30,11 +37,6 @@ export const errorHandler = (
     error.code = 'ERR_VALIDATION';
     error.message = 'Validation Error';
     error.details = err.issues;
-  }
-
-  // Include detailed stack/message when not explicitly in production
-  if (process.env.NODE_ENV !== 'production') {
-    error.details = error.details || err.stack || err.message;
   }
 
   res.status(statusCode).json({ error });

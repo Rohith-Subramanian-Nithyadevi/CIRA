@@ -5,6 +5,16 @@
     <link rel="icon" type="image/x-icon" href="/img/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>CIRA</title>
+    <script>
+      (function () {
+        try {
+          if (localStorage.getItem('cira_theme') === 'dark') {
+            document.documentElement.classList.add('dark');
+            document.documentElement.style.colorScheme = 'dark';
+          }
+        } catch (_) {}
+      }());
+    </script>
     <link href="https://api.fontshare.com/v2/css?f[]=satoshi@900,700,500,300,400&display=swap" rel="stylesheet">
   </head>
   <body>

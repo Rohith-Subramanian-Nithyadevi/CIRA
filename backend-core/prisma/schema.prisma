@@ -38,6 +38,18 @@ enum QuestionType {
   CODING
 }
 
+enum QuestionCategory {
+  ASSIGNMENT
+  TEST_QUIZ
+}
+
+enum PaperStatus {
+  DRAFT
+  READY
+  PUBLISHED
+  CLOSED
+}
+
 enum ResponseStatus {
   NOT_VISITED
   NOT_ANSWERED
@@ -138,6 +150,7 @@ model User {
   studentAchievements    StudentAchievement[] @relation("StudentAchievements")
   studentNotifications   StudentNotification[] @relation("StudentNotifications")
   sheetProgress          StudentSheetProgress[]
+  ownedQuestions         Question[]       @relation("QuestionOwner")
 }
 
 model FacultyDepartment {
@@ -180,8 +193,11 @@ model Quiz {
   
   createdBy        String
   createdAt        DateTime      @default(now())
+  paperCategory    QuestionCategory?
+  paperStatus      PaperStatus   @default(PUBLISHED)
   
   questions        Question[]
+  questionUsages   QuestionUsage[]
   attempts         QuizAttempt[]
   targetDepartments QuizDepartment[]
   targetSections    QuizSection[]
@@ -190,10 +206,18 @@ model Quiz {
 
 model Question {
   id            String       @id @default(uuid())
-  quizId        String
+  quizId        String?
+  ownerId       String?
+  category      QuestionCategory @default(TEST_QUIZ)
+  subject       String?
   type          QuestionType
   text          String
   topic         String?      // legacy free-text topic
+  subtopic      String?
+  difficulty    String?
+  tags          String[]     @default([])
+  createdAt     DateTime     @default(now())
+  archivedAt    DateTime?
   topicId       String?      // FK to Topic model (Option B)
   topicRef      Topic?       @relation("QuestionTopic", fields: [topicId], references: [id], onDelete: SetNull)
   marks         Float
@@ -203,8 +227,35 @@ model Question {
   explanation   String?      // Optional explanation
   image         String?      // Optional image URL
 
-  quiz          Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  quiz          Quiz?        @relation(fields: [quizId], references: [id], onDelete: SetNull)
+  owner         User?        @relation("QuestionOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   responses     QuizResponse[]
+  usages        QuestionUsage[]
+
+  @@index([ownerId])
+  @@index([category])
+  @@index([archivedAt])
+}
+
+model QuestionUsage {
+  id              String           @id @default(uuid())
+  questionId      String
+  category        QuestionCategory
+  quizId          String?
+  assignmentId    String?
+  assessmentTitle String
+  marks           Float
+  sortOrder       Int              @default(0)
+  wasReused       Boolean          @default(false)
+  isFinalized     Boolean          @default(true)
+  usedAt          DateTime         @default(now())
+  question        Question         @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  quiz            Quiz?            @relation(fields: [quizId], references: [id], onDelete: SetNull)
+  assignment      Assignment?      @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+
+  @@index([questionId, category])
+  @@index([quizId])
+  @@index([assignmentId])
 }
 
 model QuizDepartment {
@@ -286,6 +337,7 @@ model Assignment {
   createdAt    DateTime @default(now())
   
   submissions  AssignmentSubmission[]
+  questionUsages QuestionUsage[]
   
   targetBatches      AssignmentBatch[]
   targetDepartments  AssignmentDepartment[]
@@ -402,6 +454,12 @@ model Announcement {
   date      DateTime
   isSurvey  Boolean  @default(false)
   audience  String
+  isPoll    Boolean  @default(false)
+  pollOptions String[] @default([])
+  pollStartsAt DateTime?
+  pollExpiresAt DateTime?
+  pollAudienceType String?
+  pollTargetId String?
   facultyId String
   faculty   User     @relation("FacultyAnnouncements", fields: [facultyId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())

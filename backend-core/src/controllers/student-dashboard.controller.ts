@@ -128,7 +128,7 @@ export const submitAnnouncementResponse = async (req: Request, res: Response) =>
     // Verify announcement exists
     const announcement = await prisma.announcement.findUnique({
       where: { id: announcementId },
-      select: { id: true, title: true, facultyId: true, isSurvey: true }
+      select: { id: true, title: true, facultyId: true, isSurvey: true, isPoll: true, pollOptions: true, pollStartsAt: true, pollExpiresAt: true, pollAudienceType: true, pollTargetId: true }
     });
 
     if (!announcement) {
@@ -138,12 +138,36 @@ export const submitAnnouncementResponse = async (req: Request, res: Response) =>
       return res.status(400).json({ success: false, message: 'This announcement does not accept responses' });
     }
 
-    // Upsert response (student may update their answer)
-    const savedResponse = await prisma.announcementResponse.upsert({
-      where: { announcementId_userId: { announcementId, userId } },
-      update: { response, submittedAt: new Date() },
-      create: { announcementId, userId, response }
-    });
+    if (announcement.isPoll) {
+      const student = await prisma.user.findUnique({ where: { id: userId }, select: { department: { select: { batchId: true } }, departmentId: true, sectionId: true } });
+      const matchesAudience = announcement.pollAudienceType === 'BATCH' ? student?.department?.batchId === announcement.pollTargetId
+        : announcement.pollAudienceType === 'DEPARTMENT' ? student?.departmentId === announcement.pollTargetId
+          : announcement.pollAudienceType === 'SECTION' ? student?.sectionId === announcement.pollTargetId : false;
+      if (!matchesAudience) return res.status(403).json({ success: false, message: 'This poll is not available to your class.' });
+      const now = new Date();
+      if (announcement.pollStartsAt && announcement.pollStartsAt > now) return res.status(400).json({ success: false, message: 'This poll has not started.' });
+      if (announcement.pollExpiresAt && announcement.pollExpiresAt <= now) return res.status(400).json({ success: false, message: 'This poll is closed.' });
+      if (typeof response !== 'string' || !announcement.pollOptions.includes(response)) return res.status(400).json({ success: false, message: 'Choose one of the available poll options.' });
+    }
+
+    // Polls are single-submit; existing free-text surveys retain their editable response behavior.
+    let savedResponse;
+    if (announcement.isPoll) {
+      const existingResponse = await prisma.announcementResponse.findUnique({ where: { announcementId_userId: { announcementId, userId } }, select: { id: true } });
+      if (existingResponse) return res.status(409).json({ success: false, message: 'You have already responded to this poll.' });
+      try {
+        savedResponse = await prisma.announcementResponse.create({ data: { announcementId, userId, response } });
+      } catch (error: any) {
+        if (error?.code === 'P2002') return res.status(409).json({ success: false, message: 'You have already responded to this poll.' });
+        throw error;
+      }
+    } else {
+      savedResponse = await prisma.announcementResponse.upsert({
+        where: { announcementId_userId: { announcementId, userId } },
+        update: { response, submittedAt: new Date() },
+        create: { announcementId, userId, response }
+      });
+    }
 
     // Fire a notification to the faculty who posted the announcement
     try {

@@ -23,8 +23,11 @@ const app: Application = express();
 // Global Middlewares
 const allowedOrigins = [
   process.env.FRONTEND_URL || 'http://localhost:5173',
+<<<<<<< HEAD
   'http://localhost:5173',
   'http://localhost:5174',
+=======
+>>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
   'http://localhost:5175',
   'http://localhost:3000', // fallback for some dev environments
   'https://cira-rust-seven.vercel.app' // Vercel production origin

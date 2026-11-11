@@ -705,9 +705,15 @@ export const getAnnouncements = async (req: Request, res: Response) => {
       take: 100
     });
 
-    const studentAnnouncements = allAnnouncements.filter(ann => 
-      isAnnouncementForStudent(ann.audience, studentContext)
-    );
+    const studentAnnouncements = allAnnouncements.filter(ann => {
+      if (ann.isPoll) {
+        if (ann.pollAudienceType === 'BATCH') return studentContext.batchId === ann.pollTargetId;
+        if (ann.pollAudienceType === 'DEPARTMENT') return studentContext.deptId === ann.pollTargetId;
+        if (ann.pollAudienceType === 'SECTION') return studentContext.sectionId === ann.pollTargetId;
+        return false;
+      }
+      return isAnnouncementForStudent(ann.audience, studentContext);
+    });
 
     res.json({ success: true, data: studentAnnouncements });
   } catch (error) {
