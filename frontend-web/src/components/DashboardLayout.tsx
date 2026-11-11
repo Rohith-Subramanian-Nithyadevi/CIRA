@@ -134,7 +134,7 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
                 {!isCollapsed && <span className="truncate">Home</span>}
               </button>
               <button title={isCollapsed ? "Student Reports" : undefined} aria-current={activeTab === 'reports' ? 'page' : undefined} onClick={() => onTabChange('reports')} className={getNavClass('reports')}>
-                <Users className={`w-5 h-5 shrink-0 text-maroon dark:text-red-400 ${isCollapsed ? '' : 'mr-3'}`} /> 
+                <Users className={`w-5 h-5 shrink-0 ${isCollapsed ? '' : 'mr-3'}`} /> 
                 {!isCollapsed && <span className="flex-1 text-left truncate">Student Reports</span>}
                 {!isCollapsed && <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-maroon/10 text-maroon dark:bg-maroon/30 dark:text-red-300 border border-maroon/20">Analytics</span>}
               </button>
@@ -146,7 +146,7 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
                 <FileText className={`w-5 h-5 shrink-0 ${isCollapsed ? '' : 'mr-3'}`} />
                 {!isCollapsed && <span className="truncate">Assignments</span>}
               </button>
-              <button title={isCollapsed ? "My Profile" : undefined} onClick={() => onTabChange('profile')} className={getNavClass('profile')}>
+              <button title={isCollapsed ? "My Profile" : undefined} aria-current={activeTab === 'profile' ? 'page' : undefined} onClick={() => onTabChange('profile')} className={getNavClass('profile')}>
                 <User className={`w-5 h-5 shrink-0 ${isCollapsed ? '' : 'mr-3'}`} />
                 {!isCollapsed && <span className="truncate">My Profile</span>}
               </button>

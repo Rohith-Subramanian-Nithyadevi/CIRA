@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { CheckCircle2, Trash2, Loader2 } from 'lucide-react';
 import { useBatches, useDepartments } from '@/hooks/useReferenceData';
 import { apiClient, getApiErrorMessage } from '@/lib/apiClient';
-import ThemeToggle from '@/components/ui/ThemeToggle';
 
 export default function UserProfile() {
   const user = JSON.parse(localStorage.getItem('cira_user') || '{}');
@@ -207,12 +206,7 @@ export default function UserProfile() {
 
   return (
     <div className="max-w-2xl bg-white dark:bg-[#18181B] rounded-xl border border-border-soft dark:border-neutral-800 p-8 shadow-sm transition-colors duration-200">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-serif font-bold text-ink dark:text-neutral-100">User Profile</h2>
-        
-        {/* Theme Toggle */}
-        <ThemeToggle />
-      </div>
+      <h2 className="text-2xl font-serif font-bold text-ink dark:text-neutral-100 mb-6">User Profile</h2>
 
       {success && (
         <div className="bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 p-3 rounded-lg mb-4 text-sm font-semibold flex items-center gap-2">
