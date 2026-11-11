@@ -1,10 +1,5 @@
 import { useState, useEffect } from 'react';
-<<<<<<< HEAD
-import { CheckCircle2, Trash2, Loader2 } from 'lucide-react';
-=======
 import { CheckCircle2 } from 'lucide-react';
-import { useTheme } from '@/context/ThemeContext';
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
 import { useBatches, useDepartments } from '@/hooks/useReferenceData';
 import { apiClient, getApiErrorMessage } from '@/lib/apiClient';
 
@@ -77,7 +72,7 @@ function FacultyReadOnlyProfile({ initialUser }: { initialUser: Record<string, a
       <dt className="text-sm font-semibold text-gray-body dark:text-gray-400">{label}</dt>
       <dd className="mt-1 rounded-lg border border-border-soft bg-cream/40 px-4 py-2.5 text-ink dark:border-gray-700 dark:bg-gray-800 dark:text-cream">{String(value)}</dd>
     </div>)}</dl>
-    {user.authProvider === 'GOOGLE' ? <p className="mt-6 text-sm text-gray-body">Your password is managed by Google.</p> : !changing ? <button type="button" onClick={() => { setError(''); setSuccess(''); setChanging(true); }} className="mt-6 rounded-full bg-maroon px-6 py-2.5 text-sm font-bold text-white hover:bg-maroon-deep">Change Password</button> :
+    {!changing ? <button type="button" onClick={() => { setError(''); setSuccess(''); setChanging(true); }} className="mt-6 rounded-full bg-maroon px-6 py-2.5 text-sm font-bold text-white hover:bg-maroon-deep">Change Password</button> :
       <form onSubmit={submitPasswordChange} className="mt-6 space-y-4" noValidate>
         <h3 className="font-serif text-lg font-bold text-ink dark:text-cream">Change Password</h3>
         {([['Current Password', currentPassword, setCurrentPassword], ['New Password', newPassword, setNewPassword], ['Confirm New Password', confirmPassword, setConfirmPassword]] as const).map(([label, value, setter]) => <label key={label} className="block text-sm font-semibold text-gray-body dark:text-gray-400">{label}
@@ -103,16 +98,7 @@ function LegacyUserProfile() {
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
 
-<<<<<<< HEAD
-  // Enrollment state
-  const [enrolledDepartments, setEnrolledDepartments] = useState<{ id: string; name: string; batchName?: string; type?: string; departmentName?: string }[]>([]);
-  const [enrolledSections, setEnrolledSections] = useState<{ id: string; name: string; batchName?: string; departmentName?: string; type?: string }[]>([]);
-=======
-  // Theme state
-  const { theme, setTheme } = useTheme();
-
   // Student class details
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
   const [enrollBatchId, setEnrollBatchId] = useState(user.department?.batchId || user.department?.batch?.id || '');
   const [enrollDeptId, setEnrollDeptId] = useState(user.departmentId || user.department?.id || '');
   const [enrollSectionId, setEnrollSectionId] = useState(user.sectionId || user.section?.id || '');
@@ -143,22 +129,6 @@ function LegacyUserProfile() {
     return () => { isMounted = false; };
   }, []);
 
-<<<<<<< HEAD
-  // Fetch already-enrolled departments on mount for faculty
-  useEffect(() => {
-    if (role === 'FACULTY') {
-      apiClient.fetch('/api/v1/faculty/departments')
-        .then(res => res.json())
-        .then(data => {
-          if (data?.data?.departments) setEnrolledDepartments(data.data.departments);
-          if (data?.data?.sections) setEnrolledSections(data.data.sections);
-        })
-        .catch(console.error);
-    }
-  }, [role]);
-
-=======
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
   const handleSave = async () => {
     setLoading(true);
     setError('');
@@ -201,32 +171,6 @@ function LegacyUserProfile() {
           const errData = await res.json();
           setError(errData.details ? `${errData.error}: ${errData.details}` : (errData.error || 'Failed to update profile'));
         }
-<<<<<<< HEAD
-      } else if (role === 'FACULTY') {
-        const facultyPayload: any = { name, phone };
-        if (password) facultyPayload.password = password;
-        const res = await apiClient.fetch('/api/v1/faculty/profile', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(facultyPayload)
-        });
-        
-        if (res.ok) {
-          const resData = await res.json();
-          const updatedUser = { ...user, ...resData.data };
-          localStorage.setItem('cira_user', JSON.stringify(updatedUser));
-          setName(updatedUser.name || '');
-          setPhone(updatedUser.phone || '');
-          setPassword('');
-          window.dispatchEvent(new Event('cira_user_updated'));
-          setSuccess('Profile updated successfully!');
-          setIsEditing(false);
-        } else {
-          const errData = await res.json();
-          setError(errData.message || 'Failed to update faculty profile');
-        }
-=======
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
       } else {
         const updatedUser = { ...user, name, phone };
         localStorage.setItem('cira_user', JSON.stringify(updatedUser));
@@ -248,33 +192,8 @@ function LegacyUserProfile() {
   const availableSections = selectedDept?.sections || [];
 
   return (
-<<<<<<< HEAD
-    <div className="max-w-2xl bg-white dark:bg-[#18181B] rounded-xl border border-border-soft dark:border-neutral-800 p-8 shadow-sm transition-colors duration-200">
+    <div className="w-full max-w-2xl bg-white dark:bg-[#18181B] rounded-xl border border-border-soft dark:border-neutral-800 p-4 sm:p-8 shadow-sm transition-colors duration-200">
       <h2 className="text-2xl font-serif font-bold text-ink dark:text-neutral-100 mb-6">User Profile</h2>
-=======
-    <div className="w-full max-w-2xl bg-white dark:bg-[#1A1A1A] rounded-xl border border-border-soft dark:border-gray-800 p-4 sm:p-8 shadow-sm transition-colors duration-200">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-serif font-bold text-ink dark:text-ink">User Profile</h2>
-        
-        {/* Theme Toggle */}
-        <div className="flex bg-cream dark:bg-gray-800 rounded-full p-1 border border-border-soft dark:border-gray-700">
-          <button 
-            onClick={() => setTheme('light')} 
-            className={`p-1.5 rounded-full transition-colors ${theme === 'light' ? 'bg-white shadow-sm text-maroon' : 'text-gray-body hover:text-ink dark:hover:text-cream'}`}
-            title="Light Mode"
-          >
-            Light
-          </button>
-          <button 
-            onClick={() => setTheme('dark')} 
-            className={`p-1.5 rounded-full transition-colors ${theme === 'dark' ? 'bg-gray-700 shadow-sm text-cream' : 'text-gray-body hover:text-ink dark:hover:text-cream'}`}
-            title="Dark Mode"
-          >
-            Dark
-          </button>
-        </div>
-      </div>
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
 
       {success && (
         <div className="bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 p-3 rounded-lg mb-4 text-sm font-semibold flex items-center gap-2">
@@ -288,11 +207,7 @@ function LegacyUserProfile() {
         </div>
       )}
 
-<<<<<<< HEAD
       <div className="space-y-6 text-ink dark:text-neutral-100">
-=======
-      <div className="space-y-6 text-ink dark:text-ink">
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
         {/* Full Name */}
         <div>
           <label className="block text-sm font-semibold text-gray-body dark:text-neutral-400 mb-1.5">Full Name</label>
@@ -376,13 +291,8 @@ function LegacyUserProfile() {
           </div>
         )}
 
-<<<<<<< HEAD
-        {/* ── DEPARTMENT / SECTION (STUDENT & FACULTY) ── */}
-        <div className="space-y-5 pt-5 border-t border-border-soft dark:border-neutral-800">
-=======
         {/* ── DEPARTMENT / SECTION (STUDENT) ── */}
-        <div className="space-y-5 pt-5 border-t border-border-soft dark:border-gray-800">
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
+        <div className="space-y-5 pt-5 border-t border-border-soft dark:border-neutral-800">
           <div>
             <h3 className="text-lg font-serif font-bold text-ink dark:text-neutral-100">
               {role === 'STUDENT' ? 'Your Class Details' : 'Department Enrollment'}

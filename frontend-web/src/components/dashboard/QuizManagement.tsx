@@ -1,9 +1,5 @@
-<<<<<<< HEAD
-import { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
-=======
 import { useState, useEffect, useRef } from 'react';
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
+import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { clearDraft, clearSavedFilters, getDraftStorageKey, getFilterStorageKey, getStoredUserKey, readDraft, readSavedFilters, writeDraft, writeSavedFilters } from '@/lib/facultyPersistence';
 import { apiClient } from '@/lib/apiClient';
@@ -1616,11 +1612,7 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
     };
 
     return (
-<<<<<<< HEAD
-      <Card className="bg-white dark:bg-[#1E1E22] border border-border-soft text-ink shadow-sm rounded-xl">
-=======
-      <Card className="quiz-attempts-view bg-white border border-border-soft text-ink rounded-xl">
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
+      <Card className="quiz-attempts-view bg-white dark:bg-[#1E1E22] border border-border-soft text-ink shadow-sm rounded-xl">
         <CardContent className="p-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-serif font-bold text-ink">View Submissions</h2>

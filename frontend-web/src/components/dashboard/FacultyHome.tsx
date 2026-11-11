@@ -1,9 +1,5 @@
-<<<<<<< HEAD
-import { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
-=======
 import { useState, useEffect, useRef, useMemo } from 'react';
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
+import { createPortal } from 'react-dom';
 import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
@@ -483,15 +479,9 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
 
   return (
     <div className="space-y-6 relative">
-<<<<<<< HEAD
       {viewingResponsesFor && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-[100] bg-black/15 dark:bg-black/55 backdrop-blur-[2px] flex items-center justify-center p-4" role="presentation">
           <div className="bg-white dark:bg-[#1E1E22] border border-border-soft rounded-xl shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col" role="dialog" aria-modal="true" aria-labelledby="survey-responses-title">
-=======
-      {viewingResponsesFor && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" role="presentation">
-          <div className="bg-white rounded-xl shadow-lg max-w-2xl w-full max-h-[80vh] flex flex-col" role="dialog" aria-modal="true" aria-labelledby="survey-responses-title">
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
             <div className="p-4 border-b border-border-soft flex justify-between items-center">
               <h3 id="survey-responses-title" className="font-bold font-serif text-ink">Survey Responses</h3>
               <button aria-label="Close survey responses" onClick={() => setViewingResponsesFor(null)}><X className="w-5 h-5 text-gray-body" /></button>
@@ -536,17 +526,10 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
       )}
 
       {/* Announcement Details Modal */}
-<<<<<<< HEAD
       {viewingAnnouncement && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-[100] bg-black/15 dark:bg-black/55 flex items-center justify-center p-4 backdrop-blur-[2px]" role="presentation" onClick={() => setViewingAnnouncement(null)}>
           <div className="bg-white dark:bg-[#1E1E22] rounded-2xl shadow-xl max-w-2xl w-full max-h-[85vh] flex flex-col border border-border-soft overflow-hidden" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
             <div className="p-5 border-b border-border-soft flex justify-between items-start gap-4 bg-cream/20 dark:bg-[#242429]">
-=======
-      {viewingAnnouncement && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 backdrop-blur-xs" role="presentation" onClick={() => setViewingAnnouncement(null)}>
-          <div className="bg-white rounded-2xl shadow-lg max-w-2xl w-full max-h-[85vh] flex flex-col border border-border-soft overflow-hidden" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
-            <div className="p-5 border-b border-border-soft flex justify-between items-start gap-4 bg-cream/20">
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap mb-1.5">
                   <h3 className="font-bold font-serif text-lg text-ink leading-snug">{viewingAnnouncement.title}</h3>
@@ -581,13 +564,8 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
             <div className="p-4 border-t border-border-soft bg-cream/10 dark:bg-[#242429] flex items-center justify-between">
               <button
                 type="button"
-<<<<<<< HEAD
-                onClick={() => deleteAnnouncement(viewingAnnouncement.id)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 dark:text-red-400 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 border border-red-200 dark:border-red-900/50 rounded-lg transition-colors cursor-pointer"
-=======
                 onClick={() => setAnnouncementToDelete(viewingAnnouncement.id)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 border border-red-200 rounded-lg transition-colors cursor-pointer"
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 dark:text-red-400 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 border border-red-200 dark:border-red-900/50 rounded-lg transition-colors cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 Delete Announcement
@@ -618,26 +596,6 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
         document.body
       )}
 
-<<<<<<< HEAD
-      {/* Header */}
-      <div className="flex justify-between items-center bg-white dark:bg-[#1E1E22] p-4 rounded-xl border border-border-soft shadow-sm">
-        <h2 className="text-xl font-serif font-bold text-ink">Dashboard</h2>
-        <div className="relative">
-          <button aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`} aria-expanded={showNotifications} aria-controls="faculty-notifications" onClick={handleOpenNotifications} className="p-2 hover:bg-cream rounded-full relative transition-colors">
-            <Bell className="w-5 h-5 text-ink" />
-            {unreadCount > 0 && <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-[#1E1E22]"></span>}
-          </button>
-          {showNotifications && (
-            <div id="faculty-notifications" role="region" aria-label="Notifications" className="absolute right-0 top-12 w-80 bg-white dark:bg-[#1E1E22] border border-border-soft rounded-xl shadow-xl z-50 overflow-hidden">
-              <div className="px-4 py-3 border-b border-border-soft flex justify-between items-center">
-                <h4 className="font-bold text-sm text-ink">Notifications</h4>
-                {notifLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-body" />}
-              </div>
-              <div className="max-h-72 overflow-y-auto divide-y divide-border-soft">
-                {notifications.length === 0 ? (
-                  <div className="p-4">
-                    <EmptyState icon={<Bell className="w-6 h-6 text-maroon" />} title="No new notifications" description="You're all caught up!" className="min-h-[150px] p-4" />
-=======
       <section className="space-y-5">
         <SectionHeader
           eyebrow="Faculty workspace"
@@ -652,7 +610,7 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
         </div>
       </section>
 
-      <section className="rounded-xl border border-border-soft bg-white p-5 shadow-sm" aria-labelledby="today-agenda-title">
+      <section className="rounded-xl border border-border-soft bg-white dark:bg-[#1E1E22] p-5 shadow-sm" aria-labelledby="today-agenda-title">
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 id="today-agenda-title" className="font-serif text-xl font-bold text-ink">Today agenda</h2>
@@ -661,9 +619,9 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
           <StatusBadge status="info">{agenda.length} scheduled</StatusBadge>
         </div>
         <div className="mb-4 grid grid-cols-1 gap-2 md:grid-cols-3">
-          <div className="rounded-lg bg-cream/40 p-3 text-xs text-gray-body">{loadingTasks ? 'Loading tasks...' : tasksError ? 'Tasks unavailable' : todos.length ? `${todos.length} task${todos.length === 1 ? '' : 's'} available` : 'No tasks scheduled'}</div>
-          <div className="rounded-lg bg-cream/40 p-3 text-xs text-gray-body">{loadingCalendar ? 'Loading calendar...' : calendarError ? 'Calendar unavailable' : calendarEvents.length ? `${calendarEvents.length} event${calendarEvents.length === 1 ? '' : 's'} scheduled` : 'No calendar events scheduled'}</div>
-          <div className="rounded-lg bg-cream/40 p-3 text-xs text-gray-body">
+          <div className="rounded-lg bg-cream/40 dark:bg-[#242429] p-3 text-xs text-gray-body">{loadingTasks ? 'Loading tasks...' : tasksError ? 'Tasks unavailable' : todos.length ? `${todos.length} task${todos.length === 1 ? '' : 's'} available` : 'No tasks scheduled'}</div>
+          <div className="rounded-lg bg-cream/40 dark:bg-[#242429] p-3 text-xs text-gray-body">{loadingCalendar ? 'Loading calendar...' : calendarError ? 'Calendar unavailable' : calendarEvents.length ? `${calendarEvents.length} event${calendarEvents.length === 1 ? '' : 's'} scheduled` : 'No calendar events scheduled'}</div>
+          <div className="rounded-lg bg-cream/40 dark:bg-[#242429] p-3 text-xs text-gray-body">
             {loadingAgendaAssignments ? 'Loading assignments...' : agendaAssignmentsError ? <><span>Assignments unavailable.</span> <button type="button" onClick={fetchAgendaAssignments} className="font-semibold text-maroon underline">Retry</button></> : assignmentDueDatesAvailable ? 'Assignment due dates included' : 'Assignment deadlines unavailable'}
           </div>
         </div>
@@ -672,17 +630,16 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
         ) : (
           <div className="grid gap-4 md:grid-cols-3">
             {groupedAgenda.map(group => (
-              <div key={group.group} className="rounded-lg border border-border-soft bg-cream/20 p-3">
+              <div key={group.group} className="rounded-lg border border-border-soft bg-cream/20 dark:bg-[#242429] p-3">
                 <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-gray-body">{group.group}</h3>
                 {group.items.length === 0 ? <p className="text-sm text-gray-body">No items</p> : (
                   <div className="space-y-2">
                     {group.items.map(item => (
-                      <button key={item.id} type="button" onClick={() => onNavigate?.(item.destination)} className="w-full rounded-lg border border-border-soft bg-white p-3 text-left hover:border-maroon/40">
+                      <button key={item.id} type="button" onClick={() => onNavigate?.(item.destination)} className="w-full rounded-lg border border-border-soft bg-white dark:bg-[#18181B] p-3 text-left hover:border-maroon/40">
                         <span className="block text-sm font-semibold text-ink">{item.title}</span>
                         <span className="mt-1 block text-xs text-gray-body">{item.source} · {new Date(`${item.date}T00:00:00`).toLocaleDateString()}</span>
                       </button>
                     ))}
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
                   </div>
                 )}
               </div>
@@ -695,13 +652,8 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
         
         {/* Calendar */}
         <div className="xl:col-span-8 space-y-6">
-<<<<<<< HEAD
-          <div className="bg-white dark:bg-[#1E1E22] border border-border-soft p-6 rounded-xl shadow-sm">
-            <div className="flex items-center justify-between mb-6">
-=======
-          <div className="bg-white border border-border-soft p-4 sm:p-6 rounded-xl shadow-sm">
+          <div className="bg-white dark:bg-[#1E1E22] border border-border-soft p-4 sm:p-6 rounded-xl shadow-sm">
             <div className="mb-6 flex flex-wrap items-center justify-between gap-2">
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
               <h3 className="text-lg font-bold flex items-center text-ink font-serif"><CalendarIcon className="w-5 h-5 mr-2 text-maroon" /> Calendar</h3>
               <div className="flex items-center gap-2 sm:gap-4 bg-cream rounded-lg p-1 border border-border-soft">
                 <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))} className="p-1 hover:bg-cream-edge/30 rounded text-ink"><ChevronLeft className="w-4 h-4" /></button>
@@ -909,13 +861,8 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
               Array.from({length: 3}).map((_, i) => <div key={i} className="h-32 bg-cream/40 rounded-xl animate-pulse" />)
             ) : visibleAnnouncements.length === 0 ? (
               <EmptyState icon={<MessageSquare className="w-8 h-8 text-maroon" />} title="No announcements" description="You haven't posted any announcements yet." />
-<<<<<<< HEAD
-            ) : announcements.map((ann) => (
-              <div key={ann.id} className={`p-5 rounded-xl border relative transition-all ${ann.isSurvey ? 'bg-maroon/5 dark:bg-maroon/10 border-maroon/20 shadow-xs' : 'bg-white dark:bg-[#242429] border-border-soft shadow-xs'}`}>
-=======
             ) : visibleAnnouncements.map((ann) => (
-              <div key={ann.id} className={`p-5 rounded-xl border relative transition-all ${ann.isSurvey ? 'bg-maroon/5 border-maroon/20 shadow-xs' : 'bg-white border-border-soft shadow-xs'}`}>
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
+              <div key={ann.id} className={`p-5 rounded-xl border relative transition-all ${ann.isSurvey ? 'bg-maroon/5 dark:bg-maroon/10 border-maroon/20 shadow-xs' : 'bg-white dark:bg-[#242429] border-border-soft shadow-xs'}`}>
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between mb-3 gap-3">
                   <div>
                     <div className="flex items-center gap-2 mb-1.5 flex-wrap">

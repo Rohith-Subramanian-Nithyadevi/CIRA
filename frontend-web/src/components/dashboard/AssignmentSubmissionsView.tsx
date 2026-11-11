@@ -155,16 +155,12 @@ export default function AssignmentSubmissionsView({ assignmentId, onBack }: Assi
     );
   }
 
-<<<<<<< HEAD
-  if (!data) return <div className="rounded-2xl border border-red-200 dark:border-red-900/50 bg-red-50/90 dark:bg-red-950/30 p-8 text-center font-semibold text-red-700 dark:text-red-400 shadow-sm">Failed to load submissions. Please try again.</div>;
-=======
   if (!data) return (
-    <div className="rounded-2xl border border-red-200 bg-red-50/90 p-8 text-center font-semibold text-red-700 shadow-sm">
-      <p>{loadError || 'Failed to load submissions.'}</p>
+    <div className="rounded-2xl border border-red-200 dark:border-red-900/50 bg-red-50/90 dark:bg-red-950/30 p-8 text-center font-semibold text-red-700 dark:text-red-400 shadow-sm">
+      <p>{loadError || 'Failed to load submissions. Please try again.'}</p>
       <button type="button" onClick={() => { setLoading(true); fetchSubmissions(); }} className="mt-4 rounded-lg bg-maroon px-4 py-2 text-sm text-white">Retry</button>
     </div>
   );
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
 
   const filteredSubmissions = data.submissions
     .filter((s: any) => filter === 'ALL' || s.status === filter || (filter === 'SUBMITTED' && s.status === 'GRADED'))
@@ -191,13 +187,8 @@ export default function AssignmentSubmissionsView({ assignmentId, onBack }: Assi
         </div>
       </div>
 
-<<<<<<< HEAD
-      <div className="grid grid-cols-4 gap-4">
-        <div className="rounded-xl border border-border-soft bg-white/90 dark:bg-[#1E1E22] p-4 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
-=======
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <div className="rounded-xl border border-border-soft bg-white/90 p-4 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
+        <div className="rounded-xl border border-border-soft bg-white/90 dark:bg-[#1E1E22] p-4 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
           <div className="text-2xl font-bold text-ink">{data.summary.totalAssigned}</div>
           <div className="text-xs font-semibold text-gray-body uppercase tracking-wider">Assigned</div>
         </div>
@@ -237,11 +228,7 @@ export default function AssignmentSubmissionsView({ assignmentId, onBack }: Assi
               placeholder="Search students..." 
               value={search}
               onChange={e => setSearch(e.target.value)}
-<<<<<<< HEAD
-              className="w-64 rounded-full border border-border-soft bg-white/90 dark:bg-[#18181B] text-ink py-1.5 pl-9 pr-4 text-sm transition-shadow focus:outline-none focus:ring-2 focus:ring-maroon/20 focus:shadow-sm"
-=======
-              className="w-full sm:w-64 rounded-full border border-border-soft bg-white/90 py-1.5 pl-9 pr-4 text-sm transition-shadow focus:outline-none focus:ring-2 focus:ring-maroon/20 focus:shadow-sm"
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
+              className="w-full sm:w-64 rounded-full border border-border-soft bg-white/90 dark:bg-[#18181B] text-ink py-1.5 pl-9 pr-4 text-sm transition-shadow focus:outline-none focus:ring-2 focus:ring-maroon/20 focus:shadow-sm"
             />
           </div>
         </div>

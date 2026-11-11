@@ -167,46 +167,30 @@ export default function StudentProfileView({ studentId, onBack }: StudentProfile
   }, [data]);
 
   if (loading) {
-<<<<<<< HEAD
     return (
-      <div className="space-y-6 animate-in fade-in duration-300">
-        <div className="h-5 w-36 rounded-lg bg-cream/70 animate-pulse" />
-        <div className="rounded-2xl border border-border-soft bg-white/90 dark:bg-[#1E1E22] p-6 shadow-sm backdrop-blur-sm">
-          <div className="flex items-center gap-5">
-            <div className="h-20 w-20 rounded-full bg-cream/70 animate-pulse" />
-            <div className="flex-1 space-y-3">
-              <div className="h-7 w-56 rounded-lg bg-cream/70 animate-pulse" />
-              <div className="h-4 w-44 rounded-lg bg-cream/70 animate-pulse" />
-              <div className="h-7 w-72 rounded-lg bg-cream/70 animate-pulse" />
-            </div>
-          </div>
+      <div className="space-y-5 animate-pulse">
+        <div className="h-6 w-40 rounded bg-cream/70 dark:bg-neutral-800" />
+        <div className="h-44 rounded-2xl border border-border-soft bg-white/80 dark:bg-[#1E1E22]" />
+        <div className="grid gap-4 md:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, index) => <div key={index} className="h-28 rounded-xl bg-cream/60 dark:bg-neutral-800" />)}
         </div>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          {Array.from({ length: 3 }).map((_, index) => <div key={index} className="h-32 rounded-xl border border-border-soft bg-cream/40 animate-pulse" />)}
-        </div>
-        <div className="h-80 rounded-2xl border border-border-soft bg-white/80 dark:bg-[#1E1E22] animate-pulse" />
+        <div className="h-80 rounded-2xl bg-white/80 dark:bg-[#1E1E22]" />
       </div>
     );
-  }
-
-  if (error || !data) {
-    return (
-      <div className="rounded-2xl border border-red-200 dark:border-red-900/50 bg-red-50/90 dark:bg-red-950/30 p-8 text-center shadow-sm backdrop-blur-sm">
-        <AlertTriangle className="w-10 h-10 text-red-500 mx-auto mb-4" />
-        <h3 className="text-lg font-bold text-red-700 dark:text-red-400 mb-2">Error Loading Profile</h3>
-        <p className="text-red-600 dark:text-red-300 mb-6">{error || 'Student profile data could not be loaded.'}</p>
-        <button onClick={onBack} className="rounded-lg border border-red-200 dark:border-red-900/50 bg-white dark:bg-[#1E1E22] px-4 py-2 font-semibold text-red-700 dark:text-red-400 transition-colors hover:bg-red-100 dark:hover:bg-red-950/50">
-          Go Back
-        </button>
-      </div>
-    );
-=======
-    return <div className="space-y-5 animate-pulse"><div className="h-6 w-40 rounded bg-cream/70" /><div className="h-44 rounded-2xl border border-border-soft bg-white/80" /><div className="grid gap-4 md:grid-cols-3">{Array.from({ length: 3 }).map((_, index) => <div key={index} className="h-28 rounded-xl bg-cream/60" />)}</div><div className="h-80 rounded-2xl bg-white/80" /></div>;
   }
 
   if (error || !data || !derived) {
-    return <div className="rounded-2xl border border-red-200 bg-red-50 p-8 text-center"><AlertTriangle className="mx-auto mb-3 h-10 w-10 text-red-500" /><h2 className="text-lg font-bold text-red-800">Unable to load student profile</h2><p className="mt-2 text-sm text-red-700">{error || 'No profile data was returned.'}</p><div className="mt-5 flex justify-center gap-2"><button type="button" onClick={fetchProfile} className="inline-flex items-center gap-2 rounded-lg bg-maroon px-4 py-2 text-sm font-semibold text-white"><RefreshCw className="h-4 w-4" /> Retry</button><button type="button" onClick={onBack} className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700">Go back</button></div></div>;
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
+    return (
+      <div className="rounded-2xl border border-red-200 dark:border-red-900/50 bg-red-50/90 dark:bg-red-950/30 p-8 text-center">
+        <AlertTriangle className="mx-auto mb-3 h-10 w-10 text-red-500" />
+        <h2 className="text-lg font-bold text-red-800 dark:text-red-400">Unable to load student profile</h2>
+        <p className="mt-2 text-sm text-red-700 dark:text-red-300">{error || 'No profile data was returned.'}</p>
+        <div className="mt-5 flex justify-center gap-2">
+          <button type="button" onClick={fetchProfile} className="inline-flex items-center gap-2 rounded-lg bg-maroon px-4 py-2 text-sm font-semibold text-white"><RefreshCw className="h-4 w-4" /> Retry</button>
+          <button type="button" onClick={onBack} className="rounded-lg border border-red-200 dark:border-red-900/50 bg-white dark:bg-[#1E1E22] px-4 py-2 text-sm font-semibold text-red-700 dark:text-red-400">Go back</button>
+        </div>
+      </div>
+    );
   }
 
   const assignmentPercentage = data.assignmentCompletion.total > 0 ? Math.round((data.assignmentCompletion.completed / data.assignmentCompletion.total) * 100) : null;
@@ -215,50 +199,13 @@ export default function StudentProfileView({ studentId, onBack }: StudentProfile
   const periods = Array.from(new Set(derived.evolution.flatMap(item => item.values.map(value => value.period))));
 
   return (
-<<<<<<< HEAD
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 text-ink">
-      <button 
-        onClick={onBack}
-        className="flex items-center text-maroon hover:text-maroon-deep mb-6 transition-colors font-bold text-sm"
-      >
-        <ArrowLeft className="w-4 h-4 mr-2" /> Back to Analytics
-      </button>
-
-      {/* Profile Header */}
-      <div className="mb-6 flex flex-col items-center justify-between gap-6 rounded-2xl border border-border-soft bg-white/90 dark:bg-[#1E1E22] p-6 shadow-sm backdrop-blur-sm transition-shadow hover:shadow-md md:flex-row">
-        <div className="flex items-center gap-6">
-          <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-full border-2 border-maroon/20 bg-maroon/10 shadow-inner">
-            <User className="w-12 h-12 text-maroon" />
-          </div>
-          <div>
-            <h2 className="text-3xl font-serif font-bold text-ink mb-1">{student.name}</h2>
-            <p className="text-gray-body text-base mb-2">
-              Roll Number: <span className="text-ink font-mono font-bold">{student.rollNumber}</span>
-            </p>
-            <div className="flex flex-wrap gap-2 text-xs font-semibold">
-              <span className="rounded-lg border border-border-soft bg-cream/70 px-2.5 py-1">Batch: {student.batchName}</span>
-              <span className="rounded-lg border border-border-soft bg-cream/70 px-2.5 py-1">Dept: {student.departmentName}</span>
-              <span className="rounded-lg border border-border-soft bg-cream/70 px-2.5 py-1">Sec: {student.sectionName}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <div className="rounded-xl border border-border-soft bg-white/90 dark:bg-[#1E1E22] p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
-          <h3 className="text-xs font-bold text-gray-body uppercase tracking-wider mb-2">Quiz Performance</h3>
-          <div className="flex items-end gap-2">
-            <span className="text-3xl font-bold text-ink">{avgQuizScore}%</span>
-            <span className="text-sm font-semibold text-gray-body mb-1">Average</span>
-=======
     <div className="space-y-6 text-ink print:bg-white">
       <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
         <button type="button" onClick={onBack} className="inline-flex items-center gap-2 text-sm font-bold text-maroon hover:text-maroon-deep"><ArrowLeft className="h-4 w-4" /> Back to Students & Reports</button>
-        <button type="button" onClick={() => window.print()} className="inline-flex items-center gap-2 rounded-lg border border-border-soft bg-white px-3 py-2 text-sm font-semibold text-ink hover:bg-cream"><Printer className="h-4 w-4" /> Print profile</button>
+        <button type="button" onClick={() => window.print()} className="inline-flex items-center gap-2 rounded-lg border border-border-soft bg-white dark:bg-[#1E1E22] px-3 py-2 text-sm font-semibold text-ink hover:bg-cream"><Printer className="h-4 w-4" /> Print profile</button>
       </div>
 
-      <section className="rounded-2xl border border-border-soft bg-white/90 p-5 shadow-sm">
+      <section className="rounded-2xl border border-border-soft bg-white/90 dark:bg-[#1E1E22] p-5 shadow-sm">
         <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-4">
             <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-maroon/10 text-2xl font-bold text-maroon">{initials || <User className="h-8 w-8" />}</div>
@@ -268,169 +215,19 @@ export default function StudentProfileView({ studentId, onBack }: StudentProfile
               <p className="mt-1 text-sm text-gray-body">Roll number: <span className="font-mono font-semibold text-ink">{data.student.rollNumber || 'Not available'}</span></p>
               <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold"><span className="rounded-lg border border-border-soft bg-cream/70 px-2.5 py-1">Batch: {data.student.batchName || 'Not available'}</span><span className="rounded-lg border border-border-soft bg-cream/70 px-2.5 py-1">Department: {data.student.departmentName || 'Not available'}</span><span className="rounded-lg border border-border-soft bg-cream/70 px-2.5 py-1">Section: {data.student.sectionName || 'Not available'}</span></div>
             </div>
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
           </div>
           <div className="rounded-xl border border-border-soft bg-cream/30 px-4 py-3 text-sm"><p className="font-semibold text-ink">Authorized faculty view</p><p className="mt-1 text-xs text-gray-body">Academic records returned by the existing faculty profile endpoint.</p></div>
         </div>
       </section>
 
-<<<<<<< HEAD
-        <div className="rounded-xl border border-border-soft bg-white/90 dark:bg-[#1E1E22] p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
-          <h3 className="text-xs font-bold text-gray-body uppercase tracking-wider mb-2">Assignment Completion</h3>
-          <div className="flex items-end gap-2">
-            <span className="text-3xl font-bold text-ink">{assignmentCompletion.completed}/{assignmentCompletion.total}</span>
-          </div>
-          <div className="w-full bg-cream rounded-full h-2 mt-3">
-            <div 
-              className="bg-green-600 h-2 rounded-full" 
-              style={{ width: `${assignmentCompletion.total > 0 ? (assignmentCompletion.completed / assignmentCompletion.total) * 100 : 0}%` }}
-            />
-          </div>
-        </div>
-
-        <div className="relative overflow-hidden rounded-xl border border-border-soft bg-white/90 dark:bg-[#1E1E22] p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
-          <h3 className="text-xs font-bold text-gray-body uppercase tracking-wider mb-2">Attendance</h3>
-          <div className="flex h-16 items-center justify-center rounded-lg border border-dashed border-border-soft bg-cream/30">
-            <p className="text-sm font-semibold text-gray-body flex items-center">
-              <AlertTriangle className="w-4 h-4 mr-2 text-gray-400" />
-              Data Not Available
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Detailed Tabs */}
-      <div className="overflow-hidden rounded-2xl border border-border-soft bg-white/90 dark:bg-[#1E1E22] shadow-sm backdrop-blur-sm">
-        <div className="flex border-b border-border-soft bg-cream/30 px-4">
-          <button 
-            onClick={() => setActiveTab('quizzes')}
-            className={`px-6 py-4 text-sm font-bold transition-colors border-b-2 ${activeTab === 'quizzes' ? 'border-maroon text-maroon' : 'border-transparent text-gray-body hover:text-ink'}`}
-          >
-            Quiz History
-          </button>
-          <button 
-            onClick={() => setActiveTab('assignments')}
-            className={`px-6 py-4 text-sm font-bold transition-colors border-b-2 ${activeTab === 'assignments' ? 'border-maroon text-maroon' : 'border-transparent text-gray-body hover:text-ink'}`}
-          >
-            Assignments
-          </button>
-        </div>
-
-        <div className="p-0">
-          {activeTab === 'quizzes' && (
-            <div className="overflow-x-auto animate-in fade-in duration-300">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-cream/10 text-xs text-gray-body uppercase tracking-wider border-b border-border-soft">
-                    <th className="p-4 font-semibold">Quiz</th>
-                    <th className="p-4 font-semibold">Date</th>
-                    <th className="p-4 font-semibold">Score</th>
-                    <th className="p-4 font-semibold">Performance Band</th>
-                    <th className="p-4 font-semibold">Topic Breakdown</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {quizHistory.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="p-0 border-0">
-                        <div className="py-8">
-                          <EmptyState icon={<FileText className="w-8 h-8 text-maroon" />} title="No Quizzes" description="No quizzes completed yet." />
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    quizHistory.map((q: any) => (
-                      <tr key={q.quizId} className="border-b border-border-soft transition-colors hover:bg-cream/30">
-                        <td className="p-4 font-bold text-ink">{q.title}</td>
-                        <td className="p-4 text-sm text-gray-body">{new Date(q.date).toLocaleDateString()}</td>
-                        <td className="p-4 font-bold text-ink">{q.score}%</td>
-                        <td className="p-4">
-                          <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${
-                            q.band === 'Excellent' ? 'bg-green-50 dark:bg-green-950/50 text-green-700 dark:text-green-300 border-green-200 dark:border-green-900/50' :
-                            q.band === 'Average' ? 'bg-yellow-50 dark:bg-yellow-950/50 text-yellow-700 dark:text-yellow-300 border-yellow-200 dark:border-yellow-900/50' :
-                            'bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300 border-red-200 dark:border-red-900/50'
-                          }`}>
-                            {q.band}
-                          </span>
-                        </td>
-                        <td className="p-4">
-                          <div className="space-y-1">
-                            {q.topicScores.map((t: any, i: number) => (
-                              <div key={i} className="flex justify-between items-center text-xs">
-                                <span className="text-gray-body">{t.topic}</span>
-                                <span className="font-semibold text-ink ml-4">{t.score}%</span>
-                              </div>
-                            ))}
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {activeTab === 'assignments' && (
-            <div className="overflow-x-auto animate-in fade-in duration-300">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-cream/10 text-xs text-gray-body uppercase tracking-wider border-b border-border-soft">
-                    <th className="p-4 font-semibold">Assignment</th>
-                    <th className="p-4 font-semibold">Assigned Date</th>
-                    <th className="p-4 font-semibold">Status</th>
-                    <th className="p-4 font-semibold">Grade</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {assignmentCompletion.items.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="p-0 border-0">
-                        <div className="py-8">
-                          <EmptyState icon={<Clipboard className="w-8 h-8 text-maroon" />} title="No Assignments" description="No assignments found." />
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    assignmentCompletion.items.map((a: any) => (
-                      <tr key={a.assignmentId} className="border-b border-border-soft transition-colors hover:bg-cream/30">
-                        <td className="p-4">
-                          <div className="flex items-center gap-2">
-                            <FileText className="w-4 h-4 text-maroon" />
-                            <span className="font-bold text-ink">{a.title}</span>
-                          </div>
-                        </td>
-                        <td className="p-4 text-sm text-gray-body">{new Date(a.assignedDate).toLocaleDateString()}</td>
-                        <td className="p-4">
-                          {a.status === 'GRADED' && <span className="inline-flex items-center gap-1.5 text-xs font-bold text-green-700 dark:text-green-300 bg-green-100 dark:bg-green-950/50 px-2.5 py-1 rounded-full"><CheckCircle2 className="w-3.5 h-3.5" /> Graded</span>}
-                          {a.status === 'SUBMITTED' && <span className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-950/50 px-2.5 py-1 rounded-full"><Circle className="w-3.5 h-3.5 fill-blue-700 dark:fill-blue-300" /> Submitted</span>}
-                          {a.status === 'NOT_SUBMITTED' && <span className="inline-flex items-center gap-1.5 text-xs font-bold text-gray-body bg-gray-100 dark:bg-neutral-800 px-2.5 py-1 rounded-full"><Clock className="w-3.5 h-3.5" /> Pending</span>}
-                        </td>
-                        <td className="p-4">
-                          {a.status === 'GRADED' ? (
-                            <span className="font-bold text-ink">{a.grade} <span className="text-gray-body font-normal">/ {a.maxMarks}</span></span>
-                          ) : (
-                            <span className="text-gray-body italic text-sm">-</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-=======
       <div className="grid gap-4 md:grid-cols-3">
-        <div className="flex items-center gap-4 rounded-xl border border-border-soft bg-white/90 p-5 shadow-sm"><ScoreRing score={derived.average} /><div><p className="text-xs font-bold uppercase tracking-wider text-gray-body">Overall average</p><p className="mt-1 text-sm text-gray-body">{derived.quizzes.length ? `Across ${derived.quizzes.length} evaluated assessment${derived.quizzes.length === 1 ? '' : 's'}` : 'No evaluated assessments'}</p></div></div>
-        <div className="rounded-xl border border-border-soft bg-white/90 p-5 shadow-sm"><p className="text-xs font-bold uppercase tracking-wider text-gray-body">Academic summary</p><div className="mt-3 grid grid-cols-2 gap-3"><div><p className="text-2xl font-bold text-ink">{derived.quizzes.length}</p><p className="text-xs text-gray-body">Assessments</p></div><div><p className="text-2xl font-bold text-ink">{data.assignmentCompletion.total}</p><p className="text-xs text-gray-body">Assignments</p></div></div><p className="mt-4 text-xs text-gray-body">{derived.trend === null ? 'Improvement trend needs at least two scores.' : `${derived.trend >= 0 ? '+' : ''}${derived.trend} points from the previous evaluated assessment.`}</p></div>
-        <div className="rounded-xl border border-border-soft bg-white/90 p-5 shadow-sm"><p className="text-xs font-bold uppercase tracking-wider text-gray-body">Assignment progress</p><p className="mt-3 text-3xl font-bold text-ink">{assignmentPercentage === null ? '—' : `${assignmentPercentage}%`}</p><p className="mt-1 text-sm text-gray-body">{data.assignmentCompletion.total ? `${data.assignmentCompletion.completed} of ${data.assignmentCompletion.total} assigned items submitted` : 'No assignment records returned'}</p><div className="mt-4 h-2 rounded-full bg-cream dark:bg-[#302b2f]">{assignmentPercentage !== null && <div className="h-full rounded-full bg-green-600" style={{ width: `${assignmentPercentage}%` }} />}</div></div>
+        <div className="flex items-center gap-4 rounded-xl border border-border-soft bg-white/90 dark:bg-[#1E1E22] p-5 shadow-sm"><ScoreRing score={derived.average} /><div><p className="text-xs font-bold uppercase tracking-wider text-gray-body">Overall average</p><p className="mt-1 text-sm text-gray-body">{derived.quizzes.length ? `Across ${derived.quizzes.length} evaluated assessment${derived.quizzes.length === 1 ? '' : 's'}` : 'No evaluated assessments'}</p></div></div>
+        <div className="rounded-xl border border-border-soft bg-white/90 dark:bg-[#1E1E22] p-5 shadow-sm"><p className="text-xs font-bold uppercase tracking-wider text-gray-body">Academic summary</p><div className="mt-3 grid grid-cols-2 gap-3"><div><p className="text-2xl font-bold text-ink">{derived.quizzes.length}</p><p className="text-xs text-gray-body">Assessments</p></div><div><p className="text-2xl font-bold text-ink">{data.assignmentCompletion.total}</p><p className="text-xs text-gray-body">Assignments</p></div></div><p className="mt-4 text-xs text-gray-body">{derived.trend === null ? 'Improvement trend needs at least two scores.' : `${derived.trend >= 0 ? '+' : ''}${derived.trend} points from the previous evaluated assessment.`}</p></div>
+        <div className="rounded-xl border border-border-soft bg-white/90 dark:bg-[#1E1E22] p-5 shadow-sm"><p className="text-xs font-bold uppercase tracking-wider text-gray-body">Assignment progress</p><p className="mt-3 text-3xl font-bold text-ink">{assignmentPercentage === null ? '—' : `${assignmentPercentage}%`}</p><p className="mt-1 text-sm text-gray-body">{data.assignmentCompletion.total ? `${data.assignmentCompletion.completed} of ${data.assignmentCompletion.total} assigned items submitted` : 'No assignment records returned'}</p><div className="mt-4 h-2 rounded-full bg-cream dark:bg-[#302b2f]">{assignmentPercentage !== null && <div className="h-full rounded-full bg-green-600" style={{ width: `${assignmentPercentage}%` }} />}</div></div>
       </div>
 
       <div className="flex flex-wrap gap-2 border-b border-border-soft print:hidden">
         {(['overview', 'assessments', 'assignments'] as const).map(tab => <button key={tab} type="button" onClick={() => setActiveTab(tab)} className={`border-b-2 px-4 py-3 text-sm font-bold capitalize ${activeTab === tab ? 'border-maroon text-maroon' : 'border-transparent text-gray-body hover:text-ink'}`}>{tab === 'overview' ? 'Academic overview' : tab === 'assessments' ? 'Assessment history' : 'Assignments'}</button>)}
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
       </div>
 
       {activeTab === 'overview' && (

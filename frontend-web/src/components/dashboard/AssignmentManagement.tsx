@@ -380,11 +380,7 @@ export default function AssignmentManagement() {
                 </div>
                 <div className="flex items-center gap-2">
                   <button onClick={() => handleEdit(a)} className="text-gray-body opacity-0 group-hover:opacity-100 p-2 hover:bg-cream rounded transition-all">Edit</button>
-<<<<<<< HEAD
-                  <button onClick={() => handleDelete(a.id)} className="text-red-500 opacity-0 group-hover:opacity-100 p-2 hover:bg-red-50 dark:hover:bg-red-950/30 rounded transition-all"><Trash2 className="w-5 h-5"/></button>
-=======
-                  <button aria-label={`Delete ${a.title}`} onClick={() => setAssignmentToDelete(a.id)} className="text-red-500 opacity-0 group-hover:opacity-100 p-2 hover:bg-red-50 rounded transition-all"><Trash2 className="w-5 h-5"/></button>
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
+                  <button aria-label={`Delete ${a.title}`} onClick={() => handleDelete(a.id)} className="text-red-500 opacity-0 group-hover:opacity-100 p-2 hover:bg-red-50 dark:hover:bg-red-950/30 rounded transition-all"><Trash2 className="w-5 h-5"/></button>
                 </div>
               </div>
             ))

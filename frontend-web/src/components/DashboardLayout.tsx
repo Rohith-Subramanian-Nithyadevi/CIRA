@@ -1,13 +1,7 @@
-<<<<<<< HEAD
-import { LayoutDashboard, Users, BookOpen, LogOut, FileText, CheckSquare, Settings, User, Home, BookMarked, Target, Database, Bell, ChevronLeft, ChevronRight } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import React, { useState, useEffect } from 'react';
-import ThemeToggle from './ui/ThemeToggle';
-=======
-import { LayoutDashboard, Users, BookOpen, LogOut, FileText, CheckSquare, Settings, User, Home, BookMarked, Target, Database, Bell, Menu, X, Search, PanelLeftClose, PanelLeftOpen, Moon, Sun } from 'lucide-react';
+import { LayoutDashboard, Users, BookOpen, LogOut, FileText, CheckSquare, Settings, User, Home, BookMarked, Target, Database, Bell, ChevronLeft, ChevronRight, Menu, X, Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import React, { useEffect, useRef, useState } from 'react';
-import { useTheme } from '../context/ThemeContext';
+import ThemeToggle from './ui/ThemeToggle';
 import { FacultyNotificationBell } from './dashboard/FacultyNotifications';
 
 export interface DashboardNavItem {
@@ -21,7 +15,6 @@ export interface DashboardNavGroup {
   label: string;
   items: DashboardNavItem[];
 }
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -35,11 +28,9 @@ interface DashboardLayoutProps {
   facultySidebarCollapsible?: boolean;
 }
 
-export default function DashboardLayout({ children, title, activeTab, onTabChange, isDemo, onToggleDemo, facultyNavigation, onCommandPalette, facultySidebarCollapsible = false }: DashboardLayoutProps) {
+export default function DashboardLayout({ children, title, activeTab, onTabChange, isDemo, onToggleDemo, facultyNavigation, onCommandPalette }: DashboardLayoutProps) {
   const navigate = useNavigate();
-  const { theme, toggleTheme } = useTheme();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [facultySidebarCollapsed, setFacultySidebarCollapsed] = useState(false);
   const mobileNavRef = useRef<HTMLElement>(null);
   const user = JSON.parse(localStorage.getItem('cira_user') || '{}');
   const role = user.role || 'STUDENT';
@@ -70,32 +61,20 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
   };
 
   const getNavClass = (tab: string) => {
-<<<<<<< HEAD
     return `flex items-center w-full ${isCollapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2'} rounded-lg transition-all font-medium text-sm cursor-pointer ${activeTab === tab
       ? 'bg-maroon/10 dark:bg-rose-500/15 text-maroon dark:text-rose-300 font-semibold border border-maroon/40 dark:border-rose-500/40 shadow-xs'
       : 'text-gray-body dark:text-neutral-300 hover:text-ink dark:hover:text-white hover:bg-cream-edge/40 dark:hover:bg-neutral-800/80 border border-transparent'
-=======
-    return `flex items-center w-full px-3 py-2 rounded-lg transition-colors font-medium text-sm ${activeTab === tab
-      ? 'bg-maroon/5 dark:bg-maroon/20 text-maroon dark:text-red-400 font-semibold border border-maroon dark:border-maroon/50 shadow-sm'
-      : 'text-gray-body dark:text-gray-400 hover:text-ink dark:hover:text-white hover:bg-cream-edge/30 dark:hover:bg-gray-800 border border-transparent'
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
       }`;
   };
 
-  const SectionHeader = ({ title }: { title: string }) => (
-<<<<<<< HEAD
-    isCollapsed ? (
+  const SectionHeader = ({ title, forceExpanded = false }: { title: string; forceExpanded?: boolean }) => (
+    isCollapsed && !forceExpanded ? (
       <div className="my-2 border-t border-border-soft/60 dark:border-neutral-800" title={title} />
     ) : (
       <div className="px-3 pt-4 pb-1">
         <h4 className="text-[10px] font-bold text-gray-body dark:text-neutral-500 uppercase tracking-wider">{title}</h4>
       </div>
     )
-=======
-    <div className={`px-3 pt-4 pb-1 ${useFacultyNavigation && facultySidebarCollapsible && facultySidebarCollapsed ? 'hidden' : ''}`}>
-      <h4 className="text-[10px] font-bold text-gray-body dark:text-gray-500 uppercase tracking-wider">{title}</h4>
-    </div>
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
   );
 
   useEffect(() => {
@@ -148,36 +127,39 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
     };
   }, [mobileNavOpen]);
 
-  const renderFacultyNavigation = (closeOnSelect = false) => (
-    <>
-      {facultyNavigation?.map((group) => (
-        <React.Fragment key={group.label}>
-          <SectionHeader title={group.label} />
-          {group.items.map((item) => {
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.id}
-                aria-current={activeTab === item.id ? 'page' : undefined}
-                onClick={() => {
-                  onTabChange(item.id);
-                  if (closeOnSelect) setMobileNavOpen(false);
-                }}
-                className={`${getNavClass(item.id)} ${useFacultyNavigation && facultySidebarCollapsible && facultySidebarCollapsed && !closeOnSelect ? 'justify-center px-2' : ''}`}
-              >
-                <Icon className={`h-5 w-5 shrink-0 ${!closeOnSelect && !(useFacultyNavigation && facultySidebarCollapsible && facultySidebarCollapsed) ? 'mr-3' : ''}`} />
-                {(!useFacultyNavigation || !facultySidebarCollapsible || !facultySidebarCollapsed || closeOnSelect) && <span className="flex-1 text-left">{item.label}</span>}
-                {item.badge && (!useFacultyNavigation || !facultySidebarCollapsible || !facultySidebarCollapsed || closeOnSelect) && <span className="rounded-full border border-maroon/20 bg-maroon/10 px-2 py-0.5 text-[10px] font-bold text-maroon">{item.badge}</span>}
-              </button>
-            );
-          })}
-        </React.Fragment>
-      ))}
-    </>
-  );
+  const renderFacultyNavigation = (closeOnSelect = false) => {
+    const showLabels = closeOnSelect || !isCollapsed;
+    return (
+      <>
+        {facultyNavigation?.map((group) => (
+          <React.Fragment key={group.label}>
+            <SectionHeader title={group.label} forceExpanded={closeOnSelect} />
+            {group.items.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.id}
+                  title={!showLabels ? item.label : undefined}
+                  aria-current={activeTab === item.id ? 'page' : undefined}
+                  onClick={() => {
+                    onTabChange(item.id);
+                    if (closeOnSelect) setMobileNavOpen(false);
+                  }}
+                  className={showLabels ? getNavClass(item.id).replace('justify-center px-2 py-2.5', 'px-3 py-2') : getNavClass(item.id)}
+                >
+                  <Icon className={`h-5 w-5 shrink-0 ${showLabels ? 'mr-3' : ''}`} />
+                  {showLabels && <span className="flex-1 text-left truncate">{item.label}</span>}
+                  {item.badge && showLabels && <span className="rounded-full border border-maroon/20 bg-maroon/10 px-2 py-0.5 text-[10px] font-bold text-maroon dark:bg-maroon/30 dark:text-red-300">{item.badge}</span>}
+                </button>
+              );
+            })}
+          </React.Fragment>
+        ))}
+      </>
+    );
+  };
 
   return (
-<<<<<<< HEAD
     <div className="min-h-screen bg-cream dark:bg-[#111113] flex text-ink dark:text-neutral-100 font-sans transition-colors duration-200">
       {/* Sidebar */}
       <aside className={`${isCollapsed ? 'w-20' : 'w-64'} border-r border-border-soft dark:border-neutral-800 bg-white dark:bg-[#18181B] flex flex-col hidden md:flex transition-all duration-200 ease-in-out shrink-0`}>
@@ -221,17 +203,6 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
         </div>
 
         <nav aria-label="Primary navigation" className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-=======
-    <div className="min-h-screen bg-cream dark:bg-[#111] flex text-ink dark:text-ink font-sans transition-colors duration-200">
-      {/* Sidebar */}
-      <aside className={`${useFacultyNavigation && facultySidebarCollapsible && facultySidebarCollapsed ? 'w-20' : 'w-64'} border-r border-border-soft dark:border-gray-800 bg-white dark:bg-[#1A1A1A] flex flex-col hidden md:flex transition-[width,colors] duration-200`}>
-        <div className={`h-16 flex items-center border-b border-border-soft dark:border-gray-800 ${useFacultyNavigation && facultySidebarCollapsible && facultySidebarCollapsed ? 'justify-center px-3' : 'px-6'}`}>
-          <img src="/img/favicon.ico" alt="CIRA Logo" className="w-8 h-8 mr-3 object-contain" />
-          {(!useFacultyNavigation || !facultySidebarCollapsible || !facultySidebarCollapsed) && <span className="font-bold tracking-tight text-ink dark:text-white">CIRA Workspace</span>}
-        </div>
-
-        <nav aria-label="Primary navigation" className={`flex-1 py-4 space-y-1 overflow-y-auto ${useFacultyNavigation && facultySidebarCollapsible && facultySidebarCollapsed ? 'px-2' : 'px-4'}`}>
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
           {role === 'ADMIN' && (
             <>
               <button title={isCollapsed ? "Admin Hub" : undefined} aria-current={activeTab === 'hub' ? 'page' : undefined} onClick={() => onTabChange('hub')} className={getNavClass('hub')}>
@@ -336,18 +307,6 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
             </>
           )}
         </nav>
-        {useFacultyNavigation && facultySidebarCollapsible && (
-          <div className="border-t border-border-soft p-3">
-            <button
-              type="button"
-              onClick={() => setFacultySidebarCollapsed(value => !value)}
-              aria-label={facultySidebarCollapsed ? 'Expand faculty navigation' : 'Collapse faculty navigation'}
-              className="flex w-full items-center justify-center rounded-lg p-2 text-gray-body hover:bg-cream hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maroon/30"
-            >
-              {facultySidebarCollapsed ? <PanelLeftOpen className="h-5 w-5" /> : <><PanelLeftClose className="mr-3 h-5 w-5" /><span className="text-sm font-medium">Collapse</span></>}
-            </button>
-          </div>
-        )}
 
         <div className="p-3 border-t border-border-soft dark:border-neutral-800 shrink-0">
           <button
@@ -391,42 +350,21 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
-<<<<<<< HEAD
-        <div className="h-16 shrink-0 flex items-center justify-between px-8 border-b border-border-soft dark:border-neutral-800 bg-white/85 dark:bg-[#18181B]/90 backdrop-blur-md transition-colors duration-200">
-          <h2 className="text-xl font-serif font-bold text-ink dark:text-white">{title}</h2>
-
-          <div className="flex items-center gap-4 sm:gap-6">
-            <ThemeToggle />
-
-            {role === 'STUDENT' && onToggleDemo && (
-              <div className="flex items-center gap-2 bg-cream-edge/40 dark:bg-neutral-800/80 px-3 py-1.5 rounded-full border border-border-soft dark:border-neutral-700">
-                <Database className="w-4 h-4 text-maroon dark:text-rose-400" />
-                <span className="text-xs font-bold text-ink dark:text-neutral-100">Demo Data</span>
-=======
-        <div className="h-16 shrink-0 flex items-center justify-between pl-14 pr-3 sm:px-8 border-b border-border-soft dark:border-gray-800 bg-white/80 dark:bg-[#1A1A1A]/80 backdrop-blur-md transition-colors duration-200">
+        <div className="h-16 shrink-0 flex items-center justify-between pl-14 md:pl-8 pr-3 sm:px-8 border-b border-border-soft dark:border-neutral-800 bg-white/85 dark:bg-[#18181B]/90 backdrop-blur-md transition-colors duration-200">
           <h2 className="min-w-0 flex-1 truncate text-base font-serif font-bold text-ink dark:text-white sm:text-xl">{title}</h2>
 
-          <div className="flex shrink-0 items-center gap-1 sm:gap-2 lg:gap-6">
-            <button
-              type="button"
-              onClick={toggleTheme}
-              aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-              title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-              className="rounded-lg border border-border-soft bg-white px-2.5 py-2 text-gray-body transition-colors hover:bg-cream hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maroon/30 dark:bg-[#242124] dark:hover:bg-[#302b2f] dark:hover:text-cream"
-            >
-              {theme === 'dark' ? <Sun className="h-4 w-4" aria-hidden="true" /> : <Moon className="h-4 w-4" aria-hidden="true" />}
-            </button>
+          <div className="flex shrink-0 items-center gap-2 sm:gap-4 lg:gap-6">
+            <ThemeToggle />
             {useFacultyNavigation && onCommandPalette && (
-              <button type="button" onClick={onCommandPalette} aria-label="Open command palette" className="flex items-center gap-2 rounded-lg border border-border-soft bg-white px-3 py-2 text-sm font-semibold text-gray-body hover:bg-cream">
+              <button type="button" onClick={onCommandPalette} aria-label="Open command palette" className="flex items-center gap-2 rounded-lg border border-border-soft bg-white dark:bg-[#242429] px-3 py-2 text-sm font-semibold text-gray-body hover:bg-cream">
                 <Search className="h-4 w-4" aria-hidden="true" /> <span className="hidden sm:inline">Search</span> <kbd className="hidden rounded border border-border-soft px-1.5 py-0.5 text-[10px] sm:inline">Ctrl K</kbd>
               </button>
             )}
             {useFacultyNavigation && <FacultyNotificationBell onNavigate={onTabChange} />}
             {onToggleDemo && (role === 'STUDENT' || role === 'FACULTY') && (
-              <div className="flex items-center gap-2 bg-cream-edge/30 dark:bg-gray-800/50 px-2 sm:px-3 py-1.5 rounded-full border border-border-soft dark:border-gray-700">
-                <Database className="w-4 h-4 text-maroon dark:text-red-400" />
-                <span className="hidden text-xs font-bold text-ink dark:text-ink lg:inline">Demo Data</span>
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
+              <div className="flex items-center gap-2 bg-cream-edge/40 dark:bg-neutral-800/80 px-2 sm:px-3 py-1.5 rounded-full border border-border-soft dark:border-neutral-700">
+                <Database className="w-4 h-4 text-maroon dark:text-rose-400" />
+                <span className="hidden text-xs font-bold text-ink dark:text-neutral-100 lg:inline">Demo Data</span>
                 <button
                   onClick={() => onToggleDemo(!isDemo)}
                   aria-label="Toggle demo data"
@@ -437,15 +375,9 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
               </div>
             )}
 
-<<<<<<< HEAD
-            <div className="flex items-center gap-3 border-l border-border-soft dark:border-neutral-700 pl-6">
+            <div className="hidden sm:flex items-center gap-3 border-l border-border-soft dark:border-neutral-700 pl-6">
               <div className="w-8 h-8 rounded-full bg-cream dark:bg-neutral-800 border border-border-soft dark:border-neutral-700 flex items-center justify-center">
                 <span className="text-xs font-bold text-maroon dark:text-rose-400">
-=======
-            <div className="hidden sm:flex items-center gap-3 border-l border-border-soft dark:border-gray-700 pl-6">
-              <div className="w-8 h-8 rounded-full bg-cream dark:bg-gray-800 border border-border-soft dark:border-gray-700 flex items-center justify-center">
-                <span className="text-xs font-bold text-maroon dark:text-red-400">
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
                   {role === 'ADMIN' ? 'AD' : role === 'FACULTY' ? 'FA' : 'ST'}
                 </span>
               </div>

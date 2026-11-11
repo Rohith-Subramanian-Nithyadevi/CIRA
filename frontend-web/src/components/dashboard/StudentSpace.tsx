@@ -383,11 +383,7 @@ export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProp
           role="presentation"
         >
           <div 
-<<<<<<< HEAD
             className="bg-white dark:bg-[#1E1E22] rounded-2xl shadow-2xl max-w-xl w-full max-h-[85vh] flex flex-col border border-border-soft dark:border-neutral-700 overflow-hidden animate-in fade-in zoom-in-95 duration-150"
-=======
-            className="bg-white rounded-2xl shadow-lg max-w-xl w-full max-h-[85vh] flex flex-col border border-border-soft overflow-hidden"
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
@@ -442,13 +438,8 @@ export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProp
                     <div className="p-4 rounded-xl bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800/60 text-xs flex items-start gap-2.5">
                       <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400 shrink-0 mt-0.5" />
                       <div>
-<<<<<<< HEAD
-                        <p className="font-bold text-green-800 dark:text-green-300 mb-0.5">Your Submitted Feedback:</p>
+                        <p className="font-bold text-green-800 dark:text-green-300 mb-0.5">{selectedAnnouncement.isPoll ? 'Your Poll Response:' : 'Your Submitted Feedback:'}</p>
                         <p className="text-green-950 dark:text-green-200">{selectedAnnouncement.responses[0].response}</p>
-=======
-                        <p className="font-bold text-green-800 mb-0.5">{selectedAnnouncement.isPoll ? 'Your Poll Response:' : 'Your Submitted Feedback:'}</p>
-                        <p className="text-green-950">{selectedAnnouncement.responses[0].response}</p>
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
                         {selectedAnnouncement.responses[0].submittedAt && (
                           <p className="text-[10px] text-green-700 dark:text-green-400 mt-1">
                             Submitted on {new Date(selectedAnnouncement.responses[0].submittedAt).toLocaleString()}
@@ -457,17 +448,10 @@ export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProp
                       </div>
                     </div>
                   ) : (
-<<<<<<< HEAD
                     <div className="space-y-3 bg-cream/20 dark:bg-neutral-900/40 p-4 rounded-xl border border-border-soft dark:border-neutral-800">
                       <p className="text-xs font-bold text-ink dark:text-neutral-200 flex items-center gap-1.5">
                         <MessageSquare className="w-3.5 h-3.5 text-maroon dark:text-rose-400" />
-                        Provide Your Feedback / Response:
-=======
-                    <div className="space-y-3 bg-cream/20 p-4 rounded-xl border border-border-soft">
-                      <p className="text-xs font-bold text-ink flex items-center gap-1.5">
-                        <MessageSquare className="w-3.5 h-3.5 text-maroon" />
                         {selectedAnnouncement.isPoll ? 'Choose one option:' : 'Provide Your Feedback / Response:'}
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
                       </p>
                       {selectedAnnouncement.isPoll ? (
                         <div role="radiogroup" aria-label="Poll options" className="space-y-2">
@@ -477,13 +461,8 @@ export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProp
                         </div>
                       ) : <textarea
                         rows={3}
-<<<<<<< HEAD
                         placeholder="Type your feedback or survey response here..."
                         className="w-full text-xs p-3 rounded-lg border border-border-soft dark:border-neutral-700 focus:outline-none focus:border-maroon resize-none bg-white dark:bg-[#25252A] text-ink dark:text-neutral-100 shadow-xs"
-=======
-                        placeholder="Type your feedback / survey response here..."
-                        className="w-full text-xs p-3 rounded-lg border border-border-soft focus:outline-none focus:border-maroon resize-none bg-white"
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
                         value={responseText}
                         onChange={(e) => setResponseText(e.target.value)}
                       />}

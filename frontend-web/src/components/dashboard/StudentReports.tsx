@@ -495,13 +495,8 @@ export const StudentReports = () => {
               onClick={() => setIsBranchDropdownOpen(prev => !prev)}
               aria-haspopup="listbox"
               aria-expanded={isBranchDropdownOpen}
-<<<<<<< HEAD
-              aria-label={`Branch: ${departments.find(department => department.id === selectedDept)?.name || 'Select Branch'}`}
-              className="flex items-center space-x-2.5 bg-white dark:bg-[#1E1E22] hover:bg-cream/70 border border-border-soft hover:border-maroon/50 shadow-xs px-3.5 py-2 rounded-xl transition-all cursor-pointer group"
-=======
               aria-label={`Branch: ${availableDepartments.find(department => department.id === selectedDept)?.name || 'Select Branch'}`}
-              className="flex items-center space-x-2.5 bg-white hover:bg-cream/70 border border-border-soft hover:border-maroon/50 shadow-xs px-3.5 py-2 rounded-xl transition-all cursor-pointer group"
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
+              className="flex items-center space-x-2.5 bg-white dark:bg-[#1E1E22] hover:bg-cream/70 border border-border-soft hover:border-maroon/50 shadow-xs px-3.5 py-2 rounded-xl transition-all cursor-pointer group"
               title="Select a branch before opening its reports"
             >
               <div className="w-7 h-7 rounded-lg bg-maroon/10 text-maroon flex items-center justify-center group-hover:bg-maroon group-hover:text-white transition-colors">
@@ -516,11 +511,7 @@ export const StudentReports = () => {
               <ChevronDown className={`w-4 h-4 text-gray-body ml-1 transition-transform duration-200 ${isBranchDropdownOpen ? 'rotate-180 text-maroon' : ''}`} />
             </button>
             {isBranchDropdownOpen && (
-<<<<<<< HEAD
               <div role="listbox" aria-label="Available branches" className="absolute left-0 mt-2 w-64 bg-white dark:bg-[#1E1E22] border border-border-soft rounded-2xl shadow-xl z-50 p-2 animate-in fade-in slide-in-from-top-2 duration-150">
-=======
-              <div role="listbox" aria-label="Available branches" className="absolute left-0 mt-2 w-64 bg-white border border-border-soft rounded-2xl shadow-lg z-50 p-2">
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
                 <div className="px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-gray-body border-b border-border-soft/60 mb-1 flex items-center justify-between">
                   <span>Select a branch</span>
                   <span className="bg-cream text-maroon text-[10px] font-bold px-2 py-0.5 rounded-full border border-border-soft/60">{availableDepartments.length}</span>
@@ -555,13 +546,8 @@ export const StudentReports = () => {
               onClick={() => setIsBatchDropdownOpen(prev => !prev)}
               aria-haspopup="listbox"
               aria-expanded={isBatchDropdownOpen}
-<<<<<<< HEAD
-              aria-label={`Batch: ${batches.find(b => b.id === selectedBatch)?.name || 'Select Batch'}`}
-              className="flex items-center space-x-2.5 bg-white dark:bg-[#1E1E22] hover:bg-cream/70 border border-border-soft hover:border-maroon/50 shadow-xs px-3.5 py-2 rounded-xl transition-all cursor-pointer group"
-=======
               aria-label={`Batch: ${availableBatches.find(b => b.id === selectedBatch)?.name || 'Select Batch'}`}
-              className="flex items-center space-x-2.5 bg-white hover:bg-cream/70 border border-border-soft hover:border-maroon/50 shadow-xs px-3.5 py-2 rounded-xl transition-all cursor-pointer group"
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
+              className="flex items-center space-x-2.5 bg-white dark:bg-[#1E1E22] hover:bg-cream/70 border border-border-soft hover:border-maroon/50 shadow-xs px-3.5 py-2 rounded-xl transition-all cursor-pointer group"
               title="Click to switch or return to any batch"
             >
               <div className="w-7 h-7 rounded-lg bg-maroon/10 text-maroon flex items-center justify-center group-hover:bg-maroon group-hover:text-white transition-colors">
@@ -578,11 +564,7 @@ export const StudentReports = () => {
 
             {/* Dropdown Menu Popover */}
             {isBatchDropdownOpen && (
-<<<<<<< HEAD
               <div role="listbox" aria-label="Available batches" className="absolute left-0 mt-2 w-64 bg-white dark:bg-[#1E1E22] border border-border-soft rounded-2xl shadow-xl z-50 p-2 animate-in fade-in slide-in-from-top-2 duration-150">
-=======
-              <div role="listbox" aria-label="Available batches" className="absolute left-0 mt-2 w-64 bg-white border border-border-soft rounded-2xl shadow-lg z-50 p-2">
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
                 <div className="px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-gray-body border-b border-border-soft/60 mb-1 flex items-center justify-between">
                   <span>Available batches</span>
                   <span className="bg-cream text-maroon text-[10px] font-bold px-2 py-0.5 rounded-full border border-border-soft/60">
@@ -680,11 +662,7 @@ export const StudentReports = () => {
             )}
           </form>
           {searchError && (
-<<<<<<< HEAD
             <div className="mt-2 text-xs text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 rounded-lg p-2.5 flex items-center justify-between animate-in fade-in shadow-sm">
-=======
-            <div className="mt-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2.5 flex items-center justify-between shadow-sm">
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
               <div className="flex items-center space-x-1.5">
                 <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-600" />
                 <span>{searchError}</span>
@@ -701,13 +679,8 @@ export const StudentReports = () => {
         </div>
       </div>
 
-<<<<<<< HEAD
-      {!selectedDept && departments.length > 0 && (
-        <div className="rounded-2xl border border-maroon/20 bg-white/90 dark:bg-[#1E1E22] p-8 text-center shadow-sm animate-in fade-in duration-300">
-=======
       {!selectedDept && availableDepartments.length > 0 && (
-        <div className="rounded-2xl border border-maroon/20 bg-white/90 p-8 text-center shadow-sm">
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
+        <div className="rounded-2xl border border-maroon/20 bg-white/90 dark:bg-[#1E1E22] p-8 text-center shadow-sm animate-in fade-in duration-300">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-maroon/10 text-maroon">
             <Users className="h-7 w-7" />
           </div>
@@ -725,15 +698,9 @@ export const StudentReports = () => {
         </div>
       )}
 
-<<<<<<< HEAD
-      {!selectedDept && departments.length === 0 && (
+      {!selectedDept && availableDepartments.length === 0 && (
         <div className="space-y-6 animate-in fade-in duration-500">
           <section className="overflow-hidden rounded-2xl border border-maroon/20 bg-[linear-gradient(120deg,#fffaf2_0%,#ffffff_55%,#f8eee7_100%)] dark:bg-none dark:bg-[#1E1E22] shadow-sm">
-=======
-      {!selectedDept && availableDepartments.length === 0 && (
-        <div className="space-y-6">
-          <section className="overflow-hidden rounded-2xl border border-maroon/20 bg-[linear-gradient(120deg,#fffaf2_0%,#ffffff_55%,#f8eee7_100%)] shadow-sm">
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
             <div className="border-b border-maroon/10 px-6 py-5 md:px-8">
               <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                 <div className="max-w-2xl">
@@ -795,11 +762,7 @@ export const StudentReports = () => {
               <button
                 key={dept.id}
                 onClick={() => setSelectedDept(dept.id)}
-<<<<<<< HEAD
                 className="w-full text-left bg-white dark:bg-[#1E1E22] border border-border-soft rounded-xl p-6 hover:border-maroon/40 transition-all hover:-translate-y-1 hover:shadow-sm"
-=======
-                className="w-full text-left bg-white border border-border-soft rounded-xl p-6 hover:border-maroon/40 transition-all hover:shadow-sm"
->>>>>>> 1337b9372f667fbde4b97e71d0076bd2c2a291b9
               >
                 <h3 className="text-lg font-bold text-ink mb-1">{dept.name}</h3>
                 <p className="text-xs text-gray-body mb-4">Click to view section details</p>
