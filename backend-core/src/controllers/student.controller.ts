@@ -516,16 +516,16 @@ export const updateProfile = async (req: Request, res: Response) => {
     const userId = (req as any).user?.userId;
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
     
-    // Security Fix: Students can only update name, phone, and password.
-    // They CANNOT self-reassign rollNumber, department, or section.
-    const { name, phone, password } = req.body;
+    // Official record fields (email, name, phone, rollNumber) are permanently immutable by students.
+    // Batch/Department/Section are editable for testing purposes.
+    // Password change is permitted.
+    const { password, departmentId, sectionId } = req.body;
     
-    // Only update fields that are provided
     const data: any = {};
-    if (name !== undefined) data.name = name;
-    if (phone !== undefined) data.phone = phone;
+    if (departmentId !== undefined) data.departmentId = departmentId;
+    if (sectionId !== undefined) data.sectionId = sectionId;
     
-    if (password) {
+    if (password && typeof password === 'string' && password.trim().length >= 8) {
       const salt = await bcrypt.genSalt(10);
       data.password = await bcrypt.hash(password, salt);
     }
@@ -547,7 +547,7 @@ export const updateProfile = async (req: Request, res: Response) => {
     res.json({ success: true, data: userWithoutPassword });
   } catch (error: any) {
     console.error('Error updating profile:', error);
-    res.status(500).json({ error: 'Failed to update profile', details: error.message, stack: error.stack });
+    res.status(500).json({ error: 'Failed to update profile', details: error.message });
   }
 };
 

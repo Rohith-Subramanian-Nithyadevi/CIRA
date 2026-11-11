@@ -196,29 +196,30 @@ export default function StudentAnnouncements({ isDemo }: { isDemo?: boolean }) {
   return (
     <div className="space-y-6">
       {/* Header card */}
-      <div className="bg-white rounded-xl border border-border-soft p-6 md:p-8 shadow-sm">
+      <div className="bg-white dark:bg-[#1E1E1E] rounded-xl border border-border-soft dark:border-neutral-800 p-6 md:p-8 shadow-sm transition-colors">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-serif font-bold text-ink flex items-center gap-2.5">
-              <Bell className="w-6 h-6 text-maroon" />
+            <h2 className="text-2xl font-serif font-bold text-ink dark:text-neutral-100 flex items-center gap-2.5">
+              <Bell className="w-6 h-6 text-maroon dark:text-red-400" />
               Announcements & Notices
             </h2>
-            <p className="text-sm text-gray-body mt-1">
+            <p className="text-sm text-gray-body dark:text-neutral-400 mt-1">
               Official circulars, class notices, and surveys targeted to your academic program.
             </p>
           </div>
           <button
             onClick={fetchAnnouncements}
             disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 border border-border-soft text-ink font-semibold rounded-lg hover:bg-cream/40 transition-colors text-sm w-fit cursor-pointer"
+            title="Refresh announcements"
+            aria-label="Refresh announcements"
+            className="p-2 border border-border-soft dark:border-neutral-700 text-ink dark:text-neutral-200 font-semibold rounded-lg hover:bg-cream/40 dark:hover:bg-neutral-800 transition-colors w-fit cursor-pointer"
           >
-            <RefreshCw className={`w-4 h-4 text-maroon ${loading ? 'animate-spin' : ''}`} />
-            Refresh
+            <RefreshCw className={`w-4 h-4 text-maroon dark:text-red-400 ${loading ? 'animate-spin' : ''}`} />
           </button>
         </div>
 
         {/* Filter Bar */}
-        <div className="mt-6 pt-6 border-t border-border-soft flex flex-col md:flex-row gap-4 justify-between items-stretch md:items-center">
+        <div className="mt-6 pt-6 border-t border-border-soft dark:border-neutral-800 flex flex-col md:flex-row gap-4 justify-between items-stretch md:items-center">
           {/* Filter Pills */}
           <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0">
             <button
@@ -226,7 +227,7 @@ export default function StudentAnnouncements({ isDemo }: { isDemo?: boolean }) {
               className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap cursor-pointer ${
                 activeFilter === 'all'
                   ? 'bg-maroon text-white shadow-sm'
-                  : 'bg-cream-edge/30 text-gray-body hover:text-ink'
+                  : 'bg-cream-edge/30 dark:bg-neutral-800 text-gray-body dark:text-neutral-400 hover:text-ink dark:hover:text-white'
               }`}
             >
               All ({activeAnnouncements.length})
@@ -236,7 +237,7 @@ export default function StudentAnnouncements({ isDemo }: { isDemo?: boolean }) {
               className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap cursor-pointer ${
                 activeFilter === 'surveys'
                   ? 'bg-maroon text-white shadow-sm'
-                  : 'bg-cream-edge/30 text-gray-body hover:text-ink'
+                  : 'bg-cream-edge/30 dark:bg-neutral-800 text-gray-body dark:text-neutral-400 hover:text-ink dark:hover:text-white'
               }`}
             >
               Surveys ({activeAnnouncements.filter(a => a.isSurvey).length})
@@ -246,7 +247,7 @@ export default function StudentAnnouncements({ isDemo }: { isDemo?: boolean }) {
               className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap cursor-pointer ${
                 activeFilter === 'targeted'
                   ? 'bg-maroon text-white shadow-sm'
-                  : 'bg-cream-edge/30 text-gray-body hover:text-ink'
+                  : 'bg-cream-edge/30 dark:bg-neutral-800 text-gray-body dark:text-neutral-400 hover:text-ink dark:hover:text-white'
               }`}
             >
               Class Specific
@@ -256,7 +257,7 @@ export default function StudentAnnouncements({ isDemo }: { isDemo?: boolean }) {
               className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap cursor-pointer ${
                 activeFilter === 'general'
                   ? 'bg-maroon text-white shadow-sm'
-                  : 'bg-cream-edge/30 text-gray-body hover:text-ink'
+                  : 'bg-cream-edge/30 dark:bg-neutral-800 text-gray-body dark:text-neutral-400 hover:text-ink dark:hover:text-white'
               }`}
             >
               General
@@ -266,7 +267,7 @@ export default function StudentAnnouncements({ isDemo }: { isDemo?: boolean }) {
               className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap cursor-pointer ${
                 activeFilter === 'dismissed'
                   ? 'bg-maroon text-white shadow-sm'
-                  : 'bg-cream-edge/30 text-gray-body hover:text-ink'
+                  : 'bg-cream-edge/30 dark:bg-neutral-800 text-gray-body dark:text-neutral-400 hover:text-ink dark:hover:text-white'
               }`}
             >
               Dismissed ({dismissedAnnouncements.length})
@@ -275,13 +276,13 @@ export default function StudentAnnouncements({ isDemo }: { isDemo?: boolean }) {
 
           {/* Search box */}
           <div className="relative min-w-[240px]">
-            <Search className="w-4 h-4 text-gray-body absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-gray-body dark:text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               placeholder="Search announcements..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 text-xs bg-cream/30 border border-border-soft rounded-lg focus:outline-none focus:border-maroon"
+              className="w-full pl-9 pr-3 py-1.5 text-xs bg-cream/30 dark:bg-neutral-800 border border-border-soft dark:border-neutral-700 text-ink dark:text-neutral-100 placeholder:text-gray-body/50 dark:placeholder:text-neutral-500 rounded-lg focus:outline-none focus:border-maroon"
             />
           </div>
         </div>
@@ -289,10 +290,10 @@ export default function StudentAnnouncements({ isDemo }: { isDemo?: boolean }) {
 
       {/* Dismissed Filter Notice Banner */}
       {activeFilter === 'dismissed' && dismissedAnnouncements.length > 0 && (
-        <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+        <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 text-xs text-amber-900 dark:text-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
           <div>
             <p className="font-bold">Viewing Dismissed Notices ({dismissedAnnouncements.length})</p>
-            <p className="text-amber-800">These announcements were hidden from your dashboard. You can restore them to your active feed anytime.</p>
+            <p className="text-amber-800 dark:text-amber-300/80">These announcements were hidden from your dashboard. You can restore them to your active feed anytime.</p>
           </div>
           <button
             onClick={handleRestoreAll}
@@ -306,17 +307,17 @@ export default function StudentAnnouncements({ isDemo }: { isDemo?: boolean }) {
 
       {/* Announcements List */}
       {loading ? (
-        <div className="flex flex-col items-center justify-center p-12 bg-white rounded-xl border border-border-soft">
-          <Loader2 className="w-8 h-8 animate-spin text-maroon mb-2" />
-          <p className="text-sm text-gray-body">Loading announcements...</p>
+        <div className="flex flex-col items-center justify-center p-12 bg-white dark:bg-[#1E1E22] rounded-xl border border-border-soft dark:border-neutral-800">
+          <Loader2 className="w-8 h-8 animate-spin text-maroon dark:text-rose-400 mb-2" />
+          <p className="text-sm text-gray-body dark:text-neutral-400">Loading announcements...</p>
         </div>
       ) : filteredAnnouncements.length === 0 ? (
-        <div className="p-12 text-center bg-white rounded-xl border border-dashed border-border-soft">
-          <Bell className="w-10 h-10 mx-auto mb-3 text-maroon opacity-30" />
-          <h3 className="font-bold text-ink text-base mb-1">
+        <div className="p-12 text-center bg-white dark:bg-[#1E1E22] rounded-xl border border-dashed border-border-soft dark:border-neutral-800">
+          <Bell className="w-10 h-10 mx-auto mb-3 text-maroon dark:text-rose-400 opacity-30" />
+          <h3 className="font-bold text-ink dark:text-neutral-100 text-base mb-1">
             {activeFilter === 'dismissed' ? 'No dismissed notices' : 'No announcements found'}
           </h3>
-          <p className="text-sm text-gray-body">
+          <p className="text-sm text-gray-body dark:text-neutral-400">
             {activeFilter === 'dismissed'
               ? 'You have not dismissed or deleted any announcements.'
               : searchQuery
@@ -336,14 +337,14 @@ export default function StudentAnnouncements({ isDemo }: { isDemo?: boolean }) {
                 key={ann.id}
                 className={`p-6 rounded-xl border transition-all ${
                   ann.isSurvey
-                    ? 'bg-gradient-to-br from-white to-maroon/[0.02] border-maroon/20 shadow-sm'
-                    : 'bg-white border-border-soft shadow-sm hover:border-maroon/30'
+                    ? 'bg-gradient-to-br from-white dark:from-[#202020] to-maroon/[0.03] dark:to-maroon/[0.1] border-maroon/20 dark:border-maroon/30 shadow-xs'
+                    : 'bg-white dark:bg-[#1E1E1E] border-border-soft dark:border-neutral-800 shadow-xs hover:border-maroon/30 dark:hover:border-red-400/30'
                 }`}
               >
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-3">
                   <div>
                     <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                      <h3 className="font-bold text-ink text-lg">{ann.title}</h3>
+                      <h3 className="font-bold text-ink dark:text-neutral-100 text-lg">{ann.title}</h3>
                       {ann.isSurvey && (
                         <span className="text-[10px] uppercase font-bold bg-maroon text-white px-2.5 py-0.5 rounded-full shadow-xs">
                           Survey
@@ -351,7 +352,7 @@ export default function StudentAnnouncements({ isDemo }: { isDemo?: boolean }) {
                       )}
                     </div>
                     {ann.audience && (
-                      <span className="text-[10px] font-semibold text-gray-body uppercase border border-border-soft px-2 py-0.5 rounded bg-cream/60 inline-block">
+                      <span className="text-[10px] font-semibold text-gray-body dark:text-neutral-400 uppercase border border-border-soft dark:border-neutral-700 px-2 py-0.5 rounded bg-cream/60 dark:bg-neutral-800 inline-block">
                         Target: {ann.audience}
                       </span>
                     )}
@@ -359,14 +360,14 @@ export default function StudentAnnouncements({ isDemo }: { isDemo?: boolean }) {
 
                   {/* Header Actions: Date + Delete/Restore */}
                   <div className="flex items-center gap-2 shrink-0">
-                    <div className="flex items-center gap-1.5 text-xs text-gray-body">
-                      <Calendar className="w-3.5 h-3.5 text-maroon" />
+                    <div className="flex items-center gap-1.5 text-xs text-gray-body dark:text-neutral-400">
+                      <Calendar className="w-3.5 h-3.5 text-maroon dark:text-red-400" />
                       <span>{new Date(ann.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                     </div>
                     {isDismissed ? (
                       <button
                         onClick={(e) => handleRestore(ann.id, e)}
-                        className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-maroon hover:bg-maroon/10 border border-maroon/30 rounded-lg transition-colors cursor-pointer"
+                        className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-maroon dark:text-red-400 hover:bg-maroon/10 border border-maroon/30 rounded-lg transition-colors cursor-pointer"
                         title="Restore notice"
                       >
                         <RotateCcw className="w-3.5 h-3.5" />
@@ -375,7 +376,7 @@ export default function StudentAnnouncements({ isDemo }: { isDemo?: boolean }) {
                     ) : (
                       <button
                         onClick={(e) => handleDismiss(ann.id, e)}
-                        className="p-1.5 text-gray-body/60 hover:text-red-600 hover:bg-red-50 rounded-lg border border-transparent hover:border-red-100 transition-colors cursor-pointer"
+                        className="p-1.5 text-gray-body/60 dark:text-neutral-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg border border-transparent hover:border-red-100 transition-colors cursor-pointer"
                         title="Delete notice"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -386,43 +387,43 @@ export default function StudentAnnouncements({ isDemo }: { isDemo?: boolean }) {
 
                 {/* Content */}
                 <div
-                  className="text-sm leading-relaxed rich-text-content text-ink/85 my-4"
+                  className="text-sm leading-relaxed rich-text-content text-ink/85 dark:text-neutral-200 my-4"
                   dangerouslySetInnerHTML={{ __html: sanitizeHtml(ann.content) || '<p>No content.</p>' }}
                 />
 
                 {/* Survey Response Form */}
                 {ann.isSurvey && (
-                  <div className="mt-4 pt-4 border-t border-border-soft/60">
+                  <div className="mt-4 pt-4 border-t border-border-soft/60 dark:border-neutral-800">
                     {myResponse ? (
-                      <div className="p-3.5 rounded-xl bg-green-50 border border-green-200 text-xs flex items-start gap-2.5">
-                        <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0 mt-0.5" />
+                      <div className="p-3.5 rounded-xl bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800/60 text-xs flex items-start gap-2.5">
+                        <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400 shrink-0 mt-0.5" />
                         <div className="flex-1">
-                          <p className="font-bold text-green-800 mb-0.5">Your Response:</p>
-                          <p className="text-green-900">{myResponse.response}</p>
+                          <p className="font-bold text-green-800 dark:text-green-300 mb-0.5">Your Response:</p>
+                          <p className="text-green-900 dark:text-green-200">{myResponse.response}</p>
                           {myResponse.submittedAt && (
-                            <p className="text-[10px] text-green-700/80 mt-1">
+                            <p className="text-[10px] text-green-700/80 dark:text-green-400 mt-1">
                               Submitted on {new Date(myResponse.submittedAt).toLocaleString()}
                             </p>
                           )}
                         </div>
                       </div>
                     ) : isResponding ? (
-                      <div className="space-y-3 bg-cream/20 p-4 rounded-xl border border-border-soft">
-                        <p className="text-xs font-bold text-ink flex items-center gap-1.5">
-                          <MessageSquare className="w-3.5 h-3.5 text-maroon" />
+                      <div className="space-y-3 bg-cream/20 dark:bg-neutral-900/40 p-4 rounded-xl border border-border-soft dark:border-neutral-800">
+                        <p className="text-xs font-bold text-ink dark:text-neutral-200 flex items-center gap-1.5">
+                          <MessageSquare className="w-3.5 h-3.5 text-maroon dark:text-rose-400" />
                           Provide Your Feedback / Response:
                         </p>
                         <textarea
                           rows={3}
                           placeholder="Type your feedback or survey answers here..."
-                          className="w-full text-xs p-3 rounded-lg border border-border-soft focus:outline-none focus:border-maroon resize-none bg-white shadow-xs"
+                          className="w-full text-xs p-3 rounded-lg border border-border-soft dark:border-neutral-700 focus:outline-none focus:border-maroon resize-none bg-white dark:bg-[#25252A] text-ink dark:text-neutral-100 shadow-xs"
                           value={responseText}
                           onChange={(e) => setResponseText(e.target.value)}
                         />
                         <div className="flex justify-end gap-2">
                           <button
                             onClick={() => { setRespondingId(null); setResponseText(''); }}
-                            className="px-3 py-1.5 text-xs text-gray-body hover:text-ink font-medium rounded-lg cursor-pointer"
+                            className="px-3 py-1.5 text-xs text-gray-body dark:text-neutral-400 hover:text-ink dark:hover:text-white font-medium rounded-lg cursor-pointer"
                             disabled={submittingSurvey}
                           >
                             Cancel
@@ -440,7 +441,7 @@ export default function StudentAnnouncements({ isDemo }: { isDemo?: boolean }) {
                     ) : (
                       <button
                         onClick={() => { setRespondingId(ann.id); setResponseText(''); }}
-                        className="px-4 py-1.5 bg-maroon/10 hover:bg-maroon/20 text-maroon text-xs font-bold rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+                        className="px-4 py-1.5 bg-maroon/10 dark:bg-rose-500/15 hover:bg-maroon/20 dark:hover:bg-rose-500/25 text-maroon dark:text-rose-300 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
                       >
                         <MessageSquare className="w-3.5 h-3.5" />
                         Respond to Survey
@@ -450,12 +451,12 @@ export default function StudentAnnouncements({ isDemo }: { isDemo?: boolean }) {
                 )}
 
                 {/* Footer metadata */}
-                <div className="flex items-center justify-between border-t border-border-soft/60 pt-3 mt-3 text-xs text-gray-body">
+                <div className="flex items-center justify-between border-t border-border-soft/60 dark:border-neutral-800 pt-3 mt-3 text-xs text-gray-body dark:text-neutral-400">
                   <span>
-                    Posted by <span className="font-semibold text-ink">{ann.faculty?.name || 'Faculty Member'}</span>
+                    Posted by <span className="font-semibold text-ink dark:text-neutral-200">{ann.faculty?.name || 'Faculty Member'}</span>
                   </span>
                   {isDismissed && (
-                    <span className="text-[11px] font-semibold text-amber-800 bg-amber-100/70 border border-amber-200 px-2 py-0.5 rounded">
+                    <span className="text-[11px] font-semibold text-amber-800 dark:text-amber-300 bg-amber-100/70 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 px-2 py-0.5 rounded">
                       Dismissed from your notices
                     </span>
                   )}

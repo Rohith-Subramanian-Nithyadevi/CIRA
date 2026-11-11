@@ -332,7 +332,7 @@ export default function StudyPlanner() {
   };
 
   if (loading) {
-    return <div className="animate-pulse bg-white rounded-xl h-64 border border-border-soft"></div>;
+    return <div className="animate-pulse bg-white dark:bg-[#1E1E22] rounded-xl h-64 border border-border-soft dark:border-neutral-800"></div>;
   }
 
   const completedCount = tasks.filter(t => t.completed).length;
@@ -353,7 +353,7 @@ export default function StudyPlanner() {
   };
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 min-h-[calc(100vh-14rem)]">
+    <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
       
       {/* Left Column: Planner & Pomodoro */}
       <div className="xl:col-span-8 flex flex-col gap-6">
@@ -374,7 +374,7 @@ export default function StudyPlanner() {
             <div className="flex items-center gap-6">
               <span className="text-4xl font-mono font-bold tracking-tight">{formatTime(timeLeft)}</span>
               <div className="flex items-center gap-2">
-                <button onClick={toggleTimer} className="p-3 bg-white text-ink rounded-full hover:bg-cream transition-colors shadow-sm">
+                <button onClick={toggleTimer} className="p-3 bg-white text-[#1A1A1A] rounded-full hover:bg-neutral-100 transition-colors shadow-sm cursor-pointer">
                   {timerActive ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
                 </button>
                 <button onClick={resetTimer} className="p-3 bg-white/10 text-white rounded-full hover:bg-white/20 transition-colors">
@@ -388,23 +388,23 @@ export default function StudyPlanner() {
           </div>
         )}
 
-        <div className="bg-white rounded-xl border border-border-soft shadow-sm flex flex-col flex-1 min-h-[500px]">
-          <div className="p-6 border-b border-border-soft bg-cream/20 shrink-0 flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
+        <div className="bg-white dark:bg-[#1E1E1E] rounded-xl border border-border-soft dark:border-neutral-800 shadow-sm flex flex-col flex-1 min-h-[500px]">
+          <div className="p-6 border-b border-border-soft dark:border-neutral-800 bg-cream/20 dark:bg-neutral-900/40 shrink-0 flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
             <div>
-              <h2 className="text-xl font-serif font-bold text-ink">Daily Action Plan</h2>
-              <div className="flex items-center gap-3 mt-1.5 text-sm text-gray-body">
+              <h2 className="text-xl font-serif font-bold text-ink dark:text-neutral-100">Daily Action Plan</h2>
+              <div className="flex items-center gap-3 mt-1.5 text-sm text-gray-body dark:text-neutral-400">
                 <span className="font-medium">{tasks.length === 0 ? "You have no tasks yet." : `${completedCount} of ${tasks.length} tasks completed`}</span>
                 {totalEstimatedTime > 0 && (
                   <>
-                    <span className="w-1.5 h-1.5 rounded-full bg-border-soft" />
-                    <span className="flex items-center gap-1.5 font-bold"><Clock className="w-4 h-4 text-maroon/80" /> {completedTime} / {totalEstimatedTime} mins</span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-border-soft dark:bg-neutral-700" />
+                    <span className="flex items-center gap-1.5 font-bold"><Clock className="w-4 h-4 text-maroon/80 dark:text-red-400" /> {completedTime} / {totalEstimatedTime} mins</span>
                   </>
                 )}
               </div>
             </div>
             
             {streak > 0 && (
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-maroon/5 border border-maroon/10 text-maroon transition-all hover:bg-maroon/10 shrink-0">
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-maroon/5 dark:bg-maroon/20 border border-maroon/10 dark:border-maroon/30 text-maroon dark:text-red-300 transition-all hover:bg-maroon/10 shrink-0">
                 <TrendingUp className="w-4 h-4" />
                 <span className="text-xs font-bold uppercase tracking-wider">
                   {streak} Day Streak
@@ -413,7 +413,7 @@ export default function StudyPlanner() {
             )}
           </div>
 
-          <div className="flex-1 overflow-y-auto p-6 space-y-3 bg-white">
+          <div className="flex-1 overflow-y-auto p-6 space-y-3 bg-white dark:bg-[#1E1E1E]">
             {tasks.map((task, index) => (
               <div 
                 key={task.id}
@@ -423,27 +423,27 @@ export default function StudyPlanner() {
                 onDragEnd={handleDragEnd}
                 onDragOver={(e) => e.preventDefault()}
                 className={`flex items-start justify-between p-4 rounded-lg border transition-all cursor-grab active:cursor-grabbing group ${
-                  task.completed ? 'bg-cream/40 border-transparent opacity-60' : 'bg-white border-border-soft shadow-sm hover:border-maroon/30'
+                  task.completed ? 'bg-cream/40 dark:bg-neutral-900/40 border-transparent opacity-60' : 'bg-white dark:bg-[#252525] border-border-soft dark:border-neutral-800 shadow-sm hover:border-maroon/30 dark:hover:border-red-400/40'
                 }`}
               >
                 <div className="flex items-start gap-3 flex-1 overflow-hidden">
-                  <GripVertical className="w-5 h-5 text-gray-body/50 hover:text-gray-body shrink-0 mt-0.5 cursor-grab" />
-                  <button onClick={() => toggleTask(task.id, task.completed)} className="shrink-0 text-maroon hover:text-maroon-deep transition-colors mt-0.5">
-                    {task.completed ? <CheckCircle2 className="w-5 h-5" /> : <Circle className="w-5 h-5" />}
+                  <GripVertical className="w-5 h-5 text-gray-body/50 dark:text-neutral-500 hover:text-gray-body shrink-0 mt-0.5 cursor-grab" />
+                  <button onClick={() => toggleTask(task.id, task.completed)} className="shrink-0 text-maroon dark:text-red-400 hover:text-maroon-deep transition-colors mt-0.5">
+                    {task.completed ? <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400" /> : <Circle className="w-5 h-5" />}
                   </button>
                   <div className="flex flex-col flex-1">
                     <div className="flex items-center gap-3">
-                      <span className={`text-sm font-bold line-clamp-1 ${task.completed ? 'line-through text-gray-body' : 'text-ink'}`}>
+                      <span className={`text-sm font-bold line-clamp-1 ${task.completed ? 'line-through text-gray-body dark:text-neutral-500' : 'text-ink dark:text-neutral-100'}`}>
                         {task.title}
                       </span>
                       {task.estimatedTime && (
-                        <span className="shrink-0 text-[10px] font-bold tracking-wider uppercase text-maroon/70 bg-maroon/5 border border-maroon/10 px-2 py-0.5 rounded">
+                        <span className="shrink-0 text-[10px] font-bold tracking-wider uppercase text-maroon/70 dark:text-red-300 bg-maroon/5 dark:bg-maroon/20 border border-maroon/10 dark:border-maroon/30 px-2 py-0.5 rounded">
                           {task.estimatedTime}m
                         </span>
                       )}
                     </div>
                     {task.description && (
-                      <p className={`text-xs mt-1 pr-4 ${task.completed ? 'text-gray-body/70' : 'text-gray-body'}`}>
+                      <p className={`text-xs mt-1 pr-4 ${task.completed ? 'text-gray-body/70 dark:text-neutral-500' : 'text-gray-body dark:text-neutral-400'}`}>
                         {task.description}
                       </p>
                     )}
@@ -454,7 +454,7 @@ export default function StudyPlanner() {
                   {!task.completed && (
                     <button 
                       onClick={() => startPomodoroSession(task)}
-                      className="text-gray-400 hover:text-maroon transition-colors p-1.5 rounded hover:bg-maroon/5 mr-1"
+                      className="text-gray-400 hover:text-maroon dark:hover:text-red-400 transition-colors p-1.5 rounded hover:bg-maroon/5 mr-1"
                       title="Start Pomodoro"
                     >
                       <Play className="w-4 h-4" />
@@ -462,7 +462,7 @@ export default function StudyPlanner() {
                   )}
                   <button 
                     onClick={() => deleteTask(task.id)} 
-                    className="text-gray-400 hover:text-red-500 transition-colors p-1.5 rounded hover:bg-red-50"
+                    className="text-gray-400 hover:text-red-500 transition-colors p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-950/40"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -471,14 +471,14 @@ export default function StudyPlanner() {
             ))}
 
             {tasks.length === 0 && (
-              <div className="flex flex-col items-center justify-center h-full text-gray-body/60 pb-8 min-h-[200px]">
+              <div className="flex flex-col items-center justify-center h-full text-gray-body/60 dark:text-neutral-500 pb-8 min-h-[200px]">
                 <CheckCircle2 className="w-12 h-12 mb-3 stroke-1" />
                 <p>All caught up! Add a new task below.</p>
               </div>
             )}
           </div>
 
-          <div className="p-4 border-t border-border-soft bg-cream/10 shrink-0">
+          <div className="p-4 border-t border-border-soft dark:border-neutral-800 bg-cream/10 dark:bg-neutral-900/20 shrink-0">
             <form onSubmit={addTask} className="flex flex-col gap-2">
               <div className="flex gap-2">
                 <input
@@ -486,7 +486,7 @@ export default function StudyPlanner() {
                   value={newTask}
                   onChange={(e) => setNewTask(e.target.value)}
                   placeholder="Action Item (e.g., Complete 2 Graphs problems...)"
-                  className="flex-1 px-4 py-2.5 rounded-lg border border-border-soft focus:border-maroon focus:ring-1 focus:ring-maroon outline-none transition-all text-sm font-medium"
+                  className="flex-1 px-4 py-2.5 rounded-lg border border-border-soft dark:border-neutral-700 bg-white dark:bg-[#252525] text-ink dark:text-neutral-100 focus:border-maroon focus:ring-1 focus:ring-maroon outline-none transition-all text-sm font-medium"
                 />
                 <input
                   type="number"
@@ -494,7 +494,7 @@ export default function StudyPlanner() {
                   onChange={(e) => setNewEstimatedTime(e.target.value)}
                   placeholder="Mins"
                   min="1"
-                  className="w-24 px-4 py-2.5 rounded-lg border border-border-soft focus:border-maroon focus:ring-1 focus:ring-maroon outline-none transition-all text-sm font-medium"
+                  className="w-24 px-4 py-2.5 rounded-lg border border-border-soft dark:border-neutral-700 bg-white dark:bg-[#252525] text-ink dark:text-neutral-100 focus:border-maroon focus:ring-1 focus:ring-maroon outline-none transition-all text-sm font-medium"
                 />
               </div>
               <div className="flex gap-2">
@@ -503,12 +503,12 @@ export default function StudyPlanner() {
                   value={newDesc}
                   onChange={(e) => setNewDesc(e.target.value)}
                   placeholder="Description (e.g., Focus on BFS approach...)"
-                  className="flex-1 px-4 py-2.5 rounded-lg border border-border-soft focus:border-maroon focus:ring-1 focus:ring-maroon outline-none transition-all text-sm text-gray-body bg-white/60"
+                  className="flex-1 px-4 py-2.5 rounded-lg border border-border-soft dark:border-neutral-700 bg-white/60 dark:bg-[#252525] text-ink dark:text-neutral-200 focus:border-maroon focus:ring-1 focus:ring-maroon outline-none transition-all text-sm"
                 />
                 <button 
                   type="submit"
                   disabled={!newTask.trim()}
-                  className="bg-maroon hover:bg-maroon-deep text-white px-6 py-2.5 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shrink-0 text-sm"
+                  className="bg-maroon hover:bg-maroon-deep text-white px-6 py-2.5 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shrink-0 text-sm cursor-pointer shadow-sm"
                 >
                   Add Task
                 </button>
@@ -522,18 +522,18 @@ export default function StudyPlanner() {
       <div className="xl:col-span-4 flex flex-col gap-6">
         
         {/* Calendar Widget */}
-        <div className="bg-white border border-border-soft p-5 rounded-xl shadow-sm">
+        <div className="bg-white dark:bg-[#1E1E1E] border border-border-soft dark:border-neutral-800 p-5 rounded-xl shadow-sm">
           <div className="flex items-center justify-between mb-5">
-            <h3 className="text-base font-bold flex items-center text-ink font-serif"><CalendarIcon className="w-4 h-4 mr-2 text-maroon" /> Calendar</h3>
-            <div className="flex items-center gap-2 bg-cream rounded-md p-1 border border-border-soft">
-              <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))} className="p-0.5 hover:bg-cream-edge/30 rounded text-ink"><ChevronLeft className="w-3.5 h-3.5" /></button>
-              <span className="text-xs font-medium w-24 text-center text-ink">{monthNames[currentDate.getMonth()].slice(0,3)} {currentDate.getFullYear()}</span>
-              <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))} className="p-0.5 hover:bg-cream-edge/30 rounded text-ink"><ChevronRight className="w-3.5 h-3.5" /></button>
+            <h3 className="text-base font-bold flex items-center text-ink dark:text-neutral-100 font-serif"><CalendarIcon className="w-4 h-4 mr-2 text-maroon dark:text-red-400" /> Calendar</h3>
+            <div className="flex items-center gap-2 bg-cream dark:bg-neutral-800 rounded-md p-1 border border-border-soft dark:border-neutral-700">
+              <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))} className="p-0.5 hover:bg-cream-edge/30 dark:hover:bg-neutral-700 rounded text-ink dark:text-neutral-200 cursor-pointer"><ChevronLeft className="w-3.5 h-3.5" /></button>
+              <span className="text-xs font-medium w-24 text-center text-ink dark:text-neutral-200">{monthNames[currentDate.getMonth()].slice(0,3)} {currentDate.getFullYear()}</span>
+              <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))} className="p-0.5 hover:bg-cream-edge/30 dark:hover:bg-neutral-700 rounded text-ink dark:text-neutral-200 cursor-pointer"><ChevronRight className="w-3.5 h-3.5" /></button>
             </div>
           </div>
           
           <div className="grid grid-cols-7 gap-1.5 mb-1.5">
-            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => <div key={i} className="text-center text-[10px] font-bold text-gray-body uppercase py-1">{day}</div>)}
+            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => <div key={i} className="text-center text-[10px] font-bold text-gray-body dark:text-neutral-400 uppercase py-1">{day}</div>)}
           </div>
           
           <div className="grid grid-cols-7 gap-1.5">
@@ -556,20 +556,20 @@ export default function StudyPlanner() {
                   onClick={() => { if(!isPast) setSelectedDate(selectedDate?.getTime() === dateObj.getTime() ? null : dateObj); setShowEventForm(false); }} 
                   className={`relative h-8 rounded flex items-center justify-center transition-all border ${
                     isPast 
-                      ? 'bg-gray-50/40 border-transparent opacity-40 cursor-not-allowed' 
+                      ? 'bg-gray-50/40 dark:bg-neutral-900/30 border-transparent opacity-40 cursor-not-allowed' 
                       : 'cursor-pointer'
                   } ${
                     isSelected 
                       ? 'border-maroon bg-maroon/5 ring-1 ring-maroon' 
                       : isToday 
-                      ? 'border-maroon/50 bg-maroon/5'
-                      : 'bg-white border-border-soft hover:border-maroon/40'
+                      ? 'border-maroon/50 bg-maroon/5 dark:border-red-400/50 dark:bg-red-950/20'
+                      : 'bg-white dark:bg-[#252525] border-border-soft dark:border-neutral-800 hover:border-maroon/40'
                   }`}
                 >
                   {hasEvents && (
-                    <span className="absolute top-1 right-1 w-1 h-1 rounded-full bg-maroon" />
+                    <span className="absolute top-1 right-1 w-1 h-1 rounded-full bg-maroon dark:bg-red-400" />
                   )}
-                  <span className={`text-[11px] ${isToday || isSelected ? 'font-bold text-maroon' : 'font-medium text-ink'}`}>
+                  <span className={`text-[11px] ${isToday || isSelected ? 'font-bold text-maroon dark:text-red-400' : 'font-medium text-ink dark:text-neutral-200'}`}>
                     {day}
                   </span>
                 </div>
@@ -578,30 +578,30 @@ export default function StudyPlanner() {
           </div>
 
           {selectedDate && (
-            <div className="mt-4 pt-4 border-t border-border-soft">
+            <div className="mt-4 pt-4 border-t border-border-soft dark:border-neutral-800">
               <div className="flex justify-between items-center mb-3">
-                <h4 className="text-xs font-semibold text-ink">Events: {selectedDate.toLocaleDateString()}</h4>
-                <button onClick={() => setSelectedDate(null)} className="text-gray-body hover:text-ink"><X className="w-3.5 h-3.5" /></button>
+                <h4 className="text-xs font-semibold text-ink dark:text-neutral-100">Events: {selectedDate.toLocaleDateString()}</h4>
+                <button onClick={() => setSelectedDate(null)} className="text-gray-body dark:text-neutral-400 hover:text-ink cursor-pointer"><X className="w-3.5 h-3.5" /></button>
               </div>
               
               <div className="space-y-1.5 mb-3 max-h-32 overflow-y-auto custom-scrollbar">
                 {calendarEvents.filter(e => e.date === getLocalDateString(selectedDate)).length === 0 && !showEventForm && (
-                  <p className="text-[11px] text-gray-body italic">No events.</p>
+                  <p className="text-[11px] text-gray-body dark:text-neutral-400 italic">No events.</p>
                 )}
                 {calendarEvents.filter(e => e.date === getLocalDateString(selectedDate)).map(ev => (
-                  <div key={ev.id} className="text-[11px] bg-cream/30 p-2 rounded border border-border-soft flex items-center justify-between group">
-                    <div className="flex items-center"><div className="w-1 h-1 rounded-full bg-maroon mr-2 shrink-0" />{ev.title}</div>
+                  <div key={ev.id} className="text-[11px] bg-cream/30 dark:bg-neutral-900/40 p-2 rounded border border-border-soft dark:border-neutral-800 flex items-center justify-between group">
+                    <div className="flex items-center text-ink dark:text-neutral-200"><div className="w-1 h-1 rounded-full bg-maroon dark:bg-red-400 mr-2 shrink-0" />{ev.title}</div>
                     <button onClick={(e) => { e.stopPropagation(); deleteCalendarEvent(ev.id); }} className="text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="w-3 h-3"/></button>
                   </div>
                 ))}
               </div>
 
               {!showEventForm ? (
-                <button onClick={() => setShowEventForm(true)} className="w-full py-1.5 bg-white border border-border-soft hover:border-maroon/30 text-ink rounded text-[11px] font-medium transition-colors">+ Add Event</button>
+                <button onClick={() => setShowEventForm(true)} className="w-full py-1.5 bg-white dark:bg-[#252525] border border-border-soft dark:border-neutral-700 hover:border-maroon/30 text-ink dark:text-neutral-200 rounded text-[11px] font-medium transition-colors cursor-pointer">+ Add Event</button>
               ) : (
                 <div className="flex gap-1.5">
-                  <input autoFocus type="text" placeholder="Title..." className="flex-1 px-2 py-1 text-[11px] border border-border-soft rounded focus:outline-none focus:border-maroon" value={newEventTitle} onChange={e => setNewEventTitle(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddEvent()} />
-                  <button onClick={handleAddEvent} className="px-2 py-1 bg-maroon text-white text-[11px] font-semibold rounded hover:bg-maroon-deep">Save</button>
+                  <input autoFocus type="text" placeholder="Title..." className="flex-1 px-2 py-1 text-[11px] border border-border-soft dark:border-neutral-700 bg-white dark:bg-[#252525] text-ink dark:text-neutral-100 rounded focus:outline-none focus:border-maroon" value={newEventTitle} onChange={e => setNewEventTitle(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddEvent()} />
+                  <button onClick={handleAddEvent} className="px-2 py-1 bg-maroon text-white text-[11px] font-semibold rounded hover:bg-maroon-deep cursor-pointer">Save</button>
                 </div>
               )}
             </div>
@@ -609,37 +609,37 @@ export default function StudyPlanner() {
         </div>
 
         {/* Core Habits Widget */}
-        <div className="bg-white border border-border-soft p-5 rounded-xl shadow-sm flex-1 flex flex-col min-h-[300px]">
-          <h3 className="text-base font-bold mb-4 flex items-center text-ink font-serif"><TrendingUp className="w-4 h-4 mr-2 text-maroon" /> Daily Core Habits</h3>
+        <div className="bg-white dark:bg-[#1E1E1E] border border-border-soft dark:border-neutral-800 p-5 rounded-xl shadow-sm flex-1 flex flex-col min-h-[300px]">
+          <h3 className="text-base font-bold mb-4 flex items-center text-ink dark:text-neutral-100 font-serif"><TrendingUp className="w-4 h-4 mr-2 text-maroon dark:text-red-400" /> Daily Core Habits</h3>
           
           <div className="flex-1 space-y-2 overflow-y-auto custom-scrollbar pr-1">
             {habits.length === 0 ? (
-              <p className="text-[11px] text-gray-body/70 italic text-center mt-4">Add daily recurring habits here to build consistency.</p>
+              <p className="text-[11px] text-gray-body/70 dark:text-neutral-400 italic text-center mt-4">Add daily recurring habits here to build consistency.</p>
             ) : habits.map(habit => {
               const isCompleted = habit.completedDates.includes(todayStr);
               return (
-                <div key={habit.id} className="group flex items-center justify-between p-2.5 rounded-lg border border-border-soft bg-cream/10 hover:bg-cream/30 transition-colors">
-                  <button onClick={() => toggleHabit(habit.id)} className="flex items-center gap-3 flex-1 text-left">
-                    <div className={`shrink-0 flex items-center justify-center w-5 h-5 rounded-md border ${isCompleted ? 'bg-maroon border-maroon text-white' : 'bg-white border-border-soft text-transparent'} transition-colors`}>
+                <div key={habit.id} className="group flex items-center justify-between p-2.5 rounded-lg border border-border-soft dark:border-neutral-800 bg-cream/10 dark:bg-neutral-900/30 hover:bg-cream/30 dark:hover:bg-neutral-900/60 transition-colors">
+                  <button onClick={() => toggleHabit(habit.id)} className="flex items-center gap-3 flex-1 text-left cursor-pointer">
+                    <div className={`shrink-0 flex items-center justify-center w-5 h-5 rounded-md border ${isCompleted ? 'bg-maroon border-maroon text-white' : 'bg-white dark:bg-[#252525] border-border-soft dark:border-neutral-700 text-transparent'} transition-colors`}>
                       {isCompleted && <CheckCircle2 className="w-3.5 h-3.5" />}
                     </div>
-                    <span className={`text-xs font-semibold ${isCompleted ? 'line-through text-gray-body/70' : 'text-ink'}`}>{habit.title}</span>
+                    <span className={`text-xs font-semibold ${isCompleted ? 'line-through text-gray-body/70 dark:text-neutral-500' : 'text-ink dark:text-neutral-100'}`}>{habit.title}</span>
                   </button>
-                  <button onClick={() => deleteHabit(habit.id)} className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-all rounded hover:bg-red-50"><Trash2 className="w-3.5 h-3.5" /></button>
+                  <button onClick={() => deleteHabit(habit.id)} className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-all rounded hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
                 </div>
               )
             })}
           </div>
 
-          <form onSubmit={addHabit} className="mt-4 pt-4 border-t border-border-soft flex gap-2">
+          <form onSubmit={addHabit} className="mt-4 pt-4 border-t border-border-soft dark:border-neutral-800 flex gap-2">
             <input
               type="text"
               value={newHabit}
               onChange={(e) => setNewHabit(e.target.value)}
               placeholder="E.g., Read Tech News (15m)"
-              className="flex-1 px-3 py-1.5 text-xs border border-border-soft rounded-lg focus:outline-none focus:border-maroon"
+              className="flex-1 px-3 py-1.5 text-xs border border-border-soft dark:border-neutral-700 bg-white dark:bg-[#252525] text-ink dark:text-neutral-100 rounded-lg focus:outline-none focus:border-maroon"
             />
-            <button type="submit" disabled={!newHabit.trim()} className="px-3 py-1.5 bg-maroon text-white rounded-lg text-xs font-semibold hover:bg-maroon-deep disabled:opacity-50">Add</button>
+            <button type="submit" disabled={!newHabit.trim()} className="px-3 py-1.5 bg-maroon text-white rounded-lg text-xs font-semibold hover:bg-maroon-deep disabled:opacity-50 cursor-pointer">Add</button>
           </form>
         </div>
 

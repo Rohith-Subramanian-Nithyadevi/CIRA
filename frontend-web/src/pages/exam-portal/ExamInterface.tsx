@@ -55,6 +55,10 @@ export default function ExamInterface() {
   const hasFetched = React.useRef(false);
 
   useEffect(() => {
+    document.documentElement.classList.remove('dark');
+  }, []);
+
+  useEffect(() => {
     if (hasFetched.current) return;
     
     const fetchQuiz = async () => {

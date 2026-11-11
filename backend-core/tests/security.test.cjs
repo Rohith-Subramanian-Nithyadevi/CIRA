@@ -372,11 +372,32 @@ describe('faculty email security', () => {
     assert.equal(error.errorCode, 'ERR_FACULTY_EMAIL_DOMAIN');
   });
 
-  it('rejects invalid domain on direct Firebase faculty registration API requests', async () => {
-    const error = await invokeController(authController.firebaseAuthRegister, {
-      body: { idToken: 'not-verified', role: 'FACULTY', name: 'Faculty', email: 'faculty@evilch.amrita.edu', employeeId: 'F1', subject: 'Math' },
+  it('rejects lookalike faculty domains and invalid student email formats on registration', async () => {
+    const facultyError = await invokeController(authController.register, {
+      body: { role: 'FACULTY', name: 'Faculty', email: 'faculty@evilch.amrita.edu', personalEmail: 'person@gmail.com', password: 'Password123', employeeId: 'F1', subject: 'Math' },
     });
-    assert.equal(error.errorCode, 'ERR_FACULTY_EMAIL_DOMAIN');
+    assert.equal(facultyError.errorCode, 'ERR_FACULTY_EMAIL_DOMAIN');
+
+    const prisma = require('../dist/config/prisma').prisma;
+    const originalFindFirst = prisma.user.findFirst;
+    prisma.user.findFirst = async () => null;
+    try {
+      const studentError = await invokeController(authController.register, {
+        body: {
+          role: 'STUDENT',
+          name: 'Student',
+          email: 'invalid@ch.students.amrita.edu',
+          personalEmail: 'person@gmail.com',
+          password: 'Password123',
+          departmentId: 'dept-1',
+          rollNumber: 'CH.SC.U4CSE24118',
+          sectionId: 'sec-1',
+        },
+      });
+      assert.equal(studentError.errorCode, 'ERR_INVALID_STUDENT_EMAIL');
+    } finally {
+      prisma.user.findFirst = originalFindFirst;
+    }
   });
 });
 

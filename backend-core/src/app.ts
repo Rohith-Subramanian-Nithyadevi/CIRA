@@ -23,6 +23,8 @@ const app: Application = express();
 // Global Middlewares
 const allowedOrigins = [
   process.env.FRONTEND_URL || 'http://localhost:5173',
+  'http://localhost:5173',
+  'http://localhost:5174',
   'http://localhost:5175',
   'http://localhost:3000', // fallback for some dev environments
   'https://cira-rust-seven.vercel.app' // Vercel production origin
@@ -31,10 +33,11 @@ const allowedOrigins = [
 app.use(cors({
   origin: function (origin, callback) {
     if (!origin) return callback(null, true); // Allow non-browser requests
-    if (allowedOrigins.indexOf(origin) === -1) {
-      return callback(new Error('CORS policy violation: Origin not allowed'), false);
+    const isLocalhost = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+    if (isLocalhost || allowedOrigins.indexOf(origin) !== -1) {
+      return callback(null, true);
     }
-    return callback(null, true);
+    return callback(new Error('CORS policy violation: Origin not allowed'), false);
   },
   credentials: true
 }));

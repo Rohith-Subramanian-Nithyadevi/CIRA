@@ -51,9 +51,9 @@ function getTopicIcon(name: string) {
 }
 
 const DIFF_STYLE: Record<string, string> = {
-  EASY: 'bg-emerald-50 text-emerald-700 border border-emerald-200/80',
-  MEDIUM: 'bg-amber-50 text-amber-700 border border-amber-200/80',
-  HARD: 'bg-rose-50 text-rose-700 border border-rose-200/80',
+  EASY: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/50',
+  MEDIUM: 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800/50',
+  HARD: 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200/80 dark:border-rose-800/50',
 };
 
 export default function SheetView({ sheetId, onBack }: SheetViewProps) {
@@ -231,13 +231,13 @@ export default function SheetView({ sheetId, onBack }: SheetViewProps) {
   }
 
   return (
-    <div className="flex flex-col h-full bg-white rounded-xl">
+    <div className="flex flex-col h-full bg-white dark:bg-[#1E1E22] rounded-xl border border-border-soft dark:border-neutral-800 overflow-hidden">
       {/* ── Header ── */}
-      <div className="p-6 border-b border-border-soft bg-cream/20 shrink-0">
+      <div className="p-6 border-b border-border-soft dark:border-neutral-800 bg-cream/20 dark:bg-neutral-900/40 shrink-0">
         <div className="flex items-center justify-between mb-3">
           <button 
             onClick={onBack} 
-            className="group flex items-center text-xs font-bold text-gray-body hover:text-maroon transition-colors"
+            className="group flex items-center text-xs font-bold text-gray-body dark:text-neutral-300 hover:text-maroon dark:hover:text-rose-400 transition-colors cursor-pointer"
           >
             <ArrowLeft className="w-3.5 h-3.5 mr-1.5 transition-transform group-hover:-translate-x-0.5" />
             Back to Resources
@@ -246,14 +246,14 @@ export default function SheetView({ sheetId, onBack }: SheetViewProps) {
           <div className="flex items-center gap-2">
             <button
               onClick={expandAll}
-              className="text-[11px] font-semibold text-gray-body hover:text-maroon px-2 py-1 rounded hover:bg-white/80 transition-colors"
+              className="text-[11px] font-semibold text-gray-body dark:text-neutral-300 hover:text-maroon dark:hover:text-rose-400 px-2 py-1 rounded hover:bg-white/80 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
             >
               Expand All
             </button>
-            <span className="text-border-soft">|</span>
+            <span className="text-border-soft dark:text-neutral-700">|</span>
             <button
               onClick={collapseAll}
-              className="text-[11px] font-semibold text-gray-body hover:text-maroon px-2 py-1 rounded hover:bg-white/80 transition-colors"
+              className="text-[11px] font-semibold text-gray-body dark:text-neutral-300 hover:text-maroon dark:hover:text-rose-400 px-2 py-1 rounded hover:bg-white/80 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
             >
               Collapse All
             </button>
@@ -263,24 +263,24 @@ export default function SheetView({ sheetId, onBack }: SheetViewProps) {
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
             <div className="flex items-center gap-2.5 mb-1.5">
-              <span className="text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-full bg-maroon/10 text-maroon border border-maroon/20">
+              <span className="text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-full bg-maroon/10 dark:bg-rose-500/15 text-maroon dark:text-rose-300 border border-maroon/20 dark:border-rose-500/30">
                 DSA Roadmap
               </span>
-              <span className="text-xs text-gray-body/60 font-semibold">
+              <span className="text-xs text-gray-body/60 dark:text-neutral-400 font-semibold">
                 {sheet.sheetTopics?.length || 16} Topics
               </span>
             </div>
-            <h2 className="text-2xl font-serif font-bold text-ink tracking-tight">{sheet.title}</h2>
-            <p className="text-xs text-gray-body mt-1 max-w-2xl leading-relaxed">{sheet.description}</p>
+            <h2 className="text-2xl font-serif font-bold text-ink dark:text-neutral-100 tracking-tight">{sheet.title}</h2>
+            <p className="text-xs text-gray-body dark:text-neutral-400 mt-1 max-w-2xl leading-relaxed">{sheet.description}</p>
           </div>
 
-          <div className="shrink-0 flex items-center gap-6 bg-white/70 border border-border-soft/80 px-4 py-3 rounded-xl shadow-xs">
+          <div className="shrink-0 flex items-center gap-6 bg-white/70 dark:bg-[#25252A] border border-border-soft/80 dark:border-neutral-700 px-4 py-3 rounded-xl shadow-xs">
             <div className="text-right">
               <div className="flex items-baseline justify-end gap-1">
-                <span className="text-2xl font-bold text-maroon font-serif">{progressPercent}%</span>
-                <span className="text-[11px] text-gray-body font-semibold">Completed</span>
+                <span className="text-2xl font-bold text-maroon dark:text-rose-400 font-serif">{progressPercent}%</span>
+                <span className="text-[11px] text-gray-body dark:text-neutral-400 font-semibold">Completed</span>
               </div>
-              <div className="text-[11px] text-gray-body/70 font-semibold mt-0.5">
+              <div className="text-[11px] text-gray-body/70 dark:text-neutral-400 font-semibold mt-0.5">
                 {totalSolved} of {totalQuestions} Solved · {totalRevision} in Revision
               </div>
             </div>
@@ -288,7 +288,7 @@ export default function SheetView({ sheetId, onBack }: SheetViewProps) {
         </div>
 
         {/* Progress bar */}
-        <div className="w-full bg-cream/80 border border-border-soft/60 rounded-full h-2.5 mt-5 overflow-hidden">
+        <div className="w-full bg-cream/80 dark:bg-neutral-800 border border-border-soft/60 dark:border-neutral-700 rounded-full h-2.5 mt-5 overflow-hidden">
           <div 
             className="bg-gradient-to-r from-maroon/80 to-maroon h-full rounded-full transition-all duration-500" 
             style={{ width: `${progressPercent}%` }}
@@ -296,29 +296,29 @@ export default function SheetView({ sheetId, onBack }: SheetViewProps) {
         </div>
 
         {/* ── Search & Filter Controls ── */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mt-5 pt-4 border-t border-border-soft/60">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mt-5 pt-4 border-t border-border-soft/60 dark:border-neutral-800">
           <div className="relative flex-1 max-w-sm">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-body/50" />
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-body/50 dark:text-neutral-500" />
             <input
               type="text"
               placeholder="Search problems or topics..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-border-soft text-xs text-ink focus:border-maroon focus:ring-1 focus:ring-maroon outline-none transition-all bg-white"
+              className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-border-soft dark:border-neutral-700 text-xs text-ink dark:text-neutral-100 placeholder:text-gray-body/50 dark:placeholder:text-neutral-500 focus:border-maroon focus:ring-1 focus:ring-maroon outline-none transition-all bg-white dark:bg-[#25252A]"
             />
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             {/* Difficulty filter */}
-            <div className="flex items-center gap-1 bg-white border border-border-soft rounded-lg p-0.5">
+            <div className="flex items-center gap-1 bg-white dark:bg-[#25252A] border border-border-soft dark:border-neutral-700 rounded-lg p-0.5">
               {(['ALL', 'EASY', 'MEDIUM', 'HARD'] as const).map(diff => (
                 <button
                   key={diff}
                   onClick={() => setDifficultyFilter(diff)}
-                  className={`px-2 py-1 rounded text-[10px] font-bold transition-colors ${
+                  className={`px-2 py-1 rounded text-[10px] font-bold transition-colors cursor-pointer ${
                     difficultyFilter === diff
                       ? 'bg-maroon text-white shadow-xs'
-                      : 'text-gray-body hover:text-ink'
+                      : 'text-gray-body dark:text-neutral-300 hover:text-ink dark:hover:text-white'
                   }`}
                 >
                   {diff === 'ALL' ? 'All Diff' : diff.charAt(0) + diff.slice(1).toLowerCase()}
@@ -327,15 +327,15 @@ export default function SheetView({ sheetId, onBack }: SheetViewProps) {
             </div>
 
             {/* Status filter */}
-            <div className="flex items-center gap-1 bg-white border border-border-soft rounded-lg p-0.5">
+            <div className="flex items-center gap-1 bg-white dark:bg-[#25252A] border border-border-soft dark:border-neutral-700 rounded-lg p-0.5">
               {(['ALL', 'SOLVED', 'UNSOLVED', 'REVISION'] as const).map(st => (
                 <button
                   key={st}
                   onClick={() => setStatusFilter(st)}
-                  className={`px-2 py-1 rounded text-[10px] font-bold transition-colors ${
+                  className={`px-2 py-1 rounded text-[10px] font-bold transition-colors cursor-pointer ${
                     statusFilter === st
-                      ? 'bg-ink text-white shadow-xs'
-                      : 'text-gray-body hover:text-ink'
+                      ? 'bg-[#1A1A1A] dark:bg-neutral-100 text-white dark:text-[#1A1A1A] shadow-xs'
+                      : 'text-gray-body dark:text-neutral-300 hover:text-ink dark:hover:text-white'
                   }`}
                 >
                   {st === 'ALL' ? 'All Status' : st === 'REVISION' ? 'Revision' : st.charAt(0) + st.slice(1).toLowerCase()}
@@ -347,7 +347,7 @@ export default function SheetView({ sheetId, onBack }: SheetViewProps) {
       </div>
 
       {/* ── Stepped Roadmap Body ── */}
-      <div className="flex-1 overflow-y-auto p-6 bg-white">
+      <div className="flex-1 overflow-y-auto p-6 bg-white dark:bg-[#1E1E22]">
         <div className="max-w-4xl mx-auto space-y-3">
           {filteredTopics.length > 0 ? (
             filteredTopics.map((topic: any, index: number) => {
@@ -368,19 +368,19 @@ export default function SheetView({ sheetId, onBack }: SheetViewProps) {
                 <div key={topic.id} className="relative">
                   {/* Vertical connector line */}
                   {index < filteredTopics.length - 1 && (
-                    <div className="absolute left-[23px] top-full w-0.5 h-3 bg-gradient-to-b from-maroon/20 to-border-soft z-0" />
+                    <div className="absolute left-[23px] top-full w-0.5 h-3 bg-gradient-to-b from-maroon/20 to-border-soft dark:to-neutral-800 z-0" />
                   )}
 
                   <div className={`relative z-10 border rounded-xl overflow-hidden transition-all duration-200 ${
                     isExpanded 
-                      ? 'border-maroon/40 shadow-xs ring-1 ring-maroon/10' 
-                      : 'border-border-soft hover:border-maroon/30 hover:bg-cream/20'
+                      ? 'border-maroon/40 dark:border-rose-400/40 shadow-xs ring-1 ring-maroon/10' 
+                      : 'border-border-soft dark:border-neutral-800 hover:border-maroon/30 hover:bg-cream/20 dark:hover:bg-neutral-800/40'
                   }`}>
                     {/* Topic Header Node */}
                     <button
                       onClick={() => toggleTopic(topic.id)}
-                      className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
-                        isExpanded ? 'bg-maroon/[0.03]' : 'bg-cream/20 hover:bg-cream/40'
+                      className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors cursor-pointer ${
+                        isExpanded ? 'bg-maroon/[0.04] dark:bg-rose-500/10' : 'bg-cream/20 dark:bg-neutral-900/40 hover:bg-cream/40 dark:hover:bg-neutral-800/60'
                       }`}
                     >
                       {/* Step Circle Indicator */}
@@ -389,7 +389,7 @@ export default function SheetView({ sheetId, onBack }: SheetViewProps) {
                           ? 'bg-emerald-600 text-white shadow-xs'
                           : isExpanded
                           ? 'bg-maroon text-white shadow-xs'
-                          : 'bg-white text-maroon border border-maroon/30'
+                          : 'bg-white dark:bg-[#25252A] text-maroon dark:text-rose-400 border border-maroon/30 dark:border-rose-500/30'
                       }`}>
                         {isCompleted ? (
                           <CheckCircle2 className="w-4 h-4 text-white" />
@@ -400,9 +400,9 @@ export default function SheetView({ sheetId, onBack }: SheetViewProps) {
 
                       {/* Icon + Title */}
                       <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <TopicIcon className="w-4 h-4 text-maroon/70 shrink-0" />
+                        <TopicIcon className="w-4 h-4 text-maroon/70 dark:text-rose-400 shrink-0" />
                         <span className={`font-bold text-sm truncate transition-colors ${
-                          isExpanded ? 'text-maroon' : 'text-ink'
+                          isExpanded ? 'text-maroon dark:text-rose-300' : 'text-ink dark:text-neutral-100'
                         }`}>
                           {topic.name}
                         </span>
@@ -411,17 +411,17 @@ export default function SheetView({ sheetId, onBack }: SheetViewProps) {
                       {/* Difficulty Pills */}
                       <div className="hidden sm:flex items-center gap-1.5 shrink-0 mr-2">
                         {easyCount > 0 && (
-                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/50">
                             {easyCount} Easy
                           </span>
                         )}
                         {medCount > 0 && (
-                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200/80">
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800/50">
                             {medCount} Med
                           </span>
                         )}
                         {hardCount > 0 && (
-                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200/80">
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200/80 dark:border-rose-800/50">
                             {hardCount} Hard
                           </span>
                         )}
@@ -430,25 +430,25 @@ export default function SheetView({ sheetId, onBack }: SheetViewProps) {
                       {/* Solved Count Badge */}
                       <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md border shrink-0 transition-colors ${
                         isCompleted
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
                           : topicSolved > 0
-                          ? 'bg-maroon/10 text-maroon border-maroon/20'
-                          : 'bg-white text-gray-body border-border-soft'
+                          ? 'bg-maroon/10 dark:bg-rose-500/15 text-maroon dark:text-rose-300 border-maroon/20 dark:border-rose-500/30'
+                          : 'bg-white dark:bg-[#25252A] text-gray-body dark:text-neutral-300 border-border-soft dark:border-neutral-700'
                       }`}>
                         {topicSolved} / {topicTotal} Solved
                       </span>
 
                       {/* Chevron */}
                       {isExpanded ? (
-                        <ChevronUp className="w-4 h-4 text-maroon shrink-0 ml-1" />
+                        <ChevronUp className="w-4 h-4 text-maroon dark:text-rose-400 shrink-0 ml-1" />
                       ) : (
-                        <ChevronDown className="w-4 h-4 text-gray-body/50 shrink-0 ml-1" />
+                        <ChevronDown className="w-4 h-4 text-gray-body/50 dark:text-neutral-500 shrink-0 ml-1" />
                       )}
                     </button>
 
                     {/* Question List inside Topic */}
                     {isExpanded && (
-                      <div className="bg-white border-t border-border-soft/60 px-2 py-1.5 divide-y divide-border-soft/40">
+                      <div className="bg-white dark:bg-[#19191D] border-t border-border-soft/60 dark:border-neutral-800 px-2 py-1.5 divide-y divide-border-soft/40 dark:divide-neutral-800/60">
                         {questions.length > 0 ? (
                           questions.map((q: any, qIdx: number) => {
                             const isSolved = q.studentProgress?.[0]?.status === 'SOLVED';
@@ -459,33 +459,33 @@ export default function SheetView({ sheetId, onBack }: SheetViewProps) {
                                 key={q.id}
                                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group ${
                                   isSolved 
-                                    ? 'bg-emerald-50/25 hover:bg-emerald-50/40' 
-                                    : 'hover:bg-cream/40'
+                                    ? 'bg-emerald-50/25 dark:bg-emerald-950/20 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/35' 
+                                    : 'hover:bg-cream/40 dark:hover:bg-neutral-800/50'
                                 }`}
                               >
                                 {/* Solved toggle checkbox */}
                                 <button
                                   onClick={() => updateProgress(q.id, isSolved ? 'UNSOLVED' : 'SOLVED')}
                                   title={isSolved ? "Mark as unsolved" : "Mark as solved"}
-                                  className="shrink-0 transition-transform active:scale-95"
+                                  className="shrink-0 transition-transform active:scale-95 cursor-pointer"
                                 >
                                   {isSolved ? (
-                                    <CheckCircle2 className="w-4 h-4 text-emerald-600 fill-emerald-100" />
+                                    <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 fill-emerald-100 dark:fill-emerald-950" />
                                   ) : (
-                                    <Circle className="w-4 h-4 text-gray-body/30 hover:text-emerald-500 transition-colors" />
+                                    <Circle className="w-4 h-4 text-gray-body/30 dark:text-neutral-600 hover:text-emerald-500 transition-colors" />
                                   )}
                                 </button>
 
                                 {/* Problem Number */}
-                                <span className="w-5 text-[11px] font-bold text-gray-body/40 shrink-0 text-right">
+                                <span className="w-5 text-[11px] font-bold text-gray-body/40 dark:text-neutral-500 shrink-0 text-right">
                                   {qIdx + 1}
                                 </span>
 
                                 {/* Problem Title */}
                                 <span className={`flex-1 text-xs font-semibold truncate transition-colors ${
                                   isSolved 
-                                    ? 'text-gray-body line-through decoration-emerald-600/40' 
-                                    : 'text-ink group-hover:text-maroon'
+                                    ? 'text-gray-body dark:text-neutral-500 line-through decoration-emerald-600/40' 
+                                    : 'text-ink dark:text-neutral-100 group-hover:text-maroon dark:group-hover:text-rose-400'
                                 }`}>
                                   {q.title}
                                 </span>
@@ -501,7 +501,7 @@ export default function SheetView({ sheetId, onBack }: SheetViewProps) {
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   title="Open on LeetCode"
-                                  className="shrink-0 p-1.5 rounded-md hover:bg-[#FFA116]/10 text-gray-body/40 hover:text-[#FFA116] transition-colors"
+                                  className="shrink-0 p-1.5 rounded-md hover:bg-[#FFA116]/10 text-gray-body/40 dark:text-neutral-500 hover:text-[#FFA116] transition-colors"
                                   onClick={(e) => e.stopPropagation()}
                                 >
                                   <LeetCodeIcon className="w-3.5 h-3.5" />
@@ -511,19 +511,19 @@ export default function SheetView({ sheetId, onBack }: SheetViewProps) {
                                 <button
                                   onClick={() => updateProgress(q.id, undefined, !isRevision)}
                                   title={isRevision ? "Remove from Revision Pool" : "Add to Revision Pool"}
-                                  className={`shrink-0 p-1.5 rounded-md transition-colors ${
+                                  className={`shrink-0 p-1.5 rounded-md transition-colors cursor-pointer ${
                                     isRevision 
-                                      ? 'text-maroon bg-maroon/10' 
-                                      : 'text-gray-body/30 hover:text-maroon hover:bg-maroon/10'
+                                      ? 'text-maroon dark:text-rose-400 bg-maroon/10 dark:bg-rose-500/20' 
+                                      : 'text-gray-body/30 dark:text-neutral-500 hover:text-maroon dark:hover:text-rose-400 hover:bg-maroon/10 dark:hover:bg-rose-500/15'
                                   }`}
                                 >
-                                  <Bookmark className={`w-3.5 h-3.5 ${isRevision ? 'fill-maroon text-maroon' : ''}`} />
+                                  <Bookmark className={`w-3.5 h-3.5 ${isRevision ? 'fill-maroon dark:fill-rose-400 text-maroon dark:text-rose-400' : ''}`} />
                                 </button>
                               </div>
                             );
                           })
                         ) : (
-                          <div className="py-4 text-center text-xs text-gray-body/50 italic">
+                          <div className="py-4 text-center text-xs text-gray-body/50 dark:text-neutral-500 italic">
                             No problems match your search or filter.
                           </div>
                         )}
@@ -534,10 +534,10 @@ export default function SheetView({ sheetId, onBack }: SheetViewProps) {
               );
             })
           ) : (
-            <div className="flex flex-col items-center justify-center py-16 text-gray-body/50 text-center">
-              <ListFilter className="w-10 h-10 mb-3 stroke-1 text-gray-body/40" />
-              <p className="font-semibold text-ink text-sm">No topics match your filter criteria</p>
-              <p className="text-xs text-gray-body/60 mt-1">Try resetting the difficulty or status filters.</p>
+            <div className="flex flex-col items-center justify-center py-16 text-gray-body/50 dark:text-neutral-500 text-center">
+              <ListFilter className="w-10 h-10 mb-3 stroke-1 text-gray-body/40 dark:text-neutral-600" />
+              <p className="font-semibold text-ink dark:text-neutral-200 text-sm">No topics match your filter criteria</p>
+              <p className="text-xs text-gray-body/60 dark:text-neutral-400 mt-1">Try resetting the difficulty or status filters.</p>
             </div>
           )}
         </div>

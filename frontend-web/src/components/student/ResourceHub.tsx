@@ -97,9 +97,9 @@ export default function ResourceHub() {
 
   if (loading) {
     return (
-      <div className="bg-white rounded-xl border border-border-soft p-12 flex flex-col items-center justify-center space-y-3">
+      <div className="bg-white dark:bg-[#1E1E22] rounded-xl border border-border-soft dark:border-neutral-800 p-12 flex flex-col items-center justify-center space-y-3">
         <div className="w-8 h-8 rounded-full border-2 border-maroon border-t-transparent animate-spin" />
-        <p className="text-xs text-gray-body font-medium">Loading Resource Hub...</p>
+        <p className="text-xs text-gray-body dark:text-neutral-400 font-medium">Loading Resource Hub...</p>
       </div>
     );
   }
@@ -128,22 +128,22 @@ export default function ResourceHub() {
   });
 
   return (
-    <div className="bg-white rounded-xl border border-border-soft shadow-xs flex flex-col min-h-[calc(100vh-8rem)] relative">
+    <div className="bg-white dark:bg-[#1E1E22] rounded-xl border border-border-soft dark:border-neutral-800 shadow-xs flex flex-col min-h-[calc(100vh-8rem)] relative">
       {showRevision && <RevisionPool onClose={() => setShowRevision(false)} />}
 
       {/* ── Top Header ── */}
-      <div className="p-6 border-b border-border-soft bg-cream/20 shrink-0">
+      <div className="p-6 border-b border-border-soft dark:border-neutral-800 bg-cream/20 dark:bg-neutral-900/40 shrink-0">
         <div className="flex justify-between items-center mb-4">
           <div>
-            <h2 className="text-xl font-serif font-bold text-ink">Resource Hub</h2>
-            <p className="text-xs text-gray-body mt-0.5">Comprehensive preparation sheets, curriculum roadmaps, and interview resources</p>
+            <h2 className="text-xl font-serif font-bold text-ink dark:text-neutral-100">Resource Hub</h2>
+            <p className="text-xs text-gray-body dark:text-neutral-400 mt-0.5">Comprehensive preparation sheets, curriculum roadmaps, and interview resources</p>
           </div>
 
           <button 
             onClick={() => setShowRevision(true)}
-            className="flex items-center gap-2 px-3.5 py-2 bg-maroon/10 text-maroon border border-maroon/20 rounded-lg text-xs font-bold hover:bg-maroon/15 transition-all shadow-2xs"
+            className="flex items-center gap-2 px-3.5 py-2 bg-maroon/10 dark:bg-rose-500/15 text-maroon dark:text-rose-300 border border-maroon/20 dark:border-rose-500/30 rounded-lg text-xs font-bold hover:bg-maroon/15 dark:hover:bg-rose-500/25 transition-all shadow-2xs cursor-pointer"
           >
-            <Star className="w-3.5 h-3.5 fill-maroon text-maroon" />
+            <Star className="w-3.5 h-3.5 fill-maroon text-maroon dark:fill-rose-400 dark:text-rose-400" />
             Revision Pool
           </button>
         </div>
@@ -155,10 +155,10 @@ export default function ResourceHub() {
               <button
                 key={cat.key}
                 onClick={() => setActiveCategory(cat.key)}
-                className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
+                className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors cursor-pointer ${
                   activeCategory === cat.key
                     ? 'bg-maroon text-white border-maroon shadow-xs'
-                    : 'bg-white text-gray-body border-border-soft hover:border-maroon/40 hover:text-ink'
+                    : 'bg-white dark:bg-[#25252A] text-gray-body dark:text-neutral-300 border-border-soft dark:border-neutral-700 hover:border-maroon/40 hover:text-ink dark:hover:text-white'
                 }`}
               >
                 {cat.label}
@@ -167,13 +167,13 @@ export default function ResourceHub() {
           </div>
 
           <div className="relative w-full sm:w-64">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-body/50" />
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-body/50 dark:text-neutral-500" />
             <input
               type="text"
               placeholder="Search resources..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-border-soft focus:border-maroon focus:ring-1 focus:ring-maroon outline-none transition-all text-xs bg-white"
+              className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-border-soft dark:border-neutral-700 text-ink dark:text-neutral-100 placeholder:text-gray-body/50 dark:placeholder:text-neutral-500 focus:border-maroon focus:ring-1 focus:ring-maroon outline-none transition-all text-xs bg-white dark:bg-[#25252A]"
             />
           </div>
         </div>
@@ -186,12 +186,12 @@ export default function ResourceHub() {
           <div>
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <Layers className="w-4 h-4 text-maroon" />
-                <h3 className="text-xs uppercase tracking-widest font-bold text-gray-body">
+                <Layers className="w-4 h-4 text-maroon dark:text-rose-400" />
+                <h3 className="text-xs uppercase tracking-widest font-bold text-gray-body dark:text-neutral-400">
                   Curated DSA Practice Sheets
                 </h3>
               </div>
-              <span className="text-[11px] font-semibold text-gray-body/60">
+              <span className="text-[11px] font-semibold text-gray-body/60 dark:text-neutral-500">
                 16 Topics · Stepped Roadmaps · Real LeetCode Links
               </span>
             </div>
@@ -203,34 +203,34 @@ export default function ResourceHub() {
                   <div
                     key={sheet.id}
                     onClick={() => setActiveSheetId(sheet.id)}
-                    className="group cursor-pointer text-left flex flex-col p-5 rounded-xl border border-border-soft bg-gradient-to-br from-white to-cream/20 hover:border-maroon/40 hover:shadow-md hover:bg-cream/30 transition-all relative overflow-hidden"
+                    className="group cursor-pointer text-left flex flex-col p-5 rounded-xl border border-border-soft dark:border-neutral-800 bg-gradient-to-br from-white dark:from-[#232329] to-cream/20 dark:to-neutral-900/40 hover:border-maroon/40 dark:hover:border-rose-400/40 hover:shadow-md hover:bg-cream/30 dark:hover:bg-neutral-800/70 transition-all relative overflow-hidden"
                   >
                     {/* Subtle top indicator bar */}
                     <div className="absolute top-0 left-0 right-0 h-1 bg-maroon/20 group-hover:bg-maroon transition-colors" />
 
                     <div className="flex items-start justify-between mb-3">
-                      <div className="p-2 bg-white rounded-lg border border-border-soft/80 group-hover:border-maroon/30 shadow-2xs transition-colors">
-                        <Code2 className="w-5 h-5 text-maroon" />
+                      <div className="p-2 bg-white dark:bg-neutral-800 rounded-lg border border-border-soft/80 dark:border-neutral-700 group-hover:border-maroon/30 shadow-2xs transition-colors">
+                        <Code2 className="w-5 h-5 text-maroon dark:text-rose-400" />
                       </div>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-maroon bg-maroon/10 border border-maroon/20 px-2 py-0.5 rounded-full">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-maroon dark:text-rose-300 bg-maroon/10 dark:bg-rose-500/15 border border-maroon/20 dark:border-rose-500/30 px-2 py-0.5 rounded-full">
                         {count > 0 ? `${count} Questions` : 'Roadmap Sheet'}
                       </span>
                     </div>
 
-                    <h4 className="font-serif font-bold text-ink text-base mb-1.5 group-hover:text-maroon transition-colors">
+                    <h4 className="font-serif font-bold text-ink dark:text-neutral-100 text-base mb-1.5 group-hover:text-maroon dark:group-hover:text-rose-400 transition-colors">
                       {sheet.title}
                     </h4>
 
-                    <p className="text-xs text-gray-body leading-relaxed mb-4 flex-1 line-clamp-2">
+                    <p className="text-xs text-gray-body dark:text-neutral-400 leading-relaxed mb-4 flex-1 line-clamp-2">
                       {sheet.description}
                     </p>
 
-                    <div className="flex items-center justify-between pt-3 border-t border-border-soft/60 mt-auto">
-                      <div className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-body/70">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    <div className="flex items-center justify-between pt-3 border-t border-border-soft/60 dark:border-neutral-800 mt-auto">
+                      <div className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-body/70 dark:text-neutral-400">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                         <span>Interactive Tracking</span>
                       </div>
-                      <div className="flex items-center gap-1 text-xs font-bold text-maroon group-hover:translate-x-1 transition-transform">
+                      <div className="flex items-center gap-1 text-xs font-bold text-maroon dark:text-rose-400 group-hover:translate-x-1 transition-transform">
                         <span>Open Sheet</span>
                         <ChevronRight className="w-3.5 h-3.5" />
                       </div>
@@ -247,8 +247,8 @@ export default function ResourceHub() {
           <div>
             {(activeCategory === 'ALL' || activeCategory === 'DSA') && sheetResources.length > 0 && (
               <div className="flex items-center gap-2 mb-3 pt-2">
-                <BookOpen className="w-4 h-4 text-gray-body/70" />
-                <h3 className="text-xs uppercase tracking-widest font-bold text-gray-body">
+                <BookOpen className="w-4 h-4 text-gray-body/70 dark:text-neutral-400" />
+                <h3 className="text-xs uppercase tracking-widest font-bold text-gray-body dark:text-neutral-400">
                   Study Guides & Subject Resources
                 </h3>
               </div>
@@ -261,26 +261,26 @@ export default function ResourceHub() {
                   href={resource.url || '#'}
                   target={resource.url && resource.url !== '#' ? '_blank' : undefined}
                   rel="noopener noreferrer"
-                  className="group flex flex-col p-4 rounded-xl border border-border-soft bg-white hover:border-maroon/30 hover:shadow-xs hover:bg-cream/10 transition-all text-left"
+                  className="group flex flex-col p-4 rounded-xl border border-border-soft dark:border-neutral-800 bg-white dark:bg-[#232329] hover:border-maroon/30 dark:hover:border-rose-400/40 hover:shadow-xs hover:bg-cream/10 dark:hover:bg-neutral-800/70 transition-all text-left"
                 >
                   <div className="flex justify-between items-start mb-3">
-                    <div className="p-2 bg-cream/30 rounded-lg border border-border-soft/60 group-hover:border-maroon/20">
-                      <BookOpen className="w-4 h-4 text-maroon/80" />
+                    <div className="p-2 bg-cream/30 dark:bg-neutral-800 rounded-lg border border-border-soft/60 dark:border-neutral-700 group-hover:border-maroon/20">
+                      <BookOpen className="w-4 h-4 text-maroon/80 dark:text-rose-400" />
                     </div>
-                    <ExternalLink className="w-3.5 h-3.5 text-gray-body/40 group-hover:text-maroon transition-colors" />
+                    <ExternalLink className="w-3.5 h-3.5 text-gray-body/40 dark:text-neutral-500 group-hover:text-maroon dark:group-hover:text-rose-400 transition-colors" />
                   </div>
 
-                  <h4 className="font-bold text-ink text-sm mb-1 group-hover:text-maroon transition-colors line-clamp-1">
+                  <h4 className="font-bold text-ink dark:text-neutral-100 text-sm mb-1 group-hover:text-maroon dark:group-hover:text-rose-400 transition-colors line-clamp-1">
                     {resource.title}
                   </h4>
 
-                  <p className="text-xs text-gray-body line-clamp-2 mb-4 flex-1 leading-relaxed">
+                  <p className="text-xs text-gray-body dark:text-neutral-400 line-clamp-2 mb-4 flex-1 leading-relaxed">
                     {resource.description}
                   </p>
 
-                  <div className="flex items-center gap-2 mt-auto pt-3 border-t border-border-soft/50">
-                    <Folder className="w-3 h-3 text-gray-body/60" />
-                    <span className="text-[10px] font-semibold text-gray-body uppercase tracking-wider">
+                  <div className="flex items-center gap-2 mt-auto pt-3 border-t border-border-soft/50 dark:border-neutral-800">
+                    <Folder className="w-3 h-3 text-gray-body/60 dark:text-neutral-500" />
+                    <span className="text-[10px] font-semibold text-gray-body dark:text-neutral-400 uppercase tracking-wider">
                       {resource.topic || resource.category}
                     </span>
                   </div>
@@ -297,36 +297,36 @@ export default function ResourceHub() {
               {curatedCards.map((item, i) => (
                 <div 
                   key={i} 
-                  className="flex flex-col p-5 rounded-xl border border-dashed border-border-soft bg-gradient-to-br from-white to-cream/30 relative overflow-hidden"
+                  className="flex flex-col p-5 rounded-xl border border-dashed border-border-soft dark:border-neutral-700 bg-gradient-to-br from-white dark:from-[#232329] to-cream/30 dark:to-neutral-900/40 relative overflow-hidden"
                 >
                   <div className="flex justify-between items-start mb-3">
-                    <div className="p-2 bg-cream/40 rounded-lg border border-border-soft/60">
-                      <BookOpen className="w-4 h-4 text-maroon/60" />
+                    <div className="p-2 bg-cream/40 dark:bg-neutral-800 rounded-lg border border-border-soft/60 dark:border-neutral-700">
+                      <BookOpen className="w-4 h-4 text-maroon/60 dark:text-rose-400/80" />
                     </div>
-                    <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-maroon/70 bg-maroon/8 border border-maroon/15 px-2 py-0.5 rounded-full">
+                    <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-maroon/70 dark:text-rose-300 bg-maroon/8 dark:bg-rose-500/15 border border-maroon/15 dark:border-rose-500/30 px-2 py-0.5 rounded-full">
                       <Clock className="w-2.5 h-2.5" /> Curating
                     </span>
                   </div>
 
-                  <h4 className="font-serif font-bold text-ink/80 text-sm mb-1.5 line-clamp-1">
+                  <h4 className="font-serif font-bold text-ink/80 dark:text-neutral-100 text-sm mb-1.5 line-clamp-1">
                     {item.title}
                   </h4>
 
-                  <p className="text-xs text-gray-body/70 leading-relaxed line-clamp-2 mb-4 flex-1">
+                  <p className="text-xs text-gray-body/70 dark:text-neutral-400 leading-relaxed line-clamp-2 mb-4 flex-1">
                     {item.desc}
                   </p>
 
                   {/* Professional Notice Banner */}
-                  <div className="flex items-center gap-2 p-2 rounded-lg bg-cream/40 border border-border-soft/40 mb-3">
-                    <Sparkles className="w-3.5 h-3.5 text-maroon/60 shrink-0" />
-                    <p className="text-[11px] text-gray-body font-medium leading-tight">
+                  <div className="flex items-center gap-2 p-2 rounded-lg bg-cream/40 dark:bg-neutral-800/60 border border-border-soft/40 dark:border-neutral-700 mb-3">
+                    <Sparkles className="w-3.5 h-3.5 text-maroon/60 dark:text-rose-400 shrink-0" />
+                    <p className="text-[11px] text-gray-body dark:text-neutral-300 font-medium leading-tight">
                       We are curating the perfect course modules for you
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-2 pt-2.5 border-t border-border-soft/40 mt-auto">
-                    <Folder className="w-3 h-3 text-gray-body/40" />
-                    <span className="text-[10px] font-semibold text-gray-body/60 uppercase tracking-wider">
+                  <div className="flex items-center gap-2 pt-2.5 border-t border-border-soft/40 dark:border-neutral-800 mt-auto">
+                    <Folder className="w-3 h-3 text-gray-body/40 dark:text-neutral-500" />
+                    <span className="text-[10px] font-semibold text-gray-body/60 dark:text-neutral-400 uppercase tracking-wider">
                       {item.topic}
                     </span>
                   </div>
@@ -338,10 +338,10 @@ export default function ResourceHub() {
 
         {/* Empty State */}
         {filteredDbResources.length === 0 && (!showCuratedPlaceholders || curatedCards.length === 0) && (
-          <div className="flex flex-col items-center justify-center py-20 text-gray-body/60 text-center">
-            <Search className="w-10 h-10 mb-3 stroke-1 text-gray-body/40" />
-            <p className="font-semibold text-ink text-sm">No resources found</p>
-            <p className="text-xs text-gray-body mt-1">Try adjusting your filters or search query.</p>
+          <div className="flex flex-col items-center justify-center py-20 text-gray-body/60 dark:text-neutral-500 text-center">
+            <Search className="w-10 h-10 mb-3 stroke-1 text-gray-body/40 dark:text-neutral-600" />
+            <p className="font-semibold text-ink dark:text-neutral-200 text-sm">No resources found</p>
+            <p className="text-xs text-gray-body dark:text-neutral-400 mt-1">Try adjusting your filters or search query.</p>
           </div>
         )}
       </div>
