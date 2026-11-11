@@ -77,6 +77,7 @@ export default function Login() {
   const [showForgotConfirmPassword, setShowForgotConfirmPassword] = useState(false);
 
   useEffect(() => {
+    document.documentElement.classList.remove('dark');
     const fetchBatches = async () => {
       try {
         const res = await apiClient.fetch('/api/v1/batches');

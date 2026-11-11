@@ -206,30 +206,30 @@ export default function UserProfile() {
   const availableSections = selectedDept?.sections || [];
 
   return (
-    <div className="max-w-2xl bg-white dark:bg-[#1A1A1A] rounded-xl border border-border-soft dark:border-gray-800 p-8 shadow-sm transition-colors duration-200">
+    <div className="max-w-2xl bg-white dark:bg-[#18181B] rounded-xl border border-border-soft dark:border-neutral-800 p-8 shadow-sm transition-colors duration-200">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-serif font-bold text-ink dark:text-cream">User Profile</h2>
+        <h2 className="text-2xl font-serif font-bold text-ink dark:text-neutral-100">User Profile</h2>
         
         {/* Theme Toggle */}
         <ThemeToggle />
       </div>
 
       {success && (
-        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 p-3 rounded-lg mb-4 text-sm font-semibold flex items-center gap-2">
+        <div className="bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 p-3 rounded-lg mb-4 text-sm font-semibold flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 shrink-0" />
           {success}
         </div>
       )}
       {error && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 p-3 rounded-lg mb-4 text-sm font-semibold">
+        <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 p-3 rounded-lg mb-4 text-sm font-semibold">
           {error}
         </div>
       )}
 
-      <div className="space-y-6 text-ink dark:text-cream">
+      <div className="space-y-6 text-ink dark:text-neutral-100">
         {/* Full Name */}
         <div>
-          <label className="block text-sm font-semibold text-gray-body dark:text-gray-400 mb-1.5">Full Name</label>
+          <label className="block text-sm font-semibold text-gray-body dark:text-neutral-400 mb-1.5">Full Name</label>
           <input
             type="text"
             disabled={role === 'STUDENT' ? true : !isEditing}
@@ -238,31 +238,31 @@ export default function UserProfile() {
             onChange={(e) => setName(e.target.value)}
             className={`w-full px-4 py-2 border rounded-lg transition-colors ${
               role === 'STUDENT'
-                ? 'bg-cream/40 dark:bg-gray-800/40 border-border-soft dark:border-gray-700 text-gray-body dark:text-gray-500 cursor-not-allowed font-medium'
-                : 'bg-white dark:bg-[#222] border-border-soft dark:border-gray-700 focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon disabled:opacity-75 disabled:cursor-not-allowed'
+                ? 'bg-cream/40 dark:bg-neutral-800/60 border-border-soft dark:border-neutral-700 text-gray-body dark:text-neutral-400 cursor-not-allowed font-medium'
+                : 'bg-white dark:bg-[#242429] border-border-soft dark:border-neutral-700 text-ink dark:text-neutral-100 focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon disabled:opacity-75 disabled:cursor-not-allowed'
             }`}
           />
           {role === 'STUDENT' && (
-            <p className="text-xs text-gray-body/60 dark:text-gray-500 mt-1">Official record — contact Admin to modify.</p>
+            <p className="text-xs text-gray-body/70 dark:text-neutral-500 mt-1">Official record — contact Admin to modify.</p>
           )}
         </div>
 
         {/* Email (read-only) */}
         <div>
-          <label className="block text-sm font-semibold text-gray-body dark:text-gray-400 mb-1.5">Email Address</label>
+          <label className="block text-sm font-semibold text-gray-body dark:text-neutral-400 mb-1.5">Email Address</label>
           <input
             type="email"
             disabled
             readOnly
             value={user.email || ''}
-            className="w-full px-4 py-2 bg-cream/40 dark:bg-gray-800/40 border border-border-soft dark:border-gray-700 rounded-lg text-gray-body dark:text-gray-500 cursor-not-allowed font-medium"
+            className="w-full px-4 py-2 bg-cream/40 dark:bg-neutral-800/60 border border-border-soft dark:border-neutral-700 rounded-lg text-gray-body dark:text-neutral-400 cursor-not-allowed font-medium"
           />
-          <p className="text-xs text-gray-body/60 dark:text-gray-500 mt-1">Official record — email address cannot be changed.</p>
+          <p className="text-xs text-gray-body/70 dark:text-neutral-500 mt-1">Official record — email address cannot be changed.</p>
         </div>
 
         {/* Phone */}
         <div>
-          <label className="block text-sm font-semibold text-gray-body dark:text-gray-400 mb-1.5">Phone Number</label>
+          <label className="block text-sm font-semibold text-gray-body dark:text-neutral-400 mb-1.5">Phone Number</label>
           <input
             type="text"
             disabled={role === 'STUDENT' ? true : !isEditing}
@@ -271,52 +271,52 @@ export default function UserProfile() {
             onChange={(e) => setPhone(e.target.value)}
             className={`w-full px-4 py-2 border rounded-lg transition-colors ${
               role === 'STUDENT'
-                ? 'bg-cream/40 dark:bg-gray-800/40 border-border-soft dark:border-gray-700 text-gray-body dark:text-gray-500 cursor-not-allowed font-medium'
-                : 'bg-white dark:bg-[#222] border-border-soft dark:border-gray-700 focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon disabled:opacity-75 disabled:cursor-not-allowed'
+                ? 'bg-cream/40 dark:bg-neutral-800/60 border-border-soft dark:border-neutral-700 text-gray-body dark:text-neutral-400 cursor-not-allowed font-medium'
+                : 'bg-white dark:bg-[#242429] border-border-soft dark:border-neutral-700 text-ink dark:text-neutral-100 focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon disabled:opacity-75 disabled:cursor-not-allowed'
             }`}
           />
           {role === 'STUDENT' && (
-            <p className="text-xs text-gray-body/60 dark:text-gray-500 mt-1">Official record — contact Admin to modify.</p>
+            <p className="text-xs text-gray-body/70 dark:text-neutral-500 mt-1">Official record — contact Admin to modify.</p>
           )}
         </div>
         
         {/* Roll Number (Student Only) */}
         {role === 'STUDENT' && (
           <div>
-            <label className="block text-sm font-semibold text-gray-body dark:text-gray-400 mb-1.5">Roll Number</label>
+            <label className="block text-sm font-semibold text-gray-body dark:text-neutral-400 mb-1.5">Roll Number</label>
             <input
               type="text"
               disabled
               readOnly
               value={rollNumber}
-              className="w-full px-4 py-2 bg-cream/40 dark:bg-gray-800/40 border border-border-soft dark:border-gray-700 rounded-lg text-gray-body dark:text-gray-500 cursor-not-allowed font-medium"
+              className="w-full px-4 py-2 bg-cream/40 dark:bg-neutral-800/60 border border-border-soft dark:border-neutral-700 rounded-lg text-gray-body dark:text-neutral-400 cursor-not-allowed font-medium"
             />
-            <p className="text-xs text-gray-body/60 dark:text-gray-500 mt-1">Official record — contact Admin to modify.</p>
+            <p className="text-xs text-gray-body/70 dark:text-neutral-500 mt-1">Official record — contact Admin to modify.</p>
           </div>
         )}
 
         {/* Password (visible in edit mode) */}
         {isEditing && (
-          <div className="p-4 rounded-xl bg-cream/30 dark:bg-gray-800/30 border border-border-soft dark:border-gray-700 space-y-2">
-            <label className="block text-sm font-semibold text-ink dark:text-cream">Change Password</label>
-            <p className="text-xs text-gray-body dark:text-gray-400">Enter a new password (min. 8 characters) or leave blank to keep your current password.</p>
+          <div className="p-4 rounded-xl bg-cream/30 dark:bg-neutral-800/40 border border-border-soft dark:border-neutral-700 space-y-2">
+            <label className="block text-sm font-semibold text-ink dark:text-neutral-100">Change Password</label>
+            <p className="text-xs text-gray-body dark:text-neutral-400">Enter a new password (min. 8 characters) or leave blank to keep your current password.</p>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter new password"
-              className="w-full px-4 py-2 bg-white dark:bg-[#222] border border-border-soft dark:border-gray-700 rounded-lg focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon transition-colors placeholder:text-gray-body/40 dark:placeholder:text-gray-600"
+              className="w-full px-4 py-2 bg-white dark:bg-[#242429] text-ink dark:text-neutral-100 border border-border-soft dark:border-neutral-700 rounded-lg focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon transition-colors placeholder:text-gray-body/40 dark:placeholder:text-neutral-500"
             />
           </div>
         )}
 
         {/* ── DEPARTMENT / SECTION (STUDENT & FACULTY) ── */}
-        <div className="space-y-5 pt-5 border-t border-border-soft dark:border-gray-800">
+        <div className="space-y-5 pt-5 border-t border-border-soft dark:border-neutral-800">
           <div>
-            <h3 className="text-lg font-serif font-bold">
+            <h3 className="text-lg font-serif font-bold text-ink dark:text-neutral-100">
               {role === 'STUDENT' ? 'Your Class Details' : 'Department Enrollment'}
             </h3>
-            <p className="text-xs text-gray-body dark:text-gray-400 mt-0.5">
+            <p className="text-xs text-gray-body dark:text-neutral-400 mt-0.5">
               {role === 'STUDENT' 
                 ? 'Update your class details to receive targeted announcements and quizzes.' 
                 : 'Select a batch then a department to enroll. Only enrolled departments appear in Student Reports.'}
@@ -325,12 +325,12 @@ export default function UserProfile() {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-gray-body dark:text-gray-400 mb-1.5 uppercase tracking-wide">Batch</label>
+              <label className="block text-xs font-semibold text-gray-body dark:text-neutral-400 mb-1.5 uppercase tracking-wide">Batch</label>
               <select
                 disabled={role === 'STUDENT' && !isEditing}
                 value={enrollBatchId}
                 onChange={(e) => { setEnrollBatchId(e.target.value); setEnrollDeptId(''); setEnrollSectionId(''); }}
-                className="w-full px-3 py-2 bg-white dark:bg-[#222] border border-border-soft dark:border-gray-700 rounded-lg focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon transition-colors text-sm font-semibold appearance-none disabled:opacity-75 disabled:cursor-not-allowed"
+                className="w-full px-3 py-2 bg-white dark:bg-[#242429] text-ink dark:text-neutral-100 border border-border-soft dark:border-neutral-700 rounded-lg focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon transition-colors text-sm font-semibold appearance-none disabled:opacity-75 disabled:cursor-not-allowed"
               >
                 <option value="">Select Batch…</option>
                 {batches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
@@ -341,12 +341,12 @@ export default function UserProfile() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-gray-body dark:text-gray-400 mb-1.5 uppercase tracking-wide">Department</label>
+              <label className="block text-xs font-semibold text-gray-body dark:text-neutral-400 mb-1.5 uppercase tracking-wide">Department</label>
               <select
                 disabled={(role === 'STUDENT' && !isEditing) || !enrollBatchId || (availableDepts.length === 0 && !enrollDeptId)}
                 value={enrollDeptId}
                 onChange={(e) => { setEnrollDeptId(e.target.value); setEnrollSectionId(''); }}
-                className="w-full px-3 py-2 bg-white dark:bg-[#222] border border-border-soft dark:border-gray-700 rounded-lg focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon transition-colors text-sm font-semibold appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full px-3 py-2 bg-white dark:bg-[#242429] text-ink dark:text-neutral-100 border border-border-soft dark:border-neutral-700 rounded-lg focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon transition-colors text-sm font-semibold appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <option value="">
                   {!enrollBatchId ? 'Select a batch first' : availableDepts.length === 0 ? 'No departments' : 'Select Department…'}
@@ -359,12 +359,12 @@ export default function UserProfile() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-gray-body dark:text-gray-400 mb-1.5 uppercase tracking-wide">Section</label>
+              <label className="block text-xs font-semibold text-gray-body dark:text-neutral-400 mb-1.5 uppercase tracking-wide">Section</label>
               <select
                 disabled={(role === 'STUDENT' && !isEditing) || !enrollDeptId || (availableSections.length === 0 && !enrollSectionId)}
                 value={enrollSectionId}
                 onChange={(e) => setEnrollSectionId(e.target.value)}
-                className="w-full px-3 py-2 bg-white dark:bg-[#222] border border-border-soft dark:border-gray-700 rounded-lg focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon transition-colors text-sm font-semibold appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full px-3 py-2 bg-white dark:bg-[#242429] text-ink dark:text-neutral-100 border border-border-soft dark:border-neutral-700 rounded-lg focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon transition-colors text-sm font-semibold appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <option value={role === 'STUDENT' ? "" : "all"}>
                   {!enrollDeptId ? 'Select a department first' : (role === 'STUDENT' ? 'Select Section...' : 'All Sections')}
@@ -440,7 +440,7 @@ export default function UserProfile() {
               <button onClick={handleSave} disabled={loading} className="px-6 py-2.5 bg-maroon hover:bg-maroon-deep text-white font-bold rounded-full transition-all text-sm disabled:opacity-50 shadow-sm">
                 {loading ? 'Saving…' : 'Save Changes'}
               </button>
-              <button onClick={() => setIsEditing(false)} className="px-6 py-2.5 bg-cream dark:bg-gray-800 hover:bg-cream-edge/60 dark:hover:bg-gray-700 border border-border-soft dark:border-gray-700 font-bold rounded-full transition-all text-sm">
+              <button onClick={() => setIsEditing(false)} className="px-6 py-2.5 bg-cream dark:bg-neutral-800 hover:bg-cream-edge/60 dark:hover:bg-neutral-700 text-ink dark:text-neutral-200 border border-border-soft dark:border-neutral-700 font-bold rounded-full transition-all text-sm cursor-pointer">
                 Cancel
               </button>
             </>

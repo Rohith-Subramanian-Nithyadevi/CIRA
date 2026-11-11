@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/apiClient';
 import { Button } from '@/components/ui/button';
@@ -869,7 +870,7 @@ export default function QuizManagement() {
   if (activeView === 'create') {
     return (
       <>
-      <Card className="bg-white border border-border-soft text-ink shadow-sm rounded-xl">
+      <Card className="bg-white dark:bg-[#1E1E22] border border-border-soft text-ink shadow-sm rounded-xl">
         <CardContent className="p-6">
           <div className="flex justify-between items-center mb-6 pb-4 border-b border-border-soft">
             <div>
@@ -884,50 +885,50 @@ export default function QuizManagement() {
           
           <div className="space-y-6">
             {/* Metadata Fields */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-cream/20 p-5 rounded-xl border border-border-soft">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-cream/20 dark:bg-[#242429] p-5 rounded-xl border border-border-soft">
               <div className="space-y-1">
                 <Label className="text-ink font-semibold text-xs">Quiz Title *</Label>
-                <Input value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="e.g. Midterm Examination: Data Structures" className="bg-white border-border-soft text-ink text-sm focus:border-maroon focus:ring-1 focus:ring-maroon" />
+                <Input value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="e.g. Midterm Examination: Data Structures" className="bg-white dark:bg-[#18181B] border-border-soft text-ink text-sm focus:border-maroon focus:ring-1 focus:ring-maroon" />
               </div>
               <div className="space-y-1">
                 <Label className="text-ink font-semibold text-xs">Subject / Course *</Label>
-                <Input value={formData.subject} onChange={e => setFormData({...formData, subject: e.target.value})} placeholder="e.g. Computer Science & Engineering" className="bg-white border-border-soft text-ink text-sm focus:border-maroon focus:ring-1 focus:ring-maroon" />
+                <Input value={formData.subject} onChange={e => setFormData({...formData, subject: e.target.value})} placeholder="e.g. Computer Science & Engineering" className="bg-white dark:bg-[#18181B] border-border-soft text-ink text-sm focus:border-maroon focus:ring-1 focus:ring-maroon" />
               </div>
               <div className="space-y-1">
                 <Label className="text-ink font-semibold text-xs">Duration (mins) *</Label>
-                <Input value={formData.durationMinutes} onChange={e => setFormData({...formData, durationMinutes: e.target.value})} type="number" placeholder="60" className="bg-white border-border-soft text-ink text-sm focus:border-maroon focus:ring-1 focus:ring-maroon" />
+                <Input value={formData.durationMinutes} onChange={e => setFormData({...formData, durationMinutes: e.target.value})} type="number" placeholder="60" className="bg-white dark:bg-[#18181B] border-border-soft text-ink text-sm focus:border-maroon focus:ring-1 focus:ring-maroon" />
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="space-y-1">
                 <Label className="text-ink font-semibold text-xs">Start Time</Label>
-                <Input value={formData.startDate} onChange={e => setFormData({...formData, startDate: e.target.value})} type="datetime-local" className="bg-white border-border-soft text-ink text-xs focus:border-maroon focus:ring-1 focus:ring-maroon" />
+                <Input value={formData.startDate} onChange={e => setFormData({...formData, startDate: e.target.value})} type="datetime-local" className="bg-white dark:bg-[#18181B] border-border-soft text-ink text-xs focus:border-maroon focus:ring-1 focus:ring-maroon" />
               </div>
               <div className="space-y-1">
                 <Label className="text-ink font-semibold text-xs">End Time</Label>
-                <Input value={formData.endDate} onChange={e => setFormData({...formData, endDate: e.target.value})} type="datetime-local" className="bg-white border-border-soft text-ink text-xs focus:border-maroon focus:ring-1 focus:ring-maroon" />
+                <Input value={formData.endDate} onChange={e => setFormData({...formData, endDate: e.target.value})} type="datetime-local" className="bg-white dark:bg-[#18181B] border-border-soft text-ink text-xs focus:border-maroon focus:ring-1 focus:ring-maroon" />
               </div>
               <div className="space-y-1">
                 <Label className="text-ink font-semibold text-xs">Total Marks (Optional)</Label>
-                <Input value={formData.totalMarks} onChange={e => setFormData({...formData, totalMarks: e.target.value})} type="number" placeholder="Calculated automatically if empty" className="bg-white border-border-soft text-ink text-xs focus:border-maroon focus:ring-1 focus:ring-maroon" />
+                <Input value={formData.totalMarks} onChange={e => setFormData({...formData, totalMarks: e.target.value})} type="number" placeholder="Calculated automatically if empty" className="bg-white dark:bg-[#18181B] border-border-soft text-ink text-xs focus:border-maroon focus:ring-1 focus:ring-maroon" />
               </div>
               <div className="space-y-1">
                 <Label className="text-ink font-semibold text-xs">Passing Marks</Label>
-                <Input value={formData.passingMarks} onChange={e => setFormData({...formData, passingMarks: e.target.value})} type="number" placeholder="e.g. 40" className="bg-white border-border-soft text-ink text-xs focus:border-maroon focus:ring-1 focus:ring-maroon" />
+                <Input value={formData.passingMarks} onChange={e => setFormData({...formData, passingMarks: e.target.value})} type="number" placeholder="e.g. 40" className="bg-white dark:bg-[#18181B] border-border-soft text-ink text-xs focus:border-maroon focus:ring-1 focus:ring-maroon" />
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1 p-4 bg-cream/30 rounded-xl border border-border-soft">
+              <div className="space-y-1 p-4 bg-cream/30 dark:bg-[#242429] rounded-xl border border-border-soft">
                 <Label className="block mb-1 text-ink font-semibold text-xs">Target Departments (Hold Ctrl to select multiple)</Label>
-                <select multiple value={formData.targetDepartments} onChange={e => setFormData({...formData, targetDepartments: Array.from(e.target.selectedOptions).map(o => o.value)})} className="w-full bg-white border border-border-soft rounded-lg px-3 py-2 text-ink h-24 focus:border-maroon focus:ring-1 focus:ring-maroon outline-none text-xs">
+                <select multiple value={formData.targetDepartments} onChange={e => setFormData({...formData, targetDepartments: Array.from(e.target.selectedOptions).map(o => o.value)})} className="w-full bg-white dark:bg-[#18181B] border border-border-soft rounded-lg px-3 py-2 text-ink h-24 focus:border-maroon focus:ring-1 focus:ring-maroon outline-none text-xs">
                   {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                 </select>
               </div>
-              <div className="space-y-1 p-4 bg-cream/30 rounded-xl border border-border-soft">
+              <div className="space-y-1 p-4 bg-cream/30 dark:bg-[#242429] rounded-xl border border-border-soft">
                 <Label className="block mb-1 text-ink font-semibold text-xs">Target Sections</Label>
-                <select multiple value={formData.targetSections} onChange={e => setFormData({...formData, targetSections: Array.from(e.target.selectedOptions).map(o => o.value)})} className="w-full bg-white border border-border-soft rounded-lg px-3 py-2 text-ink h-24 focus:border-maroon focus:ring-1 focus:ring-maroon outline-none text-xs disabled:opacity-50" disabled={availableSections.length === 0}>
+                <select multiple value={formData.targetSections} onChange={e => setFormData({...formData, targetSections: Array.from(e.target.selectedOptions).map(o => o.value)})} className="w-full bg-white dark:bg-[#18181B] border border-border-soft rounded-lg px-3 py-2 text-ink h-24 focus:border-maroon focus:ring-1 focus:ring-maroon outline-none text-xs disabled:opacity-50" disabled={availableSections.length === 0}>
                   {availableSections.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </div>
@@ -972,7 +973,7 @@ export default function QuizManagement() {
 
               {/* Mode 1: Paste Textboxes */}
               {creationMode === 'paste' && (
-                <div className="p-5 bg-cream/30 rounded-xl border border-border-soft space-y-5">
+                <div className="p-5 bg-cream/30 dark:bg-[#242429] rounded-xl border border-border-soft space-y-5">
                   <div>
                     <h3 className="text-sm font-bold text-ink mb-1 flex items-center gap-2">
                       <Sparkles className="w-4 h-4 text-maroon" /> Select Question Types to Paste
@@ -982,7 +983,7 @@ export default function QuizManagement() {
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-white rounded-lg border border-border-soft">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-white dark:bg-[#1E1E22] rounded-lg border border-border-soft">
                     {(['MCQ', 'SHORT_WRITTEN', 'NUMERICAL', 'LONG_WRITTEN'] as const).map(type => {
                       const labelMap = {
                         MCQ: 'MCQ (Single/Multi)',
@@ -1010,7 +1011,7 @@ export default function QuizManagement() {
                   {/* Dynamic Textareas */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     {bulkConfig.MCQ.selected && (
-                      <div className="space-y-2 bg-white p-4 rounded-xl border border-border-soft shadow-sm">
+                      <div className="space-y-2 bg-white dark:bg-[#1E1E22] p-4 rounded-xl border border-border-soft shadow-sm">
                         <div className="flex justify-between items-center">
                           <Label className="text-xs text-maroon font-bold flex items-center gap-1">
                             <Clipboard className="w-3.5 h-3.5" /> MCQ Questions Box
@@ -1024,13 +1025,13 @@ export default function QuizManagement() {
                             ...bulkConfig,
                             MCQ: { ...bulkConfig.MCQ, text: e.target.value }
                           })}
-                          className="h-52 bg-cream/10 border-border-soft font-mono text-xs text-ink focus:border-maroon focus:ring-1 focus:ring-maroon"
+                          className="h-52 bg-cream/10 dark:bg-[#18181B] border-border-soft font-mono text-xs text-ink focus:border-maroon focus:ring-1 focus:ring-maroon"
                         />
                       </div>
                     )}
 
                     {bulkConfig.SHORT_WRITTEN.selected && (
-                      <div className="space-y-2 bg-white p-4 rounded-xl border border-border-soft shadow-sm">
+                      <div className="space-y-2 bg-white dark:bg-[#1E1E22] p-4 rounded-xl border border-border-soft shadow-sm">
                         <div className="flex justify-between items-center">
                           <Label className="text-xs text-maroon font-bold flex items-center gap-1">
                             <Clipboard className="w-3.5 h-3.5" /> Short Written Questions Box
@@ -1044,13 +1045,13 @@ export default function QuizManagement() {
                             ...bulkConfig,
                             SHORT_WRITTEN: { ...bulkConfig.SHORT_WRITTEN, text: e.target.value }
                           })}
-                          className="h-52 bg-cream/10 border-border-soft font-mono text-xs text-ink focus:border-maroon focus:ring-1 focus:ring-maroon"
+                          className="h-52 bg-cream/10 dark:bg-[#18181B] border-border-soft font-mono text-xs text-ink focus:border-maroon focus:ring-1 focus:ring-maroon"
                         />
                       </div>
                     )}
 
                     {bulkConfig.NUMERICAL.selected && (
-                      <div className="space-y-2 bg-white p-4 rounded-xl border border-border-soft shadow-sm">
+                      <div className="space-y-2 bg-white dark:bg-[#1E1E22] p-4 rounded-xl border border-border-soft shadow-sm">
                         <div className="flex justify-between items-center">
                           <Label className="text-xs text-maroon font-bold flex items-center gap-1">
                             <Clipboard className="w-3.5 h-3.5" /> Numerical Questions Box
@@ -1064,13 +1065,13 @@ export default function QuizManagement() {
                             ...bulkConfig,
                             NUMERICAL: { ...bulkConfig.NUMERICAL, text: e.target.value }
                           })}
-                          className="h-52 bg-cream/10 border-border-soft font-mono text-xs text-ink focus:border-maroon focus:ring-1 focus:ring-maroon"
+                          className="h-52 bg-cream/10 dark:bg-[#18181B] border-border-soft font-mono text-xs text-ink focus:border-maroon focus:ring-1 focus:ring-maroon"
                         />
                       </div>
                     )}
 
                     {bulkConfig.LONG_WRITTEN.selected && (
-                      <div className="space-y-2 bg-white p-4 rounded-xl border border-border-soft shadow-sm">
+                      <div className="space-y-2 bg-white dark:bg-[#1E1E22] p-4 rounded-xl border border-border-soft shadow-sm">
                         <div className="flex justify-between items-center">
                           <Label className="text-xs text-maroon font-bold flex items-center gap-1">
                             <Clipboard className="w-3.5 h-3.5" /> Long Written Questions Box
@@ -1084,14 +1085,14 @@ export default function QuizManagement() {
                             ...bulkConfig,
                             LONG_WRITTEN: { ...bulkConfig.LONG_WRITTEN, text: e.target.value }
                           })}
-                          className="h-52 bg-cream/10 border-border-soft font-mono text-xs text-ink focus:border-maroon focus:ring-1 focus:ring-maroon"
+                          className="h-52 bg-cream/10 dark:bg-[#18181B] border-border-soft font-mono text-xs text-ink focus:border-maroon focus:ring-1 focus:ring-maroon"
                         />
                       </div>
                     )}
                   </div>
 
                   {!Object.values(bulkConfig).some(c => c.selected) && (
-                    <div className="text-center py-6 bg-white rounded-xl border border-dashed border-border-soft text-gray-body text-xs flex items-center justify-center gap-2">
+                    <div className="text-center py-6 bg-white dark:bg-[#1E1E22] rounded-xl border border-dashed border-border-soft text-gray-body text-xs flex items-center justify-center gap-2">
                       <AlertCircle className="w-4 h-4 text-maroon" /> Check at least one question type checkbox above to reveal pasting textboxes.
                     </div>
                   )}
@@ -1111,9 +1112,9 @@ export default function QuizManagement() {
 
               {/* Mode 2: Upload DOCX */}
               {creationMode === 'docx' && (
-                <div className="p-8 bg-yellow-50/50 rounded-xl border border-yellow-200 text-center space-y-4">
-                  <h3 className="font-serif font-bold text-lg text-yellow-900">Upload Pre-formatted Word (.docx) Document</h3>
-                  <p className="text-xs text-yellow-800 max-w-md mx-auto leading-relaxed">
+                <div className="p-8 bg-yellow-50/50 dark:bg-yellow-950/30 rounded-xl border border-yellow-200 dark:border-yellow-900/50 text-center space-y-4">
+                  <h3 className="font-serif font-bold text-lg text-yellow-900 dark:text-yellow-200">Upload Pre-formatted Word (.docx) Document</h3>
+                  <p className="text-xs text-yellow-800 dark:text-yellow-300 max-w-md mx-auto leading-relaxed">
                     Quiz metadata, title, instructions, questions, options, and answer keys will be extracted automatically from your document.
                   </p>
                   <label className="cursor-pointer px-8 py-3.5 bg-maroon hover:bg-maroon-deep text-white rounded-full font-bold transition-all shadow-sm inline-block text-sm">
@@ -1125,7 +1126,7 @@ export default function QuizManagement() {
 
               {/* Mode 3: Manual Builder */}
               {creationMode === 'manual' && (
-                <div className="p-8 bg-cream/30 rounded-xl border border-border-soft text-center space-y-4">
+                <div className="p-8 bg-cream/30 dark:bg-[#242429] rounded-xl border border-border-soft text-center space-y-4">
                   <h3 className="font-serif font-bold text-lg text-ink">Manual Question Builder</h3>
                   <p className="text-xs text-gray-body max-w-md mx-auto">
                     Start with an empty questions workspace and build questions one by one.
@@ -1145,9 +1146,9 @@ export default function QuizManagement() {
       </Card>
 
       {/* Template Configuration Modal */}
-      {showTemplateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+      {showTemplateModal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/15 dark:bg-black/55 backdrop-blur-[2px]">
+          <div className="bg-white dark:bg-[#1E1E22] border border-border-soft rounded-xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-serif font-bold text-ink mb-4">Template Configuration</h2>
             
             <div className="space-y-6">
@@ -1161,7 +1162,7 @@ export default function QuizManagement() {
                     const val = parseInt(e.target.value) || 1;
                     setTemplateConfig(prev => ({ ...prev, totalQuestions: val, mcqCount: prev.isMixedTypes ? prev.mcqCount : val }));
                   }}
-                  className="mt-1 bg-white border-border-soft text-ink"
+                  className="mt-1 bg-white dark:bg-[#18181B] border-border-soft text-ink"
                 />
               </div>
 
@@ -1185,32 +1186,32 @@ export default function QuizManagement() {
               </div>
 
               {templateConfig.isMixedTypes && (
-                <div className="space-y-4 p-4 bg-cream/30 rounded-lg border border-border-soft">
+                <div className="space-y-4 p-4 bg-cream/30 dark:bg-[#242429] rounded-lg border border-border-soft">
                   <div className="grid grid-cols-2 gap-4 items-center">
                     <Label className="text-xs font-medium text-ink">Multiple Choice (MCQ)</Label>
-                    <Input type="number" min={0} value={templateConfig.mcqCount} onChange={e => setTemplateConfig(p => ({ ...p, mcqCount: parseInt(e.target.value) || 0 }))} className="bg-white border-border-soft" />
+                    <Input type="number" min={0} value={templateConfig.mcqCount} onChange={e => setTemplateConfig(p => ({ ...p, mcqCount: parseInt(e.target.value) || 0 }))} className="bg-white dark:bg-[#18181B] border-border-soft text-ink" />
                   </div>
                   <div className="grid grid-cols-2 gap-4 items-center">
                     <Label className="text-xs font-medium text-ink">Numerical</Label>
-                    <Input type="number" min={0} value={templateConfig.numericalCount} onChange={e => setTemplateConfig(p => ({ ...p, numericalCount: parseInt(e.target.value) || 0 }))} className="bg-white border-border-soft" />
+                    <Input type="number" min={0} value={templateConfig.numericalCount} onChange={e => setTemplateConfig(p => ({ ...p, numericalCount: parseInt(e.target.value) || 0 }))} className="bg-white dark:bg-[#18181B] border-border-soft text-ink" />
                   </div>
                   <div className="grid grid-cols-2 gap-4 items-center">
                     <Label className="text-xs font-medium text-ink">Short Answer</Label>
-                    <Input type="number" min={0} value={templateConfig.shortCount} onChange={e => setTemplateConfig(p => ({ ...p, shortCount: parseInt(e.target.value) || 0 }))} className="bg-white border-border-soft" />
+                    <Input type="number" min={0} value={templateConfig.shortCount} onChange={e => setTemplateConfig(p => ({ ...p, shortCount: parseInt(e.target.value) || 0 }))} className="bg-white dark:bg-[#18181B] border-border-soft text-ink" />
                   </div>
                   <div className="grid grid-cols-2 gap-4 items-center">
                     <Label className="text-xs font-medium text-ink">Long Answer</Label>
-                    <Input type="number" min={0} value={templateConfig.longCount} onChange={e => setTemplateConfig(p => ({ ...p, longCount: parseInt(e.target.value) || 0 }))} className="bg-white border-border-soft" />
+                    <Input type="number" min={0} value={templateConfig.longCount} onChange={e => setTemplateConfig(p => ({ ...p, longCount: parseInt(e.target.value) || 0 }))} className="bg-white dark:bg-[#18181B] border-border-soft text-ink" />
                   </div>
                   <div className="grid grid-cols-2 gap-4 items-center">
                     <Label className="text-xs font-medium text-ink">Match the Following</Label>
-                    <Input type="number" min={0} value={templateConfig.matchingCount} onChange={e => setTemplateConfig(p => ({ ...p, matchingCount: parseInt(e.target.value) || 0 }))} className="bg-white border-border-soft" />
+                    <Input type="number" min={0} value={templateConfig.matchingCount} onChange={e => setTemplateConfig(p => ({ ...p, matchingCount: parseInt(e.target.value) || 0 }))} className="bg-white dark:bg-[#18181B] border-border-soft text-ink" />
                   </div>
                   
                   {(() => {
                     const sum = templateConfig.mcqCount + templateConfig.numericalCount + templateConfig.shortCount + templateConfig.longCount + templateConfig.matchingCount;
                     return (
-                      <div className={`text-xs font-bold ${sum !== templateConfig.totalQuestions ? 'text-red-500' : 'text-green-700'}`}>
+                      <div className={`text-xs font-bold ${sum !== templateConfig.totalQuestions ? 'text-red-500' : 'text-green-700 dark:text-green-400'}`}>
                         Sum: {sum} / {templateConfig.totalQuestions}
                       </div>
                     );
@@ -1230,7 +1231,8 @@ export default function QuizManagement() {
               </Button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
       </>
     );
@@ -1242,7 +1244,7 @@ export default function QuizManagement() {
     const isMismatch = expectedMarks > 0 && sumMarks !== expectedMarks;
 
     return (
-      <Card className="bg-white border border-border-soft text-ink shadow-sm rounded-xl">
+      <Card className="bg-white dark:bg-[#1E1E22] border border-border-soft text-ink shadow-sm rounded-xl">
         <CardContent className="p-6">
           <div className="flex justify-between items-center mb-6 pb-4 border-b border-border-soft">
             <div>
@@ -1265,7 +1267,7 @@ export default function QuizManagement() {
 
           {/* Inline Quick Paste panel inside add_questions view */}
           {showBulkImport && (
-            <div className="mb-6 p-5 bg-cream/30 rounded-xl border border-border-soft space-y-4">
+            <div className="mb-6 p-5 bg-cream/30 dark:bg-[#242429] rounded-xl border border-border-soft space-y-4">
               <div className="flex justify-between items-center">
                 <h3 className="text-xs font-bold text-ink flex items-center gap-1.5">
                   <Sparkles className="w-4 h-4 text-maroon" /> Quick Paste Additional Questions
@@ -1273,7 +1275,7 @@ export default function QuizManagement() {
                 <span className="text-[10px] text-gray-body">Select question types below and paste text to append to this quiz.</span>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-2 bg-white rounded-lg border border-border-soft">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-2 bg-white dark:bg-[#1E1E22] rounded-lg border border-border-soft">
                 {(['MCQ', 'SHORT_WRITTEN', 'NUMERICAL', 'LONG_WRITTEN'] as const).map(type => (
                   <label key={type} className="flex items-center space-x-2 cursor-pointer p-1.5 rounded hover:bg-cream/40 select-none">
                     <input
@@ -1294,25 +1296,25 @@ export default function QuizManagement() {
                 {bulkConfig.MCQ.selected && (
                   <div className="space-y-1">
                     <Label className="text-[11px] font-bold text-maroon">MCQ Textbox</Label>
-                    <Textarea value={bulkConfig.MCQ.text} onChange={e => setBulkConfig({...bulkConfig, MCQ: {...bulkConfig.MCQ, text: e.target.value}})} placeholder="1. Question...\nA) Opt 1\nB) Opt 2\nAnswer: A" className="h-36 font-mono text-xs bg-white" />
+                    <Textarea value={bulkConfig.MCQ.text} onChange={e => setBulkConfig({...bulkConfig, MCQ: {...bulkConfig.MCQ, text: e.target.value}})} placeholder="1. Question...\nA) Opt 1\nB) Opt 2\nAnswer: A" className="h-36 font-mono text-xs bg-white dark:bg-[#18181B] text-ink" />
                   </div>
                 )}
                 {bulkConfig.SHORT_WRITTEN.selected && (
                   <div className="space-y-1">
                     <Label className="text-[11px] font-bold text-maroon">Short Written Textbox</Label>
-                    <Textarea value={bulkConfig.SHORT_WRITTEN.text} onChange={e => setBulkConfig({...bulkConfig, SHORT_WRITTEN: {...bulkConfig.SHORT_WRITTEN, text: e.target.value}})} placeholder="1. Question...\nAnswer: key answer" className="h-36 font-mono text-xs bg-white" />
+                    <Textarea value={bulkConfig.SHORT_WRITTEN.text} onChange={e => setBulkConfig({...bulkConfig, SHORT_WRITTEN: {...bulkConfig.SHORT_WRITTEN, text: e.target.value}})} placeholder="1. Question...\nAnswer: key answer" className="h-36 font-mono text-xs bg-white dark:bg-[#18181B] text-ink" />
                   </div>
                 )}
                 {bulkConfig.NUMERICAL.selected && (
                   <div className="space-y-1">
                     <Label className="text-[11px] font-bold text-maroon">Numerical Textbox</Label>
-                    <Textarea value={bulkConfig.NUMERICAL.text} onChange={e => setBulkConfig({...bulkConfig, NUMERICAL: {...bulkConfig.NUMERICAL, text: e.target.value}})} placeholder="1. Question...\nAnswer: 42" className="h-36 font-mono text-xs bg-white" />
+                    <Textarea value={bulkConfig.NUMERICAL.text} onChange={e => setBulkConfig({...bulkConfig, NUMERICAL: {...bulkConfig.NUMERICAL, text: e.target.value}})} placeholder="1. Question...\nAnswer: 42" className="h-36 font-mono text-xs bg-white dark:bg-[#18181B] text-ink" />
                   </div>
                 )}
                 {bulkConfig.LONG_WRITTEN.selected && (
                   <div className="space-y-1">
                     <Label className="text-[11px] font-bold text-maroon">Long Written Textbox</Label>
-                    <Textarea value={bulkConfig.LONG_WRITTEN.text} onChange={e => setBulkConfig({...bulkConfig, LONG_WRITTEN: {...bulkConfig.LONG_WRITTEN, text: e.target.value}})} placeholder="1. Question...\nAnswer: detailed points" className="h-36 font-mono text-xs bg-white" />
+                    <Textarea value={bulkConfig.LONG_WRITTEN.text} onChange={e => setBulkConfig({...bulkConfig, LONG_WRITTEN: {...bulkConfig.LONG_WRITTEN, text: e.target.value}})} placeholder="1. Question...\nAnswer: detailed points" className="h-36 font-mono text-xs bg-white dark:bg-[#18181B] text-ink" />
                   </div>
                 )}
               </div>
@@ -1328,7 +1330,7 @@ export default function QuizManagement() {
           )}
           
           {isMismatch && (
-             <div className="mb-6 bg-red-50 text-red-700 border border-red-200 px-4 py-3 rounded-lg text-sm font-medium shadow-sm">
+             <div className="mb-6 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-900/50 px-4 py-3 rounded-lg text-sm font-medium shadow-sm">
                  ⚠️ Total Marks Mismatch! The quiz metadata specifies {expectedMarks} marks, but the questions sum up to {sumMarks} marks. Please adjust question marks before publishing.
              </div>
           )}
@@ -1339,11 +1341,11 @@ export default function QuizManagement() {
                 q.options = [{ left: '', right: '' }, { left: '', right: '' }];
               }
               return (
-                <div key={qIndex} id={`question-${qIndex}`} className={`p-5 bg-cream/30 rounded-xl border ${q.validationError ? 'border-red-400 ring-2 ring-red-100' : 'border-border-soft'} space-y-4`}>
+                <div key={qIndex} id={`question-${qIndex}`} className={`p-5 bg-cream/30 dark:bg-[#242429] rounded-xl border ${q.validationError ? 'border-red-400 ring-2 ring-red-100 dark:ring-red-950/50' : 'border-border-soft'} space-y-4`}>
                   <div className="flex justify-between items-center">
                     <h3 className="font-bold text-ink">Question {qIndex + 1}</h3>
                     <div className="flex gap-4">
-                      <select value={q.type} onChange={(e) => updateQuestion(qIndex, 'type', e.target.value)} className="bg-white border border-border-soft rounded-lg px-3 py-1 text-xs text-ink focus:border-maroon outline-none font-semibold shadow-sm">
+                      <select value={q.type} onChange={(e) => updateQuestion(qIndex, 'type', e.target.value)} className="bg-white dark:bg-[#18181B] border border-border-soft rounded-lg px-3 py-1 text-xs text-ink focus:border-maroon outline-none font-semibold shadow-sm">
                         <option value="MCQ">MCQ (Single)</option>
                         <option value="MULTI_SELECT">MCQ (Multiple)</option>
                         <option value="NUMERICAL">Numerical</option>
@@ -1357,16 +1359,16 @@ export default function QuizManagement() {
                   
                   <div>
                     <Label className="text-xs text-gray-body block mb-1">Question Text</Label>
-                    <Textarea value={q.text} onChange={(e) => updateQuestion(qIndex, 'text', e.target.value)} rows={2} className="bg-white border-border-soft text-ink focus:border-maroon focus:ring-1 focus:ring-maroon" />
+                    <Textarea value={q.text} onChange={(e) => updateQuestion(qIndex, 'text', e.target.value)} rows={2} className="bg-white dark:bg-[#18181B] border-border-soft text-ink focus:border-maroon focus:ring-1 focus:ring-maroon" />
                   </div>
 
                   <div>
                     <Label className="text-xs text-maroon block mb-1 font-semibold">Topic *</Label>
-                    <Input type="text" value={q.topic || ''} onChange={(e) => updateQuestion(qIndex, 'topic', e.target.value)} placeholder="e.g. Graphs, Inheritance, Kinematics" className="bg-white border-border-soft text-ink focus:border-maroon focus:ring-1 focus:ring-maroon" />
+                    <Input type="text" value={q.topic || ''} onChange={(e) => updateQuestion(qIndex, 'topic', e.target.value)} placeholder="e.g. Graphs, Inheritance, Kinematics" className="bg-white dark:bg-[#18181B] border-border-soft text-ink focus:border-maroon focus:ring-1 focus:ring-maroon" />
                   </div>
 
                   {q.validationError && (
-                    <div className="bg-red-50 text-red-700 border border-red-200 px-4 py-2 rounded-lg text-sm mt-2 font-medium">
+                    <div className="bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-900/50 px-4 py-2 rounded-lg text-sm mt-2 font-medium">
                       ⚠️ {q.validationError}
                     </div>
                   )}
@@ -1389,13 +1391,13 @@ export default function QuizManagement() {
                   <div className="flex gap-4">
                     <div className="w-32">
                       <Label className="text-xs text-gray-body block mb-1">Marks</Label>
-                      <Input type="number" min="0" value={q.marks} onChange={(e) => updateQuestion(qIndex, 'marks', e.target.value)} className="bg-white border-border-soft text-ink focus:border-maroon focus:ring-1 focus:ring-maroon" />
+                      <Input type="number" min="0" value={q.marks} onChange={(e) => updateQuestion(qIndex, 'marks', e.target.value)} className="bg-white dark:bg-[#18181B] border-border-soft text-ink focus:border-maroon focus:ring-1 focus:ring-maroon" />
                     </div>
                   </div>
 
                   {/* Answer Key UI based on Type */}
                   {(q.type === 'MCQ' || q.type === 'MULTI_SELECT') && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2 bg-white/60 p-4 border border-border-soft rounded-xl">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2 bg-white/60 dark:bg-[#1E1E22] p-4 border border-border-soft rounded-xl">
                       <div className="col-span-1 md:col-span-2 text-xs font-bold text-gray-body mb-1 flex items-center justify-between">
                         <span>Define Options and Click an Option (or "Set Answer") to Mark as Correct Answer:</span>
                         {q.type === 'MCQ' && !q.answerKey && (
@@ -1416,8 +1418,8 @@ export default function QuizManagement() {
                             }}
                             className={`flex gap-2 items-center p-2 rounded-lg border transition-all cursor-pointer ${
                               isSelected
-                                ? 'border-green-500 bg-green-50/40 ring-1 ring-green-400'
-                                : 'border-border-soft bg-white hover:border-maroon/40'
+                                ? 'border-green-500 bg-green-50/40 dark:bg-green-950/30 ring-1 ring-green-400'
+                                : 'border-border-soft bg-white dark:bg-[#18181B] hover:border-maroon/40'
                             }`}
                           >
                             <span className={`text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full shrink-0 ${
@@ -1431,7 +1433,7 @@ export default function QuizManagement() {
                               onClick={(e) => e.stopPropagation()}
                               onChange={(e) => updateOption(qIndex, optIndex, e.target.value)}
                               placeholder={`Option ${String.fromCharCode(65 + optIndex)}`}
-                              className="flex-1 bg-white border-border-soft text-ink focus:border-maroon focus:ring-1 focus:ring-maroon text-xs"
+                              className="flex-1 bg-white dark:bg-[#18181B] border-border-soft text-ink focus:border-maroon focus:ring-1 focus:ring-maroon text-xs"
                             />
                             <button
                               type="button"
@@ -1463,26 +1465,26 @@ export default function QuizManagement() {
 
                   {(q.type === 'SHORT_WRITTEN' || q.type === 'LONG_WRITTEN') && (
                     <div className="mt-2">
-                      <Label className="text-xs text-green-700 block mb-1 font-semibold">Expected Answer / Answer Key (For Faculty Reference)</Label>
-                      <Textarea value={q.answerKey || ''} onChange={(e) => updateQuestion(qIndex, 'answerKey', e.target.value)} rows={q.type === 'LONG_WRITTEN' ? 4 : 2} placeholder="Provide the expected answer points..." className="bg-white border-green-200 focus-visible:ring-green-600 text-ink" />
+                      <Label className="text-xs text-green-700 dark:text-green-400 block mb-1 font-semibold">Expected Answer / Answer Key (For Faculty Reference)</Label>
+                      <Textarea value={q.answerKey || ''} onChange={(e) => updateQuestion(qIndex, 'answerKey', e.target.value)} rows={q.type === 'LONG_WRITTEN' ? 4 : 2} placeholder="Provide the expected answer points..." className="bg-white dark:bg-[#18181B] border-green-200 dark:border-green-900/50 focus-visible:ring-green-600 text-ink" />
                     </div>
                   )}
 
                   {q.type === 'NUMERICAL' && (
                     <div className="mt-2">
-                      <Label className="text-xs text-green-700 block mb-1 font-semibold">Exact Numerical Answer</Label>
-                      <Input type="number" value={q.answerKey || ''} onChange={(e) => updateQuestion(qIndex, 'answerKey', Number(e.target.value))} placeholder="e.g. 42" className="bg-white border-green-200 focus-visible:ring-green-600 text-ink" />
+                      <Label className="text-xs text-green-700 dark:text-green-400 block mb-1 font-semibold">Exact Numerical Answer</Label>
+                      <Input type="number" value={q.answerKey || ''} onChange={(e) => updateQuestion(qIndex, 'answerKey', Number(e.target.value))} placeholder="e.g. 42" className="bg-white dark:bg-[#18181B] border-green-200 dark:border-green-900/50 focus-visible:ring-green-600 text-ink" />
                     </div>
                   )}
 
                   {q.type === 'MATCHING' && (
-                    <div className="mt-2 bg-white/60 p-4 border border-border-soft rounded-xl">
+                    <div className="mt-2 bg-white/60 dark:bg-[#1E1E22] p-4 border border-border-soft rounded-xl">
                       <div className="text-sm font-semibold text-gray-body mb-2">Define Correct Pairs (Left maps to Right):</div>
                       {q.options.map((pair: any, optIndex: number) => (
                         <div key={optIndex} className="flex gap-4 items-center mb-2">
-                          <Input type="text" value={pair.left || ''} onChange={(e) => updateMatchingOption(qIndex, optIndex, 'left', e.target.value)} placeholder={`Left ${optIndex + 1}`} className="flex-1 bg-white border-border-soft text-ink focus:border-maroon focus:ring-1 focus:ring-maroon" />
+                          <Input type="text" value={pair.left || ''} onChange={(e) => updateMatchingOption(qIndex, optIndex, 'left', e.target.value)} placeholder={`Left ${optIndex + 1}`} className="flex-1 bg-white dark:bg-[#18181B] border-border-soft text-ink focus:border-maroon focus:ring-1 focus:ring-maroon" />
                           <span className="text-gray-body">→</span>
-                          <Input type="text" value={pair.right || ''} onChange={(e) => updateMatchingOption(qIndex, optIndex, 'right', e.target.value)} placeholder={`Right ${optIndex + 1}`} className="flex-1 bg-white border-border-soft text-ink focus:border-maroon focus:ring-1 focus:ring-maroon" />
+                          <Input type="text" value={pair.right || ''} onChange={(e) => updateMatchingOption(qIndex, optIndex, 'right', e.target.value)} placeholder={`Right ${optIndex + 1}`} className="flex-1 bg-white dark:bg-[#18181B] border-border-soft text-ink focus:border-maroon focus:ring-1 focus:ring-maroon" />
                         </div>
                       ))}
                       <button onClick={() => { const n = [...questions]; n[qIndex].options.push({left:'', right:''}); setQuestions(n); }} className="text-sm text-maroon hover:text-maroon-deep font-semibold mt-2">+ Add Pair</button>
@@ -1521,7 +1523,7 @@ export default function QuizManagement() {
     };
 
     return (
-      <Card className="bg-white border border-border-soft text-ink shadow-sm rounded-xl">
+      <Card className="bg-white dark:bg-[#1E1E22] border border-border-soft text-ink shadow-sm rounded-xl">
         <CardContent className="p-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-serif font-bold text-ink">View Submissions</h2>
@@ -1551,25 +1553,25 @@ export default function QuizManagement() {
                   </TableRow>
                 ) : (
                   submissions.map((sub: any) => (
-                    <TableRow key={sub.id} className={`border-b border-border-soft hover:bg-cream/20 transition-colors ${sub.violationReason ? 'bg-red-50/30' : sub.status === 'IN_PROGRESS' ? 'bg-yellow-50/30' : ''}`}>
+                    <TableRow key={sub.id} className={`border-b border-border-soft hover:bg-cream/20 transition-colors ${sub.violationReason ? 'bg-red-50/30 dark:bg-red-950/20' : sub.status === 'IN_PROGRESS' ? 'bg-yellow-50/30 dark:bg-yellow-950/20' : ''}`}>
                       <TableCell className="py-4 font-semibold text-ink">{sub.user?.name}</TableCell>
                       <TableCell className="font-mono text-xs text-gray-body">{sub.user?.rollNumber || 'N/A'}</TableCell>
                       <TableCell className="text-ink">{sub.objectiveScore}</TableCell>
                       <TableCell className="text-ink">{sub.writtenScore}</TableCell>
                       <TableCell>
                         <span className={`px-2 py-0.5 text-xs font-semibold rounded-full border ${
-                          sub.status === 'EVALUATED' ? 'bg-green-50/10 text-green-700 border-green-200' 
-                          : sub.status === 'IN_PROGRESS' ? 'bg-orange-50 text-orange-700 border-orange-200'
-                          : 'bg-yellow-50/10 text-yellow-700 border-yellow-200'
+                          sub.status === 'EVALUATED' ? 'bg-green-50/10 text-green-700 dark:text-green-400 border-green-200 dark:border-green-900/50' 
+                          : sub.status === 'IN_PROGRESS' ? 'bg-orange-50 dark:bg-orange-950/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-900/50'
+                          : 'bg-yellow-50/10 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-900/50'
                         }`}>{sub.status === 'IN_PROGRESS' ? 'ABANDONED' : sub.status}</span>
                       </TableCell>
                       <TableCell className="max-w-[400px]">
                         {sub.violationReason ? (
-                          <div className="px-3 py-2 text-sm font-semibold rounded-lg bg-red-50 text-red-700 border border-red-200">
+                          <div className="px-3 py-2 text-sm font-semibold rounded-lg bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-900/50">
                             <span className="font-bold">⚠ Violation:</span> {sub.violationReason}
                           </div>
                         ) : sub.status === 'IN_PROGRESS' ? (
-                          <div className="px-3 py-2 text-sm font-semibold rounded-lg bg-orange-50 text-orange-700 border border-orange-200">
+                          <div className="px-3 py-2 text-sm font-semibold rounded-lg bg-orange-50 dark:bg-orange-950/30 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-900/50">
                             Student left the exam without submitting
                           </div>
                         ) : (
@@ -1580,7 +1582,7 @@ export default function QuizManagement() {
                         <div className="flex items-center space-x-2">
                           <Button variant="outline" size="sm" className="border-border-soft hover:bg-cream/40" onClick={() => handleOpenAttempt(sub)}>Grade Submission</Button>
                           {(sub.violationReason || sub.status === 'IN_PROGRESS') && (
-                            <Button variant="outline" size="sm" className="border-green-300 text-green-700 hover:bg-green-50 hover:border-green-400" onClick={() => handleAllowRestart(sub.id)}>Allow Restart</Button>
+                            <Button variant="outline" size="sm" className="border-green-300 dark:border-green-900/50 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30 hover:border-green-400" onClick={() => handleAllowRestart(sub.id)}>Allow Restart</Button>
                           )}
                         </div>
                       </TableCell>
@@ -1597,7 +1599,7 @@ export default function QuizManagement() {
 
   if (activeView === 'evaluate_attempt') {
     return (
-      <Card className="bg-white border border-border-soft text-ink shadow-sm rounded-xl">
+      <Card className="bg-white dark:bg-[#1E1E22] border border-border-soft text-ink shadow-sm rounded-xl">
         <CardContent className="p-6">
           <div className="flex justify-between items-center mb-6 border-b border-border-soft pb-4">
             <div>
@@ -1605,7 +1607,7 @@ export default function QuizManagement() {
               <div className="text-xs text-gray-body mt-2 flex space-x-6">
                 <span>Auto-Graded Objective Score: <strong className="text-maroon text-sm font-semibold">{activeAttempt.objectiveScore}</strong></span>
                 <span>Current Written Score: <strong className="text-maroon text-sm font-semibold">{activeAttempt.writtenScore}</strong></span>
-                <span>Total Score: <strong className="text-green-700 text-sm font-bold">{activeAttempt.totalScore}</strong></span>
+                <span>Total Score: <strong className="text-green-700 dark:text-green-400 text-sm font-bold">{activeAttempt.totalScore}</strong></span>
               </div>
             </div>
             <button onClick={() => setActiveView('grade_submissions')} className="text-maroon hover:text-maroon-deep font-semibold text-sm">Back</button>
@@ -1615,7 +1617,7 @@ export default function QuizManagement() {
             {activeAttempt.responses?.map((r: any, idx: number) => {
               const isObjective = ['MCQ', 'MULTI_SELECT', 'NUMERICAL', 'MATCHING'].includes(r.question.type);
               return (
-                <div key={r.id} className="p-5 bg-cream/30 rounded-xl border border-border-soft">
+                <div key={r.id} className="p-5 bg-cream/30 dark:bg-[#242429] rounded-xl border border-border-soft">
                   <div className="flex justify-between items-start mb-2">
                     <span className="text-xs text-gray-body font-bold uppercase tracking-wider">Q{idx + 1}. ({r.question.type}) - Marks: {r.question.marks}</span>
                     {isObjective && (
@@ -1625,20 +1627,20 @@ export default function QuizManagement() {
                   <div className="text-ink font-semibold text-base mb-4">{r.question.text}</div>
                   
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-white p-3 rounded-lg border border-border-soft">
+                    <div className="bg-white dark:bg-[#18181B] p-3 rounded-lg border border-border-soft">
                       <div className="text-xs text-gray-body mb-1 font-semibold">Student's Answer:</div>
                       <div className="text-maroon font-mono text-xs whitespace-pre-wrap">{JSON.stringify(r.answerData, null, 2)}</div>
                     </div>
-                    <div className="bg-green-50/10 p-3 rounded-lg border border-green-200">
-                      <div className="text-xs text-green-700 mb-1 font-semibold">Expected Answer / Key:</div>
-                      <div className="text-green-700 font-mono text-xs whitespace-pre-wrap">{JSON.stringify(r.question.answerKey, null, 2)}</div>
+                    <div className="bg-green-50/10 p-3 rounded-lg border border-green-200 dark:border-green-900/50">
+                      <div className="text-xs text-green-700 dark:text-green-400 mb-1 font-semibold">Expected Answer / Key:</div>
+                      <div className="text-green-700 dark:text-green-400 font-mono text-xs whitespace-pre-wrap">{JSON.stringify(r.question.answerKey, null, 2)}</div>
                     </div>
                   </div>
 
                   {!isObjective && (
                     <div className="mt-4 flex items-center justify-end space-x-4 border-t border-border-soft pt-4">
                       <span className="text-sm text-gray-body font-medium">Assign Marks:</span>
-                      <Input type="number" value={evaluations[r.id] || 0} onChange={(e) => setEvaluations({...evaluations, [r.id]: Number(e.target.value)})} className="w-24 bg-white border-border-soft text-ink focus-visible:ring-maroon" max={r.question.marks} min={0} step={0.5} />
+                      <Input type="number" value={evaluations[r.id] || 0} onChange={(e) => setEvaluations({...evaluations, [r.id]: Number(e.target.value)})} className="w-24 bg-white dark:bg-[#18181B] border-border-soft text-ink focus-visible:ring-maroon" max={r.question.marks} min={0} step={0.5} />
                       <span className="text-sm text-gray-body">/ {r.question.marks}</span>
                     </div>
                   )}
@@ -1649,7 +1651,7 @@ export default function QuizManagement() {
 
           <div className="mt-8 border-t border-border-soft pt-6">
             <Label className="block mb-2 text-ink font-semibold">Overall Faculty Feedback (Optional)</Label>
-            <Textarea value={facultyFeedback} onChange={(e) => setFacultyFeedback(e.target.value)} rows={3} placeholder="Provide general feedback on this attempt..." className="mb-4 bg-white border-border-soft text-ink focus:border-maroon focus:ring-1 focus:ring-maroon" />
+            <Textarea value={facultyFeedback} onChange={(e) => setFacultyFeedback(e.target.value)} rows={3} placeholder="Provide general feedback on this attempt..." className="mb-4 bg-white dark:bg-[#18181B] border-border-soft text-ink focus:border-maroon focus:ring-1 focus:ring-maroon" />
             
             <div className="flex justify-end">
               <Button onClick={handleSaveEvaluation} disabled={loading} className="bg-maroon hover:bg-maroon-deep text-white font-bold h-11 px-8 rounded-full transition-all">{loading ? 'Saving...' : 'Save Evaluation'}</Button>
@@ -1661,7 +1663,7 @@ export default function QuizManagement() {
   }
 
   return (
-    <Card className="bg-white border border-border-soft text-ink shadow-sm rounded-xl">
+    <Card className="bg-white dark:bg-[#1E1E22] border border-border-soft text-ink shadow-sm rounded-xl">
       <CardContent className="p-6">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-serif font-bold text-ink">Quiz Management</h2>
@@ -1749,7 +1751,7 @@ export default function QuizManagement() {
                       <Button variant="outline" size="sm" className="border-border-soft hover:bg-cream/40" onClick={() => handleOpenGradeView(quiz.id)}>
                         Grade Submissions
                       </Button>
-                      <Button variant="destructive" size="sm" className="bg-red-50 text-red-600 hover:bg-red-100 border border-red-200" onClick={() => handleDeleteQuiz(quiz.id)}>
+                      <Button variant="destructive" size="sm" className="bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/50 border border-red-200 dark:border-red-900/50" onClick={() => handleDeleteQuiz(quiz.id)}>
                         Delete
                       </Button>
                     </TableCell>

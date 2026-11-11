@@ -33,19 +33,24 @@ export default function ThemeToggle({ className = '' }: ThemeToggleProps) {
   };
 
   return (
-    <div className={`inline-flex items-center p-1 rounded-full bg-cream-edge/60 dark:bg-neutral-800 border border-border-soft dark:border-neutral-700 shadow-xs transition-colors duration-200 ${className}`}>
+    <div
+      role="group"
+      aria-label="Theme switcher"
+      className={`inline-flex items-center p-1 rounded-full bg-[#EFE5D8]/85 dark:bg-[#242429] border border-[#D8CBB8] dark:border-neutral-700 shadow-xs transition-colors duration-200 ${className}`}
+    >
       <button
         type="button"
         onClick={() => toggle('light')}
         title="Switch to Light mode"
         aria-label="Light mode"
-        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-all duration-200 cursor-pointer ${
+        aria-pressed={theme === 'light'}
+        className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all duration-200 cursor-pointer ${
           theme === 'light'
-            ? 'bg-white text-maroon shadow-sm ring-1 ring-border-soft/80'
-            : 'text-gray-body dark:text-neutral-400 hover:text-ink dark:hover:text-white'
+            ? 'bg-white text-[#9B2242] shadow-sm ring-1 ring-[#D8CBB8]'
+            : 'text-neutral-300 hover:text-white hover:bg-white/10'
         }`}
       >
-        <Sun className={`w-3.5 h-3.5 ${theme === 'light' ? 'text-amber-600 fill-amber-500/20' : ''}`} />
+        <Sun className={`w-3.5 h-3.5 ${theme === 'light' ? 'text-amber-600' : 'text-neutral-300'}`} />
         <span className="hidden sm:inline">Light</span>
       </button>
 
@@ -54,13 +59,14 @@ export default function ThemeToggle({ className = '' }: ThemeToggleProps) {
         onClick={() => toggle('dark')}
         title="Switch to Dark mode"
         aria-label="Dark mode"
-        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-all duration-200 cursor-pointer ${
+        aria-pressed={theme === 'dark'}
+        className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all duration-200 cursor-pointer ${
           theme === 'dark'
-            ? 'bg-neutral-900 text-amber-300 shadow-sm ring-1 ring-neutral-700'
-            : 'text-gray-body dark:text-neutral-400 hover:text-ink dark:hover:text-white'
+            ? 'bg-[#121215] text-amber-300 shadow-sm ring-1 ring-amber-400/35'
+            : 'text-[#4A433D] hover:text-[#1A1A1A] hover:bg-white/50'
         }`}
       >
-        <Moon className={`w-3.5 h-3.5 ${theme === 'dark' ? 'text-amber-300 fill-amber-300/20' : ''}`} />
+        <Moon className={`w-3.5 h-3.5 ${theme === 'dark' ? 'text-amber-300' : 'text-[#4A433D]'}`} />
         <span className="hidden sm:inline">Dark</span>
       </button>
     </div>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { TrendingUp, Bell, Loader2, ArrowRight, Trash2, X, MessageSquare, CheckCircle2, Send, Calendar } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import { apiClient } from '@/lib/apiClient';
@@ -132,6 +133,14 @@ export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProp
       setSubmittingSurvey(false);
     }
   };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSelectedAnnouncement(null);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const fetchOverviewData = () => {
     Promise.all([
@@ -362,24 +371,24 @@ export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProp
         </div>
       ) : null}
 
-      {/* ── ANNOUNCEMENT DETAIL MODAL (CLEAN LIGHT/DARK SCRIM, NO BLACKOUT) ── */}
-      {selectedAnnouncement && (
+      {/* ── ANNOUNCEMENT DETAIL MODAL (PORTALED TO BODY, NO HEADER CLIPPING OR BLACKOUT) ── */}
+      {selectedAnnouncement && createPortal(
         <div 
-          className="fixed inset-0 z-50 bg-black/20 dark:bg-black/50 backdrop-blur-[2px] flex items-center justify-center p-4 transition-all duration-200"
+          className="fixed inset-0 z-[100] bg-black/15 dark:bg-black/55 backdrop-blur-[2px] flex items-center justify-center p-4 transition-all duration-200"
           onClick={() => setSelectedAnnouncement(null)}
           role="presentation"
         >
           <div 
-            className="bg-white dark:bg-[#1E1E1E] rounded-2xl shadow-2xl max-w-xl w-full max-h-[85vh] flex flex-col border border-border-soft dark:border-neutral-800 overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+            className="bg-white dark:bg-[#1E1E22] rounded-2xl shadow-2xl max-w-xl w-full max-h-[85vh] flex flex-col border border-border-soft dark:border-neutral-700 overflow-hidden animate-in fade-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
           >
             {/* Modal Header */}
-            <div className="p-5 border-b border-border-soft dark:border-neutral-800 flex items-start justify-between gap-4 bg-cream/20 dark:bg-neutral-900/40">
+            <div className="p-5 border-b border-border-soft dark:border-neutral-800 flex items-start justify-between gap-4 bg-cream/30 dark:bg-neutral-900/60">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap mb-1.5">
-                  <h3 className="font-bold font-serif text-lg text-ink dark:text-neutral-100 leading-snug">
+                  <h3 className="font-bold font-serif text-lg text-ink dark:text-white leading-snug">
                     {selectedAnnouncement.title}
                   </h3>
                   {selectedAnnouncement.isSurvey && (
@@ -388,14 +397,14 @@ export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProp
                     </span>
                   )}
                   {selectedAnnouncement.audience && (
-                    <span className="text-[10px] font-semibold text-gray-body dark:text-neutral-400 border border-border-soft dark:border-neutral-700 px-2 py-0.5 rounded-md bg-white dark:bg-neutral-800">
+                    <span className="text-[10px] font-semibold text-gray-body dark:text-neutral-300 border border-border-soft dark:border-neutral-700 px-2 py-0.5 rounded-md bg-white dark:bg-neutral-800">
                       {selectedAnnouncement.audience}
                     </span>
                   )}
                 </div>
                 <div className="flex items-center gap-2 text-xs text-gray-body dark:text-neutral-400 flex-wrap">
                   <span className="flex items-center gap-1">
-                    <Calendar className="w-3.5 h-3.5 text-maroon dark:text-red-400" />
+                    <Calendar className="w-3.5 h-3.5 text-maroon dark:text-rose-400" />
                     {new Date(selectedAnnouncement.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                   </span>
                   <span>•</span>
@@ -437,13 +446,13 @@ export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProp
                   ) : (
                     <div className="space-y-3 bg-cream/20 dark:bg-neutral-900/40 p-4 rounded-xl border border-border-soft dark:border-neutral-800">
                       <p className="text-xs font-bold text-ink dark:text-neutral-200 flex items-center gap-1.5">
-                        <MessageSquare className="w-3.5 h-3.5 text-maroon dark:text-red-400" />
+                        <MessageSquare className="w-3.5 h-3.5 text-maroon dark:text-rose-400" />
                         Provide Your Feedback / Response:
                       </p>
                       <textarea
                         rows={3}
                         placeholder="Type your feedback or survey response here..."
-                        className="w-full text-xs p-3 rounded-lg border border-border-soft dark:border-neutral-700 focus:outline-none focus:border-maroon resize-none bg-white dark:bg-[#252525] text-ink dark:text-neutral-100 shadow-xs"
+                        className="w-full text-xs p-3 rounded-lg border border-border-soft dark:border-neutral-700 focus:outline-none focus:border-maroon resize-none bg-white dark:bg-[#25252A] text-ink dark:text-neutral-100 shadow-xs"
                         value={responseText}
                         onChange={(e) => setResponseText(e.target.value)}
                       />
@@ -464,11 +473,11 @@ export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProp
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 border-t border-border-soft dark:border-neutral-800 bg-cream/10 dark:bg-neutral-900/20 flex items-center justify-between">
+            <div className="p-4 border-t border-border-soft dark:border-neutral-800 bg-cream/10 dark:bg-neutral-900/40 flex items-center justify-between">
               <button
                 type="button"
                 onClick={() => handleDismiss(selectedAnnouncement.id)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 border border-red-200/60 dark:border-red-900/40 rounded-lg transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 dark:text-red-400 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 border border-red-200/60 dark:border-red-900/40 rounded-lg transition-colors cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 Delete from My Notices
@@ -480,21 +489,22 @@ export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProp
                       setSelectedAnnouncement(null);
                       onNavigateTab('announcements');
                     }}
-                    className="px-3.5 py-1.5 text-xs font-semibold text-maroon dark:text-red-400 hover:bg-cream-edge/30 dark:hover:bg-neutral-800 rounded-lg transition-colors cursor-pointer"
+                    className="px-3.5 py-1.5 text-xs font-semibold text-maroon dark:text-rose-400 hover:bg-cream-edge/30 dark:hover:bg-neutral-800 rounded-lg transition-colors cursor-pointer"
                   >
                     Go to Announcements Tab
                   </button>
                 )}
                 <button
                   onClick={() => setSelectedAnnouncement(null)}
-                  className="px-4 py-1.5 text-xs font-semibold text-ink dark:text-neutral-200 bg-white dark:bg-[#252525] hover:bg-cream-edge/40 dark:hover:bg-neutral-800 border border-border-soft dark:border-neutral-700 rounded-lg transition-colors cursor-pointer"
+                  className="px-4 py-1.5 text-xs font-semibold text-ink dark:text-neutral-200 bg-white dark:bg-[#25252A] hover:bg-cream-edge/40 dark:hover:bg-neutral-800 border border-border-soft dark:border-neutral-700 rounded-lg transition-colors cursor-pointer"
                 >
                   Close
                 </button>
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

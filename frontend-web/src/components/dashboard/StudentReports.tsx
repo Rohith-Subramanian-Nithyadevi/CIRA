@@ -349,7 +349,7 @@ export const StudentReports = () => {
               aria-haspopup="listbox"
               aria-expanded={isBranchDropdownOpen}
               aria-label={`Branch: ${departments.find(department => department.id === selectedDept)?.name || 'Select Branch'}`}
-              className="flex items-center space-x-2.5 bg-white hover:bg-cream/70 border border-border-soft hover:border-maroon/50 shadow-xs px-3.5 py-2 rounded-xl transition-all cursor-pointer group"
+              className="flex items-center space-x-2.5 bg-white dark:bg-[#1E1E22] hover:bg-cream/70 border border-border-soft hover:border-maroon/50 shadow-xs px-3.5 py-2 rounded-xl transition-all cursor-pointer group"
               title="Select a branch before opening its reports"
             >
               <div className="w-7 h-7 rounded-lg bg-maroon/10 text-maroon flex items-center justify-center group-hover:bg-maroon group-hover:text-white transition-colors">
@@ -364,7 +364,7 @@ export const StudentReports = () => {
               <ChevronDown className={`w-4 h-4 text-gray-body ml-1 transition-transform duration-200 ${isBranchDropdownOpen ? 'rotate-180 text-maroon' : ''}`} />
             </button>
             {isBranchDropdownOpen && (
-              <div role="listbox" aria-label="Available branches" className="absolute left-0 mt-2 w-64 bg-white border border-border-soft rounded-2xl shadow-xl z-50 p-2 animate-in fade-in slide-in-from-top-2 duration-150">
+              <div role="listbox" aria-label="Available branches" className="absolute left-0 mt-2 w-64 bg-white dark:bg-[#1E1E22] border border-border-soft rounded-2xl shadow-xl z-50 p-2 animate-in fade-in slide-in-from-top-2 duration-150">
                 <div className="px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-gray-body border-b border-border-soft/60 mb-1 flex items-center justify-between">
                   <span>Select a branch</span>
                   <span className="bg-cream text-maroon text-[10px] font-bold px-2 py-0.5 rounded-full border border-border-soft/60">{departments.length}</span>
@@ -400,7 +400,7 @@ export const StudentReports = () => {
               aria-haspopup="listbox"
               aria-expanded={isBatchDropdownOpen}
               aria-label={`Batch: ${batches.find(b => b.id === selectedBatch)?.name || 'Select Batch'}`}
-              className="flex items-center space-x-2.5 bg-white hover:bg-cream/70 border border-border-soft hover:border-maroon/50 shadow-xs px-3.5 py-2 rounded-xl transition-all cursor-pointer group"
+              className="flex items-center space-x-2.5 bg-white dark:bg-[#1E1E22] hover:bg-cream/70 border border-border-soft hover:border-maroon/50 shadow-xs px-3.5 py-2 rounded-xl transition-all cursor-pointer group"
               title="Click to switch or return to any batch"
             >
               <div className="w-7 h-7 rounded-lg bg-maroon/10 text-maroon flex items-center justify-center group-hover:bg-maroon group-hover:text-white transition-colors">
@@ -417,7 +417,7 @@ export const StudentReports = () => {
 
             {/* Dropdown Menu Popover */}
             {isBatchDropdownOpen && (
-              <div role="listbox" aria-label="Available batches" className="absolute left-0 mt-2 w-64 bg-white border border-border-soft rounded-2xl shadow-xl z-50 p-2 animate-in fade-in slide-in-from-top-2 duration-150">
+              <div role="listbox" aria-label="Available batches" className="absolute left-0 mt-2 w-64 bg-white dark:bg-[#1E1E22] border border-border-soft rounded-2xl shadow-xl z-50 p-2 animate-in fade-in slide-in-from-top-2 duration-150">
                 <div className="px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-gray-body border-b border-border-soft/60 mb-1 flex items-center justify-between">
                   <span>Available Batches</span>
                   <span className="bg-cream text-maroon text-[10px] font-bold px-2 py-0.5 rounded-full border border-border-soft/60">
@@ -507,7 +507,7 @@ export const StudentReports = () => {
               placeholder="Search Roll No (e.g. CB.EN...)"
               value={searchTerm}
               onChange={(e) => { setSearchTerm(e.target.value); if (searchError) setSearchError(null); }}
-              className="w-full bg-white border border-border-soft rounded-lg pl-10 pr-10 py-2 focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon transition-colors text-sm text-ink placeholder:text-gray-body/50"
+              className="w-full bg-white dark:bg-[#1E1E22] border border-border-soft rounded-lg pl-10 pr-10 py-2 focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon transition-colors text-sm text-ink placeholder:text-gray-body/50"
             />
             <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-body/50" />
             {searchLoading && (
@@ -515,7 +515,7 @@ export const StudentReports = () => {
             )}
           </form>
           {searchError && (
-            <div className="mt-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2.5 flex items-center justify-between animate-in fade-in shadow-sm">
+            <div className="mt-2 text-xs text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 rounded-lg p-2.5 flex items-center justify-between animate-in fade-in shadow-sm">
               <div className="flex items-center space-x-1.5">
                 <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-600" />
                 <span>{searchError}</span>
@@ -533,7 +533,7 @@ export const StudentReports = () => {
       </div>
 
       {!selectedDept && departments.length > 0 && (
-        <div className="rounded-2xl border border-maroon/20 bg-white/90 p-8 text-center shadow-sm animate-in fade-in duration-300">
+        <div className="rounded-2xl border border-maroon/20 bg-white/90 dark:bg-[#1E1E22] p-8 text-center shadow-sm animate-in fade-in duration-300">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-maroon/10 text-maroon">
             <Users className="h-7 w-7" />
           </div>
@@ -553,7 +553,7 @@ export const StudentReports = () => {
 
       {!selectedDept && departments.length === 0 && (
         <div className="space-y-6 animate-in fade-in duration-500">
-          <section className="overflow-hidden rounded-2xl border border-maroon/20 bg-[linear-gradient(120deg,#fffaf2_0%,#ffffff_55%,#f8eee7_100%)] shadow-sm">
+          <section className="overflow-hidden rounded-2xl border border-maroon/20 bg-[linear-gradient(120deg,#fffaf2_0%,#ffffff_55%,#f8eee7_100%)] dark:bg-none dark:bg-[#1E1E22] shadow-sm">
             <div className="border-b border-maroon/10 px-6 py-5 md:px-8">
               <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                 <div className="max-w-2xl">
@@ -566,7 +566,7 @@ export const StudentReports = () => {
                     This view summarises completed quiz attempts. Start with the reading below, then use departments and sections to locate the learners who need attention.
                   </p>
                 </div>
-                <div className="flex items-center gap-2 rounded-xl border border-white/80 bg-white/80 px-3 py-2 text-xs font-semibold text-gray-body shadow-xs">
+                <div className="flex items-center gap-2 rounded-xl border border-white/80 dark:border-border-soft bg-white/80 dark:bg-[#242429] px-3 py-2 text-xs font-semibold text-gray-body shadow-xs">
                   <Info className="h-4 w-4 text-maroon" />
                   {reportHasData ? 'Based on live evaluated attempts' : 'Waiting for evaluated attempts'}
                 </div>
@@ -580,7 +580,7 @@ export const StudentReports = () => {
                 { label: 'Completed attempts', value: reportHasData ? reportSummary.totalAttempts : '--', icon: BookOpen, tone: 'text-amber-700' },
                 { label: 'Need support', value: reportHasData ? `${summaryPercentages.poor}%` : '--', icon: AlertTriangle, tone: 'text-red-700' }
               ].map(({ label, value, icon: Icon, tone }) => (
-                <div key={label} className="bg-white/75 px-4 py-4 md:px-6">
+                <div key={label} className="bg-white/75 dark:bg-[#1E1E22] px-4 py-4 md:px-6">
                   <Icon className={`mb-3 h-5 w-5 ${tone}`} />
                   <p className="text-2xl font-bold text-ink">{value}</p>
                   <p className="mt-1 text-[11px] font-bold uppercase tracking-wider text-gray-body">{label}</p>
@@ -589,16 +589,16 @@ export const StudentReports = () => {
             </div>
 
             <div className="grid gap-5 px-6 py-5 md:grid-cols-[1.2fr_1fr] md:px-8">
-              <div className="rounded-xl border border-border-soft bg-white/75 p-4">
+              <div className="rounded-xl border border-border-soft bg-white/75 dark:bg-[#242429] p-4">
                 <div className="mb-3 flex items-center gap-2 text-sm font-bold text-ink"><Lightbulb className="h-4 w-4 text-amber-600" />Plain-language reading</div>
                 <p className="text-sm leading-6 text-gray-body">{primaryInsight}</p>
               </div>
-              <div className="rounded-xl border border-border-soft bg-white/75 p-4">
+              <div className="rounded-xl border border-border-soft bg-white/75 dark:bg-[#242429] p-4">
                 <p className="mb-3 text-sm font-bold text-ink">How to read the bands</p>
                 <div className="grid grid-cols-3 gap-2 text-center text-[11px] font-semibold">
-                  <div className="rounded-lg bg-red-50 px-2 py-2 text-red-700"><strong className="block text-base">{summaryPercentages.poor}%</strong>Needs support<br />below 60</div>
-                  <div className="rounded-lg bg-amber-50 px-2 py-2 text-amber-700"><strong className="block text-base">{summaryPercentages.average}%</strong>Developing<br />60 to 79</div>
-                  <div className="rounded-lg bg-emerald-50 px-2 py-2 text-emerald-700"><strong className="block text-base">{summaryPercentages.excellent}%</strong>Ready<br />80 and above</div>
+                  <div className="rounded-lg bg-red-50 dark:bg-red-950/40 px-2 py-2 text-red-700 dark:text-red-300"><strong className="block text-base">{summaryPercentages.poor}%</strong>Needs support<br />below 60</div>
+                  <div className="rounded-lg bg-amber-50 dark:bg-amber-950/40 px-2 py-2 text-amber-700 dark:text-amber-300"><strong className="block text-base">{summaryPercentages.average}%</strong>Developing<br />60 to 79</div>
+                  <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/40 px-2 py-2 text-emerald-700 dark:text-emerald-300"><strong className="block text-base">{summaryPercentages.excellent}%</strong>Ready<br />80 and above</div>
                 </div>
               </div>
             </div>
@@ -615,7 +615,7 @@ export const StudentReports = () => {
               <button
                 key={dept.id}
                 onClick={() => setSelectedDept(dept.id)}
-                className="w-full text-left bg-white border border-border-soft rounded-xl p-6 hover:border-maroon/40 transition-all hover:-translate-y-1 hover:shadow-sm"
+                className="w-full text-left bg-white dark:bg-[#1E1E22] border border-border-soft rounded-xl p-6 hover:border-maroon/40 transition-all hover:-translate-y-1 hover:shadow-sm"
               >
                 <h3 className="text-lg font-bold text-ink mb-1">{dept.name}</h3>
                 <p className="text-xs text-gray-body mb-4">Click to view section details</p>
@@ -632,14 +632,14 @@ export const StudentReports = () => {
             )}
           </div>
 
-          <div className="bg-white border border-border-soft rounded-xl p-6 mt-8 shadow-sm">
+          <div className="bg-white dark:bg-[#1E1E22] border border-border-soft rounded-xl p-6 mt-8 shadow-sm">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-lg font-serif font-bold text-ink">Subject Performance by Band</h3>
               <div className="flex items-center space-x-3">
                 <select 
                   value={subjectFilter}
                   onChange={e => setSubjectFilter(e.target.value)}
-                  className="px-3 py-1.5 border border-border-soft rounded-lg text-sm bg-white font-medium text-ink focus:border-maroon outline-none"
+                  className="px-3 py-1.5 border border-border-soft rounded-lg text-sm bg-white dark:bg-[#18181B] font-medium text-ink focus:border-maroon outline-none"
                 >
                   <option value="All Subjects">All Subjects</option>
                   {reportSubjects.map(sub => (
@@ -688,7 +688,7 @@ export const StudentReports = () => {
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" vertical={false} opacity={0.6} />
                     <XAxis dataKey="band" stroke="var(--gray-body)" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'var(--gray-body)' }} />
                     <YAxis stroke="var(--gray-body)" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'var(--gray-body)' }} />
-                    <RechartsTooltip cursor={{ fill: 'var(--cream)', opacity: 0.3 }} contentStyle={{ backgroundColor: '#ffffff', border: '1px solid var(--border-soft)', borderRadius: '8px', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }} itemStyle={{ fontWeight: 'bold', color: 'var(--ink)' }} />
+                    <RechartsTooltip cursor={{ fill: 'var(--cream)', opacity: 0.3 }} contentStyle={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border-soft)', borderRadius: '8px', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }} itemStyle={{ fontWeight: 'bold', color: 'var(--ink)' }} />
                     <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: 12, fill: 'var(--ink)' }} />
                     
                     {subjectsToShow.slice(0, 3).map((sub, i) => (
@@ -714,7 +714,7 @@ export const StudentReports = () => {
              <button
                type="button"
                onClick={handleResetToBatch}
-               className="inline-flex items-center space-x-1.5 text-xs font-bold text-gray-body hover:text-maroon bg-white hover:bg-cream/70 border border-border-soft hover:border-maroon/30 px-3.5 py-2 rounded-xl shadow-xs transition-all cursor-pointer self-start sm:self-auto"
+               className="inline-flex items-center space-x-1.5 text-xs font-bold text-gray-body hover:text-maroon bg-white dark:bg-[#1E1E22] hover:bg-cream/70 border border-border-soft hover:border-maroon/30 px-3.5 py-2 rounded-xl shadow-xs transition-all cursor-pointer self-start sm:self-auto"
                title="Return to Batch Overview"
              >
                <ArrowLeft className="w-3.5 h-3.5" />
@@ -726,7 +726,7 @@ export const StudentReports = () => {
                 <button
                   key={sec.id} 
                   onClick={() => setSelectedSection(sec.id)}
-                  className="w-full bg-white border border-border-soft rounded-xl p-5 text-left hover:border-maroon/40 transition-all flex items-center justify-between shadow-sm"
+                  className="w-full bg-white dark:bg-[#1E1E22] border border-border-soft rounded-xl p-5 text-left hover:border-maroon/40 transition-all flex items-center justify-between shadow-sm"
                 >
                   <span className="text-base font-semibold text-ink">Section {sec.name}</span>
                   <ChevronRight className="w-5 h-5 text-gray-body" />
@@ -734,7 +734,7 @@ export const StudentReports = () => {
              ))}
            </div>
            
-           <div className="bg-white border border-border-soft rounded-xl p-6 mt-8 shadow-sm">
+           <div className="bg-white dark:bg-[#1E1E22] border border-border-soft rounded-xl p-6 mt-8 shadow-sm">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-lg font-serif font-bold text-ink">Performance by Section</h3>
               <button
@@ -792,7 +792,7 @@ export const StudentReports = () => {
                         if (active && payload && payload.length) {
                           const data = payload[0].payload;
                           return (
-                            <div className="bg-white border border-border-soft p-3 rounded-xl shadow-lg">
+                            <div className="bg-white dark:bg-[#1E1E22] border border-border-soft p-3 rounded-xl shadow-lg">
                               <p className="font-bold text-ink mb-2">{label}</p>
                               <div className="space-y-1 mb-2 border-b border-border-soft pb-2">
                                 <p className="text-xs text-gray-body flex justify-between"><span className="text-green-600 font-semibold">Excellent:</span> <span>{data.Excellent}</span></p>
@@ -832,7 +832,7 @@ export const StudentReports = () => {
                <button
                  type="button"
                  onClick={() => setSelectedSection(null)}
-                 className="inline-flex items-center space-x-1.5 text-xs font-bold text-gray-body hover:text-maroon bg-white hover:bg-cream/70 border border-border-soft hover:border-maroon/30 px-3 py-2 rounded-xl shadow-xs transition-all cursor-pointer"
+                 className="inline-flex items-center space-x-1.5 text-xs font-bold text-gray-body hover:text-maroon bg-white dark:bg-[#1E1E22] hover:bg-cream/70 border border-border-soft hover:border-maroon/30 px-3 py-2 rounded-xl shadow-xs transition-all cursor-pointer"
                >
                  <ArrowLeft className="w-3.5 h-3.5" />
                  <span>Back to Sections</span>
@@ -840,7 +840,7 @@ export const StudentReports = () => {
                <button
                  type="button"
                  onClick={handleResetToBatch}
-                 className="inline-flex items-center space-x-1.5 text-xs font-bold text-gray-body hover:text-maroon bg-white hover:bg-cream/70 border border-border-soft hover:border-maroon/30 px-3 py-2 rounded-xl shadow-xs transition-all cursor-pointer"
+                 className="inline-flex items-center space-x-1.5 text-xs font-bold text-gray-body hover:text-maroon bg-white dark:bg-[#1E1E22] hover:bg-cream/70 border border-border-soft hover:border-maroon/30 px-3 py-2 rounded-xl shadow-xs transition-all cursor-pointer"
                >
                  <span>Batch Overview</span>
                </button>
@@ -851,7 +851,7 @@ export const StudentReports = () => {
                 <button
                   key={quiz.id}
                   onClick={() => setSelectedQuiz(quiz.id)}
-                  className="w-full text-left bg-white border border-border-soft rounded-xl p-6 hover:border-maroon/40 transition-all shadow-sm group relative overflow-hidden"
+                  className="w-full text-left bg-white dark:bg-[#1E1E22] border border-border-soft rounded-xl p-6 hover:border-maroon/40 transition-all shadow-sm group relative overflow-hidden"
                 >
                   <div className="absolute top-0 right-0 w-32 h-32 bg-maroon/5 rounded-full blur-3xl group-hover:bg-maroon/10 transition-all"></div>
                   <h3 className="text-lg font-bold text-ink mb-1 relative z-10">{quiz.title}</h3>
@@ -884,18 +884,18 @@ export const StudentReports = () => {
               </p>
               {quizDetails.summary && (
                 <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-semibold text-gray-body">
-                  <span className="rounded-lg border border-border-soft bg-white px-3 py-1.5">Attended: {quizDetails.summary.attended}</span>
-                  <span className="rounded-lg border border-border-soft bg-white px-3 py-1.5">Evaluated: {quizDetails.summary.evaluated}</span>
-                  <span className="rounded-lg border border-border-soft bg-white px-3 py-1.5">Average: {quizDetails.summary.averageScore}%</span>
+                  <span className="rounded-lg border border-border-soft bg-white dark:bg-[#1E1E22] px-3 py-1.5">Attended: {quizDetails.summary.attended}</span>
+                  <span className="rounded-lg border border-border-soft bg-white dark:bg-[#1E1E22] px-3 py-1.5">Evaluated: {quizDetails.summary.evaluated}</span>
+                  <span className="rounded-lg border border-border-soft bg-white dark:bg-[#1E1E22] px-3 py-1.5">Average: {quizDetails.summary.averageScore}%</span>
                 </div>
               )}
-              {quizAnalyticsError && <p className="mt-3 text-xs font-semibold text-red-700">{quizAnalyticsError}</p>}
+              {quizAnalyticsError && <p className="mt-3 text-xs font-semibold text-red-700 dark:text-red-400">{quizAnalyticsError}</p>}
             </div>
             <div className="flex items-center space-x-2 self-start sm:self-auto">
               <button
                 type="button"
                 onClick={() => setSelectedQuiz(null)}
-                className="inline-flex items-center space-x-1.5 text-xs font-bold text-gray-body hover:text-maroon bg-white hover:bg-cream/70 border border-border-soft hover:border-maroon/30 px-3 py-2 rounded-xl shadow-xs transition-all cursor-pointer"
+                className="inline-flex items-center space-x-1.5 text-xs font-bold text-gray-body hover:text-maroon bg-white dark:bg-[#1E1E22] hover:bg-cream/70 border border-border-soft hover:border-maroon/30 px-3 py-2 rounded-xl shadow-xs transition-all cursor-pointer"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
                 <span>Back to Assessments</span>
@@ -903,14 +903,14 @@ export const StudentReports = () => {
               <button
                 type="button"
                 onClick={handleResetToBatch}
-                className="inline-flex items-center space-x-1.5 text-xs font-bold text-gray-body hover:text-maroon bg-white hover:bg-cream/70 border border-border-soft hover:border-maroon/30 px-3 py-2 rounded-xl shadow-xs transition-all cursor-pointer"
+                className="inline-flex items-center space-x-1.5 text-xs font-bold text-gray-body hover:text-maroon bg-white dark:bg-[#1E1E22] hover:bg-cream/70 border border-border-soft hover:border-maroon/30 px-3 py-2 rounded-xl shadow-xs transition-all cursor-pointer"
               >
                 <span>Batch Overview</span>
               </button>
             </div>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="bg-white border border-border-soft rounded-xl p-6 lg:col-span-1 shadow-sm">
+            <div className="bg-white dark:bg-[#1E1E22] border border-border-soft rounded-xl p-6 lg:col-span-1 shadow-sm">
               <h3 className="text-base font-bold text-ink mb-4 text-center font-serif">Score Distribution</h3>
               <div className="h-64 mt-2">
                 <ResponsiveContainer width="100%" height="100%">
@@ -944,14 +944,14 @@ export const StudentReports = () => {
                         <Cell key={`cell-${index}`} fill={`url(#pieGrad${index % 3})`} />
                       ))}
                     </Pie>
-                    <RechartsTooltip contentStyle={{ backgroundColor: '#ffffff', border: '1px solid var(--border-soft)', borderRadius: '8px', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }} itemStyle={{ color: 'var(--ink)', fontWeight: 'bold' }} />
+                    <RechartsTooltip contentStyle={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border-soft)', borderRadius: '8px', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }} itemStyle={{ color: 'var(--ink)', fontWeight: 'bold' }} />
                     <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: 11 }} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
             </div>
 
-            <div className="bg-white border border-border-soft rounded-xl p-6 lg:col-span-2 shadow-sm">
+            <div className="bg-white dark:bg-[#1E1E22] border border-border-soft rounded-xl p-6 lg:col-span-2 shadow-sm">
                <h3 className="text-base font-bold text-ink mb-6 font-serif">Topic-wise Class Average</h3>
                <div className="h-64 mt-2">
                 {quizAnalyticsLoading ? (
@@ -977,7 +977,7 @@ export const StudentReports = () => {
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" horizontal={false} opacity={0.6} />
                     <XAxis type="number" domain={[0, 100]} stroke="var(--gray-body)" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'var(--gray-body)' }} />
                     <YAxis dataKey="topic" type="category" stroke="var(--gray-body)" axisLine={false} tickLine={false} tick={{ fill: 'var(--ink)', fontSize: 11 }} />
-                    <RechartsTooltip cursor={{fill: 'var(--cream)', opacity: 0.3}} contentStyle={{ backgroundColor: '#ffffff', border: '1px solid var(--border-soft)', borderRadius: '8px', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }} itemStyle={{ fontWeight: 'bold', color: 'var(--ink)' }} />
+                    <RechartsTooltip cursor={{fill: 'var(--cream)', opacity: 0.3}} contentStyle={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border-soft)', borderRadius: '8px', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }} itemStyle={{ fontWeight: 'bold', color: 'var(--ink)' }} />
                     <Bar dataKey="avg" radius={[0, 6, 6, 0]}>
                       {quizDetails.topicAverages.map((entry: { avg: number }, index: number) => (
                         <Cell key={`cell-${index}`} fill={entry.avg < 60 ? 'url(#barPoor)' : entry.avg < 75 ? 'url(#barAvg)' : 'url(#barGood)'} />
@@ -991,7 +991,7 @@ export const StudentReports = () => {
 
           {/* Section-by-Section Performance Comparison for Quiz */}
           {quizAnalytics?.sectionComparison && quizAnalytics.sectionComparison.length > 0 && (
-            <div className="bg-white border border-border-soft rounded-xl p-6 shadow-sm">
+            <div className="bg-white dark:bg-[#1E1E22] border border-border-soft rounded-xl p-6 shadow-sm">
               <div className="flex justify-between items-center mb-4">
                 <div>
                   <h3 className="text-base font-bold text-ink font-serif">Class & Section Comparative Quiz Performance</h3>
@@ -1023,7 +1023,7 @@ export const StudentReports = () => {
                         if (active && payload && payload.length) {
                           const data = payload[0].payload;
                           return (
-                            <div className="bg-white border border-border-soft p-3 rounded-xl shadow-lg min-w-[180px]">
+                            <div className="bg-white dark:bg-[#1E1E22] border border-border-soft p-3 rounded-xl shadow-lg min-w-[180px]">
                               <p className="font-bold text-ink mb-1 border-b border-border-soft pb-2">{label}</p>
                               <div className="py-2 space-y-1">
                                 <p className="text-xs text-maroon font-bold flex justify-between"><span>Section Avg:</span> <span>{data.averageScore}%</span></p>
@@ -1049,7 +1049,7 @@ export const StudentReports = () => {
           )}
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="bg-white border border-border-soft rounded-xl p-6 lg:col-span-2 shadow-sm">
+            <div className="bg-white dark:bg-[#1E1E22] border border-border-soft rounded-xl p-6 lg:col-span-2 shadow-sm">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-base font-bold text-ink font-serif">Student Performance & Peer Comparison Leaderboard</h3>
                 <button
@@ -1107,15 +1107,15 @@ export const StudentReports = () => {
               </div>
             </div>
 
-            <div className="bg-white border border-border-soft rounded-xl p-6 shadow-sm">
+            <div className="bg-white dark:bg-[#1E1E22] border border-border-soft rounded-xl p-6 shadow-sm">
               <h3 className="text-base font-bold text-ink mb-4 flex items-center font-serif"><AlertTriangle className="w-5 h-5 text-yellow-600 mr-2"/> Actionable Insights</h3>
               <div className="space-y-4">
                 {quizAnalyticsLoading ? (
                   <div className="rounded-xl border border-border-soft bg-cream/30 p-4 text-xs text-gray-body">Preparing insights from attended student responses...</div>
                 ) : quizDetails.topicAverages.filter((t: { avg: number }) => t.avg < 65).length > 0 ? (
                   quizDetails.topicAverages.filter((t: { avg: number }) => t.avg < 65).map((weakTopic: { topic: string; avg: number }) => (
-                    <div key={weakTopic.topic} className="bg-red-50 border border-red-200 rounded-xl p-4">
-                      <h4 className="text-red-700 font-bold text-sm mb-1">Low Performance in {weakTopic.topic}</h4>
+                    <div key={weakTopic.topic} className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 rounded-xl p-4">
+                      <h4 className="text-red-700 dark:text-red-400 font-bold text-sm mb-1">Low Performance in {weakTopic.topic}</h4>
                       <p className="text-gray-body text-xs leading-relaxed">Class average is {weakTopic.avg}%. Consider scheduling a remedial session for this topic.</p>
                     </div>
                   ))

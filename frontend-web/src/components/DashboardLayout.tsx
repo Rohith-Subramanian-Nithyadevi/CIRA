@@ -1,6 +1,6 @@
 import { LayoutDashboard, Users, BookOpen, LogOut, FileText, CheckSquare, Settings, User, Home, BookMarked, Target, Database, Bell, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import ThemeToggle from './ui/ThemeToggle';
 
 interface DashboardLayoutProps {
@@ -21,6 +21,14 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
     return localStorage.getItem('cira_sidebar_collapsed') === 'true';
   });
 
+  useEffect(() => {
+    if (localStorage.getItem('cira_theme') === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, []);
+
   const toggleSidebar = () => {
     const next = !isCollapsed;
     setIsCollapsed(next);
@@ -29,58 +37,67 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
 
   const handleLogout = () => {
     localStorage.clear();
+    document.documentElement.classList.remove('dark');
     navigate('/');
   };
 
   const getNavClass = (tab: string) => {
-    return `flex items-center w-full ${isCollapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2'} rounded-lg transition-all font-medium text-sm ${activeTab === tab
-      ? 'bg-maroon/5 dark:bg-maroon/20 text-maroon dark:text-red-400 font-semibold border border-maroon dark:border-maroon/50 shadow-sm'
-      : 'text-gray-body dark:text-gray-400 hover:text-ink dark:hover:text-white hover:bg-cream-edge/30 dark:hover:bg-gray-800 border border-transparent'
+    return `flex items-center w-full ${isCollapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2'} rounded-lg transition-all font-medium text-sm cursor-pointer ${activeTab === tab
+      ? 'bg-maroon/10 dark:bg-rose-500/15 text-maroon dark:text-rose-300 font-semibold border border-maroon/40 dark:border-rose-500/40 shadow-xs'
+      : 'text-gray-body dark:text-neutral-300 hover:text-ink dark:hover:text-white hover:bg-cream-edge/40 dark:hover:bg-neutral-800/80 border border-transparent'
       }`;
   };
 
   const SectionHeader = ({ title }: { title: string }) => (
     isCollapsed ? (
-      <div className="my-2 border-t border-border-soft/60 dark:border-gray-800" title={title} />
+      <div className="my-2 border-t border-border-soft/60 dark:border-neutral-800" title={title} />
     ) : (
       <div className="px-3 pt-4 pb-1">
-        <h4 className="text-[10px] font-bold text-gray-body dark:text-gray-500 uppercase tracking-wider">{title}</h4>
+        <h4 className="text-[10px] font-bold text-gray-body dark:text-neutral-500 uppercase tracking-wider">{title}</h4>
       </div>
     )
   );
 
   return (
-    <div className="min-h-screen bg-cream dark:bg-[#111] flex text-ink dark:text-cream font-sans transition-colors duration-200">
+    <div className="min-h-screen bg-cream dark:bg-[#111113] flex text-ink dark:text-neutral-100 font-sans transition-colors duration-200">
       {/* Sidebar */}
-      <aside className={`${isCollapsed ? 'w-20' : 'w-64'} border-r border-border-soft dark:border-gray-800 bg-white dark:bg-[#1A1A1A] flex flex-col hidden md:flex transition-all duration-200 ease-in-out`}>
-        <div className={`h-16 flex items-center ${isCollapsed ? 'justify-between px-3' : 'justify-between px-4 sm:px-6'} border-b border-border-soft dark:border-gray-800 shrink-0`}>
+      <aside className={`${isCollapsed ? 'w-20' : 'w-64'} border-r border-border-soft dark:border-neutral-800 bg-white dark:bg-[#18181B] flex flex-col hidden md:flex transition-all duration-200 ease-in-out shrink-0`}>
+        <div className={`h-16 flex items-center ${isCollapsed ? 'justify-between px-2.5 gap-1' : 'justify-between px-4 sm:px-5'} border-b border-border-soft dark:border-neutral-800 shrink-0`}>
           {!isCollapsed ? (
             <>
               <div className="flex items-center min-w-0 mr-2">
-                <img src="/img/favicon.ico" alt="CIRA Logo" className="w-8 h-8 mr-2.5 object-contain shrink-0" />
+                <img src="/img/favicon.ico" alt="CIRA Logo" className="w-8 h-8 rounded-md mr-2.5 object-contain shrink-0" />
                 <span className="font-bold tracking-tight text-ink dark:text-white truncate">CIRA Workspace</span>
               </div>
               <button
+                type="button"
                 onClick={toggleSidebar}
                 title="Collapse sidebar to icons"
                 aria-label="Collapse sidebar"
-                className="p-1.5 rounded-lg text-gray-body hover:text-ink dark:hover:text-white hover:bg-cream-edge/50 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+                className="p-1.5 rounded-lg text-gray-body dark:text-neutral-400 hover:text-ink dark:hover:text-white hover:bg-cream-edge/50 dark:hover:bg-neutral-800 transition-colors cursor-pointer shrink-0"
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
             </>
           ) : (
-            <div className="w-full flex items-center justify-between px-1">
-              <img src="/img/favicon.ico" alt="CIRA Logo" className="w-7 h-7 object-contain shrink-0" />
+            <>
+              <img
+                src="/img/favicon.ico"
+                alt="CIRA Logo"
+                onClick={toggleSidebar}
+                title="CIRA — Click to expand sidebar"
+                className="w-7 h-7 rounded-md object-contain shrink-0 cursor-pointer"
+              />
               <button
+                type="button"
                 onClick={toggleSidebar}
                 title="Expand sidebar"
                 aria-label="Expand sidebar"
-                className="p-1.5 rounded-lg text-maroon dark:text-red-400 hover:bg-cream-edge/50 dark:hover:bg-gray-800 transition-colors cursor-pointer shrink-0"
+                className="p-1 rounded-md text-maroon dark:text-rose-300 bg-cream-edge/40 dark:bg-neutral-800 border border-border-soft dark:border-neutral-700 hover:bg-cream-edge dark:hover:bg-neutral-700 transition-colors cursor-pointer shrink-0"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
-            </div>
+            </>
           )}
         </div>
 
@@ -189,11 +206,11 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
           )}
         </nav>
 
-        <div className="p-3 border-t border-border-soft dark:border-gray-800 shrink-0">
+        <div className="p-3 border-t border-border-soft dark:border-neutral-800 shrink-0">
           <button
             onClick={handleLogout}
             title={isCollapsed ? "Sign Out" : undefined}
-            className={`flex items-center w-full ${isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2'} text-gray-body dark:text-gray-400 hover:text-ink dark:hover:text-white hover:bg-cream-edge/30 dark:hover:bg-gray-800 rounded-lg transition-colors font-medium text-sm cursor-pointer`}
+            className={`flex items-center w-full ${isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2'} text-gray-body dark:text-neutral-300 hover:text-ink dark:hover:text-white hover:bg-cream-edge/30 dark:hover:bg-neutral-800 rounded-lg transition-colors font-medium text-sm cursor-pointer`}
           >
             <LogOut className={`w-5 h-5 shrink-0 ${isCollapsed ? '' : 'mr-3'}`} />
             {!isCollapsed && <span>Sign Out</span>}
@@ -203,34 +220,35 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
-        <div className="h-16 shrink-0 flex items-center justify-between px-8 border-b border-border-soft dark:border-gray-800 bg-white/80 dark:bg-[#1A1A1A]/80 backdrop-blur-md transition-colors duration-200">
+        <div className="h-16 shrink-0 flex items-center justify-between px-8 border-b border-border-soft dark:border-neutral-800 bg-white/85 dark:bg-[#18181B]/90 backdrop-blur-md transition-colors duration-200">
           <h2 className="text-xl font-serif font-bold text-ink dark:text-white">{title}</h2>
 
           <div className="flex items-center gap-4 sm:gap-6">
             <ThemeToggle />
 
             {role === 'STUDENT' && onToggleDemo && (
-              <div className="flex items-center gap-2 bg-cream-edge/30 dark:bg-gray-800/50 px-3 py-1.5 rounded-full border border-border-soft dark:border-gray-700">
-                <Database className="w-4 h-4 text-maroon dark:text-red-400" />
-                <span className="text-xs font-bold text-ink dark:text-cream">Demo Data</span>
+              <div className="flex items-center gap-2 bg-cream-edge/40 dark:bg-neutral-800/80 px-3 py-1.5 rounded-full border border-border-soft dark:border-neutral-700">
+                <Database className="w-4 h-4 text-maroon dark:text-rose-400" />
+                <span className="text-xs font-bold text-ink dark:text-neutral-100">Demo Data</span>
                 <button
                   onClick={() => onToggleDemo(!isDemo)}
-                  className={`w-8 h-4 rounded-full flex items-center transition-colors ${isDemo ? 'bg-maroon dark:bg-red-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+                  aria-label="Toggle demo data"
+                  className={`w-8 h-4 rounded-full flex items-center transition-colors cursor-pointer ${isDemo ? 'bg-maroon dark:bg-rose-500' : 'bg-gray-300 dark:bg-neutral-600'}`}
                 >
                   <div className={`w-3 h-3 rounded-full bg-white transition-transform ${isDemo ? 'translate-x-4' : 'translate-x-1'}`} />
                 </button>
               </div>
             )}
 
-            <div className="flex items-center gap-3 border-l border-border-soft dark:border-gray-700 pl-6">
-              <div className="w-8 h-8 rounded-full bg-cream dark:bg-gray-800 border border-border-soft dark:border-gray-700 flex items-center justify-center">
-                <span className="text-xs font-bold text-maroon dark:text-red-400">
+            <div className="flex items-center gap-3 border-l border-border-soft dark:border-neutral-700 pl-6">
+              <div className="w-8 h-8 rounded-full bg-cream dark:bg-neutral-800 border border-border-soft dark:border-neutral-700 flex items-center justify-center">
+                <span className="text-xs font-bold text-maroon dark:text-rose-400">
                   {role === 'ADMIN' ? 'AD' : role === 'FACULTY' ? 'FA' : 'ST'}
                 </span>
               </div>
               <div className="text-sm">
                 <p className="font-semibold text-ink dark:text-white leading-none">{user.name || 'User'}</p>
-                <p className="text-gray-body dark:text-gray-400 text-xs mt-1 leading-none">{role}</p>
+                <p className="text-gray-body dark:text-neutral-400 text-xs mt-1 leading-none">{role}</p>
               </div>
             </div>
           </div>

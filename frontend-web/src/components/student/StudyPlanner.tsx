@@ -332,7 +332,7 @@ export default function StudyPlanner() {
   };
 
   if (loading) {
-    return <div className="animate-pulse bg-white rounded-xl h-64 border border-border-soft"></div>;
+    return <div className="animate-pulse bg-white dark:bg-[#1E1E22] rounded-xl h-64 border border-border-soft dark:border-neutral-800"></div>;
   }
 
   const completedCount = tasks.filter(t => t.completed).length;
@@ -353,7 +353,7 @@ export default function StudyPlanner() {
   };
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 min-h-[calc(100vh-14rem)]">
+    <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
       
       {/* Left Column: Planner & Pomodoro */}
       <div className="xl:col-span-8 flex flex-col gap-6">
@@ -374,7 +374,7 @@ export default function StudyPlanner() {
             <div className="flex items-center gap-6">
               <span className="text-4xl font-mono font-bold tracking-tight">{formatTime(timeLeft)}</span>
               <div className="flex items-center gap-2">
-                <button onClick={toggleTimer} className="p-3 bg-white text-ink rounded-full hover:bg-cream transition-colors shadow-sm">
+                <button onClick={toggleTimer} className="p-3 bg-white text-[#1A1A1A] rounded-full hover:bg-neutral-100 transition-colors shadow-sm cursor-pointer">
                   {timerActive ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
                 </button>
                 <button onClick={resetTimer} className="p-3 bg-white/10 text-white rounded-full hover:bg-white/20 transition-colors">

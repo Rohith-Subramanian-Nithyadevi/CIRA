@@ -30,6 +30,7 @@ export default function ExamResults() {
   const [error, setError] = useState('');
 
   useEffect(() => {
+    document.documentElement.classList.remove('dark');
     const fetchResults = async () => {
       try {
         const res = await apiClient.fetch(`/api/v1/student/exam/result/${quizId}`);
