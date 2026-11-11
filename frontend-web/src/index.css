@@ -5,7 +5,46 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ===================================================================
+   CIRA Anti-Screen-Capture & Overlay Blackout Protection
+   =================================================================== */
+
+body.quiz-blackout-active {
+  background-color: #000000 !important;
+  overflow: hidden !important;
+}
+
+body.quiz-blackout-active #quiz-secure-blackout {
+  display: flex !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+body.quiz-blackout-active #quiz-secure-content {
+  visibility: hidden !important;
+  pointer-events: none !important;
+  user-select: none !important;
+  filter: brightness(0) !important;
+}
+
+body.quiz-active-exam {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
 @media print {
+  body.quiz-active-exam,
+  body.quiz-blackout-active {
+    background-color: #000000 !important;
+    color: #000000 !important;
+  }
+
+  body.quiz-active-exam *,
+  body.quiz-blackout-active * {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
   body * {
     visibility: hidden !important;
   }
