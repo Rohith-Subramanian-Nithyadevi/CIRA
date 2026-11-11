@@ -322,23 +322,23 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
 
       {useFacultyNavigation && (
         <>
-          <button type="button" aria-label="Open faculty navigation" onClick={() => setMobileNavOpen(true)} className="fixed left-4 top-4 z-30 rounded-lg border border-border-soft bg-white p-2 text-ink shadow-sm md:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maroon/30">
+          <button type="button" aria-label="Open faculty navigation" onClick={() => setMobileNavOpen(true)} className="fixed left-4 top-4 z-30 rounded-lg border border-border-soft dark:border-neutral-700 bg-white dark:bg-[#1E1E22] p-2 text-ink dark:text-white shadow-sm md:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maroon/30">
             <Menu className="h-5 w-5" aria-hidden="true" />
           </button>
           {mobileNavOpen && (
             <div className="fixed inset-0 z-40 bg-black/40 md:hidden" onMouseDown={(event) => { if (event.target === event.currentTarget) setMobileNavOpen(false); }}>
-              <aside ref={mobileNavRef} role="dialog" aria-modal="true" aria-label="Faculty navigation" className="flex h-full w-72 max-w-[85vw] flex-col bg-white shadow-lg">
-                <div className="flex h-16 items-center justify-between border-b border-border-soft px-5">
-                  <span className="font-bold text-ink">CIRA Workspace</span>
-                  <button type="button" aria-label="Close faculty navigation" onClick={() => setMobileNavOpen(false)} className="rounded-lg p-2 text-gray-body hover:bg-cream focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maroon/30">
+              <aside ref={mobileNavRef} role="dialog" aria-modal="true" aria-label="Faculty navigation" className="flex h-full w-72 max-w-[85vw] flex-col bg-white dark:bg-[#18181B] shadow-lg">
+                <div className="flex h-16 items-center justify-between border-b border-border-soft dark:border-neutral-800 px-5">
+                  <span className="font-bold text-ink dark:text-white">CIRA Workspace</span>
+                  <button type="button" aria-label="Close faculty navigation" onClick={() => setMobileNavOpen(false)} className="rounded-lg p-2 text-gray-body dark:text-neutral-300 hover:bg-cream dark:hover:bg-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maroon/30">
                     <X className="h-5 w-5" aria-hidden="true" />
                   </button>
                 </div>
                 <nav aria-label="Faculty mobile navigation" className="flex-1 space-y-1 overflow-y-auto px-4 py-4">
                   {renderFacultyNavigation(true)}
                 </nav>
-                <div className="border-t border-border-soft p-4">
-                  <button onClick={handleLogout} className="flex w-full items-center rounded-lg px-3 py-2 text-sm font-medium text-gray-body hover:bg-cream-edge/30 hover:text-ink">
+                <div className="border-t border-border-soft dark:border-neutral-800 p-4">
+                  <button onClick={handleLogout} className="flex w-full items-center rounded-lg px-3 py-2 text-sm font-medium text-gray-body dark:text-neutral-300 hover:bg-cream-edge/30 dark:hover:bg-neutral-800 hover:text-ink dark:hover:text-white">
                     <LogOut className="mr-3 h-5 w-5" /> Sign Out
                   </button>
                 </div>
@@ -356,8 +356,8 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
           <div className="flex shrink-0 items-center gap-2 sm:gap-4 lg:gap-6">
             <ThemeToggle />
             {useFacultyNavigation && onCommandPalette && (
-              <button type="button" onClick={onCommandPalette} aria-label="Open command palette" className="flex items-center gap-2 rounded-lg border border-border-soft bg-white dark:bg-[#242429] px-3 py-2 text-sm font-semibold text-gray-body hover:bg-cream">
-                <Search className="h-4 w-4" aria-hidden="true" /> <span className="hidden sm:inline">Search</span> <kbd className="hidden rounded border border-border-soft px-1.5 py-0.5 text-[10px] sm:inline">Ctrl K</kbd>
+              <button type="button" onClick={onCommandPalette} aria-label="Open command palette" className="flex items-center gap-2 rounded-lg border border-border-soft dark:border-neutral-700 bg-white dark:bg-[#242429] px-3 py-2 text-sm font-semibold text-gray-body dark:text-neutral-300 hover:bg-cream dark:hover:bg-neutral-800 dark:hover:text-white transition-colors">
+                <Search className="h-4 w-4" aria-hidden="true" /> <span className="hidden sm:inline">Search</span> <kbd className="hidden rounded border border-border-soft dark:border-neutral-700 px-1.5 py-0.5 text-[10px] sm:inline">Ctrl K</kbd>
               </button>
             )}
             {useFacultyNavigation && <FacultyNotificationBell onNavigate={onTabChange} />}
@@ -370,7 +370,7 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
                   aria-label="Toggle demo data"
                   className={`w-8 h-4 rounded-full flex items-center transition-colors cursor-pointer ${isDemo ? 'bg-maroon dark:bg-rose-500' : 'bg-gray-300 dark:bg-neutral-600'}`}
                 >
-                  <div className={`w-3 h-3 rounded-full bg-white transition-transform ${isDemo ? 'translate-x-4' : 'translate-x-1'}`} />
+                  <div className={`w-3 h-3 rounded-full bg-white dark:bg-white transition-transform ${isDemo ? 'translate-x-4' : 'translate-x-1'}`} />
                 </button>
               </div>
             )}
