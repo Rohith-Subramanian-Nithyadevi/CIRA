@@ -1,15 +1,16 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 
-interface UseSecureExamProps {
-  onViolation?: (reason: string) => void;
+export interface UseSecureExamProps {
+  onViolation?: (reason: string, violationCount?: number) => void;
+  maxViolations?: number;
   isActive?: boolean;
 }
 
 // Keys that are ALLOWED during the exam for typing answers.
 // Everything else = instant violation + auto-submit.
 const ALLOWED_KEYS = new Set([
-  // Letters (e.key returns lowercase or uppercase depending on CapsLock/Shift)
+  // Letters
   'a','b','c','d','e','f','g','h','i','j','k','l','m',
   'n','o','p','q','r','s','t','u','v','w','x','y','z',
   'A','B','C','D','E','F','G','H','I','J','K','L','M',
@@ -23,51 +24,145 @@ const ALLOWED_KEYS = new Set([
   'Backspace',   // Delete typed text
   'Delete',      // Forward delete
   'Enter',       // New line (for long written answers)
-  // Modifiers (they don't produce characters alone, allowed so Shift+letter works)
+  // Modifiers
   'Shift',
   'CapsLock',
   // Navigation within text fields
   'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
   'Home', 'End',
-  // Tab for accessibility within the exam UI (navigating between buttons)
+  // Tab for accessibility within the exam UI
   'Tab',
 ]);
 
-export function useSecureExam({ onViolation, isActive = true }: UseSecureExamProps = {}) {
+/**
+ * Synchronous DOM-level blackout manipulation to ensure 0ms latency
+ * and prevent any brief screen flash before React state reconciliation.
+ */
+export const applyImmediateBlackout = () => {
+  if (typeof document !== 'undefined') {
+    document.body.classList.add('quiz-blackout-active');
+    const blackoutEl = document.getElementById('quiz-secure-blackout');
+    if (blackoutEl) {
+      blackoutEl.style.display = 'flex';
+    }
+    const contentEl = document.getElementById('quiz-secure-content');
+    if (contentEl) {
+      contentEl.style.visibility = 'hidden';
+      contentEl.style.pointerEvents = 'none';
+      contentEl.style.userSelect = 'none';
+    }
+    try {
+      if (navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText('');
+      }
+    } catch (_) {}
+  }
+};
+
+export const removeImmediateBlackout = () => {
+  if (typeof document !== 'undefined') {
+    document.body.classList.remove('quiz-blackout-active');
+    const blackoutEl = document.getElementById('quiz-secure-blackout');
+    if (blackoutEl) {
+      blackoutEl.style.display = 'none';
+    }
+    const contentEl = document.getElementById('quiz-secure-content');
+    if (contentEl) {
+      contentEl.style.visibility = 'visible';
+      contentEl.style.pointerEvents = 'auto';
+      contentEl.style.userSelect = 'auto';
+    }
+  }
+};
+
+/**
+ * Native platform hooks for Android / iOS wrappers if available.
+ */
+const triggerNativeSecurity = (enable: boolean) => {
+  try {
+    if (typeof window !== 'undefined') {
+      const win = window as any;
+      if (win.AndroidSecureBridge?.setSecureFlag) {
+        win.AndroidSecureBridge.setSecureFlag(enable);
+      }
+      if (win.Capacitor?.Plugins?.PrivacyScreen) {
+        if (enable) win.Capacitor.Plugins.PrivacyScreen.enable();
+        else win.Capacitor.Plugins.PrivacyScreen.disable();
+      }
+      if (win.webkit?.messageHandlers?.secureExam) {
+        win.webkit.messageHandlers.secureExam.postMessage({ secure: enable });
+      }
+    }
+  } catch (err) {
+    console.warn('Native security bridge call error:', err);
+  }
+};
+
+export function useSecureExam({
+  onViolation,
+  maxViolations = 1,
+  isActive = true,
+}: UseSecureExamProps = {}) {
   const [violationCount, setViolationCount] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const hasViolatedRef = useRef(false); // Once violated, don't fire again
+  const [isBlackedOut, setIsBlackedOut] = useState(false);
+  const [blackoutReason, setBlackoutReason] = useState<string | null>(null);
+  const [isTerminated, setIsTerminated] = useState(false);
 
+  const hasViolatedRef = useRef(false);
+  const isTerminatedRef = useRef(false);
+
+  // Synchronous blackout trigger
+  const triggerBlackout = useCallback((reason: string) => {
+    applyImmediateBlackout();
+    setIsBlackedOut(true);
+    setBlackoutReason(reason);
+  }, []);
+
+  // Zero-Tolerance Violation Trigger: One strike = instant pure blackout + auto-submit
   const triggerViolation = useCallback((reason: string) => {
-    if (hasViolatedRef.current) return; // Already triggered
+    if (hasViolatedRef.current) return;
     hasViolatedRef.current = true;
+    isTerminatedRef.current = true;
 
+    applyImmediateBlackout();
+    setIsBlackedOut(true);
+    setBlackoutReason(reason);
+    setIsTerminated(true);
     setViolationCount(1);
-    console.error(`SECURITY VIOLATION: ${reason}`);
+
+    console.error(`SECURITY VIOLATION (ZERO TOLERANCE): ${reason}`);
     toast.error(`Security Violation: ${reason}. Your exam is being auto-submitted.`);
-    
+
     if (onViolation) {
-      onViolation(reason);
+      onViolation(reason, 1);
     }
   }, [onViolation]);
 
-  const enterFullscreen = async () => {
+  const enterFullscreen = useCallback(async () => {
     try {
-      const elem = document.documentElement;
+      const elem = document.documentElement as any;
       if (elem.requestFullscreen) {
         await elem.requestFullscreen();
+      } else if (elem.webkitRequestFullscreen) {
+        await elem.webkitRequestFullscreen();
+      } else if (elem.msRequestFullscreen) {
+        await elem.msRequestFullscreen();
       }
-      setIsFullscreen(true);
+      setIsFullscreen(Boolean(document.fullscreenElement));
     } catch (error) {
-      console.error('Failed to enter fullscreen:', error);
-      toast.error('Failed to enter fullscreen mode. This is required for the exam.');
+      console.warn('Failed to enter fullscreen mode:', error);
+      setIsFullscreen(Boolean(document.fullscreenElement));
+      throw error;
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (!isActive) return;
 
-    // Keep track of the last key pressed to provide context on blur
+    document.body.classList.add('quiz-active-exam');
+    triggerNativeSecurity(true);
+
     let lastKeyCombo = '';
     let lastKeyTime = 0;
 
@@ -81,28 +176,50 @@ export function useSecureExam({ onViolation, isActive = true }: UseSecureExamPro
       return parts.join('+');
     };
 
+    const getRecentKeyContext = () => {
+      const timeSinceLastKey = Date.now() - lastKeyTime;
+      if (timeSinceLastKey < 2000 && lastKeyCombo) {
+        return ` [Recent key: ${lastKeyCombo}]`;
+      }
+      return '';
+    };
+
     // ===================================================================
-    // 1. KEYBOARD: Allow whitelisted keys, BLOCK everything else
-    //    Uses capture phase on window for earliest interception.
+    // 1. KEYBOARD INTERCEPTION (Screenshot detection & Whitelist)
     // ===================================================================
     const handleKeyDown = (e: KeyboardEvent) => {
       const combo = buildKeyCombo(e);
       lastKeyCombo = combo;
       lastKeyTime = Date.now();
 
-      if (ALLOWED_KEYS.has(e.key)) {
-        // Allowed key — let it through, do NOT preventDefault
+      // Detect screenshot shortcuts
+      const isScreenshotKey =
+        e.key === 'PrintScreen' ||
+        e.key === 'PrtScn' ||
+        e.key === 'Print' ||
+        ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'S' || e.key === 's')) ||
+        (e.metaKey && e.shiftKey && ['3', '4', '5'].includes(e.key)) ||
+        ((e.metaKey || e.altKey) && (e.key === 'r' || e.key === 'R')) ||
+        ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P'));
+
+      if (isScreenshotKey) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        triggerViolation(`Screenshot or screen capture attempted (${combo})`);
         return;
       }
 
-      // BLOCKED KEY — prevent default and trigger violation
+      if (ALLOWED_KEYS.has(e.key)) {
+        // Allowed key — let it through
+        return;
+      }
+
+      // Blocked key: instant violation + exit
       e.preventDefault();
       e.stopImmediatePropagation();
-
       triggerViolation(`Blocked key pressed: ${combo}`);
     };
 
-    // Block keyup and keypress for non-allowed keys too (capture phase)
     const handleKeyUpPress = (e: KeyboardEvent) => {
       if (!ALLOWED_KEYS.has(e.key)) {
         e.preventDefault();
@@ -127,7 +244,7 @@ export function useSecureExam({ onViolation, isActive = true }: UseSecureExamPro
     document.addEventListener('paste', nukeClipboard, true);
 
     // ===================================================================
-    // 3. CONTEXT MENU (right-click) BLOCK
+    // 3. CONTEXT MENU LOCKDOWN
     // ===================================================================
     const nukeContextMenu = (e: MouseEvent) => {
       e.preventDefault();
@@ -136,7 +253,7 @@ export function useSecureExam({ onViolation, isActive = true }: UseSecureExamPro
     document.addEventListener('contextmenu', nukeContextMenu, true);
 
     // ===================================================================
-    // 4. TOUCHPAD / TRACKPAD GESTURE LOCKDOWN
+    // 4. TOUCH / GESTURE LOCKDOWN (Mobile multi-touch screenshots)
     // ===================================================================
     const nukeGestures = (e: WheelEvent) => {
       if (e.ctrlKey || Math.abs(e.deltaX) > 0) {
@@ -147,41 +264,37 @@ export function useSecureExam({ onViolation, isActive = true }: UseSecureExamPro
     document.addEventListener('wheel', nukeGestures, { capture: true, passive: false });
 
     const nukeTouchGestures = (e: TouchEvent) => {
-      if (e.touches.length > 1) {
+      if (e.touches && e.touches.length > 1) {
         e.preventDefault();
         e.stopImmediatePropagation();
+        triggerViolation('Multi-touch screen capture gesture attempted');
       }
     };
     document.addEventListener('touchstart', nukeTouchGestures, { capture: true, passive: false });
     document.addEventListener('touchmove',  nukeTouchGestures, { capture: true, passive: false });
 
-    // Helper to get recent key context for blur events
-    const getRecentKeyContext = () => {
-      const timeSinceLastKey = Date.now() - lastKeyTime;
-      // If a key was pressed within the last 2 seconds before blur, log it
-      if (timeSinceLastKey < 2000 && lastKeyCombo) {
-        return ` [Recent key: ${lastKeyCombo}]`;
+    // ===================================================================
+    // 5. WINDOW BLUR (Another window opened, task switch, overlays)
+    //    Directly triggers instant pure-black screen + auto-submit.
+    // ===================================================================
+    const handleBlur = (e: FocusEvent) => {
+      // If focus was simply transferred between elements inside the same document, ignore
+      if (e?.relatedTarget && document.contains(e.relatedTarget as Node)) {
+        return;
       }
-      return '';
+      triggerViolation(`Window lost focus (Another window opened, task switch, or overlay detected)${getRecentKeyContext()}`);
     };
+    window.addEventListener('blur', handleBlur, true);
 
     // ===================================================================
-    // 5. WINDOW BLUR — catches Alt+Tab, Win key, taskbar clicks
-    // ===================================================================
-    const handleBlur = () => {
-      triggerViolation(`Window lost focus (Task switch or click outside detected)${getRecentKeyContext()}`);
-    };
-    window.addEventListener('blur', handleBlur);
-
-    // ===================================================================
-    // 6. VISIBILITY CHANGE — tab switch / minimise
+    // 6. VISIBILITY CHANGE (Tab switch / App switcher preview)
     // ===================================================================
     const handleVisibilityChange = () => {
-      if (document.hidden) {
+      if (document.hidden || document.visibilityState !== 'visible') {
         triggerViolation(`Tab switched or browser minimized${getRecentKeyContext()}`);
       }
     };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('visibilitychange', handleVisibilityChange, true);
 
     // ===================================================================
     // 7. FULLSCREEN EXIT DETECTION
@@ -194,10 +307,31 @@ export function useSecureExam({ onViolation, isActive = true }: UseSecureExamPro
         setIsFullscreen(true);
       }
     };
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('fullscreenchange', handleFullscreenChange, true);
 
     // ===================================================================
-    // 8. DRAG & DROP LOCKDOWN
+    // 8. MOBILE PAGE HIDE & FREEZE
+    // ===================================================================
+    const handlePageHide = () => {
+      triggerViolation('Application sent to background / App switched');
+    };
+    window.addEventListener('pagehide', handlePageHide);
+    window.addEventListener('freeze', handlePageHide);
+
+    // ===================================================================
+    // 9. ACTIVE FOCUS WATCHDOG (Catches external windows & overlays)
+    // ===================================================================
+    const focusWatchdog = setInterval(() => {
+      if (hasViolatedRef.current) return;
+      if (typeof document !== 'undefined') {
+        if (!document.hasFocus() || document.hidden || document.visibilityState !== 'visible') {
+          triggerViolation('Window lost focus / Another window opened');
+        }
+      }
+    }, 200);
+
+    // ===================================================================
+    // 10. DRAG & DROP LOCKDOWN
     // ===================================================================
     const nukeDrag = (e: DragEvent) => {
       e.preventDefault();
@@ -206,13 +340,26 @@ export function useSecureExam({ onViolation, isActive = true }: UseSecureExamPro
     document.addEventListener('dragstart', nukeDrag, true);
     document.addEventListener('drop',      nukeDrag, true);
 
+    // ===================================================================
+    // 11. BEFOREUNLOAD (Prevent accidental closure)
+    // ===================================================================
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!isTerminatedRef.current) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
     // Initial fullscreen check
     setIsFullscreen(!!document.fullscreenElement);
 
-    // ===================================================================
-    // CLEANUP
-    // ===================================================================
     return () => {
+      clearInterval(focusWatchdog);
+      document.body.classList.remove('quiz-active-exam');
+      removeImmediateBlackout();
+      triggerNativeSecurity(false);
+
       window.removeEventListener('keydown',  handleKeyDown,    true);
       window.removeEventListener('keyup',    handleKeyUpPress, true);
       window.removeEventListener('keypress', handleKeyUpPress, true);
@@ -227,18 +374,27 @@ export function useSecureExam({ onViolation, isActive = true }: UseSecureExamPro
       document.removeEventListener('touchstart',  nukeTouchGestures as EventListener);
       document.removeEventListener('touchmove',   nukeTouchGestures as EventListener);
 
-      window.removeEventListener('blur', handleBlur);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      window.removeEventListener('blur', handleBlur, true);
+      document.removeEventListener('visibilitychange', handleVisibilityChange, true);
+      document.removeEventListener('fullscreenchange', handleFullscreenChange, true);
+      window.removeEventListener('pagehide', handlePageHide);
+      window.removeEventListener('freeze', handlePageHide);
 
       document.removeEventListener('dragstart', nukeDrag, true);
       document.removeEventListener('drop',      nukeDrag, true);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, [isActive, triggerViolation]);
 
   return {
     violationCount,
+    maxViolations,
     isFullscreen,
-    enterFullscreen
+    isBlackedOut,
+    blackoutReason,
+    isTerminated,
+    enterFullscreen,
+    triggerBlackout,
+    triggerViolation,
   };
 }

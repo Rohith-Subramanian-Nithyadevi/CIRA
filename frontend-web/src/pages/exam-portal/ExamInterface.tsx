@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { useSecureExam } from '../../hooks/useSecureExam';
+import { useSecureExam, applyImmediateBlackout } from '../../hooks/useSecureExam';
 import { apiClient } from '../../lib/apiClient';
 
 type QuestionStatus = 'NOT_VISITED' | 'NOT_ANSWERED' | 'ANSWERED' | 'MARKED_FOR_REVIEW' | 'ANSWERED_AND_MARKED_FOR_REVIEW';
@@ -30,11 +30,16 @@ export default function ExamInterface() {
   const submittingRef = React.useRef(false);
   const attemptIdRef = React.useRef('');
 
-  // Zero tolerance: any violation = instant auto-submit with reason logged
+  // Zero tolerance: any violation = instant pure blackout + auto-submit
   const handleSecurityViolation = async (reason: string) => {
-    if (!attemptId) return;
+    const currentAttemptId = attemptIdRef.current || attemptId;
+    if (!currentAttemptId || submittingRef.current) return;
+
+    submittingRef.current = true;
+    applyImmediateBlackout();
+
     try {
-      await apiClient.fetch(`/api/v1/student/exam/attempt/${attemptId}/submit`, {
+      await apiClient.fetch(`/api/v1/student/exam/attempt/${currentAttemptId}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ violationReason: reason })
@@ -44,11 +49,18 @@ export default function ExamInterface() {
     } catch (e) {
       console.error('Failed to submit violation:', e);
       navigate('/exam-portal', { replace: true });
+    } finally {
+      submittingRef.current = false;
     }
   };
 
-  const { isFullscreen, enterFullscreen } = useSecureExam({
+  const {
+    isBlackedOut,
+    blackoutReason,
+    enterFullscreen,
+  } = useSecureExam({
     isActive: hasStartedSecureExam,
+    maxViolations: 1,
     onViolation: handleSecurityViolation
   });
 
@@ -197,7 +209,7 @@ export default function ExamInterface() {
 
   if (questions.length === 0) return <div className="min-h-screen bg-[#FDFBF7] flex items-center justify-center"><div className="animate-spin h-8 w-8 border-4 border-maroon border-t-transparent rounded-full" /></div>;
 
-  if (!hasStartedSecureExam || !isFullscreen) {
+  if (!hasStartedSecureExam) {
     return (
       <div className="min-h-screen bg-[#FDFBF7] text-ink flex flex-col items-center justify-center p-8 font-sans">
         <div className="max-w-2xl w-full text-center space-y-8">
@@ -227,11 +239,11 @@ export default function ExamInterface() {
               </li>
               <li className="flex items-start">
                 <span className="text-maroon mr-3">•</span>
-                Attempting to violate these rules will result in warnings.
+                Screen capture, system overlays, and focus loss will immediately black out the screen.
               </li>
               <li className="flex items-start">
                 <span className="text-maroon mr-3">•</span>
-                After <span className="font-bold mx-1 text-red-600">3 warnings</span>, your exam will be automatically submitted.
+                <span className="font-bold text-red-600 mr-1">Zero tolerance:</span> Opening any other window, pressing unauthorized keys, switching tabs, or exiting fullscreen will <span className="font-bold text-red-600 ml-1">immediately black out the screen and terminate</span> your exam.
               </li>
             </ul>
           </div>
@@ -287,8 +299,70 @@ export default function ExamInterface() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FDFBF7] flex flex-col font-sans text-ink">
-      <header className="bg-white border-b border-border-soft px-6 py-4 flex justify-between items-center shadow-sm">
+    <div className="min-h-screen bg-[#FDFBF7] flex flex-col font-sans text-ink relative">
+      {/* ===================================================================
+          1. SOLID PURE-BLACK PRIVACY BLACKOUT LAYER (#000000)
+             Covers entire viewport with highest z-index priority.
+             When focus is lost or capture tool triggers, window is not focused,
+             so screen is 100% pure black with zero content rendered.
+             When student returns to window, evaluation dialog allows resuming.
+         =================================================================== */}
+      <div
+        id="quiz-secure-blackout"
+        role="alert"
+        aria-live="assertive"
+        className={`fixed inset-0 w-screen h-screen bg-[#000000] z-[2147483647] flex flex-col items-center justify-center p-6 text-center select-none ${
+          isBlackedOut ? 'flex' : 'hidden'
+        }`}
+        style={{
+          backgroundColor: '#000000',
+          display: isBlackedOut ? 'flex' : 'none',
+        }}
+      >
+        <div className="max-w-md w-full p-8 rounded-2xl bg-neutral-950 border border-neutral-800 text-white shadow-2xl space-y-5">
+          <div className="w-14 h-14 rounded-full bg-red-600/20 text-red-500 mx-auto flex items-center justify-center">
+            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <div className="space-y-2">
+            <div className="inline-block px-3 py-1 rounded-full text-xs font-bold bg-red-500/20 text-red-400 border border-red-500/30">
+              Security Violation Detected
+            </div>
+            <h2 className="text-2xl font-bold font-serif text-red-400">Exam Terminated</h2>
+            <p className="text-sm text-neutral-300">
+              A security violation or window focus loss was detected. Content has been blacked out and your exam is being submitted.
+            </p>
+          </div>
+
+          {blackoutReason && (
+            <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-3 text-xs text-neutral-300 font-mono text-left">
+              <span className="text-neutral-500 block mb-0.5 font-sans font-bold">Detection event:</span>
+              {blackoutReason}
+            </div>
+          )}
+
+          <div className="pt-2 flex items-center justify-center space-x-2 text-neutral-400 text-sm">
+            <div className="animate-spin h-4 w-4 border-2 border-red-500 border-t-transparent rounded-full" />
+            <span>Submitting exam and redirecting...</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ===================================================================
+          2. MAIN EXAM INTERFACE CONTENT
+             Completely hidden and non-interactive when blacked out.
+         =================================================================== */}
+      <div
+        id="quiz-secure-content"
+        className="flex-1 flex flex-col"
+        style={{
+          visibility: isBlackedOut ? 'hidden' : 'visible',
+          pointerEvents: isBlackedOut ? 'none' : 'auto',
+          userSelect: isBlackedOut ? 'none' : 'auto',
+        }}
+      >
+        <header className="bg-white border-b border-border-soft px-6 py-4 flex justify-between items-center shadow-sm">
         <div>
           <h1 className="text-xl font-serif font-bold text-ink">{quizDetails?.title || 'Examination'}</h1>
           <div className="text-xs font-semibold text-gray-body mt-0.5">Subject: {quizDetails?.subject || 'N/A'}</div>
@@ -463,6 +537,7 @@ export default function ExamInterface() {
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );
