@@ -134,7 +134,7 @@
     --ink: #F4F4F5;
     --gray-body: #A1A1AA;
     --surface: #1A1A1E;
-    --white: #1A1A1E;
+    --white: #FFFFFF;
     --chip-peach: #2A2225;
     --cta-tan: #2E2B27;
     --border-soft: #2E2E33;
@@ -187,13 +187,31 @@
     background: radial-gradient(circle, #2d2026 0%, #171317 100%) !important;
   }
   .dark .bg-white {
-    background-color: #1f1b1f;
+    background-color: var(--surface);
+  }
+  .dark .bg-white\/60 {
+    background-color: rgb(26 26 30 / 0.72);
+  }
+  .dark .bg-white\/70 {
+    background-color: rgb(26 26 30 / 0.8);
+  }
+  .dark .bg-white\/75 {
+    background-color: rgb(26 26 30 / 0.84);
   }
   .dark .bg-white\/80 {
-    background-color: rgb(31 27 31 / 0.88);
+    background-color: rgb(26 26 30 / 0.88);
+  }
+  .dark .bg-white\/85 {
+    background-color: rgb(26 26 30 / 0.9);
   }
   .dark .bg-white\/90 {
-    background-color: rgb(31 27 31 / 0.94);
+    background-color: rgb(26 26 30 / 0.94);
+  }
+  .dark .bg-white\/92 {
+    background-color: rgb(26 26 30 / 0.95);
+  }
+  .dark .bg-white\/95 {
+    background-color: rgb(26 26 30 / 0.96);
   }
   .dark .bg-gray-50 {
     background-color: #242124;

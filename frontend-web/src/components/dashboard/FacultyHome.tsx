@@ -891,7 +891,7 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
                     <button
                       type="button"
                       onClick={() => deleteAnnouncement(ann.id)}
-                      className="text-gray-body/60 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-lg border border-transparent hover:border-red-100 transition-colors cursor-pointer"
+                      className="text-gray-body/60 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 p-1.5 rounded-lg border border-transparent hover:border-red-100 dark:hover:border-red-900/40 transition-colors cursor-pointer"
                       title="Delete announcement"
                     >
                       <Trash2 className="w-4 h-4" />
