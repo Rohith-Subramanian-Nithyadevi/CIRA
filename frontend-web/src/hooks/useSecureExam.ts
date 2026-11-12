@@ -1,73 +1,207 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { toast } from 'sonner';
+
+export type SecurityViolationType =
+  | 'TAB_SWITCH'
+  | 'WINDOW_BLUR'
+  | 'FULLSCREEN_EXIT'
+  | 'BLOCKED_KEY'
+  | 'CLIPBOARD';
+
+export interface SecurityViolationEvent {
+  type: SecurityViolationType;
+  reason: string;
+  timestamp: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface FullscreenAttemptResult {
+  ok: boolean;
+  unsupported?: boolean;
+  error?: string;
+}
 
 interface UseSecureExamProps {
-  onViolation?: (reason: string) => void;
+  onViolation?: (event: SecurityViolationEvent) => void | Promise<void>;
   isActive?: boolean;
+  dedupeWindowMs?: number;
 }
 
 // Keys that are ALLOWED during the exam for typing answers.
-// Everything else = instant violation + auto-submit.
 const ALLOWED_KEYS = new Set([
-  // Letters (e.key returns lowercase or uppercase depending on CapsLock/Shift)
   'a','b','c','d','e','f','g','h','i','j','k','l','m',
   'n','o','p','q','r','s','t','u','v','w','x','y','z',
   'A','B','C','D','E','F','G','H','I','J','K','L','M',
   'N','O','P','Q','R','S','T','U','V','W','X','Y','Z',
-  // Digits
   '0','1','2','3','4','5','6','7','8','9',
-  // Punctuation allowed for answers
   '.',',','-','\'','"','!','?',':',';','(',')','/','@','#','&','+','=',
-  // Whitespace & editing
-  ' ',           // Space
-  'Backspace',   // Delete typed text
-  'Delete',      // Forward delete
-  'Enter',       // New line (for long written answers)
-  // Modifiers (they don't produce characters alone, allowed so Shift+letter works)
+  ' ',
+  'Backspace',
+  'Delete',
+  'Enter',
   'Shift',
   'CapsLock',
-  // Navigation within text fields
   'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
   'Home', 'End',
-  // Tab for accessibility within the exam UI (navigating between buttons)
   'Tab',
 ]);
 
-export function useSecureExam({ onViolation, isActive = true }: UseSecureExamProps = {}) {
+export function getFullscreenElement(): Element | null {
+  if (typeof document === 'undefined') return null;
+  const doc = document as Document & {
+    webkitFullscreenElement?: Element | null;
+    mozFullScreenElement?: Element | null;
+    msFullscreenElement?: Element | null;
+  };
+  return (
+    doc.fullscreenElement ||
+    doc.webkitFullscreenElement ||
+    doc.mozFullScreenElement ||
+    doc.msFullscreenElement ||
+    null
+  );
+}
+
+export function isFullscreenSupported(): boolean {
+  if (typeof document === 'undefined') return false;
+  const doc = document as Document & {
+    webkitFullscreenEnabled?: boolean;
+    mozFullScreenEnabled?: boolean;
+    msFullscreenEnabled?: boolean;
+  };
+  const elem = document.documentElement as HTMLElement & {
+    webkitRequestFullscreen?: () => Promise<void> | void;
+    mozRequestFullScreen?: () => Promise<void> | void;
+    msRequestFullscreen?: () => Promise<void> | void;
+  };
+  const hasMethod = Boolean(
+    elem &&
+      (elem.requestFullscreen ||
+        elem.webkitRequestFullscreen ||
+        elem.mozRequestFullScreen ||
+        elem.msRequestFullscreen)
+  );
+  const enabled =
+    doc.fullscreenEnabled !== false &&
+    doc.webkitFullscreenEnabled !== false &&
+    doc.mozFullScreenEnabled !== false &&
+    doc.msFullscreenEnabled !== false;
+  return hasMethod && enabled;
+}
+
+export function useSecureExam({
+  onViolation,
+  isActive = true,
+  dedupeWindowMs = 1500,
+}: UseSecureExamProps = {}) {
   const [violationCount, setViolationCount] = useState(0);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const hasViolatedRef = useRef(false); // Once violated, don't fire again
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(() => Boolean(getFullscreenElement()));
+  const [isBlackScreen, setIsBlackScreen] = useState(false);
 
-  const triggerViolation = useCallback((reason: string) => {
-    if (hasViolatedRef.current) return; // Already triggered
-    hasViolatedRef.current = true;
+  const onViolationRef = useRef(onViolation);
+  onViolationRef.current = onViolation;
 
-    setViolationCount(1);
-    console.error(`SECURITY VIOLATION: ${reason}`);
-    toast.error(`Security Violation: ${reason}. Your exam is being auto-submitted.`);
-    
-    if (onViolation) {
-      onViolation(reason);
+  const lastViolationAtRef = useRef<number>(0);
+
+  const evaluateSecurityState = useCallback(() => {
+    if (typeof document === 'undefined') return;
+    const fsActive = Boolean(getFullscreenElement());
+    const visible = document.visibilityState !== 'hidden' && !document.hidden;
+    const focused = typeof document.hasFocus === 'function' ? document.hasFocus() : true;
+
+    setIsFullscreen(fsActive);
+    if (fsActive && visible && focused) {
+      setIsBlackScreen(false);
+    } else {
+      setIsBlackScreen(true);
     }
-  }, [onViolation]);
+  }, []);
 
-  const enterFullscreen = async () => {
+  const recordViolation = useCallback(
+    (type: SecurityViolationType, reason: string, metadata?: Record<string, unknown>) => {
+      // Immediately activate black screen regardless of deduplication
+      setIsBlackScreen(true);
+
+      const now = Date.now();
+      if (now - lastViolationAtRef.current < dedupeWindowMs) {
+        return;
+      }
+      lastViolationAtRef.current = now;
+
+      setViolationCount((prev) => prev + 1);
+
+      const event: SecurityViolationEvent = {
+        type,
+        reason,
+        timestamp: new Date(now).toISOString(),
+        metadata,
+      };
+
+      if (onViolationRef.current) {
+        void onViolationRef.current(event);
+      }
+    },
+    [dedupeWindowMs]
+  );
+
+  const enterFullscreen = useCallback(async (): Promise<FullscreenAttemptResult> => {
+    if (!isFullscreenSupported()) {
+      setIsFullscreen(false);
+      return {
+        ok: false,
+        unsupported: true,
+        error: 'Fullscreen mode is unavailable or unsupported in this browser. Please use a supported browser to take this quiz.',
+      };
+    }
+
     try {
-      const elem = document.documentElement;
+      const elem = document.documentElement as HTMLElement & {
+        webkitRequestFullscreen?: () => Promise<void> | void;
+        mozRequestFullScreen?: () => Promise<void> | void;
+        msRequestFullscreen?: () => Promise<void> | void;
+      };
+
       if (elem.requestFullscreen) {
         await elem.requestFullscreen();
+      } else if (elem.webkitRequestFullscreen) {
+        await elem.webkitRequestFullscreen();
+      } else if (elem.mozRequestFullScreen) {
+        await elem.mozRequestFullScreen();
+      } else if (elem.msRequestFullscreen) {
+        await elem.msRequestFullscreen();
       }
-      setIsFullscreen(true);
-    } catch (error) {
-      console.error('Failed to enter fullscreen:', error);
-      toast.error('Failed to enter fullscreen mode. This is required for the exam.');
+
+      const fsActive = Boolean(getFullscreenElement());
+      setIsFullscreen(fsActive);
+
+      if (!fsActive) {
+        return {
+          ok: false,
+          error: 'Fullscreen activation was blocked or cancelled. Please allow fullscreen mode and retry.',
+        };
+      }
+
+      const visible = document.visibilityState !== 'hidden' && !document.hidden;
+      const focused = typeof document.hasFocus === 'function' ? document.hasFocus() : true;
+      if (visible && focused) {
+        setIsBlackScreen(false);
+      }
+
+      return { ok: true };
+    } catch {
+      setIsFullscreen(false);
+      return {
+        ok: false,
+        error: 'Fullscreen permission was denied. Please allow fullscreen access and try again.',
+      };
     }
-  };
+  }, []);
 
   useEffect(() => {
-    if (!isActive) return;
+    if (!isActive) {
+      setIsBlackScreen(false);
+      return;
+    }
 
-    // Keep track of the last key pressed to provide context on blur
     let lastKeyCombo = '';
     let lastKeyTime = 0;
 
@@ -81,70 +215,57 @@ export function useSecureExam({ onViolation, isActive = true }: UseSecureExamPro
       return parts.join('+');
     };
 
-    // ===================================================================
-    // 1. KEYBOARD: Allow whitelisted keys, BLOCK everything else
-    //    Uses capture phase on window for earliest interception.
-    // ===================================================================
+    const getRecentKeyContext = () => {
+      const timeSinceLastKey = Date.now() - lastKeyTime;
+      if (timeSinceLastKey < 2000 && lastKeyCombo) {
+        return { recentKey: lastKeyCombo };
+      }
+      return undefined;
+    };
+
     const handleKeyDown = (e: KeyboardEvent) => {
       const combo = buildKeyCombo(e);
       lastKeyCombo = combo;
       lastKeyTime = Date.now();
 
       if (ALLOWED_KEYS.has(e.key)) {
-        // Allowed key — let it through, do NOT preventDefault
         return;
       }
 
-      // BLOCKED KEY — prevent default and trigger violation
+      // Let Escape be handled by fullscreenchange (FULLSCREEN_EXIT) without double-counting
+      if (e.key === 'Escape') {
+        return;
+      }
+
       e.preventDefault();
       e.stopImmediatePropagation();
-
-      triggerViolation(`Blocked key pressed: ${combo}`);
+      recordViolation('BLOCKED_KEY', `Blocked key pressed: ${combo}`, { key: combo });
     };
 
-    // Block keyup and keypress for non-allowed keys too (capture phase)
     const handleKeyUpPress = (e: KeyboardEvent) => {
-      if (!ALLOWED_KEYS.has(e.key)) {
+      if (!ALLOWED_KEYS.has(e.key) && e.key !== 'Escape') {
         e.preventDefault();
         e.stopImmediatePropagation();
       }
     };
 
-    window.addEventListener('keydown',  handleKeyDown,    true);
-    window.addEventListener('keyup',    handleKeyUpPress, true);
-    window.addEventListener('keypress', handleKeyUpPress, true);
-
-    // ===================================================================
-    // 2. CLIPBOARD LOCKDOWN
-    // ===================================================================
     const nukeClipboard = (e: ClipboardEvent) => {
       e.preventDefault();
       e.stopImmediatePropagation();
-      triggerViolation('Clipboard operation attempted (copy/cut/paste)');
+      recordViolation('CLIPBOARD', `Clipboard operation attempted (${e.type})`, { action: e.type });
     };
-    document.addEventListener('copy',  nukeClipboard, true);
-    document.addEventListener('cut',   nukeClipboard, true);
-    document.addEventListener('paste', nukeClipboard, true);
 
-    // ===================================================================
-    // 3. CONTEXT MENU (right-click) BLOCK
-    // ===================================================================
     const nukeContextMenu = (e: MouseEvent) => {
       e.preventDefault();
       e.stopImmediatePropagation();
     };
-    document.addEventListener('contextmenu', nukeContextMenu, true);
 
-    // ===================================================================
-    // 4. TOUCHPAD / TRACKPAD GESTURE LOCKDOWN
-    // ===================================================================
     const nukeGestures = (e: WheelEvent) => {
       if (e.ctrlKey || Math.abs(e.deltaX) > 0) {
         e.preventDefault();
         e.stopImmediatePropagation();
       }
     };
-    document.addEventListener('wheel', nukeGestures, { capture: true, passive: false });
 
     const nukeTouchGestures = (e: TouchEvent) => {
       if (e.touches.length > 1) {
@@ -152,93 +273,106 @@ export function useSecureExam({ onViolation, isActive = true }: UseSecureExamPro
         e.stopImmediatePropagation();
       }
     };
-    document.addEventListener('touchstart', nukeTouchGestures, { capture: true, passive: false });
-    document.addEventListener('touchmove',  nukeTouchGestures, { capture: true, passive: false });
 
-    // Helper to get recent key context for blur events
-    const getRecentKeyContext = () => {
-      const timeSinceLastKey = Date.now() - lastKeyTime;
-      // If a key was pressed within the last 2 seconds before blur, log it
-      if (timeSinceLastKey < 2000 && lastKeyCombo) {
-        return ` [Recent key: ${lastKeyCombo}]`;
-      }
-      return '';
-    };
-
-    // ===================================================================
-    // 5. WINDOW BLUR — catches Alt+Tab, Win key, taskbar clicks
-    // ===================================================================
-    const handleBlur = () => {
-      triggerViolation(`Window lost focus (Task switch or click outside detected)${getRecentKeyContext()}`);
-    };
-    window.addEventListener('blur', handleBlur);
-
-    // ===================================================================
-    // 6. VISIBILITY CHANGE — tab switch / minimise
-    // ===================================================================
     const handleVisibilityChange = () => {
-      if (document.hidden) {
-        triggerViolation(`Tab switched or browser minimized${getRecentKeyContext()}`);
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    // ===================================================================
-    // 7. FULLSCREEN EXIT DETECTION
-    // ===================================================================
-    const handleFullscreenChange = () => {
-      if (!document.fullscreenElement) {
-        setIsFullscreen(false);
-        triggerViolation('Exited fullscreen mode');
+      if (document.visibilityState === 'hidden' || document.hidden) {
+        recordViolation('TAB_SWITCH', 'Page became hidden (tab switch, minimize, or app switch)', {
+          visibilityState: document.visibilityState,
+          ...getRecentKeyContext(),
+        });
       } else {
-        setIsFullscreen(true);
+        evaluateSecurityState();
       }
     };
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
 
-    // ===================================================================
-    // 8. DRAG & DROP LOCKDOWN
-    // ===================================================================
+    const handleBlur = () => {
+      recordViolation('WINDOW_BLUR', 'Window lost focus', {
+        visibilityState: document.visibilityState,
+        ...getRecentKeyContext(),
+      });
+    };
+
+    const handleFocus = () => {
+      evaluateSecurityState();
+    };
+
+    const handleFullscreenChange = () => {
+      const fsActive = Boolean(getFullscreenElement());
+      setIsFullscreen(fsActive);
+      if (!fsActive) {
+        recordViolation('FULLSCREEN_EXIT', 'Exited fullscreen mode', {
+          visibilityState: document.visibilityState,
+          ...getRecentKeyContext(),
+        });
+      } else {
+        evaluateSecurityState();
+      }
+    };
+
     const nukeDrag = (e: DragEvent) => {
       e.preventDefault();
       e.stopImmediatePropagation();
     };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    window.addEventListener('keyup', handleKeyUpPress, true);
+    window.addEventListener('keypress', handleKeyUpPress, true);
+
+    document.addEventListener('copy', nukeClipboard, true);
+    document.addEventListener('cut', nukeClipboard, true);
+    document.addEventListener('paste', nukeClipboard, true);
+    document.addEventListener('contextmenu', nukeContextMenu, true);
+
+    document.addEventListener('wheel', nukeGestures, { capture: true, passive: false });
+    document.addEventListener('touchstart', nukeTouchGestures, { capture: true, passive: false });
+    document.addEventListener('touchmove', nukeTouchGestures, { capture: true, passive: false });
+
+    window.addEventListener('blur', handleBlur);
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+
     document.addEventListener('dragstart', nukeDrag, true);
-    document.addEventListener('drop',      nukeDrag, true);
+    document.addEventListener('drop', nukeDrag, true);
 
-    // Initial fullscreen check
-    setIsFullscreen(!!document.fullscreenElement);
+    // Initial check when exam becomes active
+    evaluateSecurityState();
 
-    // ===================================================================
-    // CLEANUP
-    // ===================================================================
     return () => {
-      window.removeEventListener('keydown',  handleKeyDown,    true);
-      window.removeEventListener('keyup',    handleKeyUpPress, true);
+      window.removeEventListener('keydown', handleKeyDown, true);
+      window.removeEventListener('keyup', handleKeyUpPress, true);
       window.removeEventListener('keypress', handleKeyUpPress, true);
 
-      document.removeEventListener('copy',  nukeClipboard, true);
-      document.removeEventListener('cut',   nukeClipboard, true);
+      document.removeEventListener('copy', nukeClipboard, true);
+      document.removeEventListener('cut', nukeClipboard, true);
       document.removeEventListener('paste', nukeClipboard, true);
-
       document.removeEventListener('contextmenu', nukeContextMenu, true);
 
-      document.removeEventListener('wheel',      nukeGestures as EventListener);
-      document.removeEventListener('touchstart',  nukeTouchGestures as EventListener);
-      document.removeEventListener('touchmove',   nukeTouchGestures as EventListener);
+      document.removeEventListener('wheel', nukeGestures as EventListener, true);
+      document.removeEventListener('touchstart', nukeTouchGestures as EventListener, true);
+      document.removeEventListener('touchmove', nukeTouchGestures as EventListener, true);
 
       window.removeEventListener('blur', handleBlur);
+      window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
 
       document.removeEventListener('dragstart', nukeDrag, true);
-      document.removeEventListener('drop',      nukeDrag, true);
+      document.removeEventListener('drop', nukeDrag, true);
     };
-  }, [isActive, triggerViolation]);
+  }, [isActive, evaluateSecurityState, recordViolation]);
 
   return {
     violationCount,
     isFullscreen,
-    enterFullscreen
+    isBlackScreen,
+    fullscreenSupported: isFullscreenSupported(),
+    enterFullscreen,
   };
 }

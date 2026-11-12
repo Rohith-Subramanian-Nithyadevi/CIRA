@@ -5,6 +5,8 @@ const { prisma } = require('../dist/config/prisma');
 const quizController = require('../dist/controllers/quiz.controller');
 const studentExamController = require('../dist/controllers/student-exam.controller');
 const studentDashboardController = require('../dist/controllers/student-dashboard.controller');
+const objectStorage = require('../dist/utils/object-storage');
+const questionBankPolicy = require('../dist/utils/question-bank-policy');
 
 const originals = {
   quiz: { ...prisma.quiz },
@@ -174,16 +176,29 @@ describe('Quiz Publication & Editing Controller Logic', () => {
     assert.equal(allowed.res.body.data[0].student.rollNumber, '24CS001');
   });
 
-  it('updateQuiz updates metadata and questions when no attempts exist, and blocks question edits when attempts exist', async () => {
+  it('updateQuiz updates metadata and questions when no attempts exist, and updates questions in-place when attempts exist', async () => {
     let attemptCountMock = 0;
     let deletedQuestionsFor = null;
     let createdQuestionsCount = 0;
+    let updatedQuestionInPlace = false;
 
     prisma.quiz.findUnique = async () => ({
       id: 'quiz-1',
       createdBy: 'faculty-1',
       title: 'Old Title',
       subject: 'DBMS',
+      answersPublished: false,
+      questions: [
+        {
+          id: 'q-1',
+          type: 'MCQ',
+          text: 'Old?',
+          options: ['Yes', 'No'],
+          answerKey: 'No',
+          marks: 1,
+          negativeMarks: 0,
+        },
+      ],
       _count: { attempts: attemptCountMock },
     });
     prisma.quizAttempt.count = async () => attemptCountMock;
@@ -192,6 +207,7 @@ describe('Quiz Publication & Editing Controller Logic', () => {
       const tx = {
         quizAttempt: {
           count: async () => attemptCountMock,
+          findMany: async () => [],
         },
         quiz: {
           update: async ({ data }) => ({
@@ -216,6 +232,24 @@ describe('Quiz Publication & Editing Controller Logic', () => {
             createdQuestionsCount += 1;
             return { id: `q-${createdQuestionsCount}` };
           },
+          update: async ({ where, data }) => {
+            updatedQuestionInPlace = true;
+            return { id: where.id, ...data };
+          },
+          findMany: async () => [
+            {
+              id: 'q-1',
+              type: 'MCQ',
+              text: 'Changed?',
+              options: ['Yes', 'No'],
+              answerKey: 'Yes',
+              marks: 1,
+              negativeMarks: 0,
+            },
+          ],
+        },
+        quizEvaluationAudit: {
+          create: async ({ data }) => data,
         },
       };
       return fn(tx);
@@ -243,13 +277,14 @@ describe('Quiz Publication & Editing Controller Logic', () => {
     assert.ok(createdQuestionsCount >= 1);
 
     attemptCountMock = 2;
-    const blockedUpdate = await runHandler(quizController.updateQuiz, {
+    const inPlaceUpdate = await runHandler(quizController.updateQuiz, {
       params: { quizId: 'quiz-1' },
       user: { userId: 'faculty-1', role: 'FACULTY' },
       body: {
         title: 'Updated Quiz Title',
         questions: [
           {
+            id: 'q-1',
             type: 'MCQ',
             text: 'Changed?',
             options: ['Yes', 'No'],
@@ -260,8 +295,9 @@ describe('Quiz Publication & Editing Controller Logic', () => {
       },
     });
 
-    assert.ok(blockedUpdate.nextErr);
-    assert.equal(blockedUpdate.nextErr.statusCode, 400);
+    assert.equal(inPlaceUpdate.nextErr, null);
+    assert.equal(inPlaceUpdate.res.statusCode, 200);
+    assert.equal(updatedQuestionInPlace, true);
   });
 });
 
@@ -666,5 +702,423 @@ describe('Student Answer Publication Redaction & Visibility', () => {
     assert.equal(ananya.status, 'NOT_SUBMITTED');
     assert.equal(ananya.totalScore, null);
     assert.equal(ananya.classKey, 'section:sec-a');
+  });
+
+  it('normalizes Neon Object Storage presigned URLs to object keys on write and preserves legacy URLs', async () => {
+    const presignedUrl =
+      'https://uploads.files.neon.tech/cira-quiz-images/test-diagram-123.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Expires=3600&X-Amz-Signature=deadbeef';
+    assert.equal(
+      objectStorage.extractObjectStorageKey(presignedUrl),
+      'cira-quiz-images/test-diagram-123.png'
+    );
+    assert.equal(
+      objectStorage.normalizeStoredImageValue(presignedUrl),
+      'cira-quiz-images/test-diagram-123.png'
+    );
+    assert.equal(
+      objectStorage.normalizeStoredImageValue('cira-quiz-images/already-a-key.jpg'),
+      'cira-quiz-images/already-a-key.jpg'
+    );
+    assert.equal(
+      objectStorage.normalizeStoredImageValue('https://res.cloudinary.com/demo/image/upload/sample.png'),
+      'https://res.cloudinary.com/demo/image/upload/sample.png'
+    );
+    assert.equal(objectStorage.normalizeStoredImageValue(''), undefined);
+
+    const validated = questionBankPolicy.validateQuestionBankPayload({
+      category: 'TEST_QUIZ',
+      type: 'MCQ',
+      text: 'Identify the component',
+      marks: 2,
+      options: ['A', 'B'],
+      answerKey: 'A',
+      image: presignedUrl,
+    });
+    assert.equal(validated.image, 'cira-quiz-images/test-diagram-123.png');
+
+    const validatedKey = questionBankPolicy.validateQuestionBankPayload({
+      category: 'TEST_QUIZ',
+      type: 'MCQ',
+      text: 'Identify the component',
+      marks: 2,
+      options: ['A', 'B'],
+      answerKey: 'A',
+      image: 'cira-quiz-images/test-diagram-123.png',
+    });
+    assert.equal(validatedKey.image, 'cira-quiz-images/test-diagram-123.png');
+
+    let savedImage = null;
+    prisma.quiz.findUnique = async () => ({
+      id: 'quiz-img-1',
+      title: 'Image Quiz',
+      createdBy: 'faculty-1',
+    });
+    prisma.quizAttempt.count = async () => 0;
+    prisma.$transaction = async (items) => Promise.all(items);
+    prisma.question.create = async ({ data }) => {
+      savedImage = data.image;
+      return { id: 'q-img-1', ...data };
+    };
+
+    const { res, nextErr } = await runHandler(quizController.addQuestions, {
+      params: { quizId: 'quiz-img-1' },
+      user: { userId: 'faculty-1', role: 'FACULTY' },
+      body: {
+        questions: [
+          {
+            type: 'MCQ',
+            text: 'Look at the diagram',
+            marks: 2,
+            options: ['A', 'B'],
+            answerKey: 'A',
+            image: presignedUrl,
+          },
+        ],
+      },
+    });
+
+    assert.equal(nextErr, null);
+    assert.equal(res.statusCode, 201);
+    assert.equal(savedImage, 'cira-quiz-images/test-diagram-123.png');
+  });
+
+  it('evaluateAttempt keeps auto and written marks separate, is idempotent, and rejects out-of-range marks', async () => {
+    const mockResponses = [
+      { id: 'r-mcq', marksAwarded: 5, question: { id: 'q1', type: 'MCQ', marks: 5 } },
+      { id: 'r-tf', marksAwarded: 5, question: { id: 'q2', type: 'TRUE_FALSE', marks: 5 } },
+      { id: 'r-written', marksAwarded: null, question: { id: 'q3', type: 'SHORT_WRITTEN', marks: 10 } },
+    ];
+    let attemptState = {
+      id: 'attempt-eval-1',
+      quizId: 'quiz-1',
+      objectiveScore: 10,
+      writtenScore: 0,
+      totalScore: 10,
+      quiz: { id: 'quiz-1', createdBy: 'faculty-1' },
+      user: { id: 'stu-1', departmentId: 'dept-1', sectionId: 'sec-1' },
+      responses: mockResponses,
+    };
+
+    prisma.quizAttempt.findUnique = async () => ({
+      ...attemptState,
+      responses: mockResponses.map((r) => ({ ...r, question: { ...r.question } })),
+    });
+
+    const updatedResponseIds = [];
+    prisma.$transaction = async (fn) => {
+      const tx = {
+        quizResponse: {
+          update: async ({ where, data }) => {
+            updatedResponseIds.push(where.id);
+            const target = mockResponses.find((r) => r.id === where.id);
+            if (target) target.marksAwarded = data.marksAwarded;
+            return target;
+          },
+        },
+        quizAttempt: {
+          update: async ({ data }) => {
+            attemptState = { ...attemptState, ...data };
+            return attemptState;
+          },
+        },
+        quizEvaluationAudit: {
+          create: async ({ data }) => data,
+        },
+      };
+      return fn(tx);
+    };
+
+    // 1. Even if a client mistakenly sends objective responses (r-mcq, r-tf) along with r-written,
+    // backend must ignore objective responses for writtenScore and never double-count them.
+    const firstSave = await runHandler(quizController.evaluateAttempt, {
+      params: { attemptId: 'attempt-eval-1' },
+      user: { userId: 'faculty-1', role: 'FACULTY' },
+      body: {
+        evaluations: [
+          { responseId: 'r-mcq', marks: 5 },
+          { responseId: 'r-tf', marks: 5 },
+          { responseId: 'r-written', marks: 6 },
+        ],
+        facultyFeedback: 'Good work',
+      },
+    });
+    assert.equal(firstSave.nextErr, null);
+    assert.equal(firstSave.res.statusCode, 200);
+    assert.equal(firstSave.res.body.data.writtenScore, 6);
+    assert.equal(firstSave.res.body.data.totalScore, 16);
+    assert.deepEqual(updatedResponseIds, ['r-written']);
+
+    // 2. Saving the exact same evaluation again must be idempotent (no doubling!)
+    updatedResponseIds.length = 0;
+    const secondSave = await runHandler(quizController.evaluateAttempt, {
+      params: { attemptId: 'attempt-eval-1' },
+      user: { userId: 'faculty-1', role: 'FACULTY' },
+      body: {
+        evaluations: [{ responseId: 'r-written', marks: 6 }],
+        facultyFeedback: 'Good work',
+      },
+    });
+    assert.equal(secondSave.nextErr, null);
+    assert.equal(secondSave.res.body.data.writtenScore, 6);
+    assert.equal(secondSave.res.body.data.totalScore, 16);
+
+    // 3. Modifying written mark updates writtenScore & totalScore accurately
+    const thirdSave = await runHandler(quizController.evaluateAttempt, {
+      params: { attemptId: 'attempt-eval-1' },
+      user: { userId: 'faculty-1', role: 'FACULTY' },
+      body: {
+        evaluations: [{ responseId: 'r-written', marks: 8 }],
+      },
+    });
+    assert.equal(thirdSave.nextErr, null);
+    assert.equal(thirdSave.res.body.data.writtenScore, 8);
+    assert.equal(thirdSave.res.body.data.totalScore, 18);
+
+    // 4. Rejects marks exceeding question max marks
+    const invalidSave = await runHandler(quizController.evaluateAttempt, {
+      params: { attemptId: 'attempt-eval-1' },
+      user: { userId: 'faculty-1', role: 'FACULTY' },
+      body: {
+        evaluations: [{ responseId: 'r-written', marks: 15 }],
+      },
+    });
+    assert.ok(invalidSave.nextErr);
+    assert.equal(invalidSave.nextErr.statusCode, 400);
+  });
+
+  it('Scenario A: evaluateStudentForQuiz saves manual marks for an assigned unsubmitted student while keeping NOT_SUBMITTED status', async () => {
+    const audits = [];
+    let createdAttempt = null;
+    const savedResponses = new Map();
+
+    prisma.quiz.findUnique = async () => ({
+      id: 'quiz-unsub-1',
+      title: 'OS Quiz',
+      createdBy: 'faculty-1',
+      questions: [
+        { id: 'q1', type: 'MCQ', marks: 5 },
+        { id: 'q2', type: 'SHORT_WRITTEN', marks: 10 },
+      ],
+      targetDepartments: [{ departmentId: 'dept-1' }],
+      targetSections: [],
+      targetStudents: [],
+    });
+
+    prisma.user.findUnique = async ({ where }) =>
+      where.id === 'stu-unsub'
+        ? { id: 'stu-unsub', role: 'STUDENT', departmentId: 'dept-1', sectionId: 'sec-1' }
+        : where.id === 'stu-other'
+        ? { id: 'stu-other', role: 'STUDENT', departmentId: 'dept-99', sectionId: 'sec-99' }
+        : null;
+
+    // Unauthorized/unassigned student rejected with 403
+    const unassigned = await runHandler(quizController.evaluateStudentForQuiz, {
+      params: { quizId: 'quiz-unsub-1', studentId: 'stu-other' },
+      user: { userId: 'faculty-1', role: 'FACULTY' },
+      body: { evaluations: [{ questionId: 'q2', marks: 5 }] },
+    });
+    assert.ok(unassigned.nextErr);
+    assert.equal(unassigned.nextErr.statusCode, 403);
+
+    // Marks exceeding max rejected with 400
+    const overMax = await runHandler(quizController.evaluateStudentForQuiz, {
+      params: { quizId: 'quiz-unsub-1', studentId: 'stu-unsub' },
+      user: { userId: 'faculty-1', role: 'FACULTY' },
+      body: { evaluations: [{ questionId: 'q2', marks: 12 }] },
+    });
+    assert.ok(overMax.nextErr);
+    assert.equal(overMax.nextErr.statusCode, 400);
+
+    prisma.$transaction = async (fn) => {
+      const tx = {
+        quizAttempt: {
+          findFirst: async () => createdAttempt,
+          create: async ({ data }) => {
+            createdAttempt = { id: 'att-manual-1', ...data, responses: [] };
+            return createdAttempt;
+          },
+          update: async ({ data }) => {
+            createdAttempt = { ...createdAttempt, ...data };
+            return createdAttempt;
+          },
+        },
+        quizResponse: {
+          upsert: async ({ where, create, update }) => {
+            const key = where.attemptId_questionId.questionId;
+            const existing = savedResponses.get(key);
+            const next = existing ? { ...existing, ...update } : { id: `resp-${key}`, ...create };
+            savedResponses.set(key, next);
+            return next;
+          },
+          findMany: async () => Array.from(savedResponses.values()),
+        },
+        quizEvaluationAudit: {
+          create: async ({ data }) => {
+            audits.push(data);
+            return data;
+          },
+        },
+      };
+      return fn(tx);
+    };
+
+    const saved = await runHandler(quizController.evaluateStudentForQuiz, {
+      params: { quizId: 'quiz-unsub-1', studentId: 'stu-unsub' },
+      user: { userId: 'faculty-1', role: 'FACULTY' },
+      body: {
+        evaluations: [
+          { questionId: 'q1', marks: 0 },
+          { questionId: 'q2', marks: 7 },
+        ],
+        facultyFeedback: 'Oral viva evaluation',
+      },
+    });
+
+    assert.equal(saved.nextErr, null);
+    assert.equal(saved.res.statusCode, 200);
+    assert.equal(saved.res.body.data.isManualWithoutSubmission, true);
+    assert.equal(saved.res.body.data.endTime, null);
+    assert.equal(saved.res.body.data.objectiveScore, 0);
+    assert.equal(saved.res.body.data.writtenScore, 7);
+    assert.equal(saved.res.body.data.totalScore, 7);
+    assert.equal(audits.length, 1);
+    assert.equal(audits[0].action, 'MANUAL_EVAL_CREATE');
+  });
+
+  it('Scenarios C, D, E: updateQuiz regrades objective questions on published answer-key change, preserves written marks, notifies affected students once, and is idempotent', async () => {
+    const audits = [];
+    const notifications = [];
+    const updatedQuestions = [];
+    const updatedAttempts = [];
+
+    let questionState = [
+      { id: 'q-mcq', type: 'MCQ', text: 'Q1', marks: 5, negativeMarks: 0, options: ['A', 'B', 'C'], answerKey: 'B' },
+      { id: 'q-written', type: 'SHORT_WRITTEN', text: 'Q2', marks: 10, negativeMarks: 0, options: null, answerKey: 'Explain' },
+    ];
+    let attemptState = {
+      id: 'att-1',
+      quizId: 'quiz-pub-1',
+      userId: 'stu-1',
+      status: 'EVALUATED',
+      isManualWithoutSubmission: false,
+      objectiveScore: 0,
+      writtenScore: 8,
+      totalScore: 8,
+      needsReview: false,
+      resultUpdatedAt: null,
+      responses: [
+        { id: 'r1', questionId: 'q-mcq', status: 'ANSWERED', answerData: 'C', marksAwarded: 0, question: questionState[0] },
+        { id: 'r2', questionId: 'q-written', status: 'ANSWERED', answerData: 'My answer', marksAwarded: 8, question: questionState[1] },
+      ],
+    };
+
+    prisma.quiz.findUnique = async () => ({
+      id: 'quiz-pub-1',
+      title: 'Published Quiz',
+      subject: 'DBMS',
+      createdBy: 'faculty-1',
+      answersPublished: true,
+      questions: questionState.map((q) => ({ ...q })),
+    });
+    prisma.user.findUnique = async () => ({ subject: 'DBMS' });
+
+    prisma.$transaction = async (fn) => {
+      const tx = {
+        quizAttempt: {
+          count: async () => 1,
+          findMany: async () => [
+            {
+              ...attemptState,
+              responses: attemptState.responses.map((r) => ({ ...r, question: { ...r.question } })),
+            },
+          ],
+          update: async ({ data }) => {
+            attemptState = { ...attemptState, ...data };
+            updatedAttempts.push(data);
+            return attemptState;
+          },
+        },
+        quiz: { update: async ({ data }) => ({ id: 'quiz-pub-1', ...data }) },
+        quizDepartment: { deleteMany: async () => {}, createMany: async () => {} },
+        quizSection: { deleteMany: async () => {}, createMany: async () => {} },
+        quizStudent: { deleteMany: async () => {}, createMany: async () => {} },
+        question: {
+          update: async ({ where, data }) => {
+            questionState = questionState.map((q) => (q.id === where.id ? { ...q, ...data } : q));
+            updatedQuestions.push({ id: where.id, ...data });
+            return questionState.find((q) => q.id === where.id);
+          },
+          findMany: async () => questionState,
+        },
+        quizResponse: {
+          update: async ({ where, data }) => {
+            attemptState.responses = attemptState.responses.map((r) =>
+              r.id === where.id ? { ...r, ...data } : r
+            );
+          },
+        },
+        quizEvaluationAudit: {
+          create: async ({ data }) => {
+            audits.push(data);
+            return data;
+          },
+        },
+        studentNotification: {
+          create: async ({ data }) => {
+            notifications.push(data);
+            return data;
+          },
+        },
+      };
+      return fn(tx);
+    };
+
+    // Change MCQ answerKey from B -> C (student had answered C, so auto score 0 -> 5, written stays 8, total 8 -> 13)
+    const firstEdit = await runHandler(quizController.updateQuiz, {
+      params: { quizId: 'quiz-pub-1' },
+      user: { userId: 'faculty-1', role: 'FACULTY' },
+      body: {
+        title: 'Published Quiz',
+        totalMarks: 15,
+        passingMarks: 5,
+        questions: [
+          { id: 'q-mcq', type: 'MCQ', text: 'Q1', marks: 5, options: ['A', 'B', 'C'], answerKey: 'C' },
+          { id: 'q-written', type: 'SHORT_WRITTEN', text: 'Q2', marks: 10, answerKey: 'Explain' },
+        ],
+      },
+    });
+
+    assert.equal(firstEdit.nextErr, null);
+    assert.equal(firstEdit.res.statusCode, 200);
+    assert.equal(firstEdit.res.body.regradedCount, 1);
+    assert.equal(attemptState.objectiveScore, 5);
+    assert.equal(attemptState.writtenScore, 8);
+    assert.equal(attemptState.totalScore, 13);
+    assert.equal(notifications.length, 1);
+    assert.equal(audits.some((a) => a.action === 'ANSWER_KEY_UPDATE'), true);
+    assert.equal(audits.some((a) => a.action === 'AUTO_REGRADE'), true);
+
+    // Scenario E: Repeated save with no changes produces 0 regrades and 0 duplicate notifications
+    audits.length = 0;
+    notifications.length = 0;
+    const secondEdit = await runHandler(quizController.updateQuiz, {
+      params: { quizId: 'quiz-pub-1' },
+      user: { userId: 'faculty-1', role: 'FACULTY' },
+      body: {
+        title: 'Published Quiz',
+        totalMarks: 15,
+        passingMarks: 5,
+        questions: [
+          { id: 'q-mcq', type: 'MCQ', text: 'Q1', marks: 5, options: ['A', 'B', 'C'], answerKey: 'C' },
+          { id: 'q-written', type: 'SHORT_WRITTEN', text: 'Q2', marks: 10, answerKey: 'Explain' },
+        ],
+      },
+    });
+
+    assert.equal(secondEdit.nextErr, null);
+    assert.equal(secondEdit.res.body.regradedCount, 0);
+    assert.equal(attemptState.totalScore, 13);
+    assert.equal(audits.length, 0);
+    assert.equal(notifications.length, 0);
   });
 });

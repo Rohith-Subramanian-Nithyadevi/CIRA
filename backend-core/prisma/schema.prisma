@@ -187,6 +187,7 @@ model Quiz {
   durationMinutes  Int           @default(60)
   allowLateJoin    Boolean       @default(false)
   autoSubmit       Boolean       @default(true)
+  maxViolations    Int           @default(3)
   answersPublished Boolean       @default(false)
 
   performanceBands Json?         // e.g., { "EXCELLENT": { min: 90, max: 100 }, ... }
@@ -302,8 +303,12 @@ model QuizAttempt {
   totalScore          Float              @default(0)
   finalGrade          String?
   performanceCategory PerformanceRating?
-  facultyFeedback     String?
-  violationReason     String?            // Reason exam was auto-terminated (e.g. "Pressed key: Alt")
+  facultyFeedback           String?
+  violationReason           String?            // Reason exam was auto-terminated (e.g. "Pressed key: Alt")
+  violationCount            Int                @default(0)
+  isManualWithoutSubmission Boolean            @default(false)
+  needsReview               Boolean            @default(false)
+  resultUpdatedAt           DateTime?
   
   metrics             Json?
   createdAt           DateTime           @default(now())
@@ -311,6 +316,23 @@ model QuizAttempt {
   user                User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   quiz                Quiz               @relation(fields: [quizId], references: [id], onDelete: Cascade)
   responses           QuizResponse[]
+  violations          QuizViolation[]
+}
+
+model QuizViolation {
+  id        String      @id @default(uuid())
+  attemptId String
+  quizId    String
+  userId    String
+  type      String
+  reason    String?
+  metadata  Json?
+  createdAt DateTime    @default(now())
+
+  attempt   QuizAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  @@index([attemptId, createdAt])
+  @@index([quizId, userId])
 }
 
 model QuizResponse {
@@ -732,5 +754,22 @@ model StudentNotification {
   priority  Int                @default(0)
   read      Boolean            @default(false)
   createdAt DateTime           @default(now())
+}
+
+model QuizEvaluationAudit {
+  id            String   @id @default(uuid())
+  quizId        String
+  attemptId     String?
+  studentId     String?
+  questionId    String?
+  facultyId     String
+  action        String
+  previousValue Json?
+  updatedValue  Json?
+  note          String?
+  createdAt     DateTime @default(now())
+
+  @@index([quizId, createdAt])
+  @@index([attemptId, createdAt])
 }
 

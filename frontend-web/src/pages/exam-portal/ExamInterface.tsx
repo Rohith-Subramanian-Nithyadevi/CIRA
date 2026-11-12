@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
-import { useSecureExam } from '../../hooks/useSecureExam';
+import { useSecureExam, type SecurityViolationEvent } from '../../hooks/useSecureExam';
 import { apiClient } from '../../lib/apiClient';
 
 type QuestionStatus = 'NOT_VISITED' | 'NOT_ANSWERED' | 'ANSWERED' | 'MARKED_FOR_REVIEW' | 'ANSWERED_AND_MARKED_FOR_REVIEW';
@@ -32,28 +32,40 @@ export default function ExamInterface() {
   const [instructionsError, setInstructionsError] = useState<{ message: string; retryable: boolean } | null>(null);
   const [startingExam, setStartingExam] = useState(false);
   const [hasStartedSecureExam, setHasStartedSecureExam] = useState(false);
+  const [fullscreenError, setFullscreenError] = useState<string | null>(null);
   const submittingRef = useRef(false);
   const attemptIdRef = useRef('');
 
-  // Zero tolerance: any violation = instant auto-submit with reason logged
-  const handleSecurityViolation = async (reason: string) => {
+  // Persist monitored violation to backend; auto-submit only when policy threshold is reached
+  const handleSecurityViolation = useCallback(async (event: SecurityViolationEvent) => {
     const activeAttemptId = attemptIdRef.current || attemptId;
-    if (!activeAttemptId) return;
+    if (!activeAttemptId || submittingRef.current) return;
     try {
-      await apiClient.fetch(`/api/v1/student/exam/attempt/${activeAttemptId}/submit`, {
+      const res = await apiClient.fetch(`/api/v1/student/exam/attempt/${activeAttemptId}/violation`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ violationReason: reason })
+        body: JSON.stringify({
+          type: event.type,
+          reason: event.reason,
+          timestamp: event.timestamp,
+          metadata: event.metadata,
+        }),
       });
-      toast.error(`Exam terminated: ${reason}`);
-      navigate('/student/dashboard?tab=quizzes', { replace: true });
+      const data = await res.json().catch(() => null);
+      if (data?.data?.autoSubmitted) {
+        submittingRef.current = true;
+        if (typeof document !== 'undefined' && document.fullscreenElement && document.exitFullscreen) {
+          await document.exitFullscreen().catch(() => {});
+        }
+        toast.error('Maximum security violations reached. Your exam has been automatically submitted.');
+        navigate('/student/dashboard?tab=quizzes', { replace: true });
+      }
     } catch (e) {
-      console.error('Failed to submit violation:', e);
-      navigate('/student/dashboard?tab=quizzes', { replace: true });
+      console.error('Failed to record violation:', e);
     }
-  };
+  }, [attemptId, navigate]);
 
-  const { isFullscreen, enterFullscreen } = useSecureExam({
+  const { isFullscreen, isBlackScreen, enterFullscreen } = useSecureExam({
     isActive: hasStartedSecureExam,
     onViolation: handleSecurityViolation
   });
@@ -200,8 +212,16 @@ export default function ExamInterface() {
   const handleBeginQuiz = async () => {
     if (!quizId || startingExam || instructionsError) return;
     setStartingExam(true);
+    setFullscreenError(null);
     try {
-      await enterFullscreen();
+      const fsResult = await enterFullscreen();
+      if (!fsResult?.ok) {
+        setFullscreenError(
+          fsResult?.error || 'Fullscreen mode is required to start this quiz. Please allow fullscreen and try again.'
+        );
+        return;
+      }
+
       const res = await apiClient.fetch(`/api/v1/student/exam/start/${quizId}`, {
         method: 'POST',
       });
@@ -369,7 +389,23 @@ export default function ExamInterface() {
             </ul>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+          <div className="flex flex-col items-center justify-center gap-3 pt-2">
+            {fullscreenError && (
+              <div
+                role="alert"
+                className="w-full bg-red-50 border border-red-200 text-red-900 rounded-xl p-4 text-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+              >
+                <span className="font-medium">{fullscreenError}</span>
+                <button
+                  type="button"
+                  onClick={handleBeginQuiz}
+                  disabled={startingExam}
+                  className="px-4 py-2 bg-maroon hover:bg-maroon-deep text-white font-bold rounded-full text-xs shrink-0 cursor-pointer"
+                >
+                  Retry Fullscreen
+                </button>
+              </div>
+            )}
             <button
               type="button"
               onClick={handleBeginQuiz}
@@ -395,24 +431,26 @@ export default function ExamInterface() {
     );
   }
 
-  if (!isFullscreen) {
+  if (isBlackScreen || !isFullscreen) {
+    const canPromptFullscreen =
+      !isFullscreen && (typeof document === 'undefined' || document.visibilityState !== 'hidden');
     return (
-      <div className="min-h-screen bg-[#FDFBF7] text-ink flex flex-col items-center justify-center p-8 font-sans">
-        <div className="max-w-md w-full bg-white border border-maroon/30 rounded-2xl p-8 text-center space-y-5 shadow-sm">
-          <h1 className="text-2xl font-serif font-bold text-ink">Fullscreen Required</h1>
-          <p className="text-sm text-gray-body">
-            Please enable fullscreen mode to continue your active examination.
-          </p>
+      <div
+        data-testid="security-black-screen"
+        style={{ backgroundColor: '#000000' }}
+        className="fixed inset-0 z-[9999] bg-[#000000] select-none flex items-center justify-center"
+      >
+        {canPromptFullscreen && (
           <button
             type="button"
             onClick={async () => {
               await enterFullscreen();
             }}
-            className="px-8 py-3 bg-maroon hover:bg-maroon-deep text-white font-bold rounded-full text-sm shadow-sm cursor-pointer"
+            className="px-8 py-3 bg-white text-black font-bold rounded-full text-sm cursor-pointer"
           >
             Enter Fullscreen
           </button>
-        </div>
+        )}
       </div>
     );
   }

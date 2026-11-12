@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { clearDraft, clearSavedFilters, getDraftStorageKey, getFilterStorageKey, getStoredUserKey, readDraft, readSavedFilters, writeDraft, writeSavedFilters } from '@/lib/facultyPersistence';
 import { apiClient } from '@/lib/apiClient';
@@ -18,6 +19,7 @@ import { LoadingState, ErrorState, ConfirmationDialog } from '@/components/ui/fa
 import { DeleteConfirmationDialog } from '@/components/ui/DeleteConfirmationDialog';
 
 type QuizWizardStep = 1 | 2 | 3 | 4 | 5;
+const OBJECTIVE_QUESTION_TYPES = ['MCQ', 'MULTI_SELECT', 'TRUE_FALSE', 'MATCHING', 'NUMERICAL', 'FILL_BLANK'];
 
 const QUIZ_WIZARD_STEPS: { step: QuizWizardStep; label: string; shortLabel: string; description: string }[] = [
   { step: 1, label: 'Basic Details', shortLabel: 'Basic', description: 'Enter the quiz title, course subject, and time duration.' },
@@ -487,7 +489,28 @@ const parseFillBlanks = (rawText: string): any[] => {
 
 export default function QuizManagement({ initialSubmissionsQuizId }: { initialSubmissionsQuizId?: string | null } = {}) {
   const isDemo = useFacultyDemo();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [activeView, setActiveView] = useState<'list' | 'create' | 'add_questions' | 'view_submissions' | 'evaluate_attempt' | 'print_paper'>('list');
+
+  const syncQuizUrlParams = useCallback(
+    (updates: Record<string, string | null>, replace = false) => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          for (const [key, val] of Object.entries(updates)) {
+            if (val === null || val === undefined || val === '') {
+              next.delete(key);
+            } else {
+              next.set(key, val);
+            }
+          }
+          return next;
+        },
+        { replace }
+      );
+    },
+    [setSearchParams]
+  );
   const [quizzes, setQuizzes] = useState<any[]>([]);
   const quizFilterKey = getFilterStorageKey('quizzes', getStoredUserKey());
   const savedQuizFilters = readSavedFilters<{ search?: string }>(quizFilterKey);
@@ -578,6 +601,7 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
     subject?: string | null;
     totalMarks?: number;
     answersPublished: boolean;
+    questions?: any[];
   } | null>(null);
   const [showPublishConfirm, setShowPublishConfirm] = useState(false);
   const [publishingAnswers, setPublishingAnswers] = useState(false);
@@ -760,11 +784,7 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
     void fetchDepartments();
   }, [fetchQuizzes, isDemo]);
 
-  const handleEditQuiz = async (quizId: string, attemptsCount: number) => {
-    if (attemptsCount > 0) {
-      toast.error('Cannot edit a quiz that already has student submissions.');
-      return;
-    }
+  const handleEditQuiz = async (quizId: string, _attemptsCount: number, syncUrl = true) => {
     if (editingQuizIdLoading) return;
 
     try {
@@ -810,6 +830,9 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
         setStepErrors({});
         setShowDiscardConfirm(false);
         setActiveView('create');
+        if (syncUrl) {
+          syncQuizUrlParams({ view: 'create', quizId: quiz.id, attemptId: null });
+        }
       } else {
         toast.error('Failed to fetch quiz details for editing.');
       }
@@ -824,7 +847,7 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
     }
   };
 
-  const handlePrintQuestionPaper = async (quizId: string) => {
+  const handlePrintQuestionPaper = async (quizId: string, syncUrl = true) => {
     if (printingQuizIdLoading) return;
     if (isDemo) {
       const demoQuiz = facultyDemoQuizzes.find(item => item.id === quizId) || quizzes.find(item => item.id === quizId);
@@ -834,6 +857,9 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
       }
       setPrintQuiz(demoQuiz);
       setActiveView('print_paper');
+      if (syncUrl) {
+        syncQuizUrlParams({ view: 'print', quizId, attemptId: null });
+      }
       setTimeout(() => window.print(), 50);
       return;
     }
@@ -846,6 +872,9 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
       if (data?.status === 'success' && data.data) {
         setPrintQuiz(data.data);
         setActiveView('print_paper');
+        if (syncUrl) {
+          syncQuizUrlParams({ view: 'print', quizId, attemptId: null });
+        }
         setTimeout(() => window.print(), 50);
       } else {
         toast.error('Failed to load question paper for printing.');
@@ -1051,11 +1080,16 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
         const data = await res.json();
         
         if (res?.ok !== false && data?.status === 'success') {
-          toast.success('Quiz updated successfully!');
+          if (Number(data.regradedCount) > 0) {
+            toast.success(`Quiz updated and ${data.regradedCount} student attempt(s) regraded!`);
+          } else {
+            toast.success('Quiz updated successfully!');
+          }
           clearDraft(quizDraftKey);
           skipQuizDraftWrite.current = true;
           setRestoredQuizDraft(false);
           setActiveView('list');
+          syncQuizUrlParams({ view: null, quizId: null, attemptId: null });
           void fetchQuizzes(1);
         } else {
           throw new Error('Failed to update quiz: ' + (data?.message || 'Unknown error'));
@@ -1088,6 +1122,7 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
           skipQuizDraftWrite.current = true;
           setRestoredQuizDraft(false);
           setActiveView('list');
+          syncQuizUrlParams({ view: null, quizId: null, attemptId: null });
           void fetchQuizzes(1);
         } else {
            throw new Error('Failed to save questions: ' + (qData?.message || 'Unknown error'));
@@ -1225,7 +1260,11 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
   };
 
 
-  const handleOpenSubmissions = async (quizId: string) => {
+  const handleOpenSubmissions = async (
+    quizId: string,
+    options: { syncUrl?: boolean; preserveAttemptId?: string | null } = {}
+  ) => {
+    const { syncUrl = true, preserveAttemptId = null } = options;
     const requestId = ++submissionsRequestIdRef.current;
     setActiveQuizId(quizId);
     setSubmissions([]);
@@ -1246,7 +1285,12 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
     } else {
       setActiveSubmissionsQuiz(null);
     }
-    setActiveView('view_submissions');
+    if (!preserveAttemptId) {
+      setActiveView('view_submissions');
+    }
+    if (syncUrl && !preserveAttemptId) {
+      syncQuizUrlParams({ view: 'submissions', quizId, attemptId: null });
+    }
     try {
       const res = await apiClient.fetch(`/api/v1/faculty/quiz/${quizId}/submissions`);
       if (!isMountedRef.current || requestId !== submissionsRequestIdRef.current) return;
@@ -1301,8 +1345,20 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
             title: data.quiz.title,
             subject: data.quiz.subject,
             totalMarks: data.quiz.totalMarks,
-            answersPublished: Boolean(data.quiz.answersPublished)
+            answersPublished: Boolean(data.quiz.answersPublished),
+            questions: Array.isArray(data.quiz.questions) ? data.quiz.questions : [],
           });
+        }
+
+        if (preserveAttemptId) {
+          const matchingAttempt = rawList.find(
+            (row: any) => row.id === preserveAttemptId || row.userId === preserveAttemptId
+          );
+          if (matchingAttempt) {
+            handleOpenAttempt(matchingAttempt, false, data.quiz?.questions);
+          } else {
+            setActiveView('view_submissions');
+          }
         }
       }
     } catch (err) {
@@ -1321,21 +1377,157 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
     if (initialSubmissionsQuizId) void handleOpenSubmissions(initialSubmissionsQuizId);
   }, [initialSubmissionsQuizId]);
 
-  const handleOpenAttempt = (attempt: any) => {
-    setActiveAttempt(attempt);
-    setFacultyFeedback(attempt.facultyFeedback || '');
+  const handleOpenAttempt = (attempt: any, syncUrl = true, overrideQuizQuestions?: any[]) => {
+    const isUnsubmittedManual = !attempt.hasSubmitted && (!attempt.id || Boolean(attempt.isManualWithoutSubmission));
+    const quizQuestions = overrideQuizQuestions || activeSubmissionsQuiz?.questions || [];
+
+    let preparedAttempt = attempt;
+    if (isUnsubmittedManual) {
+      const existingByQ = new Map<string, any>(
+        (attempt.responses || []).map((r: any) => [r.questionId || r.question?.id, r])
+      );
+      const virtualResponses = quizQuestions.map((q: any) => {
+        const existing = existingByQ.get(q.id);
+        return {
+          id: existing?.id || `q-${q.id}`,
+          questionId: q.id,
+          answerData: existing?.answerData ?? null,
+          marksAwarded: existing?.marksAwarded ?? 0,
+          question: q,
+        };
+      });
+      preparedAttempt = {
+        ...attempt,
+        isUnsubmittedManual: true,
+        objectiveScore: 0,
+        writtenScore: attempt.writtenScore ?? 0,
+        totalScore: attempt.totalScore ?? 0,
+        responses: virtualResponses.length > 0 ? virtualResponses : (attempt.responses || []),
+      };
+    }
+
+    setActiveAttempt(preparedAttempt);
+    setFacultyFeedback(preparedAttempt.facultyFeedback || '');
     const initialEvals: Record<string, number> = {};
-    attempt.responses?.forEach((r: any) => {
-      initialEvals[r.id] = r.marksAwarded || 0;
+    preparedAttempt.responses?.forEach((r: any) => {
+      if (isUnsubmittedManual || !OBJECTIVE_QUESTION_TYPES.includes(r.question?.type)) {
+        initialEvals[r.id] = Number(r.marksAwarded ?? 0);
+      }
     });
     setEvaluations(initialEvals);
     setActiveView('evaluate_attempt');
+    if (syncUrl && (preparedAttempt.quizId || activeQuizId)) {
+      syncQuizUrlParams({
+        view: 'evaluate',
+        quizId: preparedAttempt.quizId || activeQuizId,
+        attemptId: preparedAttempt.id || null,
+        studentId: isUnsubmittedManual ? preparedAttempt.userId : null,
+      });
+    }
   };
+
+  useEffect(() => {
+    const urlView = searchParams.get('view');
+    const urlQuizId = searchParams.get('quizId');
+    const urlAttemptId = searchParams.get('attemptId');
+    const urlStudentId = searchParams.get('studentId');
+
+    if (!urlView) {
+      if (activeView !== 'list') {
+        setActiveView('list');
+      }
+      return;
+    }
+
+    if (urlView === 'create') {
+      if (urlQuizId) {
+        if (activeView !== 'create' || activeQuizId !== urlQuizId) {
+          void handleEditQuiz(urlQuizId, 0, false);
+        }
+      } else if (activeView !== 'create') {
+        setActiveView('create');
+      }
+      return;
+    }
+
+    if (urlView === 'add_questions' && urlQuizId) {
+      if (activeQuizId !== urlQuizId) setActiveQuizId(urlQuizId);
+      if (activeView !== 'add_questions') setActiveView('add_questions');
+      return;
+    }
+
+    if (urlView === 'submissions' && urlQuizId) {
+      if (activeView !== 'view_submissions' || activeQuizId !== urlQuizId) {
+        void handleOpenSubmissions(urlQuizId, { syncUrl: false });
+      }
+      return;
+    }
+
+    if (urlView === 'evaluate' && urlQuizId && (urlAttemptId || urlStudentId)) {
+      const targetKey = urlAttemptId || urlStudentId;
+      if (
+        activeView === 'evaluate_attempt' &&
+        (activeAttempt?.id === targetKey || activeAttempt?.userId === targetKey)
+      ) {
+        return;
+      }
+      const existing =
+        activeQuizId === urlQuizId
+          ? submissions.find((s: any) => (urlAttemptId ? s.id === urlAttemptId : s.userId === urlStudentId))
+          : null;
+      if (existing) {
+        handleOpenAttempt(existing, false);
+      } else if (!submissionsLoading) {
+        void handleOpenSubmissions(urlQuizId, { syncUrl: false, preserveAttemptId: targetKey });
+      }
+      return;
+    }
+
+    if (urlView === 'print' && urlQuizId) {
+      if (activeView !== 'print_paper' || printQuiz?.id !== urlQuizId) {
+        void handlePrintQuestionPaper(urlQuizId, false);
+      }
+    }
+  }, [searchParams]);
 
   const handleSaveEvaluation = async () => {
     try {
       setLoading(true);
-      const evalsArray = Object.keys(evaluations).map(respId => ({ responseId: respId, marks: evaluations[respId] }));
+      const isUnsubmittedManual = Boolean(activeAttempt?.isUnsubmittedManual);
+
+      if (isUnsubmittedManual) {
+        const evalsArray = (activeAttempt?.responses || []).map((r: any) => {
+          const raw = Number(evaluations[r.id] ?? 0);
+          const maxMarks = Number(r.question?.marks ?? 0);
+          const clamped = Number.isFinite(raw) ? Math.min(Math.max(0, raw), maxMarks) : 0;
+          return { questionId: r.questionId || r.question?.id, marks: clamped };
+        });
+        const res = await apiClient.fetch(
+          `/api/v1/faculty/quiz/${activeQuizId}/student/${activeAttempt.userId}/evaluate`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ evaluations: evalsArray, facultyFeedback }),
+          }
+        );
+        const data = await res.json();
+        if (data?.status === 'success') {
+          toast.success('Manual evaluation saved!');
+          syncQuizUrlParams({ view: 'submissions', quizId: activeQuizId, attemptId: null, studentId: null });
+          void handleOpenSubmissions(activeQuizId!, { syncUrl: false });
+        } else toast.error('Error: ' + data.message);
+        return;
+      }
+
+      const manualResponses = (activeAttempt?.responses || []).filter(
+        (r: any) => !OBJECTIVE_QUESTION_TYPES.includes(r.question?.type)
+      );
+      const evalsArray = manualResponses.map((r: any) => {
+        const raw = Number(evaluations[r.id] ?? 0);
+        const maxMarks = Number(r.question?.marks ?? 0);
+        const clamped = Number.isFinite(raw) ? Math.min(Math.max(0, raw), maxMarks) : 0;
+        return { responseId: r.id, marks: clamped };
+      });
       const res = await apiClient.fetch(`/api/v1/faculty/quiz/attempt/${activeAttempt.id}/evaluate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1344,7 +1536,8 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
       const data = await res.json();
       if (data?.status === 'success') {
         toast.success('Evaluation saved!');
-        handleOpenSubmissions(activeQuizId!);
+        syncQuizUrlParams({ view: 'submissions', quizId: activeQuizId, attemptId: null, studentId: null });
+        void handleOpenSubmissions(activeQuizId!, { syncUrl: false });
       } else toast.error('Error: ' + data.message);
     } catch (err) { console.error(err); } finally { setLoading(false); }
   };
@@ -1463,12 +1656,14 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
     }
     setStepErrors({});
     setActiveView('list');
+    syncQuizUrlParams({ view: null, quizId: null, attemptId: null });
   };
 
   const handleDiscardWizardChanges = () => {
     setShowDiscardConfirm(false);
     setStepErrors({});
     setActiveView('list');
+    syncQuizUrlParams({ view: null, quizId: null, attemptId: null });
   };
 
   if (activeView === 'create') {
@@ -2416,7 +2611,7 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                 <Sparkles className="w-3.5 h-3.5 text-maroon" />
                 {showBulkImport ? 'Hide Quick Paste' : 'Quick Paste More Questions'}
               </Button>
-              <button onClick={() => setActiveView('list')} className="text-maroon hover:text-maroon-deep font-semibold text-xs">Cancel</button>
+              <button onClick={() => { setActiveView('list'); syncQuizUrlParams({ view: null, quizId: null, attemptId: null }); }} className="text-maroon hover:text-maroon-deep font-semibold text-xs">Cancel</button>
             </div>
           </div>
 
@@ -2947,7 +3142,7 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
               >
                 Export CSV
               </button>
-              <button onClick={() => setActiveView('list')} className="text-maroon hover:text-maroon-deep font-semibold text-sm ml-2">Back to Quizzes</button>
+              <button onClick={() => { setActiveView('list'); syncQuizUrlParams({ view: null, quizId: null, attemptId: null }); }} className="text-maroon hover:text-maroon-deep font-semibold text-sm ml-2">Back to Quizzes</button>
             </div>
           </div>
           {submissionsLoading ? (
@@ -3137,18 +3332,31 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                               </span>
                             </TableCell>
                             <TableCell className="text-xs text-gray-body whitespace-nowrap">
-                              {rowSubmitted || hasAttemptRecord ? formatSubmissionDateTime(sub) : '—'}
+                              {rowSubmitted ? formatSubmissionDateTime(sub) : '—'}
                             </TableCell>
                             <TableCell className="text-ink">
-                              {!rowSubmitted ? (
+                              {sub.isManualWithoutSubmission ? (
+                                <div>
+                                  <div className="font-bold text-maroon">{sub.totalScore ?? 0}</div>
+                                  <div className="text-[11px] text-amber-700 dark:text-amber-300 font-semibold">Manual Entry (Not Submitted)</div>
+                                </div>
+                              ) : !rowSubmitted ? (
                                 <span className="text-xs text-gray-body/60">—</span>
                               ) : answersPublished ? (
                                 <div>
                                   <div className="font-bold text-maroon">{sub.totalScore ?? 0}</div>
                                   <div className="text-[11px] text-gray-body">Auto: {sub.objectiveScore ?? 0} | Written: {sub.writtenScore ?? 0}</div>
+                                  {sub.needsReview && (
+                                    <div className="text-[10px] font-semibold text-amber-700 dark:text-amber-300">Needs Review</div>
+                                  )}
                                 </div>
                               ) : (
-                                <span className="text-xs text-gray-body italic">Hidden until published</span>
+                                <div>
+                                  <span className="text-xs text-gray-body italic">Hidden until published</span>
+                                  {sub.needsReview && (
+                                    <div className="text-[10px] font-semibold text-amber-700 dark:text-amber-300">Needs Review</div>
+                                  )}
+                                </div>
                               )}
                             </TableCell>
                             <TableCell className="max-w-[400px]">
@@ -3165,24 +3373,28 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                               )}
                             </TableCell>
                             <TableCell>
-                              {hasAttemptRecord ? (
-                                <div className="flex items-center space-x-2">
-                                  <Button variant="outline" size="sm" className="border-border-soft hover:bg-cream/40" onClick={() => handleOpenAttempt(sub)}>Review & Grade</Button>
-                                  {(sub.violationReason || sub.status === 'IN_PROGRESS') && (
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      disabled={restartingAttemptId === sub.id}
-                                      className="border-green-300 dark:border-green-900/50 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30 hover:border-green-400"
-                                      onClick={() => setAttemptPendingRestart({ attemptId: sub.id, studentName: sub.user?.name || 'Student' })}
-                                    >
-                                      {restartingAttemptId === sub.id ? 'Restarting...' : 'Allow Restart'}
-                                    </Button>
-                                  )}
-                                </div>
-                              ) : (
-                                <span className="text-xs text-gray-body italic">Not submitted</span>
-                              )}
+                              <div className="flex items-center justify-center flex-wrap gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="border-border-soft hover:bg-cream/40"
+                                  onClick={() => handleOpenAttempt(sub)}
+                                >
+                                  <Pencil className="w-3.5 h-3.5 mr-1 shrink-0" />
+                                  Edit
+                                </Button>
+                                {hasAttemptRecord && !sub.isManualWithoutSubmission && (sub.violationReason || sub.status === 'IN_PROGRESS') && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={restartingAttemptId === sub.id}
+                                    className="border-green-300 dark:border-green-900/50 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30 hover:border-green-400"
+                                    onClick={() => setAttemptPendingRestart({ attemptId: sub.id, studentName: sub.user?.name || 'Student' })}
+                                  >
+                                    {restartingAttemptId === sub.id ? 'Restarting...' : 'Allow Restart'}
+                                  </Button>
+                                )}
+                              </div>
                             </TableCell>
                           </TableRow>
                         );
@@ -3232,30 +3444,44 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
   }
 
   if (activeView === 'evaluate_attempt') {
+    const isUnsubmittedManual = Boolean(activeAttempt?.isUnsubmittedManual);
     return (
       <Card className="bg-white dark:bg-[#1E1E22] border border-border-soft text-ink shadow-sm rounded-xl">
         <CardContent className="p-6">
           <div className="flex justify-between items-center mb-6 border-b border-border-soft pb-4">
             <div>
-              <h2 className="text-2xl font-serif font-bold text-ink">Review Attempt: {activeAttempt.user?.name}</h2>
+              <div className="flex items-center gap-3 flex-wrap">
+                <h2 className="text-2xl font-serif font-bold text-ink">
+                  {isUnsubmittedManual ? `Manual Evaluation: ${activeAttempt.user?.name}` : `Review Attempt: ${activeAttempt.user?.name}`}
+                </h2>
+                {isUnsubmittedManual && (
+                  <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-900/50">
+                    NOT SUBMITTED · Manual Entry
+                  </span>
+                )}
+              </div>
               <div className="text-xs text-gray-body mt-2 flex space-x-6">
                 <span>Auto-Graded Objective Score: <strong className="text-maroon text-sm font-semibold">{activeAttempt.objectiveScore}</strong></span>
                 <span>Current Written Score: <strong className="text-maroon text-sm font-semibold">{activeAttempt.writtenScore}</strong></span>
                 <span>Total Score: <strong className="text-green-700 dark:text-green-400 text-sm font-bold">{activeAttempt.totalScore}</strong></span>
               </div>
             </div>
-            <button onClick={() => setActiveView('view_submissions')} className="text-maroon hover:text-maroon-deep font-semibold text-sm">Back to Submissions</button>
+            <button onClick={() => { setActiveView('view_submissions'); syncQuizUrlParams({ view: 'submissions', quizId: activeQuizId, attemptId: null, studentId: null }); }} className="text-maroon hover:text-maroon-deep font-semibold text-sm">Back to Submissions</button>
           </div>
 
           <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-4">
             {activeAttempt.responses?.map((r: any, idx: number) => {
-              const isObjective = ['MCQ', 'MULTI_SELECT', 'NUMERICAL', 'MATCHING', 'FILL_BLANK'].includes(r.question.type);
+              const isObjective = OBJECTIVE_QUESTION_TYPES.includes(r.question.type);
+              const allowManualInput = isUnsubmittedManual || !isObjective;
               return (
                 <div key={r.id} className="p-5 bg-cream/30 dark:bg-[#242429] rounded-xl border border-border-soft">
                   <div className="flex justify-between items-start mb-2">
                     <span className="text-xs text-gray-body font-bold uppercase tracking-wider">Q{idx + 1}. ({r.question.type}) - Marks: {r.question.marks}</span>
-                    {isObjective && (
-                      <span className="text-xs bg-cream border border-border-soft px-2 py-0.5 rounded text-gray-body font-medium">Auto-Graded</span>
+                    {!isUnsubmittedManual && isObjective && (
+                      <span className="text-xs bg-cream border border-border-soft px-2 py-0.5 rounded text-gray-body font-medium">Auto-Graded: {r.marksAwarded ?? 0} / {r.question.marks}</span>
+                    )}
+                    {isUnsubmittedManual && (
+                      <span className="text-xs bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 px-2 py-0.5 rounded text-amber-800 dark:text-amber-300 font-medium">Manual Entry</span>
                     )}
                   </div>
                   <div className="text-ink font-semibold text-base mb-4">{r.question.text}</div>
@@ -3268,7 +3494,9 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                   <div className="grid grid-cols-2 gap-4">
                     <div className="bg-white dark:bg-[#18181B] p-3 rounded-lg border border-border-soft">
                       <div className="text-xs text-gray-body mb-1 font-semibold">Student's Answer:</div>
-                      <div className="text-maroon font-mono text-xs whitespace-pre-wrap">{JSON.stringify(r.answerData, null, 2)}</div>
+                      <div className="text-maroon font-mono text-xs whitespace-pre-wrap">
+                        {isUnsubmittedManual ? 'Not submitted' : JSON.stringify(r.answerData, null, 2)}
+                      </div>
                     </div>
                     <div className="bg-green-50/10 p-3 rounded-lg border border-green-200 dark:border-green-900/50">
                       <div className="text-xs text-green-700 dark:text-green-400 mb-1 font-semibold">Expected Answer / Key:</div>
@@ -3276,10 +3504,10 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                     </div>
                   </div>
 
-                  {!isObjective && (
+                  {allowManualInput && (
                     <div className="mt-4 flex items-center justify-end space-x-4 border-t border-border-soft pt-4">
                       <span className="text-sm text-gray-body font-medium">Assign Marks:</span>
-                      <Input type="number" value={evaluations[r.id] || 0} onChange={(e) => setEvaluations({...evaluations, [r.id]: Number(e.target.value)})} className="w-24 bg-white dark:bg-[#18181B] border-border-soft text-ink focus-visible:ring-maroon" max={r.question.marks} min={0} step={0.5} />
+                      <Input type="number" value={evaluations[r.id] ?? 0} onChange={(e) => setEvaluations({...evaluations, [r.id]: Number(e.target.value)})} className="w-24 bg-white dark:bg-[#18181B] border-border-soft text-ink focus-visible:ring-maroon" max={r.question.marks} min={0} step={0.5} />
                       <span className="text-sm text-gray-body">/ {r.question.marks}</span>
                     </div>
                   )}
@@ -3319,6 +3547,7 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
             onClick={() => {
               setPrintQuiz(null);
               setActiveView('list');
+              syncQuizUrlParams({ view: null, quizId: null, attemptId: null });
             }}
             className="border-border-soft hover:bg-cream/40 text-xs font-semibold"
           >
@@ -3469,6 +3698,7 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
               setStepErrors({});
               setShowDiscardConfirm(false);
               setActiveView('create');
+              syncQuizUrlParams({ view: 'create', quizId: null, attemptId: null });
             }}
             className="px-5 py-2 bg-maroon hover:bg-maroon-deep text-white rounded-full text-sm font-bold transition-all shadow-sm hover:scale-105 active:scale-95"
           >

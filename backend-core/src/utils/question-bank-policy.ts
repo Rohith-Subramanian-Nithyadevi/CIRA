@@ -1,5 +1,6 @@
 import { Prisma, QuestionCategory, QuestionType } from '@prisma/client';
 import { BadRequestError, ForbiddenError } from './errors';
+import { normalizeStoredImageValue } from './object-storage';
 
 const categories = Object.values(QuestionCategory);
 const types = Object.values(QuestionType);
@@ -88,7 +89,16 @@ export const validateQuestionBankPayload = (input: any) => {
   if (input.type === 'MATCHING' && (!Array.isArray(options) || !options.length || options.some((pair: any) => !pair?.left?.trim() || !pair?.right?.trim()))) throw new BadRequestError('Each matching pair needs a left and right value.', 'ERR_INVALID_QUESTION_OPTIONS');
   if (input.type === 'MATCHING' && (!Array.isArray(answer) || answer.length !== options.length)) throw new BadRequestError('Matching answers must correspond to each pair.', 'ERR_INVALID_QUESTION_ANSWER');
   if (input.type === 'CODING' && (typeof answer !== 'string' || !answer.trim())) throw new BadRequestError('A reference solution is required for coding questions.', 'ERR_INVALID_QUESTION_ANSWER');
-  if (input.image != null && (typeof input.image !== 'string' || !/^https:\/\/res\.cloudinary\.com\//i.test(input.image))) throw new BadRequestError('Question images must use the approved image upload.', 'ERR_INVALID_QUESTION_IMAGE');
+  if (
+    input.image != null &&
+    input.image !== '' &&
+    (typeof input.image !== 'string' ||
+      (!/^cira-quiz-images\/[a-zA-Z0-9._-]+$/i.test(input.image.trim()) &&
+        !/^https:\/\/([a-z0-9-]+\.)*neon\.tech\//i.test(input.image.trim()) &&
+        !/^https:\/\/res\.cloudinary\.com\//i.test(input.image.trim())))
+  ) {
+    throw new BadRequestError('Question images must use the approved image upload.', 'ERR_INVALID_QUESTION_IMAGE');
+  }
   const tags = Array.isArray(input.tags) ? input.tags : typeof input.tags === 'string' ? input.tags.split(',') : [];
   const normalizedOptions = Array.isArray(options)
     ? input.type === 'MATCHING'
@@ -120,7 +130,7 @@ export const validateQuestionBankPayload = (input: any) => {
     options: normalizedOptions ?? undefined,
     answerKey: answer === undefined ? undefined : normalizedAnswer,
     explanation: typeof input.explanation === 'string' && input.explanation.trim() ? input.explanation.trim() : null,
-    image: input.image || null,
+    image: input.image ? normalizeStoredImageValue(input.image) : null,
   };
 };
 

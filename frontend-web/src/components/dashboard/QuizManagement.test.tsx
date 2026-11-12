@@ -1,6 +1,11 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import type { ReactElement } from 'react';
+import { fireEvent, render as rtlRender, screen, within, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import QuizManagement from './QuizManagement';
 import { apiClient } from '@/lib/apiClient';
+
+const render = (ui: ReactElement, initialEntries = ['/faculty/dashboard?tab=quizzes']) =>
+  rtlRender(<MemoryRouter initialEntries={initialEntries}>{ui}</MemoryRouter>);
 
 jest.mock('@/lib/apiClient', () => ({
   apiClient: { fetch: jest.fn() },
@@ -365,7 +370,7 @@ describe('QuizManagement simplified actions and answer publication workflow', ()
     expect(screen.getByText('Hidden until published')).toBeInTheDocument();
     expect(screen.queryByText('Auto: 10 | Written: 6')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /Review & Grade/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^Edit$/i }));
     expect(await screen.findByText(/Review Attempt: Aarav Patel/i)).toBeInTheDocument();
     expect(screen.getAllByText(/"Round Robin"/).length).toBeGreaterThanOrEqual(2);
     fireEvent.click(screen.getByRole('button', { name: /Back to Submissions/i }));
@@ -882,8 +887,7 @@ describe('QuizManagement View Submissions class-wise roster & filters', () => {
     expect(screen.getByText('Bhavya Violated')).toBeInTheDocument();
     expect(screen.getByText('NOT SUBMITTED')).toBeInTheDocument();
     expect(screen.getByText('Auto: 0 | Written: 0')).toBeInTheDocument();
-    expect(screen.getByText('Not submitted')).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: /Review & Grade/i })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: /^Edit$/i })).toHaveLength(3);
 
     // Summary metrics for All Classes
     const summaryRegion = screen.getByLabelText('Submission summary');
@@ -910,6 +914,188 @@ describe('QuizManagement View Submissions class-wise roster & filters', () => {
     expect(screen.getByText('Bhavya Violated')).toBeInTheDocument();
     expect(screen.queryByText('Aarav Zero')).not.toBeInTheDocument();
     expect(screen.queryByText('Ananya Pending')).not.toBeInTheDocument();
+  });
+
+  it('reopens View Submissions and Evaluation from URL on refresh, and sends only manual marks on Save Evaluation', async () => {
+    let savedEvaluateBody: any = null;
+
+    (apiClient.fetch as jest.Mock).mockImplementation((path: string, init?: RequestInit) => {
+      if (path.includes('/api/v1/auth/me')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ data: { user: { id: 'faculty-1', subject: 'DBMS' } } }),
+        });
+      }
+      if (path.includes('/api/v1/batches')) {
+        return Promise.resolve({ ok: true, json: async () => ({ data: { batches: mockBatches } }) });
+      }
+      if (path.includes('/api/v1/departments')) {
+        return Promise.resolve({ ok: true, json: async () => ({ data: { departments: mockDepartments } }) });
+      }
+      if (path.includes('/api/v1/faculty/quiz?')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ data: { items: [], total: 0, page: 1, hasMore: false } }),
+        });
+      }
+      if (path === '/api/v1/faculty/quiz/quiz-eval-1/submissions') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            status: 'success',
+            quiz: { id: 'quiz-eval-1', title: 'Mixed Evaluation Quiz', subject: 'DBMS', totalMarks: 15, answersPublished: false },
+            assignedClasses: [],
+            roster: [
+              {
+                id: 'attempt-eval-1',
+                quizId: 'quiz-eval-1',
+                userId: 'stu-1',
+                hasSubmitted: true,
+                status: 'SUBMITTED',
+                objectiveScore: 5,
+                writtenScore: 0,
+                totalScore: 5,
+                user: { id: 'stu-1', name: 'Rohith', rollNumber: '24CS010' },
+                responses: [
+                  {
+                    id: 'resp-mcq',
+                    answerData: 'A',
+                    marksAwarded: 3,
+                    question: { id: 'q-1', type: 'MCQ', text: 'Auto MCQ', marks: 3, answerKey: 'A' },
+                  },
+                  {
+                    id: 'resp-tf',
+                    answerData: true,
+                    marksAwarded: 2,
+                    question: { id: 'q-2', type: 'TRUE_FALSE', text: 'Auto TF', marks: 2, answerKey: true },
+                  },
+                  {
+                    id: 'resp-written',
+                    answerData: 'ACID explanation',
+                    marksAwarded: null,
+                    question: { id: 'q-3', type: 'SHORT_WRITTEN', text: 'Explain ACID', marks: 10, answerKey: 'ACID' },
+                  },
+                ],
+              },
+            ],
+          }),
+        });
+      }
+      if (path === '/api/v1/faculty/quiz/attempt/attempt-eval-1/evaluate' && init?.method === 'POST') {
+        savedEvaluateBody = JSON.parse(String(init.body || '{}'));
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ status: 'success', data: { id: 'attempt-eval-1', writtenScore: 7, totalScore: 12 } }),
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) });
+    });
+
+    // Simulate refreshing directly on the Evaluation URL
+    render(<QuizManagement />, ['/faculty/dashboard?tab=quizzes&view=evaluate&quizId=quiz-eval-1&attemptId=attempt-eval-1']);
+
+    expect(await screen.findByText(/Review Attempt: Rohith/i)).toBeInTheDocument();
+    expect(screen.getByText(/Auto-Graded: 3 \/ 3/i)).toBeInTheDocument();
+    expect(screen.getByText(/Auto-Graded: 2 \/ 2/i)).toBeInTheDocument();
+
+    // Only the manual written question has a marks input
+    const markInputs = screen.getAllByRole('spinbutton');
+    expect(markInputs).toHaveLength(1);
+    fireEvent.change(markInputs[0], { target: { value: '7' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /Save Evaluation/i }));
+
+    await waitFor(() => {
+      expect(savedEvaluateBody).not.toBeNull();
+    });
+    // Must ONLY send the written response, never resp-mcq or resp-tf!
+    expect(savedEvaluateBody.evaluations).toEqual([{ responseId: 'resp-written', marks: 7 }]);
+  });
+
+  it('allows faculty to click Edit on a NOT SUBMITTED student and save manual marks without marking them submitted', async () => {
+    let savedManualBody: any = null;
+
+    (apiClient.fetch as jest.Mock).mockImplementation((path: string, init?: RequestInit) => {
+      if (path.includes('/api/v1/auth/me')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ data: { user: { id: 'faculty-1', subject: 'DBMS' } } }),
+        });
+      }
+      if (path.includes('/api/v1/batches')) {
+        return Promise.resolve({ ok: true, json: async () => ({ data: { batches: mockBatches } }) });
+      }
+      if (path.includes('/api/v1/departments')) {
+        return Promise.resolve({ ok: true, json: async () => ({ data: { departments: mockDepartments } }) });
+      }
+      if (path.includes('/api/v1/faculty/quiz?')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ data: { items: [], total: 0, page: 1, hasMore: false } }),
+        });
+      }
+      if (path === '/api/v1/faculty/quiz/quiz-unsub-ui/submissions') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            status: 'success',
+            quiz: {
+              id: 'quiz-unsub-ui',
+              title: 'Viva Quiz',
+              subject: 'DBMS',
+              totalMarks: 10,
+              answersPublished: false,
+              questions: [
+                { id: 'q-viva', type: 'SHORT_WRITTEN', text: 'Viva Question', marks: 10, answerKey: 'Key' },
+              ],
+            },
+            assignedClasses: [],
+            roster: [
+              {
+                id: null,
+                userId: 'stu-unsub-ui',
+                quizId: 'quiz-unsub-ui',
+                hasSubmitted: false,
+                isManualWithoutSubmission: false,
+                status: 'NOT_SUBMITTED',
+                objectiveScore: null,
+                writtenScore: null,
+                totalScore: null,
+                user: { id: 'stu-unsub-ui', name: 'Kiran Unsubmitted', rollNumber: '24CS055' },
+                responses: [],
+              },
+            ],
+          }),
+        });
+      }
+      if (path === '/api/v1/faculty/quiz/quiz-unsub-ui/student/stu-unsub-ui/evaluate' && init?.method === 'POST') {
+        savedManualBody = JSON.parse(String(init.body || '{}'));
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ status: 'success', data: { id: 'att-manual-ui', writtenScore: 6, totalScore: 6 } }),
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) });
+    });
+
+    render(<QuizManagement />, ['/faculty/dashboard?tab=quizzes&view=submissions&quizId=quiz-unsub-ui']);
+
+    expect(await screen.findByText('Kiran Unsubmitted')).toBeInTheDocument();
+    expect(screen.getByText('NOT SUBMITTED')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /^Edit$/i }));
+
+    expect(await screen.findByText(/Manual Evaluation: Kiran Unsubmitted/i)).toBeInTheDocument();
+    expect(screen.getByText(/NOT SUBMITTED · Manual Entry/i)).toBeInTheDocument();
+
+    const markInput = screen.getByRole('spinbutton');
+    fireEvent.change(markInput, { target: { value: '6' } });
+    fireEvent.click(screen.getByRole('button', { name: /Save Evaluation/i }));
+
+    await waitFor(() => {
+      expect(savedManualBody).not.toBeNull();
+    });
+    expect(savedManualBody.evaluations).toEqual([{ questionId: 'q-viva', marks: 6 }]);
   });
 });
 

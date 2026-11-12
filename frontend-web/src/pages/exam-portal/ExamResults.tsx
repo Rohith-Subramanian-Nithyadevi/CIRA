@@ -145,7 +145,19 @@ export default function ExamResults() {
             </button>
             <div>
               <h1 className="text-3xl font-serif font-bold text-ink">{quiz?.title} - Results</h1>
-              <div className="text-sm font-semibold text-gray-body mt-1">{quiz?.subject}</div>
+              <div className="text-sm font-semibold text-gray-body mt-1 flex flex-wrap items-center gap-2">
+                <span>{quiz?.subject}</span>
+                {attempt.isManualWithoutSubmission && (
+                  <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-amber-50 text-amber-800 border border-amber-200">
+                    Manual Faculty Evaluation
+                  </span>
+                )}
+                {attempt.resultUpdatedAt && (
+                  <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                    Result updated on {new Date(attempt.resultUpdatedAt).toLocaleDateString()}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
           

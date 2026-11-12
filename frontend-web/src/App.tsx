@@ -81,6 +81,7 @@ function App() {
         
         {/* Fallback routing is handled inside ProtectedRoute if someone tries to navigate to root dashboard */}
         <Route path="/dashboard" element={<ProtectedRoute allowedRoles={[]}><div /></ProtectedRoute>} />
+        <Route path="*" element={<ProtectedRoute allowedRoles={[]}><div /></ProtectedRoute>} />
       </Routes>
     </BrowserRouter>
   </QueryClientProvider>

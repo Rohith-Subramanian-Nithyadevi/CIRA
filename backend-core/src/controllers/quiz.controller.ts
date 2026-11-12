@@ -2,6 +2,11 @@ import { Request, Response, NextFunction } from 'express';
 import { QuestionType } from '@prisma/client';
 import { prisma } from '../config/prisma';
 import { BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError } from '../utils/errors';
+import { normalizeStoredImageValue, resolveQuestionImages, uploadToObjectStorage } from '../utils/object-storage';
+import { OBJECTIVE_TYPES, gradeObjectiveResponse } from './student-exam.controller';
+
+const stableJsonEqual = (a: unknown, b: unknown): boolean =>
+  JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
 // Get All Quizzes for logged in Faculty
 export const getQuizzes = async (req: Request, res: Response, next: NextFunction) => {
@@ -99,6 +104,10 @@ export const getQuizById = async (req: Request, res: Response, next: NextFunctio
 
     if (userRole !== 'ADMIN' && quiz.createdBy !== userId) {
       throw new BadRequestError('Not authorized to access this quiz', 'UNAUTHORIZED');
+    }
+
+    if (Array.isArray((quiz as any).questions)) {
+      (quiz as any).questions = await resolveQuestionImages((quiz as any).questions);
     }
 
     res.status(200).json({ status: 'success', data: quiz });
@@ -234,7 +243,10 @@ export const updateQuiz = async (req: Request, res: Response, next: NextFunction
       questions
     } = req.body;
 
-    const existing = await prisma.quiz.findUnique({ where: { id: quizId } });
+    const existing = await prisma.quiz.findUnique({
+      where: { id: quizId },
+      include: { questions: { orderBy: { createdAt: 'asc' } } }
+    });
     if (!existing) throw new NotFoundError('Quiz not found', 'NOT_FOUND');
     if (userRole !== 'ADMIN' && existing.createdBy !== userId) {
       throw new ForbiddenError('Not authorized to edit this quiz', 'FORBIDDEN');
@@ -251,13 +263,11 @@ export const updateQuiz = async (req: Request, res: Response, next: NextFunction
       }
     }
 
+    let regradedCount = 0;
     const updated = await prisma.$transaction(async (tx) => {
-      if (Array.isArray(questions)) {
-        const attemptCount = await tx.quizAttempt.count({ where: { quizId } });
-        if (attemptCount > 0) {
-          throw new BadRequestError('Cannot modify quiz questions after student attempts exist.', 'FORBIDDEN');
-        }
-      }
+      const attemptCount = Array.isArray(questions)
+        ? await tx.quizAttempt.count({ where: { quizId } })
+        : 0;
 
       const quiz = await tx.quiz.update({
         where: { id: quizId },
@@ -292,47 +302,295 @@ export const updateQuiz = async (req: Request, res: Response, next: NextFunction
       }
 
       if (Array.isArray(questions)) {
-        await tx.questionUsage.deleteMany({ where: { quizId, question: { quizId } } });
-        await tx.question.deleteMany({ where: { quizId } });
+        if (attemptCount === 0) {
+          await tx.questionUsage.deleteMany({ where: { quizId, question: { quizId } } });
+          await tx.question.deleteMany({ where: { quizId } });
 
-        for (let sortOrder = 0; sortOrder < questions.length; sortOrder++) {
-          const q = questions[sortOrder];
-          await tx.question.create({
-            data: {
-              quizId,
-              ownerId: existing.createdBy,
-              category: 'TEST_QUIZ',
-              subject: q.subject ?? resolvedSubject,
-              type: q.type as QuestionType,
-              text: q.text,
-              topic: q.topic ?? null,
-              subtopic: q.subtopic ?? null,
-              difficulty: q.difficulty ?? null,
-              tags: Array.isArray(q.tags) ? q.tags : [],
-              marks: Number(q.marks) || 1,
-              negativeMarks: Number(q.negativeMarks) || 0,
-              options: q.options ?? undefined,
-              answerKey: q.answerKey ?? undefined,
-              explanation: q.explanation ?? undefined,
-              image: q.image ?? undefined,
-              usages: {
-                create: {
-                  category: 'TEST_QUIZ',
+          for (let sortOrder = 0; sortOrder < questions.length; sortOrder++) {
+            const q = questions[sortOrder];
+            await tx.question.create({
+              data: {
+                quizId,
+                ownerId: existing.createdBy,
+                category: 'TEST_QUIZ',
+                subject: q.subject ?? resolvedSubject,
+                type: q.type as QuestionType,
+                text: q.text,
+                topic: q.topic ?? null,
+                subtopic: q.subtopic ?? null,
+                difficulty: q.difficulty ?? null,
+                tags: Array.isArray(q.tags) ? q.tags : [],
+                marks: Number(q.marks) || 1,
+                negativeMarks: Number(q.negativeMarks) || 0,
+                options: q.options ?? undefined,
+                answerKey: q.answerKey ?? undefined,
+                explanation: q.explanation ?? undefined,
+                image: normalizeStoredImageValue(q.image) ?? undefined,
+                usages: {
+                  create: {
+                    category: 'TEST_QUIZ',
+                    quizId,
+                    assessmentTitle: quiz.title,
+                    marks: Number(q.marks) || 1,
+                    sortOrder
+                  }
+                }
+              }
+            });
+          }
+        } else {
+          // Attempts exist: update questions in-place to preserve response FKs and regrade objective questions safely
+          const existingById = new Map<string, any>(
+            (existing.questions || []).map((eq: any) => [eq.id, eq])
+          );
+          const retainedIds = new Set<string>();
+          const changedObjectiveQuestionIds = new Set<string>();
+          const modifiedManualQuestionIds = new Set<string>();
+          const removedQuestionIds = new Set<string>();
+
+          for (let sortOrder = 0; sortOrder < questions.length; sortOrder++) {
+            const q = questions[sortOrder];
+            const matchedExisting = q.id ? existingById.get(q.id) : null;
+            if (matchedExisting) {
+              retainedIds.add(matchedExisting.id);
+              const nextMarks = Number(q.marks) || 1;
+              const nextNegMarks = Number(q.negativeMarks) || 0;
+              const nextOptions = q.options ?? undefined;
+              const nextAnswerKey = q.answerKey ?? undefined;
+
+              const answerKeyChanged = !stableJsonEqual(matchedExisting.answerKey, nextAnswerKey);
+              const optionsChanged =
+                matchedExisting.type === 'MATCHING' &&
+                !stableJsonEqual(matchedExisting.options, nextOptions);
+              const marksChanged =
+                Number(matchedExisting.marks) !== nextMarks ||
+                Number(matchedExisting.negativeMarks ?? 0) !== nextNegMarks;
+              const textChanged = String(matchedExisting.text || '') !== String(q.text || '');
+
+              await tx.question.update({
+                where: { id: matchedExisting.id },
+                data: {
+                  subject: q.subject ?? resolvedSubject,
+                  type: (q.type || matchedExisting.type) as QuestionType,
+                  text: q.text,
+                  topic: q.topic ?? null,
+                  subtopic: q.subtopic ?? null,
+                  difficulty: q.difficulty ?? null,
+                  tags: Array.isArray(q.tags) ? q.tags : matchedExisting.tags,
+                  marks: nextMarks,
+                  negativeMarks: nextNegMarks,
+                  options: nextOptions,
+                  answerKey: nextAnswerKey,
+                  explanation: q.explanation ?? undefined,
+                  image: normalizeStoredImageValue(q.image) ?? undefined,
+                }
+              });
+
+              if (answerKeyChanged || optionsChanged || marksChanged || textChanged) {
+                if (answerKeyChanged || optionsChanged || marksChanged) {
+                  await tx.quizEvaluationAudit.create({
+                    data: {
+                      quizId,
+                      questionId: matchedExisting.id,
+                      facultyId: userId,
+                      action: 'ANSWER_KEY_UPDATE',
+                      previousValue: {
+                        answerKey: matchedExisting.answerKey,
+                        marks: matchedExisting.marks,
+                        negativeMarks: matchedExisting.negativeMarks ?? 0,
+                      },
+                      updatedValue: {
+                        answerKey: nextAnswerKey ?? null,
+                        marks: nextMarks,
+                        negativeMarks: nextNegMarks,
+                      },
+                      note: existing.answersPublished
+                        ? 'Updated after answer publication'
+                        : 'Updated with existing attempts',
+                    },
+                  });
+                }
+
+                if (OBJECTIVE_TYPES.includes(matchedExisting.type)) {
+                  if (answerKeyChanged || optionsChanged || marksChanged) {
+                    changedObjectiveQuestionIds.add(matchedExisting.id);
+                  }
+                } else {
+                  modifiedManualQuestionIds.add(matchedExisting.id);
+                }
+              }
+            } else {
+              await tx.question.create({
+                data: {
                   quizId,
-                  assessmentTitle: quiz.title,
+                  ownerId: existing.createdBy,
+                  category: 'TEST_QUIZ',
+                  subject: q.subject ?? resolvedSubject,
+                  type: q.type as QuestionType,
+                  text: q.text,
+                  topic: q.topic ?? null,
+                  subtopic: q.subtopic ?? null,
+                  difficulty: q.difficulty ?? null,
+                  tags: Array.isArray(q.tags) ? q.tags : [],
                   marks: Number(q.marks) || 1,
-                  sortOrder
+                  negativeMarks: Number(q.negativeMarks) || 0,
+                  options: q.options ?? undefined,
+                  answerKey: q.answerKey ?? undefined,
+                  explanation: q.explanation ?? undefined,
+                  image: normalizeStoredImageValue(q.image) ?? undefined,
+                  usages: {
+                    create: {
+                      category: 'TEST_QUIZ',
+                      quizId,
+                      assessmentTitle: quiz.title,
+                      marks: Number(q.marks) || 1,
+                      sortOrder
+                    }
+                  }
+                }
+              });
+            }
+          }
+
+          for (const eq of existing.questions || []) {
+            if (!retainedIds.has(eq.id)) {
+              removedQuestionIds.add(eq.id);
+              const respCount = await tx.quizResponse.count({ where: { questionId: eq.id } });
+              if (respCount === 0) {
+                await tx.questionUsage.deleteMany({ where: { quizId, questionId: eq.id } });
+                await tx.question.delete({ where: { id: eq.id } });
+              } else {
+                await tx.question.update({ where: { id: eq.id }, data: { quizId: null } });
+              }
+            }
+          }
+
+          if (
+            changedObjectiveQuestionIds.size > 0 ||
+            modifiedManualQuestionIds.size > 0 ||
+            removedQuestionIds.size > 0
+          ) {
+            const latestQuestions = await tx.question.findMany({ where: { quizId } });
+            const latestById = new Map<string, any>(latestQuestions.map((lq: any) => [lq.id, lq]));
+
+            const attemptsToCheck = await tx.quizAttempt.findMany({
+              where: {
+                quizId,
+                isManualWithoutSubmission: false,
+                status: { in: ['SUBMITTED', 'EVALUATED'] },
+              },
+              include: {
+                responses: {
+                  include: { question: true },
+                },
+              },
+            });
+
+            for (const att of attemptsToCheck) {
+              let newObjectiveScore = 0;
+              let newWrittenScore = 0;
+              let attemptNeedsReview = Boolean(att.needsReview);
+              const hasManualResponses = (att.responses || []).some(
+                (r: any) => r.question && !OBJECTIVE_TYPES.includes(r.question.type) && !removedQuestionIds.has(r.questionId)
+              );
+
+              for (const resp of att.responses || []) {
+                if (removedQuestionIds.has(resp.questionId)) {
+                  continue;
+                }
+                const currentQ = latestById.get(resp.questionId) || resp.question;
+                if (!currentQ) continue;
+
+                if (OBJECTIVE_TYPES.includes(currentQ.type)) {
+                  let awarded = Number(resp.marksAwarded ?? 0);
+                  if (changedObjectiveQuestionIds.has(currentQ.id)) {
+                    const recomputed = gradeObjectiveResponse(currentQ, resp);
+                    if (recomputed !== null) {
+                      awarded = recomputed;
+                      if (Number(resp.marksAwarded ?? 0) !== awarded) {
+                        await tx.quizResponse.update({
+                          where: { id: resp.id },
+                          data: { marksAwarded: awarded },
+                        });
+                      }
+                    }
+                  }
+                  newObjectiveScore += awarded;
+                } else {
+                  // Preserve manually awarded marks; flag for faculty review if the manual question changed
+                  if (modifiedManualQuestionIds.has(currentQ.id)) {
+                    attemptNeedsReview = true;
+                  }
+                  newWrittenScore += Number(resp.marksAwarded ?? 0);
+                }
+              }
+
+              if (!hasManualResponses && Number(att.writtenScore ?? 0) > 0 && modifiedManualQuestionIds.size === 0) {
+                newWrittenScore = Number(att.writtenScore ?? 0);
+              }
+
+              const newTotalScore = newObjectiveScore + newWrittenScore;
+              const scoreChanged =
+                Math.abs(newObjectiveScore - Number(att.objectiveScore ?? 0)) > 1e-6 ||
+                Math.abs(newWrittenScore - Number(att.writtenScore ?? 0)) > 1e-6 ||
+                Math.abs(newTotalScore - Number(att.totalScore ?? 0)) > 1e-6;
+
+              if (scoreChanged || attemptNeedsReview !== Boolean(att.needsReview)) {
+                await tx.quizAttempt.update({
+                  where: { id: att.id },
+                  data: {
+                    objectiveScore: newObjectiveScore,
+                    writtenScore: newWrittenScore,
+                    totalScore: newTotalScore,
+                    needsReview: attemptNeedsReview,
+                    ...(scoreChanged && existing.answersPublished ? { resultUpdatedAt: new Date() } : {}),
+                  },
+                });
+
+                if (scoreChanged) {
+                  regradedCount++;
+                  await tx.quizEvaluationAudit.create({
+                    data: {
+                      quizId,
+                      attemptId: att.id,
+                      studentId: att.userId,
+                      facultyId: userId,
+                      action: 'AUTO_REGRADE',
+                      previousValue: {
+                        objectiveScore: att.objectiveScore,
+                        writtenScore: att.writtenScore,
+                        totalScore: att.totalScore,
+                      },
+                      updatedValue: {
+                        objectiveScore: newObjectiveScore,
+                        writtenScore: newWrittenScore,
+                        totalScore: newTotalScore,
+                      },
+                      note: 'Automatic regrade after answer key update',
+                    },
+                  });
+
+                  if (existing.answersPublished) {
+                    await tx.studentNotification.create({
+                      data: {
+                        userId: att.userId,
+                        type: 'ASSESSMENT',
+                        title: `Quiz Result Updated: ${quiz.title}`,
+                        message: `An answer key in "${quiz.title}" was updated by faculty. Your updated score is ${newTotalScore} (Auto: ${newObjectiveScore}, Written: ${newWrittenScore}).`,
+                      },
+                    });
+                  }
                 }
               }
             }
-          });
+          }
         }
       }
 
       return quiz;
     });
 
-    res.status(200).json({ status: 'success', data: updated });
+    res.status(200).json({ status: 'success', data: updated, regradedCount });
   } catch (error) {
     next(error);
   }
@@ -373,14 +631,15 @@ export const addQuestions = async (req: Request, res: Response, next: NextFuncti
             options: q.options ?? undefined,
             answerKey: q.answerKey ?? undefined,
             explanation: q.explanation ?? undefined,
-            image: q.image ?? undefined,
+            image: normalizeStoredImageValue(q.image) ?? undefined,
             usages: { create: { category: 'TEST_QUIZ', quizId, assessmentTitle: quiz.title, marks: Number(q.marks) || 1, sortOrder } },
           }
         })
       )
     );
 
-    res.status(201).json({ status: 'success', data: createdQuestions });
+    const resolvedQuestions = await resolveQuestionImages(createdQuestions);
+    res.status(201).json({ status: 'success', data: resolvedQuestions });
   } catch (error) {
     next(error);
   }
@@ -445,6 +704,19 @@ export const getSubmissions = async (req: Request, res: Response, next: NextFunc
         totalMarks: true,
         answersPublished: true,
         createdBy: true,
+        questions: {
+          orderBy: { createdAt: 'asc' },
+          select: {
+            id: true,
+            type: true,
+            text: true,
+            marks: true,
+            options: true,
+            answerKey: true,
+            explanation: true,
+            image: true,
+          }
+        },
         targetDepartments: {
           select: {
             departmentId: true,
@@ -592,22 +864,39 @@ export const getSubmissions = async (req: Request, res: Response, next: NextFunc
         classMap.set(resolvedClassMeta.classKey, resolvedClassMeta);
       }
 
-      const attemptStatus = attempt?.status || 'NOT_SUBMITTED';
-      const hasSubmitted = Boolean(attempt && attemptStatus !== 'IN_PROGRESS');
+      const isManualWithoutSubmission = Boolean(attempt?.isManualWithoutSubmission);
+      const attemptStatus = isManualWithoutSubmission
+        ? 'NOT_SUBMITTED'
+        : (attempt?.status || 'NOT_SUBMITTED');
+      const hasSubmitted = Boolean(attempt && attemptStatus !== 'IN_PROGRESS' && !isManualWithoutSubmission);
+      const evaluationStatus = isManualWithoutSubmission
+        ? 'MANUAL_ENTRY'
+        : !attempt || attemptStatus === 'IN_PROGRESS'
+        ? 'PENDING'
+        : attempt.needsReview
+        ? 'NEEDS_REVIEW'
+        : attemptStatus === 'EVALUATED'
+        ? 'COMPLETED'
+        : 'PENDING';
 
       roster.push({
         id: attempt?.id || null,
         userId: studentId,
         quizId,
         hasSubmitted,
+        isManualWithoutSubmission,
+        evaluationStatus,
+        needsReview: Boolean(attempt?.needsReview),
+        resultUpdatedAt: attempt?.resultUpdatedAt || null,
         status: attemptStatus,
-        startTime: attempt?.startTime || null,
-        endTime: attempt?.endTime || null,
+        startTime: isManualWithoutSubmission ? null : (attempt?.startTime || null),
+        endTime: isManualWithoutSubmission ? null : (attempt?.endTime || null),
         objectiveScore: attempt ? attempt.objectiveScore : null,
         writtenScore: attempt ? attempt.writtenScore : null,
         totalScore: attempt ? attempt.totalScore : null,
         facultyFeedback: attempt?.facultyFeedback || null,
         violationReason: attempt?.violationReason || null,
+        violationCount: attempt?.violationCount ?? 0,
         responses: attempt?.responses || [],
         classKey: resolvedClassMeta.classKey,
         classLabel: resolvedClassMeta.classLabel,
@@ -644,6 +933,10 @@ export const getSubmissions = async (req: Request, res: Response, next: NextFunc
       violated: violatedCount,
     };
 
+    const resolvedQuizQuestions = Array.isArray((quiz as any).questions)
+      ? await resolveQuestionImages((quiz as any).questions)
+      : [];
+
     res.status(200).json({
       status: 'success',
       quiz: {
@@ -651,7 +944,8 @@ export const getSubmissions = async (req: Request, res: Response, next: NextFunc
         title: quiz.title,
         subject: quiz.subject,
         totalMarks: quiz.totalMarks,
-        answersPublished: quiz.answersPublished
+        answersPublished: quiz.answersPublished,
+        questions: resolvedQuizQuestions,
       },
       data: attempts,
       roster,
@@ -682,7 +976,12 @@ export const evaluateAttempt = async (req: Request, res: Response, next: NextFun
       where: { id: attemptId },
       include: {
         quiz: { select: { id: true, createdBy: true } },
-        user: { select: { id: true, departmentId: true, sectionId: true } }
+        user: { select: { id: true, departmentId: true, sectionId: true } },
+        responses: {
+          include: {
+            question: { select: { id: true, type: true, marks: true } }
+          }
+        }
       }
     });
     if (!attempt) throw new BadRequestError('Attempt not found', 'NOT_FOUND');
@@ -723,32 +1022,318 @@ export const evaluateAttempt = async (req: Request, res: Response, next: NextFun
       }
     }
 
-    let writtenScore = 0;
+    const responseById = new Map<string, any>(
+      (attempt.responses || []).map((r: any) => [r.id, r])
+    );
+
+    const manualUpdates: Array<{ responseId: string; marks: number }> = [];
 
     if (evaluations && Array.isArray(evaluations)) {
+      const seenResponseIds = new Set<string>();
       for (const evalItem of evaluations) {
-        await prisma.quizResponse.update({
-          where: { id: evalItem.responseId },
-          data: { marksAwarded: Number(evalItem.marks) }
-        });
-        writtenScore += Number(evalItem.marks);
+        if (!evalItem || typeof evalItem.responseId !== 'string') {
+          throw new BadRequestError('Invalid evaluation item', 'INVALID_INPUT');
+        }
+        const resp = responseById.get(evalItem.responseId);
+        if (!resp) {
+          throw new BadRequestError('Evaluation response does not belong to this attempt', 'INVALID_RESPONSE_ID');
+        }
+        if (seenResponseIds.has(evalItem.responseId)) {
+          continue;
+        }
+        seenResponseIds.add(evalItem.responseId);
+
+        // For submitted attempts, objective questions are auto-graded and accounted for in objectiveScore.
+        // Never overwrite them or double-count them into writtenScore.
+        // For unsubmitted manual evaluations (isManualWithoutSubmission), all entered marks are manual/written.
+        if (!attempt.isManualWithoutSubmission && resp.question && OBJECTIVE_TYPES.includes(resp.question.type)) {
+          continue;
+        }
+
+        const numericMarks = Number(evalItem.marks);
+        const maxMarks = Number(resp.question?.marks ?? 0);
+        if (!Number.isFinite(numericMarks) || numericMarks < 0 || numericMarks > maxMarks) {
+          throw new BadRequestError(
+            `Awarded marks must be between 0 and ${maxMarks}`,
+            'INVALID_MARKS'
+          );
+        }
+
+        manualUpdates.push({ responseId: evalItem.responseId, marks: numericMarks });
       }
     } else if (rawWrittenScore !== undefined) {
-      writtenScore = Number(rawWrittenScore);
+      const numericRaw = Number(rawWrittenScore);
+      if (!Number.isFinite(numericRaw) || numericRaw < 0) {
+        throw new BadRequestError('Written score must be a non-negative number', 'INVALID_MARKS');
+      }
     }
 
-    const totalScore = attempt.objectiveScore + writtenScore;
-
-    const updated = await prisma.quizAttempt.update({
-      where: { id: attemptId },
-      data: {
-        writtenScore: Number(writtenScore),
-        totalScore,
-        facultyFeedback,
-        performanceCategory: performanceCategory || null,
-        finalGrade: finalGrade || null,
-        status: 'EVALUATED'
+    const updated = await prisma.$transaction(async (tx) => {
+      const changedResponses: Array<{ responseId: string; questionId: string; previous: number | null; updated: number }> = [];
+      for (const item of manualUpdates) {
+        const prev = responseById.get(item.responseId);
+        const prevMarks = prev?.marksAwarded ?? null;
+        if (prevMarks !== item.marks) {
+          changedResponses.push({
+            responseId: item.responseId,
+            questionId: prev?.questionId,
+            previous: prevMarks,
+            updated: item.marks,
+          });
+        }
+        await tx.quizResponse.update({
+          where: { id: item.responseId },
+          data: { marksAwarded: item.marks }
+        });
       }
+
+      let writtenScore = 0;
+      if (evaluations && Array.isArray(evaluations)) {
+        const updatedMap = new Map(manualUpdates.map((m) => [m.responseId, m.marks]));
+        for (const resp of attempt.responses || []) {
+          if (!attempt.isManualWithoutSubmission && resp.question && OBJECTIVE_TYPES.includes(resp.question.type)) {
+            continue;
+          }
+          const marks = updatedMap.has(resp.id)
+            ? updatedMap.get(resp.id)!
+            : Number(resp.marksAwarded ?? 0);
+          writtenScore += marks;
+        }
+      } else if (rawWrittenScore !== undefined) {
+        writtenScore = Number(rawWrittenScore);
+      }
+
+      const effectiveObjectiveScore = attempt.isManualWithoutSubmission ? 0 : Number(attempt.objectiveScore ?? 0);
+      const totalScore = effectiveObjectiveScore + writtenScore;
+      const feedbackChanged = (facultyFeedback ?? null) !== (attempt.facultyFeedback ?? null);
+      const scoreChanged =
+        Math.abs(writtenScore - Number(attempt.writtenScore ?? 0)) > 1e-6 ||
+        Math.abs(totalScore - Number(attempt.totalScore ?? 0)) > 1e-6;
+      const hasMeaningfulChange = changedResponses.length > 0 || scoreChanged || feedbackChanged || attempt.status !== 'EVALUATED' || Boolean(attempt.needsReview);
+
+      const savedAttempt = await tx.quizAttempt.update({
+        where: { id: attemptId },
+        data: {
+          objectiveScore: effectiveObjectiveScore,
+          writtenScore,
+          totalScore,
+          facultyFeedback,
+          performanceCategory: performanceCategory || null,
+          finalGrade: finalGrade || null,
+          status: 'EVALUATED',
+          needsReview: false,
+          ...(scoreChanged ? { resultUpdatedAt: new Date() } : {}),
+        }
+      });
+
+      if (hasMeaningfulChange && facultyUserId) {
+        await tx.quizEvaluationAudit.create({
+          data: {
+            quizId: attempt.quizId,
+            attemptId,
+            studentId: attempt.userId,
+            facultyId: facultyUserId,
+            action: attempt.status === 'EVALUATED' ? 'MANUAL_EVAL_UPDATE' : 'MANUAL_EVAL_CREATE',
+            previousValue: {
+              writtenScore: attempt.writtenScore,
+              totalScore: attempt.totalScore,
+              facultyFeedback: attempt.facultyFeedback,
+              responses: changedResponses.map((c) => ({ responseId: c.responseId, questionId: c.questionId, marks: c.previous })),
+            },
+            updatedValue: {
+              writtenScore,
+              totalScore,
+              facultyFeedback: facultyFeedback ?? null,
+              responses: changedResponses.map((c) => ({ responseId: c.responseId, questionId: c.questionId, marks: c.updated })),
+            },
+            note: attempt.isManualWithoutSubmission ? 'Manual faculty evaluation (unsubmitted student)' : 'Manual faculty evaluation',
+          },
+        });
+      }
+
+      return savedAttempt;
+    });
+
+    res.status(200).json({ status: 'success', data: updated });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Manually enter/update marks for an unsubmitted student assigned to a quiz
+export const evaluateStudentForQuiz = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const quizId = req.params.quizId as string;
+    const studentId = req.params.studentId as string;
+    const { evaluations, facultyFeedback, performanceCategory, finalGrade } = req.body;
+
+    const facultyUserId = (req as any).user?.userId;
+    const facultyRole = (req as any).user?.role;
+
+    const quiz = await prisma.quiz.findUnique({
+      where: { id: quizId },
+      include: {
+        questions: true,
+        targetDepartments: { select: { departmentId: true } },
+        targetSections: { select: { sectionId: true } },
+        targetStudents: { select: { userId: true } },
+      },
+    });
+    if (!quiz) throw new NotFoundError('Quiz not found', 'NOT_FOUND');
+    if (facultyRole !== 'ADMIN' && quiz.createdBy !== facultyUserId) {
+      throw new ForbiddenError('You are not authorized to evaluate students for this quiz.', 'ERR_FORBIDDEN_ATTEMPT_EVALUATION');
+    }
+
+    const student = await prisma.user.findUnique({
+      where: { id: studentId },
+      select: { id: true, role: true, departmentId: true, sectionId: true },
+    });
+    if (!student || student.role !== 'STUDENT') {
+      throw new NotFoundError('Student not found', 'NOT_FOUND');
+    }
+
+    // Enforce that the student is actually assigned to this quiz
+    const hasTargets =
+      quiz.targetStudents.length > 0 ||
+      quiz.targetSections.length > 0 ||
+      quiz.targetDepartments.length > 0;
+    const isAssigned = !hasTargets
+      || quiz.targetStudents.some((t) => t.userId === studentId)
+      || (student.sectionId ? quiz.targetSections.some((t) => t.sectionId === student.sectionId) : false)
+      || (student.departmentId ? quiz.targetDepartments.some((t) => t.departmentId === student.departmentId) : false);
+
+    if (!isAssigned) {
+      throw new ForbiddenError('Student is not assigned to this quiz.', 'ERR_STUDENT_NOT_ASSIGNED');
+    }
+
+    const questionById = new Map<string, any>((quiz.questions || []).map((q: any) => [q.id, q]));
+    const manualUpdates: Array<{ questionId: string; marks: number }> = [];
+
+    if (evaluations && Array.isArray(evaluations)) {
+      const seenQuestionIds = new Set<string>();
+      for (const evalItem of evaluations) {
+        if (!evalItem || typeof evalItem.questionId !== 'string') {
+          throw new BadRequestError('Invalid evaluation item', 'INVALID_INPUT');
+        }
+        const question = questionById.get(evalItem.questionId);
+        if (!question) {
+          throw new BadRequestError('Question does not belong to this quiz', 'INVALID_QUESTION_ID');
+        }
+        if (seenQuestionIds.has(evalItem.questionId)) continue;
+        seenQuestionIds.add(evalItem.questionId);
+
+        const numericMarks = Number(evalItem.marks);
+        const maxMarks = Number(question.marks ?? 0);
+        if (!Number.isFinite(numericMarks) || numericMarks < 0 || numericMarks > maxMarks) {
+          throw new BadRequestError(`Awarded marks must be between 0 and ${maxMarks}`, 'INVALID_MARKS');
+        }
+        manualUpdates.push({ questionId: evalItem.questionId, marks: numericMarks });
+      }
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      let attempt = await tx.quizAttempt.findFirst({
+        where: { quizId, userId: studentId },
+        include: { responses: true },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      const isNewManualAttempt = !attempt;
+      if (!attempt) {
+        attempt = await tx.quizAttempt.create({
+          data: {
+            quizId,
+            userId: studentId,
+            status: 'EVALUATED',
+            isManualWithoutSubmission: true,
+            endTime: null,
+            objectiveScore: 0,
+            writtenScore: 0,
+            totalScore: 0,
+          },
+          include: { responses: true },
+        });
+      } else if (!attempt.isManualWithoutSubmission && attempt.status !== 'IN_PROGRESS') {
+        throw new BadRequestError('Student already submitted an attempt; evaluate the attempt directly.', 'ATTEMPT_ALREADY_SUBMITTED');
+      }
+
+      const prevRespByQ = new Map<string, number | null>(
+        (attempt.responses || []).map((r: any) => [r.questionId, r.marksAwarded ?? null])
+      );
+      const changedResponses: Array<{ questionId: string; previous: number | null; updated: number }> = [];
+
+      for (const item of manualUpdates) {
+        const prevMarks = prevRespByQ.get(item.questionId) ?? null;
+        if (prevMarks !== item.marks) {
+          changedResponses.push({ questionId: item.questionId, previous: prevMarks, updated: item.marks });
+        }
+        await tx.quizResponse.upsert({
+          where: { attemptId_questionId: { attemptId: attempt.id, questionId: item.questionId } },
+          create: {
+            attemptId: attempt.id,
+            questionId: item.questionId,
+            status: 'NOT_VISITED',
+            marksAwarded: item.marks,
+          },
+          update: {
+            marksAwarded: item.marks,
+          },
+        });
+      }
+
+      const latestResponses = await tx.quizResponse.findMany({ where: { attemptId: attempt.id } });
+      const writtenScore = latestResponses.reduce((sum, r) => sum + Number(r.marksAwarded ?? 0), 0);
+      const totalScore = writtenScore;
+      const feedbackChanged = (facultyFeedback ?? null) !== (attempt.facultyFeedback ?? null);
+      const scoreChanged =
+        Math.abs(writtenScore - Number(attempt.writtenScore ?? 0)) > 1e-6 ||
+        Math.abs(totalScore - Number(attempt.totalScore ?? 0)) > 1e-6;
+
+      const savedAttempt = await tx.quizAttempt.update({
+        where: { id: attempt.id },
+        data: {
+          isManualWithoutSubmission: true,
+          endTime: null,
+          objectiveScore: 0,
+          writtenScore,
+          totalScore,
+          facultyFeedback,
+          performanceCategory: performanceCategory || null,
+          finalGrade: finalGrade || null,
+          status: 'EVALUATED',
+          needsReview: false,
+          ...(scoreChanged || isNewManualAttempt ? { resultUpdatedAt: new Date() } : {}),
+        },
+      });
+
+      if ((isNewManualAttempt || changedResponses.length > 0 || scoreChanged || feedbackChanged) && facultyUserId) {
+        await tx.quizEvaluationAudit.create({
+          data: {
+            quizId,
+            attemptId: attempt.id,
+            studentId,
+            facultyId: facultyUserId,
+            action: isNewManualAttempt ? 'MANUAL_EVAL_CREATE' : 'MANUAL_EVAL_UPDATE',
+            previousValue: isNewManualAttempt
+              ? undefined
+              : {
+                  writtenScore: attempt.writtenScore,
+                  totalScore: attempt.totalScore,
+                  facultyFeedback: attempt.facultyFeedback,
+                  responses: changedResponses.map((c) => ({ questionId: c.questionId, marks: c.previous })),
+                },
+            updatedValue: {
+              writtenScore,
+              totalScore,
+              facultyFeedback: facultyFeedback ?? null,
+              responses: changedResponses.map((c) => ({ questionId: c.questionId, marks: c.updated })),
+            },
+            note: 'Manual faculty evaluation for unsubmitted student',
+          },
+        });
+      }
+
+      return savedAttempt;
     });
 
     res.status(200).json({ status: 'success', data: updated });
@@ -793,7 +1378,6 @@ export const publishQuizAnswers = async (req: Request, res: Response, next: Next
 
 import fs from 'fs';
 import path from 'path';
-import { uploadToCloudinary } from '../utils/cloudinary';
 import mammoth from 'mammoth';
 import * as cheerio from 'cheerio';
 
@@ -851,7 +1435,7 @@ export const uploadDocxParser = async (req: Request, res: Response, next: NextFu
           const src = $(el).attr('src');
           if (src && currentQ) {
             try {
-              const url = await uploadToCloudinary(src);
+              const url = await uploadToObjectStorage(src);
               if (url) currentQ.image = url;
             } catch (err) {
               console.error('Image upload failed', err);
@@ -1000,10 +1584,10 @@ export const uploadImageHandler = async (req: Request, res: Response, next: Next
     }
 
     const filePath = path.resolve(req.file.path);
-    const url = await uploadToCloudinary(filePath);
+    const url = await uploadToObjectStorage(filePath);
 
     if (!url) {
-      throw new BadRequestError('Failed to upload image to Cloudinary', 'UPLOAD_ERROR');
+      throw new BadRequestError('Failed to upload image to object storage', 'UPLOAD_ERROR');
     }
 
     res.status(200).json({ status: 'success', data: { url } });

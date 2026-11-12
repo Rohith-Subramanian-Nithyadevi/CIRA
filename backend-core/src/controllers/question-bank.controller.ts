@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../config/prisma';
 import { BadRequestError, NotFoundError } from '../utils/errors';
 import { assertQuestionEditable, buildQuestionBankWhere, parseQuestionBankFilters, questionReuseStatus, validateQuestionBankPayload } from '../utils/question-bank-policy';
-import { uploadToCloudinaryBuffer } from '../utils/cloudinary';
+import { resolveQuestionImages, resolveObjectStorageUrl, uploadBufferToObjectStorage } from '../utils/object-storage';
 
 const actorId = (req: Request) => req.user?.userId;
 const isAdmin = (req: Request) => req.user?.role === 'ADMIN';
@@ -23,7 +23,8 @@ export const listQuestionBank = async (req: Request, res: Response, next: NextFu
         take: filters.limit,
       }),
     ]);
-    const items = questions.map((question) => ({
+    const resolvedQuestions = await resolveQuestionImages(questions);
+    const items = resolvedQuestions.map((question) => ({
       ...question,
       reuse: questionReuseStatus(question.usages, filters.category),
       ownership: question.ownerId === userId ? 'owned' : question.ownerId && question.owner?.role !== 'ADMIN' ? 'inaccessible' : 'shared',
@@ -38,7 +39,8 @@ export const createBankQuestion = async (req: Request, res: Response, next: Next
     if (!userId) throw new BadRequestError('Authenticated identity is required.', 'ERR_AUTH_REQUIRED');
     const data = validateQuestionBankPayload(req.body);
     const question = await prisma.question.create({ data: { ...data, ownerId: userId }, include: { owner: { select: { id: true, name: true } }, usages: true } });
-    res.status(201).json({ status: 'success', data: { ...question, reuse: questionReuseStatus(question.usages, question.category), ownership: 'owned' } });
+    const resolvedImage = await resolveObjectStorageUrl(question.image);
+    res.status(201).json({ status: 'success', data: { ...question, image: resolvedImage, reuse: questionReuseStatus(question.usages, question.category), ownership: 'owned' } });
   } catch (error) { next(error); }
 };
 
@@ -51,7 +53,8 @@ export const updateBankQuestion = async (req: Request, res: Response, next: Next
     assertQuestionEditable(question, userId, isAdmin(req));
     const data = validateQuestionBankPayload({ ...req.body, category: req.body.category ?? question.category });
     const updated = await prisma.question.update({ where: { id: question.id }, data, include: { owner: { select: { id: true, name: true } }, usages: { select: { category: true, assessmentTitle: true, usedAt: true, quizId: true, assignmentId: true, isFinalized: true } } } });
-    res.status(200).json({ status: 'success', data: { ...updated, reuse: questionReuseStatus(updated.usages, updated.category), ownership: updated.ownerId === userId ? 'owned' : 'shared' } });
+    const resolvedImage = await resolveObjectStorageUrl(updated.image);
+    res.status(200).json({ status: 'success', data: { ...updated, image: resolvedImage, reuse: questionReuseStatus(updated.usages, updated.category), ownership: updated.ownerId === userId ? 'owned' : 'shared' } });
   } catch (error) { next(error); }
 };
 
@@ -70,7 +73,7 @@ export const archiveBankQuestion = async (req: Request, res: Response, next: Nex
 export const uploadQuestionImage = async (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!req.file) throw new BadRequestError('Upload a PNG, JPEG or WebP image (maximum 5 MB).', 'ERR_INVALID_QUESTION_IMAGE');
-    const url = await uploadToCloudinaryBuffer(req.file.buffer, req.file.mimetype);
+    const url = await uploadBufferToObjectStorage(req.file.buffer, req.file.mimetype);
     if (!url) throw new BadRequestError('Image upload failed. Check the image service configuration and retry.', 'ERR_QUESTION_IMAGE_UPLOAD');
     res.status(200).json({ status: 'success', data: { url } });
   } catch (error) { next(error); }

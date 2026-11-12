@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Eye, EyeOff, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -31,6 +31,25 @@ interface Section {
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const resolvePostLoginRedirect = (loggedInRole: string) => {
+    const params = new URLSearchParams(location.search);
+    const candidate = params.get('redirect') || (location.state as { from?: string } | null)?.from || '';
+    if (candidate && candidate.startsWith('/') && !candidate.startsWith('//')) {
+      if (loggedInRole === 'ADMIN' && candidate.startsWith('/admin')) return candidate;
+      if (loggedInRole === 'FACULTY' && candidate.startsWith('/faculty')) return candidate;
+      if (
+        loggedInRole === 'STUDENT' &&
+        (candidate.startsWith('/student') || candidate.startsWith('/exam-portal'))
+      ) {
+        return candidate;
+      }
+    }
+    if (loggedInRole === 'ADMIN') return '/admin/dashboard';
+    if (loggedInRole === 'FACULTY') return '/faculty/dashboard';
+    return '/student/dashboard';
+  };
 
   const STUDENT_EMAIL_REGEX = /^ch\.(sc|en)\.u4[a-zA-Z]{2,6}\d{5}@ch\.students\.amrita\.edu$/i;
   const [isLogin, setIsLogin] = useState(true);
@@ -308,13 +327,9 @@ export default function Login() {
         const isDesktopClient = urlParams.get('client') === 'desktop' || navigator.userAgent.toLowerCase().includes('electron');
 
         if (isDesktopClient && loggedInUserRole === 'STUDENT') {
-          navigate('/student/dashboard?tab=quizzes');
-        } else if (loggedInUserRole === 'ADMIN') {
-          navigate('/admin/dashboard');
-        } else if (loggedInUserRole === 'FACULTY') {
-          navigate('/faculty/dashboard');
+          navigate('/student/dashboard?tab=quizzes', { replace: true });
         } else {
-          navigate('/student/dashboard');
+          navigate(resolvePostLoginRedirect(loggedInUserRole), { replace: true });
         }
       }
     } catch (err: any) {
@@ -350,9 +365,7 @@ export default function Login() {
         localStorage.setItem('cira_user', JSON.stringify(data.data.user));
         
         const loggedInUserRole = data.data.user.role;
-        if (loggedInUserRole === 'ADMIN') navigate('/admin/dashboard');
-        else if (loggedInUserRole === 'FACULTY') navigate('/faculty/dashboard');
-        else navigate('/student/dashboard');
+        navigate(resolvePostLoginRedirect(loggedInUserRole), { replace: true });
       }
     } catch (err: any) {
       toast.error(err.message || 'An unexpected error occurred.');

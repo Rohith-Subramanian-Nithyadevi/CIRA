@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
@@ -63,7 +64,19 @@ export default function AssignmentManagement() {
   const [assignmentSearch, setAssignmentSearch] = useState(savedAssignmentFilters?.search || '');
   const [isCreating, setIsCreating] = useState(false);
   const [activeAssignmentId, setActiveAssignmentId] = useState<string | null>(null);
-  const [selectedAssignmentForSubmissions, setSelectedAssignmentForSubmissions] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedAssignmentForSubmissions = searchParams.get('assignmentId');
+  const setSelectedAssignmentForSubmissions = (assignmentId: string | null) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (assignmentId) {
+        next.set('assignmentId', assignmentId);
+      } else {
+        next.delete('assignmentId');
+      }
+      return next;
+    });
+  };
   const [assignmentToDelete, setAssignmentToDelete] = useState<{ id: string; title: string } | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 

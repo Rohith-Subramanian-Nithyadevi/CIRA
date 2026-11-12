@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getEligibleQuizzes, getQuizInstructions, startExam, saveResponse, submitExam, getQuizResult } from '../controllers/student-exam.controller';
+import { getEligibleQuizzes, getQuizInstructions, startExam, saveResponse, submitExam, recordViolation, getQuizResult } from '../controllers/student-exam.controller';
 import { authenticate, authorize } from '../middlewares/auth.middleware';
 
 const router = Router();
@@ -11,6 +11,7 @@ router.get('/eligible', getEligibleQuizzes);
 router.get('/instructions/:quizId', getQuizInstructions);
 router.post('/start/:quizId', startExam);
 router.post('/attempt/:attemptId/save-response', saveResponse);
+router.post('/attempt/:attemptId/violation', recordViolation);
 router.post('/attempt/:attemptId/submit', submitExam);
 router.get('/result/:quizId', getQuizResult);
 

@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { createQuiz, updateQuiz, addQuestions, getSubmissions, evaluateAttempt, getQuizzes, getQuizById, deleteQuiz, uploadDocxParser, uploadImageHandler, publishQuizAnswers } from '../controllers/quiz.controller';
+import { createQuiz, updateQuiz, addQuestions, getSubmissions, evaluateAttempt, evaluateStudentForQuiz, getQuizzes, getQuizById, deleteQuiz, uploadDocxParser, uploadImageHandler, publishQuizAnswers } from '../controllers/quiz.controller';
 import { allowRestart } from '../controllers/student-exam.controller';
 import { downloadTemplate } from '../controllers/template.controller';
 import { authenticate, authorize } from '../middlewares/auth.middleware';
@@ -68,6 +68,7 @@ router.delete('/:quizId', deleteQuiz);
 router.post('/:quizId/questions', addQuestions);
 router.get('/:quizId/submissions', getSubmissions);
 router.post('/attempt/:attemptId/evaluate', evaluateAttempt);
+router.post('/:quizId/student/:studentId/evaluate', evaluateStudentForQuiz);
 router.post('/attempt/:attemptId/allow-restart', allowRestart);
 router.post('/:quizId/publish', publishQuizAnswers);
 
