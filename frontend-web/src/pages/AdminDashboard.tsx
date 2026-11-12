@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import DashboardLayout from '../components/DashboardLayout';
 import UserProfile from '../components/dashboard/UserProfile';
+import { DeleteConfirmationDialog } from '@/components/ui/DeleteConfirmationDialog';
 import { apiClient } from '@/lib/apiClient';
 import { FileSpreadsheet, Upload } from 'lucide-react';
 
@@ -48,6 +50,7 @@ export default function AdminDashboard() {
 
   const [importingStudents, setImportingStudents] = useState(false);
   const [importSummary, setImportSummary] = useState<{ imported: number; rejected: number; message?: string; rejectedRows?: { row: number, reason: string }[] } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ type: 'user' | 'department'; id: string; name: string } | null>(null);
 
   useEffect(() => {
     const fetchAdminData = async () => {
@@ -111,15 +114,27 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleDeleteUser = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this user?')) return;
-    try {
-      await apiClient.fetch(`/api/v1/admin/users/${id}`, { method: 'DELETE' });
+  const handleConfirmDelete = async () => {
+    if (!pendingDelete) return;
+    const { type, id } = pendingDelete;
+    const endpoint = type === 'user' ? `/api/v1/admin/users/${id}` : `/api/v1/departments/${id}`;
+    const res = await apiClient.fetch(endpoint, { method: 'DELETE' });
+    const data = await res.json?.().catch(() => null);
+    if (res?.ok === false || data?.status === 'error') {
+      const msg = data?.error?.message || data?.message || `Failed to delete ${type}.`;
+      toast.error(msg);
+      throw new Error(msg);
+    }
+    if (type === 'user') {
       setUserList(prev => prev.filter(u => u.id !== id));
       setFacultyList(prev => prev.filter(f => f.id !== id));
-    } catch (err) {
-      console.error("Failed to delete user", err);
+      toast.success('User deleted successfully.');
+    } else {
+      setDepartments(prev => prev.filter(d => d.id !== id));
+      if (selectedDeptId === id) setSelectedDeptId('');
+      toast.success('Department deleted successfully.');
     }
+    setPendingDelete(null);
   };
 
   const handleCreateDepartment = async () => {
@@ -183,15 +198,6 @@ export default function AdminDashboard() {
     } finally {
       setImportingStudents(false);
     }
-  };
-
-  const handleDeleteDepartment = async (id: string) => {
-    if (!window.confirm('Delete department? All sections inside will be lost.')) return;
-    try {
-      await apiClient.fetch(`/api/v1/departments/${id}`, { method: 'DELETE' });
-      setDepartments(prev => prev.filter(d => d.id !== id));
-      if (selectedDeptId === id) setSelectedDeptId('');
-    } catch (err) { console.error(err); }
   };
 
   return (
@@ -341,7 +347,7 @@ export default function AdminDashboard() {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <button onClick={() => handleDeleteUser(u.id)} className="text-red-600 dark:text-red-400 hover:text-red-700 font-semibold cursor-pointer">Delete</button>
+                        <button onClick={() => setPendingDelete({ type: 'user', id: u.id, name: u.name || u.email })} className="text-red-600 dark:text-red-400 hover:text-red-700 font-semibold cursor-pointer">Delete</button>
                       </td>
                     </tr>
                   ))}
@@ -389,7 +395,7 @@ export default function AdminDashboard() {
                             <h3 className="font-bold text-ink dark:text-neutral-100">{d.name}</h3>
                             <p className="text-xs text-gray-body dark:text-neutral-400">{d.sections.length} sections</p>
                           </div>
-                          <button onClick={(e) => { e.stopPropagation(); handleDeleteDepartment(d.id); }} className="text-red-600 dark:text-red-400 text-xs font-semibold hover:underline cursor-pointer">Delete</button>
+                          <button onClick={(e) => { e.stopPropagation(); setPendingDelete({ type: 'department', id: d.id, name: d.name }); }} className="text-red-600 dark:text-red-400 text-xs font-semibold hover:underline cursor-pointer">Delete</button>
                         </div>
                       ))}
                     </div>
@@ -424,6 +430,19 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
+      <DeleteConfirmationDialog
+        open={Boolean(pendingDelete)}
+        itemName={pendingDelete?.name || 'this record'}
+        title="Confirm Deletion"
+        description={
+          pendingDelete?.type === 'department'
+            ? 'Deleting this department will permanently remove it and its sections. This action cannot be undone.'
+            : 'Deleting this user account will permanently remove their access and profile. This action cannot be undone.'
+        }
+        confirmLabel="Delete"
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={handleConfirmDelete}
+      />
     </DashboardLayout>
   );
 }

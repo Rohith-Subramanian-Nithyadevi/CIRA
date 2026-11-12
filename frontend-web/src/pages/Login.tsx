@@ -308,7 +308,7 @@ export default function Login() {
         const isDesktopClient = urlParams.get('client') === 'desktop' || navigator.userAgent.toLowerCase().includes('electron');
 
         if (isDesktopClient && loggedInUserRole === 'STUDENT') {
-          navigate('/exam-portal');
+          navigate('/student/dashboard?tab=quizzes');
         } else if (loggedInUserRole === 'ADMIN') {
           navigate('/admin/dashboard');
         } else if (loggedInUserRole === 'FACULTY') {

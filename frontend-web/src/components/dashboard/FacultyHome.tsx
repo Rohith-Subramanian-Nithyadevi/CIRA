@@ -19,7 +19,8 @@ import {
 } from 'lucide-react';
 import { useBatches, useDepartments } from '@/hooks/useReferenceData';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { ConfirmationDialog, ErrorState, SectionHeader, StatCard, StatusBadge } from '@/components/ui/facultyPrimitives';
+import { ErrorState, SectionHeader, StatCard, StatusBadge } from '@/components/ui/facultyPrimitives';
+import { DeleteConfirmationDialog } from '@/components/ui/DeleteConfirmationDialog';
 import { apiClient } from '@/lib/apiClient';
 import FacultyPolls from './FacultyPolls';
 import { clearDraft, clearSavedFilters, getDraftStorageKey, getFilterStorageKey, getStoredUserKey, readDraft, readSavedFilters, writeDraft, writeSavedFilters } from '@/lib/facultyPersistence';
@@ -117,7 +118,7 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
   const [announcementResponses, setAnnouncementResponses] = useState<AnnouncementResponse[]>([]);
   const [loadingResponses, setLoadingResponses] = useState(false);
   const [viewingAnnouncement, setViewingAnnouncement] = useState<Announcement | null>(null);
-  const [announcementToDelete, setAnnouncementToDelete] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ type: 'announcement' | 'task' | 'event'; id: string; name: string } | null>(null);
   const [restoredAnnouncementDraft, setRestoredAnnouncementDraft] = useState(false);
   const skipAnnouncementDraftWrite = useRef(false);
   const announcementDraftKey = getDraftStorageKey('announcement', 'new', getStoredUserKey());
@@ -279,16 +280,54 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
     } catch (err) {}
   };
 
-  const deleteTask = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setTodos(todos.filter(t => t.id !== id));
+  const handleConfirmDelete = async () => {
+    if (!pendingDelete) return;
+    const { type, id } = pendingDelete;
+
     if (isDemo) {
-      toast.success('Demo task deleted locally.');
+      if (type === 'task') {
+        setTodos(prev => prev.filter(t => t.id !== id));
+        toast.success('Demo task deleted locally.');
+      } else if (type === 'event') {
+        setCalendarEvents(prev => prev.filter(ev => ev.id !== id));
+        toast.success('Demo event deleted locally.');
+      } else {
+        setAnnouncements(prev => prev.filter(a => a.id !== id));
+        if (viewingAnnouncement?.id === id) setViewingAnnouncement(null);
+        toast.success('Demo announcement deleted locally.');
+      }
+      setPendingDelete(null);
       return;
     }
-    try {
-      await apiClient.fetch(`/api/v1/faculty/dashboard/tasks/${id}`, { method: 'DELETE' });
-    } catch (err) {}
+
+    const endpoint =
+      type === 'task'
+        ? `/api/v1/faculty/dashboard/tasks/${id}`
+        : type === 'event'
+          ? `/api/v1/faculty/dashboard/calendar/${id}`
+          : `/api/v1/faculty/dashboard/announcements/${id}`;
+
+    const res = await apiClient.fetch(endpoint, { method: 'DELETE' });
+    const data = await res.json?.().catch(() => null);
+
+    if (res?.ok === false || data?.success === false) {
+      const msg = data?.message || data?.error?.message || `Failed to delete ${type}.`;
+      toast.error(msg);
+      throw new Error(msg);
+    }
+
+    if (type === 'task') {
+      setTodos(prev => prev.filter(t => t.id !== id));
+      toast.success('Task deleted successfully.');
+    } else if (type === 'event') {
+      setCalendarEvents(prev => prev.filter(ev => ev.id !== id));
+      toast.success('Calendar event deleted successfully.');
+    } else {
+      setAnnouncements(prev => prev.filter(a => a.id !== id));
+      if (viewingAnnouncement?.id === id) setViewingAnnouncement(null);
+      toast.success('Announcement deleted successfully.');
+    }
+    setPendingDelete(null);
   };
 
   // --- CALENDAR LOGIC ---
@@ -311,17 +350,6 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
       });
       const data = await res.json();
       if (data?.success) setCalendarEvents([...calendarEvents, { ...data.data, date: getLocalDateString(data.data.date) }]);
-    } catch (err) {}
-  };
-
-  const deleteCalendarEvent = async (id: string) => {
-    setCalendarEvents(calendarEvents.filter(e => e.id !== id));
-    if (isDemo) {
-      toast.success('Demo event deleted locally.');
-      return;
-    }
-    try {
-      await apiClient.fetch(`/api/v1/faculty/dashboard/calendar/${id}`, { method: 'DELETE' });
     } catch (err) {}
   };
 
@@ -386,32 +414,6 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
       }
     } catch (err) {
       toast.error('Failed to post announcement. Your draft was kept.');
-    }
-  };
-
-  const deleteAnnouncement = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this announcement? It will be permanently removed for all students.')) {
-      return;
-    }
-    const previous = [...announcements];
-    setAnnouncements(announcements.filter(a => a.id !== id));
-    if (viewingAnnouncement?.id === id) {
-      setViewingAnnouncement(null);
-    }
-    if (isDemo) {
-      toast.success('Demo announcement deleted locally.');
-      return;
-    }
-    try {
-      const res = await apiClient.fetch(`/api/v1/faculty/dashboard/announcements/${id}`, { method: 'DELETE' });
-      const data = await res.json();
-      if (!data?.success) {
-        alert(data?.message || 'Failed to delete announcement');
-        setAnnouncements(previous);
-      }
-    } catch (err) {
-      alert('Network error while deleting announcement');
-      setAnnouncements(previous);
     }
   };
 
@@ -507,18 +509,6 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
                   ))}
                 </div>
               )}
-
-              <ConfirmationDialog
-                open={Boolean(announcementToDelete)}
-                title="Delete announcement?"
-                description="This announcement will be permanently removed for all targeted students."
-                confirmLabel="Delete announcement"
-                onCancel={() => setAnnouncementToDelete(null)}
-                onConfirm={() => {
-                  if (announcementToDelete) deleteAnnouncement(announcementToDelete);
-                  setAnnouncementToDelete(null);
-                }}
-              />
             </div>
           </div>
         </div>,
@@ -564,7 +554,7 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
             <div className="p-4 border-t border-border-soft bg-cream/10 dark:bg-[#242429] flex items-center justify-between">
               <button
                 type="button"
-                onClick={() => setAnnouncementToDelete(viewingAnnouncement.id)}
+                onClick={() => setPendingDelete({ type: 'announcement', id: viewingAnnouncement.id, name: viewingAnnouncement.title })}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 dark:text-red-400 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 border border-red-200 dark:border-red-900/50 rounded-lg transition-colors cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -740,7 +730,7 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
                   {calendarEvents.filter(e => e.date === getLocalDateString(selectedDate)).map(ev => (
                     <div key={ev.id} className="text-sm bg-white dark:bg-[#1E1E22] p-2 rounded border border-border-soft flex items-center justify-between group text-ink">
                       <div className="flex items-center"><div className="w-1.5 h-1.5 rounded-full bg-maroon mr-2 shrink-0" />{ev.title}</div>
-                      <button onClick={(e) => { e.stopPropagation(); deleteCalendarEvent(ev.id); }} className="text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="w-3.5 h-3.5"/></button>
+                      <button aria-label={`Delete event: ${ev.title}`} onClick={(e) => { e.stopPropagation(); setPendingDelete({ type: 'event', id: ev.id, name: ev.title }); }} className="text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="w-3.5 h-3.5"/></button>
                     </div>
                   ))}
                 </div>
@@ -778,7 +768,7 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
                     <p className={`text-sm ${todo.completed ? 'line-through text-gray-body/60' : 'font-medium text-ink'}`}>{todo.task}</p>
                     <p className="text-[10px] text-gray-body mt-1 uppercase tracking-wider">{new Date(todo.date).toLocaleDateString()}</p>
                   </button>
-                  <button aria-label={`Delete task: ${todo.task}`} onClick={(e) => deleteTask(todo.id, e)} className="text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-50 dark:hover:bg-red-950/30 rounded"><Trash2 className="w-4 h-4" /></button>
+                  <button aria-label={`Delete task: ${todo.task}`} onClick={(e) => { e.stopPropagation(); setPendingDelete({ type: 'task', id: todo.id, name: todo.task }); }} className="text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-50 dark:hover:bg-red-950/30 rounded"><Trash2 className="w-4 h-4" /></button>
                 </div>
               ))}
             </div>
@@ -890,7 +880,7 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
                     </button>
                     <button
                       type="button"
-                      onClick={() => deleteAnnouncement(ann.id)}
+                      onClick={() => setPendingDelete({ type: 'announcement', id: ann.id, name: ann.title })}
                       className="text-gray-body/60 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 p-1.5 rounded-lg border border-transparent hover:border-red-100 dark:hover:border-red-900/40 transition-colors cursor-pointer"
                       title="Delete announcement"
                     >
@@ -925,6 +915,19 @@ export default function FacultyHome({ onNavigate }: FacultyHomeProps) {
         </div>
         <FacultyPolls isDemo={isDemo} />
       </div>
+      <DeleteConfirmationDialog
+        open={Boolean(pendingDelete)}
+        itemName={pendingDelete?.name || 'this item'}
+        title="Confirm Deletion"
+        description={
+          pendingDelete?.type === 'announcement'
+            ? 'This announcement will be permanently deleted for all targeted students. This action cannot be undone.'
+            : 'This action cannot be undone.'
+        }
+        confirmLabel="Delete"
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={handleConfirmDelete}
+      />
     </div>
   );
 }

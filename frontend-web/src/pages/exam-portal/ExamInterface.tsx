@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useSecureExam } from '../../hooks/useSecureExam';
 import { apiClient } from '../../lib/apiClient';
@@ -18,32 +18,38 @@ interface Question {
 export default function ExamInterface() {
   const { quizId } = useParams();
   const navigate = useNavigate();
-  
+  const location = useLocation();
+  const passedQuiz = (location.state as { quiz?: any } | null)?.quiz || null;
+
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
-  const [responses, setResponses] = useState<Record<string, { data: any, status: QuestionStatus }>>({});
-  const [timeLeft, setTimeLeft] = useState(60 * 60); 
+  const [responses, setResponses] = useState<Record<string, { data: any; status: QuestionStatus }>>({});
+  const [timeLeft, setTimeLeft] = useState((passedQuiz?.durationMinutes || 60) * 60);
   const [saving, setSaving] = useState(false);
   const [attemptId, setAttemptId] = useState<string>('');
-  const [quizDetails, setQuizDetails] = useState<any>(null);
+  const [quizDetails, setQuizDetails] = useState<any>(passedQuiz);
+  const [loadingInstructions, setLoadingInstructions] = useState(true);
+  const [instructionsError, setInstructionsError] = useState<{ message: string; retryable: boolean } | null>(null);
+  const [startingExam, setStartingExam] = useState(false);
   const [hasStartedSecureExam, setHasStartedSecureExam] = useState(false);
-  const submittingRef = React.useRef(false);
-  const attemptIdRef = React.useRef('');
+  const submittingRef = useRef(false);
+  const attemptIdRef = useRef('');
 
   // Zero tolerance: any violation = instant auto-submit with reason logged
   const handleSecurityViolation = async (reason: string) => {
-    if (!attemptId) return;
+    const activeAttemptId = attemptIdRef.current || attemptId;
+    if (!activeAttemptId) return;
     try {
-      await apiClient.fetch(`/api/v1/student/exam/attempt/${attemptId}/submit`, {
+      await apiClient.fetch(`/api/v1/student/exam/attempt/${activeAttemptId}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ violationReason: reason })
       });
       toast.error(`Exam terminated: ${reason}`);
-      navigate('/exam-portal', { replace: true });
+      navigate('/student/dashboard?tab=quizzes', { replace: true });
     } catch (e) {
       console.error('Failed to submit violation:', e);
-      navigate('/exam-portal', { replace: true });
+      navigate('/student/dashboard?tab=quizzes', { replace: true });
     }
   };
 
@@ -52,78 +58,54 @@ export default function ExamInterface() {
     onViolation: handleSecurityViolation
   });
 
-  const hasFetched = React.useRef(false);
-
   useEffect(() => {
     document.documentElement.classList.remove('dark');
   }, []);
 
-  useEffect(() => {
-    if (hasFetched.current) return;
-    
-    const fetchQuiz = async () => {
-      try {
-        hasFetched.current = true;
-        const res = await apiClient.fetch(`/api/v1/student/exam/start/${quizId}`, {
-          method: 'POST',
-        });
-        const data = await res.json();
-        
-        if (data.status === 'success' && data.data?.attempt && data.data?.quiz) {
-          const { attempt, quiz } = data.data;
-          setQuizDetails(quiz);
-          setQuestions(quiz.questions || []);
-          setAttemptId(attempt.id);
-          attemptIdRef.current = attempt.id;
-          
-          const loadedResponses: Record<string, { data: any, status: QuestionStatus }> = {};
-          if (attempt.responses) {
-             attempt.responses.forEach((r: any) => {
-               loadedResponses[r.questionId] = { data: r.answerData, status: r.status };
-             });
-          }
-          setResponses(loadedResponses);
-          
-          const startTime = new Date(attempt.startTime).getTime();
-          const durationSec = (quiz.durationMinutes || 60) * 60;
-          const elapsedSec = Math.floor((Date.now() - startTime) / 1000);
-          const remaining = Math.max(0, durationSec - elapsedSec);
-          setTimeLeft(remaining);
-          } else {
-            toast.error('Error starting exam: ' + (data.message || 'Invalid exam response'));
-           navigate('/exam-portal', { replace: true });
+  const loadInstructions = useCallback(async () => {
+    if (!quizId) {
+      setInstructionsError({ message: 'Invalid quiz identifier.', retryable: false });
+      setLoadingInstructions(false);
+      return;
+    }
+    setLoadingInstructions(true);
+    setInstructionsError(null);
+    try {
+      const res = await apiClient.fetch(`/api/v1/student/exam/instructions/${quizId}`);
+      const data = await res.json();
+      if (res?.ok !== false && data?.status === 'success' && data?.data?.quiz) {
+        setQuizDetails(data.data.quiz);
+        if (data.data.quiz.durationMinutes) {
+          setTimeLeft(data.data.quiz.durationMinutes * 60);
         }
-      } catch(err) {
-         console.error(err);
+      } else {
+        const msg = data?.error?.message || data?.message || 'Unable to load quiz instructions.';
+        const code = data?.error?.code;
+        const nonRetryable = ['NOT_FOUND', 'FORBIDDEN', 'ALREADY_SUBMITTED', 'NOT_STARTED', 'EXPIRED'].includes(code);
+        setInstructionsError({ message: msg, retryable: !nonRetryable });
       }
-    };
-    
-    if (quizId) fetchQuiz();
-
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          handleSubmit();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
+    } catch (err) {
+      console.error(err);
+      setInstructionsError({ message: 'Unable to load quiz instructions. Please try again.', retryable: true });
+    } finally {
+      setLoadingInstructions(false);
+    }
   }, [quizId]);
+
+  useEffect(() => {
+    void loadInstructions();
+  }, [loadInstructions]);
 
   const handleSaveResponse = async (questionId: string, answerData: any, status: QuestionStatus) => {
     setResponses(prev => ({ ...prev, [questionId]: { data: answerData, status } }));
     setSaving(true);
     try {
-        await apiClient.fetch(`/api/v1/student/exam/attempt/${attemptId}/save-response`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ questionId, answerData, status })
-        });
-    } catch(e) {
+      await apiClient.fetch(`/api/v1/student/exam/attempt/${attemptId}/save-response`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ questionId, answerData, status })
+      });
+    } catch (e) {
       console.error(e);
     } finally {
       setSaving(false);
@@ -133,7 +115,7 @@ export default function ExamInterface() {
   const handleNext = () => {
     const qId = questions[currentQuestionIdx].id;
     const currentResp = responses[qId];
-    
+
     if (!currentResp || currentResp.status === 'NOT_VISITED') {
       handleSaveResponse(qId, null, 'NOT_ANSWERED');
     }
@@ -167,59 +149,210 @@ export default function ExamInterface() {
     handleSaveResponse(qId, null, 'NOT_ANSWERED');
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = useCallback(async () => {
     const currentAttemptId = attemptIdRef.current || attemptId;
     if (!currentAttemptId || submittingRef.current) return;
 
     submittingRef.current = true;
     try {
-        const res = await apiClient.fetch(`/api/v1/student/exam/attempt/${currentAttemptId}/submit`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({})
-        });
-        const data = await res.json();
-        if (res.ok && data.status === 'success') {
-          toast.success('Examination Submitted Successfully!');
-          navigate('/exam-portal', { replace: true });
-        } else {
-          toast.error('Error submitting: ' + (data.message || 'Request failed'));
-          navigate('/exam-portal', { replace: true });
-        }
-    } catch(e) {
-        console.error(e);
-        toast.error('Error submitting examination');
-        navigate('/exam-portal', { replace: true });
+      const res = await apiClient.fetch(`/api/v1/student/exam/attempt/${currentAttemptId}/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      if (res?.ok !== false && data?.status === 'success') {
+        toast.success('Examination Submitted Successfully!');
+        navigate('/student/dashboard?tab=quizzes', { replace: true });
+      } else {
+        toast.error('Error submitting: ' + (data?.message || 'Request failed'));
+        navigate('/student/dashboard?tab=quizzes', { replace: true });
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error('Error submitting examination');
+      navigate('/student/dashboard?tab=quizzes', { replace: true });
     } finally {
-        submittingRef.current = false;
+      submittingRef.current = false;
+    }
+  }, [attemptId, navigate]);
+
+  const handleSubmitRef = useRef(handleSubmit);
+  handleSubmitRef.current = handleSubmit;
+
+  useEffect(() => {
+    if (!hasStartedSecureExam || !attemptId) return;
+
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          void handleSubmitRef.current();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [hasStartedSecureExam, attemptId]);
+
+  const handleBeginQuiz = async () => {
+    if (!quizId || startingExam || instructionsError) return;
+    setStartingExam(true);
+    try {
+      await enterFullscreen();
+      const res = await apiClient.fetch(`/api/v1/student/exam/start/${quizId}`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+
+      if (res?.ok !== false && data?.status === 'success' && data?.data?.attempt && data?.data?.quiz) {
+        const { attempt, quiz } = data.data;
+        setQuizDetails((prev: any) => ({ ...prev, ...quiz }));
+        setQuestions(quiz.questions || []);
+        setAttemptId(attempt.id);
+        attemptIdRef.current = attempt.id;
+
+        const loadedResponses: Record<string, { data: any; status: QuestionStatus }> = {};
+        if (attempt.responses) {
+          attempt.responses.forEach((r: any) => {
+            loadedResponses[r.questionId] = { data: r.answerData, status: r.status };
+          });
+        }
+        setResponses(loadedResponses);
+
+        const startTime = new Date(attempt.startTime).getTime();
+        const durationSec = (quiz.durationMinutes || 60) * 60;
+        const elapsedSec = Math.floor((Date.now() - startTime) / 1000);
+        setTimeLeft(Math.max(0, durationSec - elapsedSec));
+        setHasStartedSecureExam(true);
+      } else {
+        if (typeof document !== 'undefined' && document.fullscreenElement && document.exitFullscreen) {
+          await document.exitFullscreen().catch(() => {});
+        }
+        const msg = data?.error?.message || data?.message || 'Unable to start this quiz.';
+        toast.error(msg);
+        setInstructionsError({ message: msg, retryable: false });
+      }
+    } catch (err) {
+      console.error(err);
+      if (typeof document !== 'undefined' && document.fullscreenElement && document.exitFullscreen) {
+        await document.exitFullscreen().catch(() => {});
+      }
+      toast.error('Unable to start quiz. Please try again.');
+    } finally {
+      setStartingExam(false);
     }
   };
 
-  if (questions.length === 0) return <div className="min-h-screen bg-[#FDFBF7] flex items-center justify-center"><div className="animate-spin h-8 w-8 border-4 border-maroon border-t-transparent rounded-full" /></div>;
+  if (!hasStartedSecureExam) {
+    if (loadingInstructions && !quizDetails) {
+      return (
+        <div className="min-h-screen bg-[#FDFBF7] flex flex-col items-center justify-center gap-3 text-gray-body font-sans">
+          <div className="animate-spin h-8 w-8 border-4 border-maroon border-t-transparent rounded-full" />
+          <p className="text-sm font-semibold">Loading quiz instructions...</p>
+        </div>
+      );
+    }
 
-  if (!hasStartedSecureExam || !isFullscreen) {
-    return (
-      <div className="min-h-screen bg-[#FDFBF7] text-ink flex flex-col items-center justify-center p-8 font-sans">
-        <div className="max-w-2xl w-full text-center space-y-8">
-          <div className="space-y-2">
-            <h1 className="text-4xl font-serif font-bold text-ink">Secure Exam Environment</h1>
-            <p className="text-gray-body text-lg">Please read the instructions carefully before proceeding.</p>
+    if (instructionsError) {
+      return (
+        <div className="min-h-screen bg-[#FDFBF7] text-ink flex items-center justify-center p-6 font-sans">
+          <div className="max-w-md w-full bg-white border border-border-soft rounded-2xl p-8 text-center shadow-sm space-y-5">
+            <h1 className="text-2xl font-serif font-bold text-ink">Quiz Unavailable</h1>
+            <p className="text-sm text-gray-body">{instructionsError.message}</p>
+            <div className="flex items-center justify-center gap-3">
+              {instructionsError.retryable && (
+                <button
+                  type="button"
+                  onClick={() => void loadInstructions()}
+                  className="px-5 py-2.5 border border-maroon text-maroon hover:bg-maroon/5 rounded-full text-sm font-bold cursor-pointer"
+                >
+                  Retry
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => navigate('/student/dashboard?tab=quizzes')}
+                className="px-6 py-2.5 bg-maroon hover:bg-maroon-deep text-white rounded-full text-sm font-bold cursor-pointer"
+              >
+                Back to Quizzes
+              </button>
+            </div>
           </div>
-          
-          <div className="bg-white border border-maroon/30 shadow-sm p-8 rounded-2xl text-left space-y-6">
+        </div>
+      );
+    }
+
+    return (
+      <div className="min-h-screen bg-[#FDFBF7] text-ink flex flex-col items-center justify-center p-6 sm:p-8 font-sans">
+        <div className="max-w-2xl w-full space-y-6">
+          <div>
+            <button
+              type="button"
+              onClick={() => navigate('/student/dashboard?tab=quizzes')}
+              className="inline-flex items-center gap-2 text-sm font-semibold text-gray-body hover:text-maroon transition-colors cursor-pointer"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+              Back to Quizzes
+            </button>
+          </div>
+
+          <div className="text-center space-y-2">
+            {quizDetails?.subject && (
+              <span className="inline-block px-3 py-1 rounded-full bg-cream border border-border-soft text-xs font-bold text-maroon">
+                {quizDetails.subject}
+              </span>
+            )}
+            <h1 className="text-3xl sm:text-4xl font-serif font-bold text-ink">
+              {quizDetails?.title || 'Quiz Instructions'}
+            </h1>
+            <p className="text-gray-body text-base">
+              Please review the quiz details and instructions carefully before starting.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-white border border-border-soft rounded-xl p-4 text-center shadow-sm">
+              <div className="text-xs font-semibold text-gray-body uppercase tracking-wide">Duration</div>
+              <div className="text-lg font-bold text-maroon mt-1">{quizDetails?.durationMinutes ?? '--'} mins</div>
+            </div>
+            <div className="bg-white border border-border-soft rounded-xl p-4 text-center shadow-sm">
+              <div className="text-xs font-semibold text-gray-body uppercase tracking-wide">Total Marks</div>
+              <div className="text-lg font-bold text-ink mt-1">{quizDetails?.totalMarks ?? '--'}</div>
+            </div>
+            <div className="bg-white border border-border-soft rounded-xl p-4 text-center shadow-sm">
+              <div className="text-xs font-semibold text-gray-body uppercase tracking-wide">Questions</div>
+              <div className="text-lg font-bold text-ink mt-1">{quizDetails?.questionCount ?? quizDetails?._count?.questions ?? '--'}</div>
+            </div>
+            <div className="bg-white border border-border-soft rounded-xl p-4 text-center shadow-sm">
+              <div className="text-xs font-semibold text-gray-body uppercase tracking-wide">Passing Marks</div>
+              <div className="text-lg font-bold text-ink mt-1">{quizDetails?.passingMarks ?? 'N/A'}</div>
+            </div>
+          </div>
+
+          {quizDetails?.description && (
+            <div className="bg-white border border-border-soft rounded-xl p-5 shadow-sm text-sm text-gray-body leading-relaxed">
+              <div className="text-xs font-bold uppercase tracking-wide text-ink mb-1">About This Quiz</div>
+              <p>{quizDetails.description}</p>
+            </div>
+          )}
+
+          <div className="bg-white border border-maroon/30 shadow-sm p-6 sm:p-8 rounded-2xl text-left space-y-5">
             <div className="flex items-center space-x-3 text-maroon">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-              <h3 className="font-bold text-xl font-serif">Important Instructions</h3>
+              <h2 className="font-bold text-xl font-serif">Important Instructions</h2>
             </div>
-            
-            <ul className="space-y-4 text-ink font-semibold">
+
+            <ul className="space-y-3.5 text-ink font-semibold text-sm sm:text-base">
               <li className="flex items-start">
                 <span className="text-maroon mr-3">•</span>
                 This exam requires <span className="font-bold ml-1">Fullscreen mode</span>.
               </li>
               <li className="flex items-start">
                 <span className="text-maroon mr-3">•</span>
-                Do not exit fullscreen or switch tabs.
+                Do not exit fullscreen, switch tabs, or leave the exam window.
               </li>
               <li className="flex items-start">
                 <span className="text-maroon mr-3">•</span>
@@ -227,24 +360,57 @@ export default function ExamInterface() {
               </li>
               <li className="flex items-start">
                 <span className="text-maroon mr-3">•</span>
-                Attempting to violate these rules will result in warnings.
+                The countdown timer begins as soon as you click Begin Quiz.
               </li>
               <li className="flex items-start">
                 <span className="text-maroon mr-3">•</span>
-                After <span className="font-bold mx-1 text-red-600">3 warnings</span>, your exam will be automatically submitted.
+                Any security violation will automatically submit your examination.
               </li>
             </ul>
           </div>
 
-          <button 
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+            <button
+              type="button"
+              onClick={handleBeginQuiz}
+              disabled={startingExam || loadingInstructions}
+              className="px-10 py-4 bg-maroon hover:bg-maroon-deep disabled:opacity-50 text-white font-bold rounded-full text-lg shadow-sm transition-all hover:scale-105 active:scale-95 flex items-center justify-center space-x-2 cursor-pointer"
+            >
+              <span>{startingExam ? 'Starting Quiz...' : 'Begin Quiz'}</span>
+              {!startingExam && (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (questions.length === 0) {
+    return (
+      <div className="min-h-screen bg-[#FDFBF7] flex items-center justify-center">
+        <div className="animate-spin h-8 w-8 border-4 border-maroon border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
+  if (!isFullscreen) {
+    return (
+      <div className="min-h-screen bg-[#FDFBF7] text-ink flex flex-col items-center justify-center p-8 font-sans">
+        <div className="max-w-md w-full bg-white border border-maroon/30 rounded-2xl p-8 text-center space-y-5 shadow-sm">
+          <h1 className="text-2xl font-serif font-bold text-ink">Fullscreen Required</h1>
+          <p className="text-sm text-gray-body">
+            Please enable fullscreen mode to continue your active examination.
+          </p>
+          <button
+            type="button"
             onClick={async () => {
               await enterFullscreen();
-              setHasStartedSecureExam(true);
             }}
-            className="px-10 py-4 bg-maroon hover:bg-maroon-deep text-white font-bold rounded-full text-lg shadow-sm transition-all hover:scale-105 active:scale-95 flex items-center justify-center mx-auto space-x-2"
+            className="px-8 py-3 bg-maroon hover:bg-maroon-deep text-white font-bold rounded-full text-sm shadow-sm cursor-pointer"
           >
-            <span>Start Secure Exam</span>
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+            Enter Fullscreen
           </button>
         </div>
       </div>
@@ -385,30 +551,79 @@ export default function ExamInterface() {
                 />
               )}
 
-              {currentQ.type === 'MATCHING' && currentQ.options?.lefts && currentQ.options?.rights && (
-                <div className="space-y-4">
-                  {currentQ.options.lefts.map((leftOpt: string, idx: number) => {
-                    const currentArr = Array.isArray(currentResp?.data) ? currentResp.data : [];
-                    const selectedRight = currentArr.find(x => x.left === leftOpt)?.right || '';
-                    return (
-                      <div key={idx} className="flex items-center space-x-4 p-4 bg-cream/20 border border-border-soft rounded-xl">
-                        <div className="flex-1 text-ink text-base font-semibold">{leftOpt}</div>
-                        <div className="text-gray-body">→</div>
-                        <select 
-                          className="flex-1 p-2 border border-border-soft rounded-lg bg-white focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon text-ink font-semibold text-sm shadow-sm"
-                          value={selectedRight}
-                          onChange={(e) => handleMatchingSelect(leftOpt, e.target.value)}
-                        >
-                          <option value="">Select match...</option>
-                          {currentQ.options.rights.map((rightOpt: string, rIdx: number) => (
-                            <option key={rIdx} value={rightOpt}>{rightOpt}</option>
-                          ))}
-                        </select>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+              {currentQ.type === 'MATCHING' && (() => {
+                const lefts: string[] = currentQ.options?.lefts || (Array.isArray(currentQ.options) ? currentQ.options.map((o: any) => o.left) : []);
+                const rights: string[] = currentQ.options?.rights || (Array.isArray(currentQ.options) ? currentQ.options.map((o: any) => o.right) : []);
+
+                return (
+                  <div className="space-y-4">
+                    {lefts.map((leftOpt: string, idx: number) => {
+                      const currentArr = Array.isArray(currentResp?.data) ? currentResp.data : [];
+                      const selectedRight = currentArr.find((x: any) => x.left === leftOpt)?.right || '';
+                      return (
+                        <div key={idx} className="flex items-center space-x-4 p-4 bg-cream/20 border border-border-soft rounded-xl">
+                          <div className="flex-1 text-ink text-base font-semibold">{leftOpt}</div>
+                          <div className="text-gray-body">→</div>
+                          <select 
+                            className="flex-1 p-2 border border-border-soft rounded-lg bg-white focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon text-ink font-semibold text-sm shadow-sm"
+                            value={selectedRight}
+                            onChange={(e) => handleMatchingSelect(leftOpt, e.target.value)}
+                          >
+                            <option value="">Select match...</option>
+                            {rights.map((rightOpt: string, rIdx: number) => (
+                              <option key={rIdx} value={rightOpt}>{rightOpt}</option>
+                            ))}
+                          </select>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+
+              {currentQ.type === 'FILL_BLANK' && (() => {
+                // If question has multiple blanks defined in options or text contains [blank]
+                const blankCount = currentQ.options?.blanks?.length || (currentQ.text.match(/\[blank\]/gi) || []).length || 1;
+                
+                if (blankCount > 1) {
+                  const currentAnswers = Array.isArray(currentResp?.data) ? currentResp.data : [];
+                  return (
+                    <div className="space-y-3">
+                      <div className="text-sm font-semibold text-gray-body mb-2">Fill in the answer for each blank:</div>
+                      {Array.from({ length: blankCount }).map((_, bIdx) => (
+                        <div key={bIdx} className="flex items-center gap-3 p-3 bg-cream/20 rounded-xl border border-border-soft">
+                          <span className="text-sm font-bold text-maroon min-w-16">Blank {bIdx + 1}:</span>
+                          <input
+                            type="text"
+                            className="flex-1 p-2.5 border border-border-soft rounded-lg bg-white focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon text-ink text-sm font-medium shadow-sm"
+                            placeholder={`Answer for blank ${bIdx + 1}...`}
+                            value={currentAnswers[bIdx] || ''}
+                            onChange={(e) => {
+                              const updated = [...currentAnswers];
+                              while (updated.length < blankCount) updated.push('');
+                              updated[bIdx] = e.target.value;
+                              handleSaveResponse(currentQ.id, updated, 'ANSWERED');
+                            }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-gray-body block">Your Answer:</label>
+                    <input
+                      type="text"
+                      className="w-full p-4 border border-border-soft rounded-xl focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon text-ink bg-white text-base font-semibold shadow-sm"
+                      placeholder="Type your answer here..."
+                      value={typeof currentResp?.data === 'string' ? currentResp.data : (Array.isArray(currentResp?.data) ? currentResp.data[0] || '' : '')}
+                      onChange={(e) => handleSaveResponse(currentQ.id, e.target.value, 'ANSWERED')}
+                    />
+                  </div>
+                );
+              })()}
             </div>
           </div>
 

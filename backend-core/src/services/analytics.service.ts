@@ -68,7 +68,8 @@ async function getAttemptSummaries(userId: string): Promise<AttemptSummary[]> {
   const attempts = await prisma.quizAttempt.findMany({
     where: {
       userId,
-      status: 'EVALUATED', // Only include fully graded attempts
+      status: 'EVALUATED', // Only include fully graded and published attempts
+      quiz: { answersPublished: true },
     },
     orderBy: { startTime: 'asc' },
     include: {
@@ -531,7 +532,7 @@ export async function calculateQuizInsights(attemptId: string, userId: string): 
     },
   });
 
-  if (!attempt || attempt.userId !== userId) return null;
+  if (!attempt || attempt.userId !== userId || !attempt.quiz.answersPublished) return null;
 
   const max = attempt.quiz.totalMarks || 100;
   const pct = Math.round((attempt.totalScore / max) * 100);

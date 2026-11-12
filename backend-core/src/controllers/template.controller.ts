@@ -15,12 +15,13 @@ export const downloadTemplate = async (req: Request, res: Response, next: NextFu
     let short = parseInt(req.query.short as string) || 0;
     let long = parseInt(req.query.long as string) || 0;
     let matching = parseInt(req.query.matching as string) || 0;
+    let fillBlank = parseInt(req.query.fillBlank as string) || 0;
 
     const hasMixed = req.query.mcq !== undefined;
     if (!hasMixed) {
       mcq = totalCount;
     } else {
-      if (mcq + numerical + short + long + matching !== totalCount) {
+      if (mcq + numerical + short + long + matching + fillBlank !== totalCount) {
          throw new BadRequestError('Question type counts must sum to total count');
       }
     }
@@ -143,6 +144,21 @@ export const downloadTemplate = async (req: Request, res: Response, next: NextFu
         "2 -> B",
         "3 -> C",
         "4 -> D",
+        "Marks: 1",
+        "Explanation: ",
+        ""
+      ]));
+      currentQ++;
+    }
+
+    // Fill in the Blanks
+    for (let i = 0; i < fillBlank; i++) {
+      sections.push(...addLines([
+        `Question Number: ${currentQ}`,
+        "Question Type: Fill in the Blanks",
+        "Question Text: Use [blank] where students should enter missing word(s).",
+        "Image: N/A",
+        "Expected Answer: ",
         "Marks: 1",
         "Explanation: ",
         ""

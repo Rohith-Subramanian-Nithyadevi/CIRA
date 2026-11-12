@@ -172,17 +172,24 @@ export function ErrorState({
   );
 }
 
-function useDialogFocus(dialogRef: React.RefObject<HTMLDivElement | null>, onClose: () => void) {
+function useDialogFocus(dialogRef: React.RefObject<HTMLDivElement | null>, open: boolean, onClose: () => void) {
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   useEffect(() => {
+    if (!open) return;
     const dialog = dialogRef.current;
     if (!dialog) return;
     const previous = document.activeElement as HTMLElement | null;
     const focusable = () => Array.from(dialog.querySelectorAll<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')).filter((element) => !element.hasAttribute('disabled'));
-    (focusable()[0] || dialog).focus();
+    if (!dialog.contains(document.activeElement)) {
+      const preferred = dialog.querySelector<HTMLElement>('[data-autofocus="true"]') || focusable()[0] || dialog;
+      preferred.focus();
+    }
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (event.key !== 'Tab') return;
@@ -206,7 +213,7 @@ function useDialogFocus(dialogRef: React.RefObject<HTMLDivElement | null>, onClo
       document.removeEventListener('keydown', handleKeyDown);
       previous?.focus();
     };
-  }, [dialogRef, onClose]);
+  }, [dialogRef, open]);
 }
 
 export function AccessibleDialog({
@@ -224,10 +231,10 @@ export function AccessibleDialog({
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
-  useDialogFocus(dialogRef, onClose);
+  useDialogFocus(dialogRef, open, onClose);
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={titleId} className={cn('max-h-[90vh] w-full max-w-lg overflow-auto rounded-2xl border border-border-soft bg-white p-6 shadow-xl', className)}>
         <div className="mb-5 flex items-start justify-between gap-4">
           <h2 id={titleId} className="font-serif text-xl font-bold text-ink">{title}</h2>

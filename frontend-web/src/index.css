@@ -40,15 +40,13 @@
   }
 
   .report-view,
-  .assignment-roster,
-  .quiz-attempts-view {
+  .assignment-roster {
     color: #1A1A1A !important;
     background: white !important;
   }
 
   .report-view *,
-  .assignment-roster *,
-  .quiz-attempts-view * {
+  .assignment-roster * {
     box-shadow: none !important;
   }
 }
