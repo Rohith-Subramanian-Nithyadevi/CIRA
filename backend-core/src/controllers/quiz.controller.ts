@@ -897,6 +897,8 @@ export const getSubmissions = async (req: Request, res: Response, next: NextFunc
         facultyFeedback: attempt?.facultyFeedback || null,
         violationReason: attempt?.violationReason || null,
         violationCount: attempt?.violationCount ?? 0,
+        restartAuthorized: Boolean(attempt?.restartAuthorized),
+        restartAuthorizedAt: attempt?.restartAuthorizedAt || null,
         responses: attempt?.responses || [],
         classKey: resolvedClassMeta.classKey,
         classLabel: resolvedClassMeta.classLabel,

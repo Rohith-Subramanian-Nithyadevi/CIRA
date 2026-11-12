@@ -132,19 +132,19 @@ export default function ExamResults() {
   const quiz = attempt.quiz;
 
   return (
-    <div className="min-h-screen bg-[#FDFBF7] text-ink p-8 font-sans">
-      <div className="max-w-4xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center space-x-4">
+    <div className="min-h-screen bg-[#FDFBF7] text-ink p-4 sm:p-8 font-sans">
+      <div className="max-w-4xl mx-auto min-w-0">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 sm:mb-8">
+          <div className="flex items-start sm:items-center gap-3 sm:gap-4 min-w-0">
             <button 
               onClick={() => navigate('/student/dashboard?tab=quizzes')}
-              className="p-2.5 hover:bg-cream border border-transparent hover:border-border-soft rounded-full transition-colors text-gray-body"
+              className="p-2.5 hover:bg-cream border border-transparent hover:border-border-soft rounded-full transition-colors text-gray-body shrink-0"
               title="Go Back"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
             </button>
-            <div>
-              <h1 className="text-3xl font-serif font-bold text-ink">{quiz?.title} - Results</h1>
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-3xl font-serif font-bold text-ink break-words">{quiz?.title} - Results</h1>
               <div className="text-sm font-semibold text-gray-body mt-1 flex flex-wrap items-center gap-2">
                 <span>{quiz?.subject}</span>
                 {attempt.isManualWithoutSubmission && (
@@ -161,23 +161,23 @@ export default function ExamResults() {
             </div>
           </div>
           
-          <div className="bg-white px-6 py-3 rounded-xl border border-border-soft shadow-sm flex items-center space-x-6">
+          <div className="bg-white px-4 py-3 sm:px-6 rounded-xl border border-border-soft shadow-sm grid grid-cols-3 md:flex items-center gap-3 md:gap-6 w-full md:w-auto shrink-0">
             <div>
               <div className="text-xs text-gray-body font-bold">Auto Score</div>
-              <div className="text-xl font-bold text-maroon">{attempt.objectiveScore}</div>
+              <div className="text-lg sm:text-xl font-bold text-maroon">{attempt.objectiveScore}</div>
             </div>
             <div>
               <div className="text-xs text-gray-body font-bold">Written Score</div>
-              <div className="text-xl font-bold text-maroon">{attempt.writtenScore}</div>
+              <div className="text-lg sm:text-xl font-bold text-maroon">{attempt.writtenScore}</div>
             </div>
-            <div className="pl-6 border-l border-border-soft">
+            <div className="pl-3 md:pl-6 border-l border-border-soft">
               <div className="text-xs text-gray-body font-bold">Total Score</div>
-              <div className="text-2xl font-bold text-green-700">{attempt.totalScore}</div>
+              <div className="text-xl sm:text-2xl font-bold text-green-700">{attempt.totalScore}</div>
             </div>
           </div>
         </div>
         
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           {quiz.questions?.map((q: any, idx: number) => {
             const response = attempt.responses?.find((r: any) => r.questionId === q.id);
             const isObjective = ['MCQ', 'MULTI_SELECT', 'TRUE_FALSE', 'MATCHING', 'NUMERICAL', 'FILL_BLANK'].includes(q.type);
@@ -185,13 +185,13 @@ export default function ExamResults() {
             const isCorrect = isObjective && answered ? answersMatch(q, response.answerData) : false;
             
             return (
-              <div key={q.id} className="bg-white p-6 rounded-xl border border-border-soft shadow-sm">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
+              <div key={q.id} className="bg-white p-4 sm:p-6 rounded-xl border border-border-soft shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 mb-4">
+                  <div className="min-w-0">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-gray-body">{q.type}</span>
-                    <h3 className="text-lg font-bold text-ink mt-1">Q{idx + 1}. {q.text}</h3>
+                    <h3 className="text-base sm:text-lg font-bold text-ink mt-1 break-words">Q{idx + 1}. {q.text}</h3>
                   </div>
-                  <div className="flex flex-col items-end gap-2">
+                  <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between gap-2 shrink-0">
                     <div className="text-sm font-bold text-gray-body bg-cream px-3 py-1 rounded-md border border-border-soft whitespace-nowrap">
                       {response?.marksAwarded ?? 0} / {q.marks} Marks
                     </div>
@@ -207,7 +207,7 @@ export default function ExamResults() {
 
                 {q.image && (
                   <div className="mb-4">
-                    <img src={q.image} alt={`Question ${idx + 1}`} className="max-h-60 rounded-lg border border-border-soft" />
+                    <img src={q.image} alt={`Question ${idx + 1}`} className="max-h-60 max-w-full w-auto object-contain rounded-lg border border-border-soft" />
                   </div>
                 )}
 

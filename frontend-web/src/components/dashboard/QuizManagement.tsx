@@ -606,7 +606,6 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
   const [showPublishConfirm, setShowPublishConfirm] = useState(false);
   const [publishingAnswers, setPublishingAnswers] = useState(false);
   const [quizPendingDelete, setQuizPendingDelete] = useState<{ id: string; title: string } | null>(null);
-  const [attemptPendingRestart, setAttemptPendingRestart] = useState<{ attemptId: string; studentName: string } | null>(null);
   const [activeAttempt, setActiveAttempt] = useState<any>(null);
   const [evaluations, setEvaluations] = useState<Record<string, number>>({});
   const [facultyFeedback, setFacultyFeedback] = useState('');
@@ -3010,41 +3009,33 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
   if (activeView === 'view_submissions') {
     const answersPublished = Boolean(activeSubmissionsQuiz?.answersPublished);
 
-    const handleConfirmRestartAttempt = async () => {
-      if (!attemptPendingRestart || restartingAttemptId) return;
-      const { attemptId } = attemptPendingRestart;
+    const handleAllowRestart = async (attemptId: string) => {
+      if (!attemptId || restartingAttemptId) return;
       try {
         setRestartingAttemptId(attemptId);
         const res = await apiClient.fetch(`/api/v1/faculty/quiz/attempt/${attemptId}/allow-restart`, { method: 'POST' });
         const data = await res.json();
         if (!isMountedRef.current) return;
         if (res?.ok !== false && data?.status === 'success') {
-          toast.success('Student attempt deleted. Student can now retake the exam.');
+          toast.success(data?.message || 'Restart authorized. Student can now start a fresh attempt.');
           setSubmissions(prev =>
             prev.map(s =>
               s.id === attemptId
                 ? {
                     ...s,
-                    id: null,
-                    hasSubmitted: false,
-                    status: 'NOT_SUBMITTED',
-                    startTime: null,
-                    endTime: null,
-                    objectiveScore: null,
-                    writtenScore: null,
-                    totalScore: null,
-                    facultyFeedback: null,
-                    violationReason: null,
-                    responses: [],
+                    restartAuthorized: true,
+                    restartAuthorizedAt: data?.data?.restartAuthorizedAt || new Date().toISOString(),
                   }
                 : s
             )
           );
-          setAttemptPendingRestart(null);
         } else {
           const msg = data?.error?.message || data?.message || 'Failed to allow restart.';
           toast.error(msg);
-          throw new Error(msg);
+        }
+      } catch (err) {
+        if (isMountedRef.current) {
+          toast.error('Failed to allow restart. Please try again.');
         }
       } finally {
         if (isMountedRef.current) setRestartingAttemptId(null);
@@ -3383,16 +3374,22 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                                   <Pencil className="w-3.5 h-3.5 mr-1 shrink-0" />
                                   Edit
                                 </Button>
-                                {hasAttemptRecord && !sub.isManualWithoutSubmission && (sub.violationReason || sub.status === 'IN_PROGRESS') && (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    disabled={restartingAttemptId === sub.id}
-                                    className="border-green-300 dark:border-green-900/50 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30 hover:border-green-400"
-                                    onClick={() => setAttemptPendingRestart({ attemptId: sub.id, studentName: sub.user?.name || 'Student' })}
-                                  >
-                                    {restartingAttemptId === sub.id ? 'Restarting...' : 'Allow Restart'}
-                                  </Button>
+                                {hasAttemptRecord && !sub.isManualWithoutSubmission && (sub.status === 'VIOLATED' || sub.violationReason || sub.status === 'IN_PROGRESS') && (
+                                  sub.restartAuthorized ? (
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-300">
+                                      Restart Authorized
+                                    </span>
+                                  ) : (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      disabled={restartingAttemptId === sub.id}
+                                      className="border-green-300 dark:border-green-900/50 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30 hover:border-green-400"
+                                      onClick={() => void handleAllowRestart(sub.id)}
+                                    >
+                                      {restartingAttemptId === sub.id ? 'Authorizing...' : 'Allow Restart'}
+                                    </Button>
+                                  )
                                 )}
                               </div>
                             </TableCell>
@@ -3407,16 +3404,6 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
           )}
         </CardContent>
       </Card>
-
-      <DeleteConfirmationDialog
-        open={Boolean(attemptPendingRestart)}
-        itemName={attemptPendingRestart ? `${attemptPendingRestart.studentName}'s attempt` : 'this attempt'}
-        title="Confirm Deletion"
-        description="Deleting this attempt will permanently erase all student answers so they can retake the quiz. This action cannot be undone."
-        confirmLabel="Delete"
-        onCancel={() => setAttemptPendingRestart(null)}
-        onConfirm={handleConfirmRestartAttempt}
-      />
 
       {/* Publish Answers Confirmation Dialog */}
       {showPublishConfirm && typeof document !== 'undefined' && createPortal(

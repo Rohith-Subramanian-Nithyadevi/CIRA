@@ -430,7 +430,7 @@ export default function Login() {
 
 
       {/* RIGHT COLUMN - Authentication Form (Mobile & Desktop) */}
-      <div className="w-full lg:w-[45%] xl:w-[40%] min-h-screen flex flex-col justify-between p-6 sm:p-10 lg:p-12 overflow-y-auto bg-white border-l border-border-soft">
+      <div className="w-full lg:w-[45%] xl:w-[40%] min-h-[100dvh] flex flex-col justify-between p-4 sm:p-10 lg:p-12 overflow-y-auto bg-white border-l border-border-soft">
         
         {/* Mobile Header View */}
         <div className="lg:hidden flex items-center justify-between pb-4 mb-4 border-b border-border-soft/60">

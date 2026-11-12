@@ -62,6 +62,7 @@ enum QuizAttemptStatus {
   IN_PROGRESS
   SUBMITTED
   EVALUATED
+  VIOLATED
 }
 
 model Batch {
@@ -187,7 +188,7 @@ model Quiz {
   durationMinutes  Int           @default(60)
   allowLateJoin    Boolean       @default(false)
   autoSubmit       Boolean       @default(true)
-  maxViolations    Int           @default(3)
+  maxViolations    Int           @default(1)
   answersPublished Boolean       @default(false)
 
   performanceBands Json?         // e.g., { "EXCELLENT": { min: 90, max: 100 }, ... }
@@ -306,6 +307,9 @@ model QuizAttempt {
   facultyFeedback           String?
   violationReason           String?            // Reason exam was auto-terminated (e.g. "Pressed key: Alt")
   violationCount            Int                @default(0)
+  restartAuthorized         Boolean            @default(false)
+  restartAuthorizedAt       DateTime?
+  restartAuthorizedBy       String?
   isManualWithoutSubmission Boolean            @default(false)
   needsReview               Boolean            @default(false)
   resultUpdatedAt           DateTime?
