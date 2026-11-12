@@ -114,8 +114,13 @@ describe('QuestionBank', () => {
     await waitFor(() => expect(apiClient.fetch).toHaveBeenCalledWith('/api/v1/faculty/quiz/question-bank/q1', expect.objectContaining({ method: 'PUT' })));
     expect(await screen.findByText('What is 2 + 2?')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Remove question q1' }));
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    const confirmBtn = screen.getByRole('button', { name: /^Delete$/i });
+    expect(confirmBtn).toBeDisabled();
+    fireEvent.change(screen.getByPlaceholderText('Type CONFIRM to proceed'), { target: { value: 'CONFIRM' } });
+    expect(confirmBtn).not.toBeDisabled();
+    fireEvent.click(confirmBtn);
     await waitFor(() => expect(apiClient.fetch).toHaveBeenCalledWith('/api/v1/faculty/quiz/question-bank/q1', expect.objectContaining({ method: 'DELETE' })));
-    expect(window.confirm).toHaveBeenCalledWith('Remove this question from your bank? Existing assessments will keep their question.');
   });
 
   it('separates loading errors from empty results and retries failed loads', async () => {

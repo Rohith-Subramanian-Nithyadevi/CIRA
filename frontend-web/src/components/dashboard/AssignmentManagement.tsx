@@ -4,9 +4,11 @@ import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
 import DOMPurify from 'dompurify';
 import { Trash2, FileText } from 'lucide-react';
+import { toast } from 'sonner';
 import { Card, CardContent } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { ConfirmationDialog, ErrorState } from '@/components/ui/facultyPrimitives';
+import { ErrorState } from '@/components/ui/facultyPrimitives';
+import { DeleteConfirmationDialog } from '@/components/ui/DeleteConfirmationDialog';
 import { useBatches, useDepartments } from '@/hooks/useReferenceData';
 import AssignmentSubmissionsView from './AssignmentSubmissionsView';
 import { apiClient } from '@/lib/apiClient';
@@ -62,7 +64,7 @@ export default function AssignmentManagement() {
   const [isCreating, setIsCreating] = useState(false);
   const [activeAssignmentId, setActiveAssignmentId] = useState<string | null>(null);
   const [selectedAssignmentForSubmissions, setSelectedAssignmentForSubmissions] = useState<string | null>(null);
-  const [assignmentToDelete, setAssignmentToDelete] = useState<string | null>(null);
+  const [assignmentToDelete, setAssignmentToDelete] = useState<{ id: string; title: string } | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [title, setTitle] = useState('');
@@ -230,15 +232,25 @@ export default function AssignmentManagement() {
     setIsCreating(true);
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async () => {
+    if (!assignmentToDelete) return;
+    const { id } = assignmentToDelete;
     if (isDemo) {
       setAssignments(previous => previous.filter(assignment => assignment.id !== id));
+      setAssignmentToDelete(null);
+      toast.success('Demo assignment deleted locally.');
       return;
     }
-    try {
-      await apiClient.fetch(`/api/v1/assignments/faculty/${id}`, { method: 'DELETE' });
-      setAssignments(assignments.filter(a => a.id !== id));
-    } catch (err) {}
+    const res = await apiClient.fetch(`/api/v1/assignments/faculty/${id}`, { method: 'DELETE' });
+    const data = await res.json?.().catch(() => null);
+    if (res?.ok === false || data?.success === false) {
+      const msg = data?.message || data?.error?.message || 'Failed to delete assignment.';
+      toast.error(msg);
+      throw new Error(msg);
+    }
+    setAssignments(previous => previous.filter(a => a.id !== id));
+    setAssignmentToDelete(null);
+    toast.success('Assignment deleted successfully.');
   };
 
   const visibleAssignments = assignments.filter(assignment =>
@@ -320,17 +332,6 @@ export default function AssignmentManagement() {
                   </div>
                 )}
                 {loadError && <ErrorState message={loadError} onRetry={() => fetchAssignments(1)} className="mb-6" />}
-                <ConfirmationDialog
-                  open={Boolean(assignmentToDelete)}
-                  title="Delete assignment?"
-                  description="This assignment will be permanently removed."
-                  confirmLabel="Delete assignment"
-                  onCancel={() => setAssignmentToDelete(null)}
-                  onConfirm={() => {
-                    if (assignmentToDelete) handleDelete(assignmentToDelete);
-                    setAssignmentToDelete(null);
-                  }}
-                />
                 {targetDeptId !== 'all' && (
                   <div>
                     <label className="block text-xs font-semibold text-gray-body mb-1">Target Section</label>
@@ -380,7 +381,7 @@ export default function AssignmentManagement() {
                 </div>
                 <div className="flex items-center gap-2">
                   <button onClick={() => handleEdit(a)} className="text-gray-body opacity-0 group-hover:opacity-100 p-2 hover:bg-cream rounded transition-all">Edit</button>
-                  <button aria-label={`Delete ${a.title}`} onClick={() => handleDelete(a.id)} className="text-red-500 opacity-0 group-hover:opacity-100 p-2 hover:bg-red-50 dark:hover:bg-red-950/30 rounded transition-all"><Trash2 className="w-5 h-5"/></button>
+                  <button aria-label={`Delete ${a.title}`} onClick={() => setAssignmentToDelete({ id: a.id, title: a.title })} className="text-red-500 opacity-0 group-hover:opacity-100 p-2 hover:bg-red-50 dark:hover:bg-red-950/30 rounded transition-all"><Trash2 className="w-5 h-5"/></button>
                 </div>
               </div>
             ))
@@ -395,6 +396,15 @@ export default function AssignmentManagement() {
           </div>
         )}
       </CardContent>
+      <DeleteConfirmationDialog
+        open={Boolean(assignmentToDelete)}
+        itemName={assignmentToDelete?.title || 'this assignment'}
+        title="Confirm Deletion"
+        description="This assignment and any associated schedule target will be permanently deleted. This action cannot be undone."
+        confirmLabel="Delete"
+        onCancel={() => setAssignmentToDelete(null)}
+        onConfirm={handleDelete}
+      />
     </Card>
   );
 }

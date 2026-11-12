@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { QuestionType } from '@prisma/client';
 import { prisma } from '../config/prisma';
-import { BadRequestError, ForbiddenError, UnauthorizedError } from '../utils/errors';
+import { BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError } from '../utils/errors';
 
 // Get All Quizzes for logged in Faculty
 export const getQuizzes = async (req: Request, res: Response, next: NextFunction) => {
@@ -87,7 +87,7 @@ export const getQuizById = async (req: Request, res: Response, next: NextFunctio
     const quiz = await prisma.quiz.findUnique({
       where: { id: quizId },
       include: {
-        questions: true,
+        questions: { orderBy: { createdAt: 'asc' } },
         targetDepartments: { include: { department: { select: { id: true, name: true } } } },
         targetSections: { include: { section: { select: { id: true, name: true } } } }
       }
@@ -111,19 +111,23 @@ export const getQuizById = async (req: Request, res: Response, next: NextFunctio
 export const deleteQuiz = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const quizId = req.params.quizId as string;
-    const userId = (req as any).user?.userId || 'system';
+    const userId = (req as any).user?.userId;
     const userRole = (req as any).user?.role;
+
+    if (!userId) {
+      throw new UnauthorizedError('Authentication required');
+    }
 
     const quiz = await prisma.quiz.findUnique({
       where: { id: quizId }
     });
 
     if (!quiz) {
-      throw new BadRequestError('Quiz not found', 'NOT_FOUND');
+      throw new NotFoundError('Quiz not found', 'NOT_FOUND');
     }
 
     if (userRole !== 'ADMIN' && quiz.createdBy !== userId) {
-      throw new BadRequestError('Not authorized to delete this quiz', 'UNAUTHORIZED');
+      throw new ForbiddenError('Not authorized to delete this quiz', 'UNAUTHORIZED');
     }
 
     await prisma.quiz.delete({
@@ -160,10 +164,22 @@ export const createQuiz = async (req: Request, res: Response, next: NextFunction
     // We assume the auth middleware sets req.user
     const createdBy = (req as any).user?.userId || 'system';
 
+    // Retrieve faculty subject from user profile as the source of truth if available
+    let resolvedSubject = subject;
+    if (createdBy && createdBy !== 'system') {
+      const faculty = await prisma.user.findUnique({
+        where: { id: createdBy },
+        select: { subject: true }
+      });
+      if (faculty?.subject) {
+        resolvedSubject = faculty.subject;
+      }
+    }
+
     const quiz = await prisma.quiz.create({
       data: {
         title,
-        subject,
+        subject: resolvedSubject,
         description,
         instructions,
         totalMarks: Number(totalMarks) || 0,
@@ -193,7 +209,7 @@ export const createQuiz = async (req: Request, res: Response, next: NextFunction
   }
 };
 
-// Update quiz metadata and publication targets without changing its questions.
+// Update quiz metadata, targets, and optionally questions (when no attempts exist yet).
 export const updateQuiz = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const quizId = req.params.quizId as string;
@@ -214,21 +230,40 @@ export const updateQuiz = async (req: Request, res: Response, next: NextFunction
       performanceBands,
       targetDepartments = [],
       targetSections = [],
-      targetStudents = []
+      targetStudents = [],
+      questions
     } = req.body;
 
     const existing = await prisma.quiz.findUnique({ where: { id: quizId } });
-    if (!existing) throw new BadRequestError('Quiz not found', 'NOT_FOUND');
+    if (!existing) throw new NotFoundError('Quiz not found', 'NOT_FOUND');
     if (userRole !== 'ADMIN' && existing.createdBy !== userId) {
-      throw new BadRequestError('Not authorized to edit this quiz', 'UNAUTHORIZED');
+      throw new ForbiddenError('Not authorized to edit this quiz', 'FORBIDDEN');
+    }
+
+    let resolvedSubject = subject ?? existing.subject;
+    if (existing.createdBy && existing.createdBy !== 'system') {
+      const faculty = await prisma.user.findUnique({
+        where: { id: existing.createdBy },
+        select: { subject: true }
+      });
+      if (faculty?.subject) {
+        resolvedSubject = faculty.subject;
+      }
     }
 
     const updated = await prisma.$transaction(async (tx) => {
+      if (Array.isArray(questions)) {
+        const attemptCount = await tx.quizAttempt.count({ where: { quizId } });
+        if (attemptCount > 0) {
+          throw new BadRequestError('Cannot modify quiz questions after student attempts exist.', 'FORBIDDEN');
+        }
+      }
+
       const quiz = await tx.quiz.update({
         where: { id: quizId },
         data: {
           title,
-          subject,
+          subject: resolvedSubject,
           description,
           instructions,
           totalMarks: Number(totalMarks) || 0,
@@ -253,7 +288,45 @@ export const updateQuiz = async (req: Request, res: Response, next: NextFunction
         await tx.quizSection.createMany({ data: targetSections.map((sectionId: string) => ({ quizId, sectionId })) });
       }
       if (Array.isArray(targetStudents) && targetStudents.length) {
-        await tx.quizStudent.createMany({ data: targetStudents.map((userId: string) => ({ quizId, userId })) });
+        await tx.quizStudent.createMany({ data: targetStudents.map((studentId: string) => ({ quizId, userId: studentId })) });
+      }
+
+      if (Array.isArray(questions)) {
+        await tx.questionUsage.deleteMany({ where: { quizId, question: { quizId } } });
+        await tx.question.deleteMany({ where: { quizId } });
+
+        for (let sortOrder = 0; sortOrder < questions.length; sortOrder++) {
+          const q = questions[sortOrder];
+          await tx.question.create({
+            data: {
+              quizId,
+              ownerId: existing.createdBy,
+              category: 'TEST_QUIZ',
+              subject: q.subject ?? resolvedSubject,
+              type: q.type as QuestionType,
+              text: q.text,
+              topic: q.topic ?? null,
+              subtopic: q.subtopic ?? null,
+              difficulty: q.difficulty ?? null,
+              tags: Array.isArray(q.tags) ? q.tags : [],
+              marks: Number(q.marks) || 1,
+              negativeMarks: Number(q.negativeMarks) || 0,
+              options: q.options ?? undefined,
+              answerKey: q.answerKey ?? undefined,
+              explanation: q.explanation ?? undefined,
+              image: q.image ?? undefined,
+              usages: {
+                create: {
+                  category: 'TEST_QUIZ',
+                  quizId,
+                  assessmentTitle: quiz.title,
+                  marks: Number(q.marks) || 1,
+                  sortOrder
+                }
+              }
+            }
+          });
+        }
       }
 
       return quiz;
@@ -313,31 +386,287 @@ export const addQuestions = async (req: Request, res: Response, next: NextFuncti
   }
 };
 
-// Get Submissions for Grading
+// Helper to build a consistent class identifier and human-readable label for a student/target
+const buildClassMeta = (
+  department?: { id?: string; name?: string; batch?: { id?: string; name?: string } | null } | null,
+  section?: { id?: string; name?: string; departmentId?: string; department?: { id?: string; name?: string; batch?: { id?: string; name?: string } | null } | null } | null
+) => {
+  const resolvedDept = department || section?.department || null;
+  const batchName = resolvedDept?.batch?.name || '';
+  const departmentId = resolvedDept?.id || section?.departmentId || null;
+  const departmentName = resolvedDept?.name || '';
+  const sectionId = section?.id || null;
+  const sectionName = section?.name || '';
+
+  if (!departmentId && !sectionId) {
+    return {
+      classKey: 'unassigned',
+      classLabel: 'Unassigned Class',
+      shortLabel: 'Unassigned',
+      batchName: '',
+      departmentId: null,
+      departmentName: '',
+      sectionId: null,
+      sectionName: '',
+    };
+  }
+
+  const classKey = sectionId ? `section:${sectionId}` : `dept:${departmentId}`;
+  const shortLabel = sectionName
+    ? `${departmentName || 'Department'} – ${sectionName}`
+    : departmentName || 'Department';
+  const classLabel = batchName ? `${batchName} · ${shortLabel}` : shortLabel;
+
+  return {
+    classKey,
+    classLabel,
+    shortLabel,
+    batchName,
+    departmentId,
+    departmentName,
+    sectionId,
+    sectionName,
+  };
+};
+
+// Get Submissions for View Submissions / Grading (complete assigned class roster + attempts)
 export const getSubmissions = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const quizId = req.params.quizId as string;
     const userId = (req as any).user?.userId;
     const userRole = (req as any).user?.role;
 
-    if (userRole !== 'ADMIN') {
-      const quiz = await prisma.quiz.findUnique({ where: { id: quizId }, select: { createdBy: true } });
-      if (!quiz) throw new BadRequestError('Quiz not found', 'NOT_FOUND');
-      if (quiz.createdBy !== userId) {
-        throw new UnauthorizedError('Not authorized to view submissions for this quiz', 'UNAUTHORIZED');
+    const quiz = await prisma.quiz.findUnique({
+      where: { id: quizId },
+      select: {
+        id: true,
+        title: true,
+        subject: true,
+        totalMarks: true,
+        answersPublished: true,
+        createdBy: true,
+        targetDepartments: {
+          select: {
+            departmentId: true,
+            department: {
+              select: {
+                id: true,
+                name: true,
+                batch: { select: { id: true, name: true } }
+              }
+            }
+          }
+        },
+        targetSections: {
+          select: {
+            sectionId: true,
+            section: {
+              select: {
+                id: true,
+                name: true,
+                departmentId: true,
+                department: {
+                  select: {
+                    id: true,
+                    name: true,
+                    batch: { select: { id: true, name: true } }
+                  }
+                }
+              }
+            }
+          }
+        },
+        targetStudents: {
+          select: { userId: true }
+        }
+      }
+    });
+    if (!quiz) throw new NotFoundError('Quiz not found', 'NOT_FOUND');
+    if (userRole !== 'ADMIN' && quiz.createdBy !== userId) {
+      throw new ForbiddenError('Not authorized to view submissions for this quiz', 'FORBIDDEN');
+    }
+
+    const targetDepartments = quiz.targetDepartments || [];
+    const targetSections = quiz.targetSections || [];
+    const targetStudents = quiz.targetStudents || [];
+
+    // When specific sections are assigned within a department, scope to those sections rather than the whole department
+    const departmentsWithSpecificSections = new Set(
+      targetSections.map((ts: any) => ts.section?.departmentId || ts.section?.department?.id).filter(Boolean)
+    );
+    const wholeDepartmentTargets = targetDepartments.filter(
+      (td: any) => !departmentsWithSpecificSections.has(td.departmentId)
+    );
+
+    const targetSectionIds = targetSections.map((ts: any) => ts.sectionId).filter(Boolean);
+    const wholeDepartmentIds = wholeDepartmentTargets.map((td: any) => td.departmentId).filter(Boolean);
+    const targetStudentIds = targetStudents.map((ts: any) => ts.userId).filter(Boolean);
+
+    const audienceOrFilters: any[] = [];
+    if (targetSectionIds.length > 0) audienceOrFilters.push({ sectionId: { in: targetSectionIds } });
+    if (wholeDepartmentIds.length > 0) audienceOrFilters.push({ departmentId: { in: wholeDepartmentIds } });
+    if (targetStudentIds.length > 0) audienceOrFilters.push({ id: { in: targetStudentIds } });
+
+    const [attempts, eligibleStudents] = await Promise.all([
+      prisma.quizAttempt.findMany({
+        where: { quizId },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              rollNumber: true,
+              email: true,
+              departmentId: true,
+              sectionId: true,
+              department: { select: { id: true, name: true, batch: { select: { id: true, name: true } } } },
+              section: { select: { id: true, name: true } }
+            }
+          },
+          responses: { include: { question: true } }
+        },
+        orderBy: { createdAt: 'desc' }
+      }),
+      audienceOrFilters.length > 0
+        ? prisma.user.findMany({
+            where: {
+              role: 'STUDENT',
+              approvalStatus: { not: 'REJECTED' },
+              OR: audienceOrFilters
+            },
+            select: {
+              id: true,
+              name: true,
+              rollNumber: true,
+              email: true,
+              departmentId: true,
+              sectionId: true,
+              department: { select: { id: true, name: true, batch: { select: { id: true, name: true } } } },
+              section: { select: { id: true, name: true } }
+            },
+            orderBy: [{ rollNumber: 'asc' }, { name: 'asc' }]
+          })
+        : Promise.resolve([])
+    ]);
+
+    // Map latest attempt per student (deduplicated by userId)
+    const attemptByUserId = new Map<string, any>();
+    for (const attempt of attempts as any[]) {
+      const attemptUserId = attempt.userId || attempt.user?.id || attempt.student?.id;
+      if (attemptUserId && !attemptByUserId.has(attemptUserId)) {
+        attemptByUserId.set(attemptUserId, attempt);
       }
     }
-    
-    const attempts = await prisma.quizAttempt.findMany({
-      where: { quizId },
-      include: {
-        user: { select: { name: true, rollNumber: true, email: true } },
-        responses: { include: { question: true } }
-      },
-      orderBy: { createdAt: 'desc' }
-    });
 
-    res.status(200).json({ status: 'success', data: attempts });
+    // Collect assigned class metadata in deterministic order
+    const classMap = new Map<string, ReturnType<typeof buildClassMeta>>();
+    for (const ts of targetSections as any[]) {
+      const meta = buildClassMeta(ts.section?.department, ts.section);
+      if (!classMap.has(meta.classKey)) classMap.set(meta.classKey, meta);
+    }
+    for (const td of wholeDepartmentTargets as any[]) {
+      const meta = buildClassMeta(td.department, null);
+      if (!classMap.has(meta.classKey)) classMap.set(meta.classKey, meta);
+    }
+
+    // Merge eligible roster students with any existing attempt students (no duplicate students)
+    const seenUserIds = new Set<string>();
+    const roster: any[] = [];
+
+    const pushRosterRow = (student: any, attempt: any | null) => {
+      const studentId = student?.id;
+      if (!studentId || seenUserIds.has(studentId)) return;
+      seenUserIds.add(studentId);
+
+      // Prefer section-level class key when quiz targets that section or whole department
+      const meta = buildClassMeta(student.department, student.section);
+      const effectiveClassKey =
+        meta.sectionId && classMap.has(`section:${meta.sectionId}`)
+          ? `section:${meta.sectionId}`
+          : meta.departmentId && classMap.has(`dept:${meta.departmentId}`)
+          ? `dept:${meta.departmentId}`
+          : meta.classKey;
+
+      const resolvedClassMeta = classMap.get(effectiveClassKey) || meta;
+      if (!classMap.has(resolvedClassMeta.classKey) && (student.departmentId || student.sectionId)) {
+        classMap.set(resolvedClassMeta.classKey, resolvedClassMeta);
+      }
+
+      const attemptStatus = attempt?.status || 'NOT_SUBMITTED';
+      const hasSubmitted = Boolean(attempt && attemptStatus !== 'IN_PROGRESS');
+
+      roster.push({
+        id: attempt?.id || null,
+        userId: studentId,
+        quizId,
+        hasSubmitted,
+        status: attemptStatus,
+        startTime: attempt?.startTime || null,
+        endTime: attempt?.endTime || null,
+        objectiveScore: attempt ? attempt.objectiveScore : null,
+        writtenScore: attempt ? attempt.writtenScore : null,
+        totalScore: attempt ? attempt.totalScore : null,
+        facultyFeedback: attempt?.facultyFeedback || null,
+        violationReason: attempt?.violationReason || null,
+        responses: attempt?.responses || [],
+        classKey: resolvedClassMeta.classKey,
+        classLabel: resolvedClassMeta.classLabel,
+        classShortLabel: resolvedClassMeta.shortLabel,
+        user: {
+          id: studentId,
+          name: student.name,
+          rollNumber: student.rollNumber,
+          email: student.email,
+          departmentId: student.departmentId || null,
+          sectionId: student.sectionId || null,
+          department: student.department || null,
+          section: student.section || null,
+        },
+      });
+    };
+
+    for (const student of eligibleStudents as any[]) {
+      pushRosterRow(student, attemptByUserId.get(student.id) || null);
+    }
+    for (const attempt of attempts as any[]) {
+      const student = attempt.user || attempt.student;
+      if (student?.id) {
+        pushRosterRow(student, attempt);
+      }
+    }
+
+    const submittedCount = roster.filter(r => r.hasSubmitted).length;
+    const violatedCount = roster.filter(r => Boolean(r.violationReason)).length;
+    const summary = {
+      totalAssigned: roster.length,
+      submitted: submittedCount,
+      notSubmitted: roster.length - submittedCount,
+      violated: violatedCount,
+    };
+
+    res.status(200).json({
+      status: 'success',
+      quiz: {
+        id: quiz.id,
+        title: quiz.title,
+        subject: quiz.subject,
+        totalMarks: quiz.totalMarks,
+        answersPublished: quiz.answersPublished
+      },
+      data: attempts,
+      roster,
+      assignedClasses: Array.from(classMap.values()).map(c => ({
+        id: c.classKey,
+        label: c.classLabel,
+        shortLabel: c.shortLabel,
+        batchName: c.batchName,
+        departmentId: c.departmentId,
+        departmentName: c.departmentName,
+        sectionId: c.sectionId,
+        sectionName: c.sectionName,
+      })),
+      summary,
+    });
   } catch (error) {
     next(error);
   }
@@ -428,24 +757,32 @@ export const evaluateAttempt = async (req: Request, res: Response, next: NextFun
   }
 };
 
-export const togglePublishAnswers = async (req: Request, res: Response, next: NextFunction) => {
+export const publishQuizAnswers = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const quizId = req.params.quizId as string;
-    const { publish } = req.body;
+    const { publish } = req.body ?? {};
     
-    const userId = (req as any).user?.userId || 'system';
+    const userId = (req as any).user?.userId;
     const userRole = (req as any).user?.role;
     
     const quiz = await prisma.quiz.findUnique({ where: { id: quizId } });
-    if (!quiz) throw new BadRequestError('Quiz not found', 'NOT_FOUND');
+    if (!quiz) throw new NotFoundError('Quiz not found', 'NOT_FOUND');
     
-    if (userRole !== 'ADMIN' && quiz.createdBy !== userId) {
-      throw new BadRequestError('Not authorized', 'UNAUTHORIZED');
+    if (userRole !== 'ADMIN' && (!userId || quiz.createdBy !== userId)) {
+      throw new ForbiddenError('Not authorized to publish answers for this quiz', 'FORBIDDEN');
+    }
+
+    if (publish === false) {
+      throw new BadRequestError('Published quiz answers cannot be unpublished.', 'INVALID_OPERATION');
+    }
+
+    if (quiz.answersPublished) {
+      throw new BadRequestError('Answers have already been published for this quiz.', 'ALREADY_PUBLISHED');
     }
     
     const updated = await prisma.quiz.update({
       where: { id: quizId },
-      data: { answersPublished: Boolean(publish) }
+      data: { answersPublished: true }
     });
     
     res.status(200).json({ status: 'success', data: updated });
@@ -502,7 +839,7 @@ export const uploadDocxParser = async (req: Request, res: Response, next: NextFu
         if (q.type === 'MATCHING' && q.options.length === 0) {
           throw new BadRequestError(`Validation Failed: Question ${num} (Match the Following) has invalid or missing mappings.`, 'VALIDATION_ERROR');
         }
-        if (['SHORT_WRITTEN', 'LONG_WRITTEN', 'NUMERICAL'].includes(q.type) && q.answerKey === null) {
+        if (['SHORT_WRITTEN', 'LONG_WRITTEN', 'NUMERICAL', 'FILL_BLANK'].includes(q.type) && q.answerKey === null) {
           throw new BadRequestError(`Validation Failed: Question ${num} is missing expected answer.`, 'VALIDATION_ERROR');
         }
       };
@@ -567,6 +904,7 @@ export const uploadDocxParser = async (req: Request, res: Response, next: NextFu
             else if (qt.includes('short answer')) currentQ.type = 'SHORT_WRITTEN';
             else if (qt.includes('long answer')) currentQ.type = 'LONG_WRITTEN';
             else if (qt.includes('match')) currentQ.type = 'MATCHING';
+            else if (qt.includes('fill') || qt.includes('blank')) currentQ.type = 'FILL_BLANK';
           }
           else if (text.startsWith('Question Text:')) currentQ.text = text.substring(14).trim();
           else if (text.startsWith('Image:')) {

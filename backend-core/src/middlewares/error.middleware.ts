@@ -23,6 +23,14 @@ export const errorHandler = (
   if ((err as any).code === 'P2022') {
     error.code = 'ERR_FEATURE_UNAVAILABLE';
     error.message = 'This section is temporarily unavailable while a system update is completed. Please try again later or contact your administrator.';
+  } else if ((err as any).code === 'P2025') {
+    statusCode = 404;
+    error.code = 'ERR_NOT_FOUND';
+    error.message = 'The requested record was not found or has already been deleted.';
+  } else if ((err as any).code === 'P2003') {
+    statusCode = 409;
+    error.code = 'ERR_CONFLICT';
+    error.message = 'Cannot delete this record because related items depend on it.';
   }
 
   if (err instanceof AppError) {

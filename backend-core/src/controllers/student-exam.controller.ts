@@ -1,8 +1,62 @@
 import { Request, Response, NextFunction } from 'express';
-import { ResponseStatus, QuestionType } from '@prisma/client';
 import { prisma } from '../config/prisma';
-import { BadRequestError, ForbiddenError, UnauthorizedError } from '../utils/errors';
+import { BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError } from '../utils/errors';
 import { assertStudentOwnsAttempt } from '../utils/faculty-security';
+
+const OBJECTIVE_TYPES = ['MCQ', 'MULTI_SELECT', 'TRUE_FALSE', 'MATCHING', 'NUMERICAL', 'FILL_BLANK'];
+
+export function isObjectiveAnswerCorrect(question: any, answerData: any): boolean {
+  if (!question || question.answerKey === null || question.answerKey === undefined) return false;
+  if (answerData === null || answerData === undefined || answerData === '') return false;
+
+  if (question.type === 'NUMERICAL') {
+    return Number(answerData) === Number(question.answerKey);
+  }
+
+  if (question.type === 'MATCHING') {
+    if (Array.isArray(answerData) && Array.isArray(question.answerKey)) {
+      const normalizePairs = (arr: any[]) =>
+        arr.map((item: any) => ({
+          left: String(item.left || '').trim().toLowerCase(),
+          right: String(item.right || '').trim().toLowerCase()
+        })).sort((a: any, b: any) => a.left.localeCompare(b.left));
+      return JSON.stringify(normalizePairs(answerData)) === JSON.stringify(normalizePairs(question.answerKey));
+    }
+    return JSON.stringify(answerData) === JSON.stringify(question.answerKey);
+  }
+
+  if (question.type === 'MULTI_SELECT') {
+    if (Array.isArray(answerData) && Array.isArray(question.answerKey)) {
+      return JSON.stringify([...answerData].sort()) === JSON.stringify([...question.answerKey].sort());
+    }
+    return JSON.stringify(answerData) === JSON.stringify(question.answerKey);
+  }
+
+  if (question.type === 'FILL_BLANK') {
+    const normalize = (val: any) => String(val ?? '').trim().toLowerCase();
+    const key = question.answerKey;
+    if (Array.isArray(key)) {
+      if (Array.isArray(answerData)) {
+        if (answerData.length !== key.length) return false;
+        return key.every((expected: any, idx: number) => {
+          const studentVal = normalize(answerData[idx]);
+          if (Array.isArray(expected)) {
+            return expected.some((ans: any) => normalize(ans) === studentVal);
+          }
+          const expectedOptions = String(expected).split(',').map(s => normalize(s));
+          return expectedOptions.includes(studentVal);
+        });
+      }
+      const studentVal = normalize(answerData);
+      return key.some((variant: any) => normalize(variant) === studentVal);
+    }
+    const studentVal = normalize(answerData);
+    const expectedList = String(key).split(',').map(s => normalize(s));
+    return expectedList.includes(studentVal);
+  }
+
+  return answerData === question.answerKey;
+}
 
 // Get eligible quizzes for the logged-in student
 export const getEligibleQuizzes = async (req: Request, res: Response, next: NextFunction) => {
@@ -53,7 +107,115 @@ export const getEligibleQuizzes = async (req: Request, res: Response, next: Next
       }
     });
 
-    res.status(200).json({ status: 'success', data: quizzes });
+    // Redact score/evaluation data from student eligible quiz attempts until answers are published
+    const sanitizedQuizzes = quizzes.map((quiz) => ({
+      ...quiz,
+      attempts: quiz.attempts.map((attempt) =>
+        quiz.answersPublished
+          ? attempt
+          : {
+              id: attempt.id,
+              quizId: attempt.quizId,
+              userId: attempt.userId,
+              status: attempt.status,
+              startTime: attempt.startTime,
+              endTime: attempt.endTime
+            }
+      )
+    }));
+
+    res.status(200).json({ status: 'success', data: sanitizedQuizzes });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Get read-only quiz instructions & validate student eligibility without creating an attempt
+export const getQuizInstructions = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const quizId = req.params.quizId as string;
+    const userId = (req as any).user?.userId;
+    if (!userId) throw new UnauthorizedError('User not authenticated', 'UNAUTHORIZED');
+
+    const quiz = await prisma.quiz.findUnique({
+      where: { id: quizId },
+      include: {
+        targetDepartments: true,
+        targetSections: true,
+        targetStudents: true,
+        questions: { select: { id: true } },
+        questionUsages: { where: { isFinalized: true }, select: { questionId: true } }
+      }
+    });
+
+    if (!quiz) throw new NotFoundError('Quiz not found', 'NOT_FOUND');
+
+    const student = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { departmentId: true, sectionId: true }
+    });
+
+    const targeted =
+      quiz.targetDepartments.some((target) => target.departmentId === student?.departmentId) ||
+      quiz.targetSections.some((target) => target.sectionId === student?.sectionId) ||
+      quiz.targetStudents.some((target) => target.userId === userId);
+
+    if (quiz.paperStatus !== 'PUBLISHED' || !targeted) {
+      throw new ForbiddenError('This assessment is not available to your class.', 'FORBIDDEN');
+    }
+
+    const attempt = await prisma.quizAttempt.findFirst({
+      where: { quizId, userId },
+      select: { id: true, status: true, startTime: true }
+    });
+
+    if (attempt) {
+      if (attempt.status !== 'IN_PROGRESS') {
+        throw new BadRequestError('You have already submitted this quiz.', 'ALREADY_SUBMITTED');
+      }
+      const ageInSeconds = (Date.now() - new Date(attempt.startTime).getTime()) / 1000;
+      if (ageInSeconds > 60) {
+        await prisma.quizAttempt.update({
+          where: { id: attempt.id },
+          data: { status: 'SUBMITTED', endTime: new Date() }
+        });
+        throw new BadRequestError(
+          'You left the secure exam environment. Your exam has been automatically submitted and cannot be resumed.',
+          'FORBIDDEN'
+        );
+      }
+    } else {
+      const now = new Date();
+      if (quiz.startDate && quiz.startDate > now) {
+        throw new BadRequestError('Exam has not started yet', 'NOT_STARTED');
+      }
+      if (quiz.endDate && quiz.endDate < now) {
+        throw new BadRequestError('Exam has already ended', 'EXPIRED');
+      }
+    }
+
+    const questionIds = new Set([
+      ...quiz.questions.map((q) => q.id),
+      ...quiz.questionUsages.map((u) => u.questionId)
+    ]);
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        quiz: {
+          id: quiz.id,
+          title: quiz.title,
+          subject: quiz.subject,
+          description: quiz.description,
+          totalMarks: quiz.totalMarks,
+          passingMarks: quiz.passingMarks,
+          durationMinutes: quiz.durationMinutes,
+          startDate: quiz.startDate,
+          endDate: quiz.endDate,
+          questionCount: questionIds.size
+        }
+      }
+    });
   } catch (error) {
     next(error);
   }
@@ -228,61 +390,55 @@ export const submitExam = async (req: Request, res: Response, next: NextFunction
     let objectiveScore = 0;
 
     // Auto Evaluate
+    const responseUpdates: { id: string; marksAwarded: number }[] = [];
     for (const response of attempt.responses) {
       if (response.status === 'ANSWERED' || response.status === 'ANSWERED_AND_MARKED_FOR_REVIEW') {
         const question = gradingQuestions.find((q: any) => q.id === response.questionId);
         if (question) {
-          // Objective evaluation logic based on type
-          const isObjective = ['MCQ', 'MULTI_SELECT', 'TRUE_FALSE', 'MATCHING', 'NUMERICAL', 'FILL_BLANK'].includes(question.type);
-          
-          if (isObjective && question.answerKey) {
-            let isCorrect = false;
-
-            if (question.type === 'NUMERICAL') {
-              // Exact numerical match (can be enhanced to handle tolerance)
-              isCorrect = Number(response.answerData) === Number(question.answerKey);
-            } else if (question.type === 'MULTI_SELECT' || question.type === 'MATCHING') {
-              // Deep equality check for arrays or objects
-              const answerStr = JSON.stringify(response.answerData);
-              const keyStr = JSON.stringify(question.answerKey);
-              // Simple check for arrays (assuming order doesn't matter for multi_select, sorting them)
-              if (Array.isArray(response.answerData) && Array.isArray(question.answerKey)) {
-                if (question.type === 'MATCHING') {
-                  const ansSorted = [...response.answerData].sort((a: any, b: any) => (a.left || '').localeCompare(b.left || ''));
-                  const keySorted = [...question.answerKey].sort((a: any, b: any) => (a.left || '').localeCompare(b.left || ''));
-                  isCorrect = JSON.stringify(ansSorted) === JSON.stringify(keySorted);
-                } else {
-                  isCorrect = JSON.stringify([...response.answerData].sort()) === JSON.stringify([...question.answerKey].sort());
-                }
-              } else {
-                isCorrect = answerStr === keyStr;
-              }
-            } else {
-              isCorrect = response.answerData === question.answerKey;
-            }
-
-            if (isCorrect) {
-              objectiveScore += question.marks;
-            } else {
-              objectiveScore -= question.negativeMarks;
-            }
+          const isObjective = OBJECTIVE_TYPES.includes(question.type);
+          if (isObjective && question.answerKey !== null && question.answerKey !== undefined) {
+            const isCorrect = isObjectiveAnswerCorrect(question, response.answerData);
+            const awarded = isCorrect ? Number(question.marks || 0) : -Number(question.negativeMarks || 0);
+            objectiveScore += awarded;
+            responseUpdates.push({ id: response.id, marksAwarded: awarded });
           }
         }
       }
     }
 
-    const updated = await prisma.quizAttempt.update({
-      where: { id: attemptId },
-      data: {
-        status: 'SUBMITTED',
-        endTime: new Date(),
-        objectiveScore,
-        totalScore: objectiveScore, // Written score is 0 until graded
-        violationReason: violationReason || null
+    const updated = await prisma.$transaction(async (tx) => {
+      for (const upd of responseUpdates) {
+        await tx.quizResponse.update({
+          where: { id: upd.id },
+          data: { marksAwarded: upd.marksAwarded }
+        });
       }
+
+      return tx.quizAttempt.update({
+        where: { id: attemptId },
+        data: {
+          status: 'SUBMITTED',
+          endTime: new Date(),
+          objectiveScore,
+          totalScore: objectiveScore, // Written score is 0 until graded
+          violationReason: violationReason || null
+        }
+      });
     });
 
-    res.status(200).json({ status: 'success', data: updated });
+    res.status(200).json({
+      status: 'success',
+      message: 'Quiz submitted successfully',
+      data: attempt.quiz.answersPublished
+        ? updated
+        : {
+            id: updated.id,
+            quizId: updated.quizId,
+            status: updated.status,
+            startTime: updated.startTime,
+            endTime: updated.endTime
+          }
+    });
   } catch (error) {
     next(error);
   }
@@ -318,22 +474,63 @@ export const getQuizResult = async (req: Request, res: Response, next: NextFunct
   try {
     const quizId = req.params.quizId as string;
     const userId = (req as any).user?.userId;
+    if (!userId) throw new UnauthorizedError('Authentication required', 'UNAUTHORIZED');
 
-    const quiz = await prisma.quiz.findUnique({ where: { id: quizId } });
-    if (!quiz) throw new BadRequestError('Quiz not found', 'NOT_FOUND');
-    if (!quiz.answersPublished) throw new BadRequestError('Results are not published yet', 'FORBIDDEN');
+    const quiz = await prisma.quiz.findUnique({ where: { id: quizId }, select: { id: true, answersPublished: true } });
+    if (!quiz) throw new NotFoundError('Quiz not found', 'NOT_FOUND');
+    if (!quiz.answersPublished) throw new ForbiddenError('Results are not published yet', 'FORBIDDEN');
 
     const attempt = await prisma.quizAttempt.findFirst({
       where: { quizId, userId, status: { in: ['SUBMITTED', 'EVALUATED'] } },
       include: {
         responses: true,
-        quiz: { include: { questions: true } }
+        quiz: {
+          include: {
+            questions: { orderBy: { createdAt: 'asc' } },
+            questionUsages: { where: { isFinalized: true }, include: { question: true }, orderBy: { sortOrder: 'asc' } }
+          }
+        }
       }
     });
 
-    if (!attempt) throw new BadRequestError('Attempt not found', 'NOT_FOUND');
+    if (!attempt) throw new NotFoundError('Attempt not found', 'NOT_FOUND');
 
-    res.status(200).json({ status: 'success', data: attempt });
+    // Merge direct questions and finalized question-paper questions
+    const directIds = new Set(attempt.quiz.questions.map((q: any) => q.id));
+    const mergedQuestions = [
+      ...attempt.quiz.questions,
+      ...attempt.quiz.questionUsages
+        .filter((usage: any) => !directIds.has(usage.questionId))
+        .map((usage: any) => ({ ...usage.question, marks: usage.marks }))
+    ];
+
+    const normalizedResponses = attempt.responses.map((r: any) => {
+      if (r.marksAwarded !== null && r.marksAwarded !== undefined) return r;
+      const q = mergedQuestions.find((item: any) => item.id === r.questionId);
+      if (q && OBJECTIVE_TYPES.includes(q.type) && q.answerKey !== null && q.answerKey !== undefined) {
+        const answered = r.answerData !== null && r.answerData !== undefined && r.answerData !== '';
+        const computedMarks = answered
+          ? (isObjectiveAnswerCorrect(q, r.answerData) ? Number(q.marks || 0) : -Number(q.negativeMarks || 0))
+          : 0;
+        return { ...r, marksAwarded: computedMarks };
+      }
+      return r;
+    });
+
+    const sanitizedQuiz = {
+      ...attempt.quiz,
+      questions: mergedQuestions
+    };
+    delete (sanitizedQuiz as any).questionUsages;
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        ...attempt,
+        responses: normalizedResponses,
+        quiz: sanitizedQuiz
+      }
+    });
   } catch (error) {
     next(error);
   }

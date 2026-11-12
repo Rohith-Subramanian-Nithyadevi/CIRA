@@ -1,19 +1,31 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { clearDraft, clearSavedFilters, getDraftStorageKey, getFilterStorageKey, getStoredUserKey, readDraft, readSavedFilters, writeDraft, writeSavedFilters } from '@/lib/facultyPersistence';
 import { apiClient } from '@/lib/apiClient';
 import { downloadCsv } from '@/lib/csv';
 import { useFacultyDemo } from '@/context/FacultyDemoContext';
-import { facultyDemoDepartments, facultyDemoQuizzes } from '@/lib/facultyDemoData';
+import { facultyDemoBatches, facultyDemoDepartments, facultyDemoQuizzes } from '@/lib/facultyDemoData';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Card, CardContent } from '@/components/ui/card';
-import { Sparkles, Clipboard, Check, AlertCircle, Pencil, FileText } from 'lucide-react';
+import { Sparkles, Clipboard, Check, AlertCircle, Pencil, FileText, ChevronLeft, ChevronRight, Printer } from 'lucide-react';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { LoadingState, ErrorState, ConfirmationDialog } from '@/components/ui/facultyPrimitives';
+import { DeleteConfirmationDialog } from '@/components/ui/DeleteConfirmationDialog';
+
+type QuizWizardStep = 1 | 2 | 3 | 4 | 5;
+
+const QUIZ_WIZARD_STEPS: { step: QuizWizardStep; label: string; shortLabel: string; description: string }[] = [
+  { step: 1, label: 'Basic Details', shortLabel: 'Basic', description: 'Enter the quiz title, course subject, and time duration.' },
+  { step: 2, label: 'Schedule', shortLabel: 'Schedule', description: 'Configure optional start and end availability times.' },
+  { step: 3, label: 'Marks', shortLabel: 'Marks', description: 'Set total marks (or auto-calculate) and passing marks.' },
+  { step: 4, label: 'Assign Classes', shortLabel: 'Classes', description: 'Select target batches, departments, and sections.' },
+  { step: 5, label: 'Add Questions', shortLabel: 'Questions', description: 'Add questions via direct paste, DOCX upload, or manual builder.' },
+];
 
 // Helper functions for parsing questions
 const parseMCQs = (rawText: string): any[] => {
@@ -340,24 +352,189 @@ const parseLongWritten = (rawText: string): any[] => {
   return parsed;
 };
 
+const parseMatching = (rawText: string): any[] => {
+  if (!rawText.trim()) return [];
+  const rawLines = rawText.split(/\r?\n/);
+  const questionChunks: { lines: string[] }[] = [];
+  let currentChunk: string[] = [];
+
+  for (let i = 0; i < rawLines.length; i++) {
+    const line = rawLines[i].trim();
+    if (!line) continue;
+
+    const isNumAlone = /^\d+[\.\)]\s*$/.test(line);
+    const isNumWithText = /^\d+[\.\)]\s+/.test(line);
+    const isQWithText = /^(?:Question|Q)\s*\d+[\.\:\)]/i.test(line);
+
+    if (isNumAlone || isNumWithText || isQWithText) {
+      if (currentChunk.length > 0) {
+        questionChunks.push({ lines: currentChunk });
+        currentChunk = [];
+      }
+    }
+    currentChunk.push(line);
+  }
+  if (currentChunk.length > 0) {
+    questionChunks.push({ lines: currentChunk });
+  }
+
+  const parsed: any[] = [];
+  for (const chunk of questionChunks) {
+    const lines = chunk.lines;
+    if (lines.length === 0) continue;
+
+    let startLineIdx = 0;
+    if (/^\d+[\.\)]\s*$/.test(lines[0])) startLineIdx = 1;
+
+    let questionText = '';
+    const pairs: { left: string; right: string }[] = [];
+
+    for (let i = startLineIdx; i < lines.length; i++) {
+      const line = lines[i];
+      // Check for matching pair formats like:
+      // "Term A -> Def A" or "Term A = Def A" or "1. Term -> Def"
+      const pairMatch = line.match(/^(?:(?:\d+|[A-Za-z])[\.\)]\s*)?(.+?)\s*(?:->|=>|=|:)\s*(.+)$/);
+      if (pairMatch && pairMatch[1].trim() && pairMatch[2].trim() && !line.toLowerCase().startsWith('question') && !line.toLowerCase().startsWith('marks')) {
+        pairs.push({
+          left: pairMatch[1].replace(/^\d+[\.\)]\s*/, '').trim(),
+          right: pairMatch[2].replace(/^[A-Za-z0-9][\.\)]\s*/, '').trim()
+        });
+      } else {
+        if (pairs.length === 0) {
+          questionText += (questionText ? '\n' : '') + line.replace(/^(?:Question|Q)\s*\d+[\.\:\)]\s*/i, '');
+        }
+      }
+    }
+
+    if (pairs.length > 0) {
+      parsed.push({
+        type: 'MATCHING',
+        text: questionText.trim() || 'Match the items in Column A with Column B',
+        marks: Math.max(1, pairs.length),
+        options: pairs,
+        answerKey: pairs,
+        topic: ''
+      });
+    }
+  }
+  return parsed;
+};
+
+const parseFillBlanks = (rawText: string): any[] => {
+  if (!rawText.trim()) return [];
+  const rawLines = rawText.split(/\r?\n/);
+  const questionChunks: { lines: string[] }[] = [];
+  let currentChunk: string[] = [];
+
+  for (let i = 0; i < rawLines.length; i++) {
+    const line = rawLines[i].trim();
+    if (!line) continue;
+
+    const isNumAlone = /^\d+[\.\)]\s*$/.test(line);
+    const isNumWithText = /^\d+[\.\)]\s+/.test(line);
+    const isQWithText = /^(?:Question|Q)\s*\d+[\.\:\)]/i.test(line);
+
+    if (isNumAlone || isNumWithText || isQWithText) {
+      if (currentChunk.length > 0) {
+        questionChunks.push({ lines: currentChunk });
+        currentChunk = [];
+      }
+    }
+    currentChunk.push(line);
+  }
+  if (currentChunk.length > 0) {
+    questionChunks.push({ lines: currentChunk });
+  }
+
+  const parsed: any[] = [];
+  for (const chunk of questionChunks) {
+    const lines = chunk.lines;
+    if (lines.length === 0) continue;
+
+    let startLineIdx = 0;
+    if (/^\d+[\.\)]\s*$/.test(lines[0])) startLineIdx = 1;
+
+    let questionText = '';
+    let answerKey = '';
+
+    for (let i = startLineIdx; i < lines.length; i++) {
+      const line = lines[i];
+      const answerMatch = line.match(/^(?:Answer|Correct|Ans|Expected Answer|Key)[\s\:\-\=]+(.*)/i);
+      if (answerMatch) {
+        answerKey = answerMatch[1].trim();
+      } else {
+        questionText += (questionText ? '\n' : '') + line.replace(/^(?:Question|Q)\s*\d+[\.\:\)]\s*/i, '');
+      }
+    }
+
+    // If faculty used underscores like _____ instead of [blank], convert them
+    let normalizedText = questionText.trim();
+    if (!normalizedText.includes('[blank]') && /_{3,}/.test(normalizedText)) {
+      normalizedText = normalizedText.replace(/_{3,}/g, '[blank]');
+    }
+
+    parsed.push({
+      type: 'FILL_BLANK',
+      text: normalizedText,
+      marks: 1,
+      options: null,
+      answerKey: answerKey || '',
+      topic: ''
+    });
+  }
+  return parsed;
+};
+
 export default function QuizManagement({ initialSubmissionsQuizId }: { initialSubmissionsQuizId?: string | null } = {}) {
   const isDemo = useFacultyDemo();
-  const [activeView, setActiveView] = useState<'list' | 'create' | 'add_questions' | 'grade_submissions' | 'evaluate_attempt'>('list');
+  const [activeView, setActiveView] = useState<'list' | 'create' | 'add_questions' | 'view_submissions' | 'evaluate_attempt' | 'print_paper'>('list');
   const [quizzes, setQuizzes] = useState<any[]>([]);
   const quizFilterKey = getFilterStorageKey('quizzes', getStoredUserKey());
   const savedQuizFilters = readSavedFilters<{ search?: string }>(quizFilterKey);
   const [quizSearch, setQuizSearch] = useState(savedQuizFilters?.search || '');
+  const [batches, setBatches] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
+  const [selectedBatchId, setSelectedBatchId] = useState<string>('');
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState<string>('');
+  const [selectedSectionId, setSelectedSectionId] = useState<string>('');
   const [loading, setLoading] = useState(false);
+  const [quizzesLoading, setQuizzesLoading] = useState(() => !isDemo);
+  const [loadingMoreQuizzes, setLoadingMoreQuizzes] = useState(false);
+  const [quizzesError, setQuizzesError] = useState<string | null>(null);
+  const [hasFetchedQuizzes, setHasFetchedQuizzes] = useState(() => isDemo);
+  const [editingQuizIdLoading, setEditingQuizIdLoading] = useState<string | null>(null);
+  const [printingQuizIdLoading, setPrintingQuizIdLoading] = useState<string | null>(null);
+  const [printQuiz, setPrintQuiz] = useState<any | null>(null);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
+  const isMountedRef = useRef(true);
+  const quizzesRequestIdRef = useRef(0);
+  const submissionsRequestIdRef = useRef(0);
   
+  const getInitialFacultySubject = () => {
+    try {
+      const stored = localStorage.getItem('cira_user');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed?.subject) return parsed.subject;
+      }
+    } catch {}
+    return '';
+  };
+
+  const initialSubject = getInitialFacultySubject();
+  const [facultySubject, setFacultySubject] = useState<string>(initialSubject);
+
   // Create Form State
   const [formData, setFormData] = useState({
-    title: '', subject: '', description: '', totalMarks: '', passingMarks: '',
+    title: '', subject: initialSubject, description: '', totalMarks: '', passingMarks: '',
     durationMinutes: '60', startDate: '', endDate: '',
     targetDepartments: [] as string[], targetSections: [] as string[],
   });
+  const [wizardStep, setWizardStep] = useState<QuizWizardStep>(1);
+  const [completedWizardSteps, setCompletedWizardSteps] = useState<QuizWizardStep[]>([]);
+  const [stepErrors, setStepErrors] = useState<Record<string, string>>({});
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
   // Template Config State
   const [showTemplateModal, setShowTemplateModal] = useState(false);
@@ -368,12 +545,12 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
     numericalCount: 0,
     shortCount: 0,
     longCount: 0,
-    matchingCount: 0
+    matchingCount: 0,
+    fillBlankCount: 0
   });
 
-  // Questions State
+  // Questions & Submissions State
   const [activeQuizId, setActiveQuizId] = useState<string | null>(null);
-  const [editingQuizId, setEditingQuizId] = useState<string | null>(null);
   const [questions, setQuestions] = useState<any[]>([{ type: 'MCQ', text: '', marks: 1, options: ['', '', '', ''], answerKey: '', topic: '' }]);
 
   // Bulk Import State
@@ -383,10 +560,29 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
     SHORT_WRITTEN: { selected: false, text: '' },
     NUMERICAL: { selected: false, text: '' },
     LONG_WRITTEN: { selected: false, text: '' },
+    MATCHING: { selected: false, text: '' },
+    FILL_BLANK: { selected: false, text: '' },
   });
 
-  // Grading State
+  // Grading & Publication State
   const [submissions, setSubmissions] = useState<any[]>([]);
+  const [assignedClasses, setAssignedClasses] = useState<{ id: string; label: string; shortLabel?: string }[]>([]);
+  const [selectedClassFilter, setSelectedClassFilter] = useState<string>('ALL');
+  const [submissionStatusFilter, setSubmissionStatusFilter] = useState<'ALL' | 'SUBMITTED' | 'NOT_SUBMITTED' | 'VIOLATED'>('ALL');
+  const [submissionsLoading, setSubmissionsLoading] = useState(false);
+  const [submissionsError, setSubmissionsError] = useState<string | null>(null);
+  const [restartingAttemptId, setRestartingAttemptId] = useState<string | null>(null);
+  const [activeSubmissionsQuiz, setActiveSubmissionsQuiz] = useState<{
+    id: string;
+    title: string;
+    subject?: string | null;
+    totalMarks?: number;
+    answersPublished: boolean;
+  } | null>(null);
+  const [showPublishConfirm, setShowPublishConfirm] = useState(false);
+  const [publishingAnswers, setPublishingAnswers] = useState(false);
+  const [quizPendingDelete, setQuizPendingDelete] = useState<{ id: string; title: string } | null>(null);
+  const [attemptPendingRestart, setAttemptPendingRestart] = useState<{ attemptId: string; studentName: string } | null>(null);
   const [activeAttempt, setActiveAttempt] = useState<any>(null);
   const [evaluations, setEvaluations] = useState<Record<string, number>>({});
   const [facultyFeedback, setFacultyFeedback] = useState('');
@@ -394,7 +590,7 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
   const [parsedTotalQuestions, setParsedTotalQuestions] = useState(0);
   const [restoredQuizDraft, setRestoredQuizDraft] = useState(false);
   const skipQuizDraftWrite = useRef(false);
-  const quizDraftKey = getDraftStorageKey('quiz', activeQuizId || editingQuizId || 'new', getStoredUserKey());
+  const quizDraftKey = getDraftStorageKey('quiz', activeQuizId || 'new', getStoredUserKey());
 
   useEffect(() => {
     if (activeView !== 'create') return;
@@ -426,69 +622,168 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
   }, [quizFilterKey, quizSearch]);
 
   useEffect(() => {
-    fetchQuizzes(1);
-    fetchDepartments();
-  }, [isDemo]);
+    // Automatically retrieve Subject/Course from logged-in faculty profile
+    const fetchFacultyProfile = async () => {
+      try {
+        const storedUserRaw = localStorage.getItem('cira_user');
+        if (storedUserRaw) {
+          const userObj = JSON.parse(storedUserRaw);
+          if (userObj?.subject) {
+            setFacultySubject(userObj.subject);
+            setFormData(prev => prev.subject ? prev : { ...prev, subject: userObj.subject });
+          }
+        }
 
-  const fetchQuizzes = async (pageNumber = 1) => {
+        const res = await apiClient.fetch('/api/v1/auth/me');
+        const data = await res.json();
+        if (data?.data?.user?.subject) {
+          const subj = data.data.user.subject;
+          setFacultySubject(subj);
+          setFormData(prev => prev.subject ? prev : { ...prev, subject: subj });
+        }
+      } catch (err) {
+        console.error('Failed to fetch faculty subject profile', err);
+      }
+    };
+    fetchFacultyProfile();
+  }, []);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  const fetchBatches = async () => {
     try {
       if (isDemo) {
-        setQuizzes(facultyDemoQuizzes);
-        setHasMore(false);
+        if (isMountedRef.current) setBatches(facultyDemoBatches);
         return;
       }
-      const res = await apiClient.fetch(`/api/v1/faculty/quiz?page=${pageNumber}&limit=10`);
+      const res = await apiClient.fetch('/api/v1/batches');
       const data = await res.json();
-      if (data?.data) {
-        const fetchedQuizzes = Array.isArray(data.data) ? data.data : data.data.items;
-        if (pageNumber === 1) {
-          setQuizzes(fetchedQuizzes);
+      if (isMountedRef.current && data?.data?.batches) setBatches(data.data.batches);
+    } catch (err) {
+      console.error('Failed to fetch batches', err);
+    }
+  };
+
+  const fetchQuizzes = useCallback(async (pageNumber = 1) => {
+    const requestId = ++quizzesRequestIdRef.current;
+    const isInitialPage = pageNumber === 1;
+
+    if (isDemo) {
+      setQuizzes(facultyDemoQuizzes);
+      setHasMore(false);
+      setPage(1);
+      setQuizzesError(null);
+      setHasFetchedQuizzes(true);
+      setQuizzesLoading(false);
+      setLoadingMoreQuizzes(false);
+      return;
+    }
+
+    if (isInitialPage) {
+      setQuizzesLoading(true);
+      setQuizzesError(null);
+    } else {
+      setLoadingMoreQuizzes(true);
+    }
+
+    try {
+      const res = await apiClient.fetch(`/api/v1/faculty/quiz?page=${pageNumber}&limit=10`);
+      if (!isMountedRef.current || requestId !== quizzesRequestIdRef.current) return;
+      if (res?.ok === false) {
+        throw new Error('Unable to load quizzes. Please try again.');
+      }
+      const data = await res.json();
+      if (!isMountedRef.current || requestId !== quizzesRequestIdRef.current) return;
+      if (data?.status === 'error' || !data?.data) {
+        throw new Error(data?.message || 'Unable to load quizzes. Please try again.');
+      }
+
+      const fetchedQuizzes = Array.isArray(data.data)
+        ? data.data
+        : Array.isArray(data.data.items)
+          ? data.data.items
+          : [];
+
+      if (isInitialPage) {
+        setQuizzes(fetchedQuizzes);
+      } else {
+        setQuizzes(prev => [...prev, ...fetchedQuizzes]);
+      }
+
+      if (!Array.isArray(data.data)) {
+        setHasMore(Boolean(data.data.hasMore));
+        setPage(Number(data.data.page) || pageNumber);
+      } else {
+        setHasMore(false);
+      }
+      setQuizzesError(null);
+      setHasFetchedQuizzes(true);
+    } catch (err) {
+      console.error(err);
+      if (!isMountedRef.current || requestId !== quizzesRequestIdRef.current) return;
+      if (isInitialPage) {
+        setQuizzesError('Unable to load quizzes. Please try again.');
+      } else {
+        toast.error('Unable to load more quizzes. Please try again.');
+      }
+    } finally {
+      if (isMountedRef.current && requestId === quizzesRequestIdRef.current) {
+        if (isInitialPage) {
+          setQuizzesLoading(false);
         } else {
-          setQuizzes(prev => [...prev, ...fetchedQuizzes]);
-        }
-        if (!Array.isArray(data.data)) {
-          setHasMore(data.data.hasMore);
-          setPage(data.data.page);
-        } else {
-          setHasMore(false);
+          setLoadingMoreQuizzes(false);
         }
       }
-    } catch (err) { console.error(err); }
-  };
+    }
+  }, [isDemo]);
 
   const fetchDepartments = async () => {
     try {
       if (isDemo) {
-        setDepartments(facultyDemoDepartments);
+        if (isMountedRef.current) setDepartments(facultyDemoDepartments);
         return;
       }
       const res = await apiClient.fetch('/api/v1/departments');
       const data = await res.json();
-      if (data?.data?.departments) setDepartments(data.data.departments);
+      if (isMountedRef.current && data?.data?.departments) setDepartments(data.data.departments);
     } catch (err) { console.error(err); }
   };
+
+  useEffect(() => {
+    void fetchQuizzes(1);
+    void fetchBatches();
+    void fetchDepartments();
+  }, [fetchQuizzes, isDemo]);
 
   const handleEditQuiz = async (quizId: string, attemptsCount: number) => {
     if (attemptsCount > 0) {
       toast.error('Cannot edit a quiz that already has student submissions.');
       return;
     }
-    
+    if (editingQuizIdLoading) return;
+
     try {
+      setEditingQuizIdLoading(quizId);
       setLoading(true);
       const res = await apiClient.fetch(`/api/v1/faculty/quiz/${quizId}`);
       const data = await res.json();
-      if (data?.status === 'success' && data.data) {
+      if (!isMountedRef.current) return;
+      if (res?.ok !== false && data?.status === 'success' && data.data) {
         const quiz = data.data;
         setFormData({
           title: quiz.title || '',
-          subject: quiz.subject || '',
+          subject: quiz.subject || facultySubject || '',
           description: quiz.description || '',
           totalMarks: quiz.totalMarks?.toString() || '',
           passingMarks: quiz.passingMarks?.toString() || '',
           durationMinutes: quiz.durationMinutes?.toString() || '60',
-          startDate: quiz.startDate ? new Date(quiz.startDate).toISOString().slice(0, 16) : '',
-          endDate: quiz.endDate ? new Date(quiz.endDate).toISOString().slice(0, 16) : '',
+          startDate: formatDateTimeLocal(quiz.startDate),
+          endDate: formatDateTimeLocal(quiz.endDate),
           targetDepartments: quiz.targetDepartments?.map((d: any) => d.departmentId) || [],
           targetSections: quiz.targetSections?.map((s: any) => s.sectionId) || [],
         });
@@ -497,7 +792,7 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
         if (!fetchedQuestions || fetchedQuestions.length === 0) {
           fetchedQuestions = [{ type: 'MCQ', text: '', marks: 1, options: ['', '', '', ''], answerKey: '', topic: '' }];
         } else {
-          // Ensure options are an array for MCQ/Multi-select
+          // Ensure options are initialized consistently for all question types
           fetchedQuestions = fetchedQuestions.map((q: any) => {
             if (!q.options) {
               q.options = q.type === 'MATCHING' ? [{ left: '', right: '' }] : ['', '', '', ''];
@@ -510,80 +805,117 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
         setParsedTotalMarks(Number(quiz.totalMarks) || 0);
         setParsedTotalQuestions(quiz.questions ? quiz.questions.length : 0);
         setActiveQuizId(quiz.id);
+        setWizardStep(1);
+        setCompletedWizardSteps([1, 2, 3, 4]);
+        setStepErrors({});
+        setShowDiscardConfirm(false);
         setActiveView('create');
       } else {
         toast.error('Failed to fetch quiz details for editing.');
       }
     } catch (err) {
       console.error(err);
-      toast.error('Error fetching quiz details.');
+      if (isMountedRef.current) toast.error('Error fetching quiz details.');
     } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDeleteQuiz = async (quizId: string) => {
-    if (!window.confirm('Are you sure you want to delete this quiz?')) return;
-    if (isDemo) {
-      setQuizzes(previous => previous.filter(quiz => quiz.id !== quizId));
-      toast.success('Demo quiz deleted locally.');
-      return;
-    }
-    try {
-      const res = await apiClient.fetch(`/api/v1/faculty/quiz/${quizId}`, { method: 'DELETE' });
-      const data = await res.json();
-      if (data?.status === 'success') fetchQuizzes();
-      else toast.error('Failed to delete quiz: ' + data.message);
-    } catch (err) { console.error(err); }
-  };
-
-  const handleTogglePublishAnswers = async (quizId: string, currentStatus: boolean) => {
-    if (isDemo) {
-      setQuizzes(previous => previous.map(quiz => quiz.id === quizId ? { ...quiz, answersPublished: !currentStatus } : quiz));
-      toast.success(`Demo answers ${!currentStatus ? 'published' : 'hidden'} locally.`);
-      return;
-    }
-    try {
-      const res = await apiClient.fetch(`/api/v1/faculty/quiz/${quizId}/publish`, {
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ publish: !currentStatus })
-      });
-      const data = await res.json();
-      if (data?.status === 'success') {
-        toast.success(`Answers ${!currentStatus ? 'published' : 'hidden'} successfully!`);
-        fetchQuizzes();
+      if (isMountedRef.current) {
+        setLoading(false);
+        setEditingQuizIdLoading(null);
       }
-    } catch (err) { console.error(err); }
+    }
   };
 
-  const handleOpenEditQuiz = async (quizId: string) => {
+  const handlePrintQuestionPaper = async (quizId: string) => {
+    if (printingQuizIdLoading) return;
+    if (isDemo) {
+      const demoQuiz = facultyDemoQuizzes.find(item => item.id === quizId) || quizzes.find(item => item.id === quizId);
+      if (!demoQuiz) {
+        toast.error('Quiz not found.');
+        return;
+      }
+      setPrintQuiz(demoQuiz);
+      setActiveView('print_paper');
+      setTimeout(() => window.print(), 50);
+      return;
+    }
+
+    setPrintingQuizIdLoading(quizId);
     try {
       const res = await apiClient.fetch(`/api/v1/faculty/quiz/${quizId}`);
       const data = await res.json();
-      if (data?.status !== 'success' || !data.data) {
-        toast.error('Unable to load quiz details: ' + (data?.message || 'Unknown error'));
-        return;
+      if (!isMountedRef.current) return;
+      if (data?.status === 'success' && data.data) {
+        setPrintQuiz(data.data);
+        setActiveView('print_paper');
+        setTimeout(() => window.print(), 50);
+      } else {
+        toast.error('Failed to load question paper for printing.');
       }
-
-      const quiz = data.data;
-      setFormData({
-        title: quiz.title || '',
-        subject: quiz.subject || '',
-        description: quiz.description || '',
-        totalMarks: quiz.totalMarks?.toString() || '',
-        passingMarks: quiz.passingMarks?.toString() || '',
-        durationMinutes: quiz.durationMinutes?.toString() || '60',
-        startDate: formatDateTimeLocal(quiz.startDate),
-        endDate: formatDateTimeLocal(quiz.endDate),
-        targetDepartments: quiz.targetDepartments?.map((target: any) => target.departmentId) || [],
-        targetSections: quiz.targetSections?.map((target: any) => target.sectionId) || []
-      });
-      setEditingQuizId(quizId);
-      setActiveView('create');
     } catch (err) {
       console.error(err);
-      toast.error('Unable to load quiz details');
+      if (isMountedRef.current) toast.error('Error loading question paper.');
+    } finally {
+      if (isMountedRef.current) setPrintingQuizIdLoading(null);
+    }
+  };
+
+  const handleConfirmDeleteQuiz = async () => {
+    if (!quizPendingDelete) return;
+    const quizId = quizPendingDelete.id;
+    if (isDemo) {
+      setQuizzes(previous => previous.filter(quiz => quiz.id !== quizId));
+      toast.success('Demo quiz deleted locally.');
+      setQuizPendingDelete(null);
+      return;
+    }
+    const res = await apiClient.fetch(`/api/v1/faculty/quiz/${quizId}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!isMountedRef.current) return;
+    if (res?.ok !== false && data?.status === 'success') {
+      toast.success('Quiz deleted successfully.');
+      setQuizzes(previous => previous.filter(quiz => quiz.id !== quizId));
+      setQuizPendingDelete(null);
+      void fetchQuizzes(1);
+    } else {
+      const msg = data?.error?.message || data?.message || 'Failed to delete quiz.';
+      toast.error(msg);
+      throw new Error(msg);
+    }
+  };
+
+  const handleConfirmPublishAnswers = async () => {
+    const quizId = activeSubmissionsQuiz?.id || activeQuizId;
+    if (!quizId || publishingAnswers || activeSubmissionsQuiz?.answersPublished) return;
+
+    if (isDemo) {
+      setActiveSubmissionsQuiz(prev => prev ? { ...prev, answersPublished: true } : prev);
+      setQuizzes(previous => previous.map(quiz => quiz.id === quizId ? { ...quiz, answersPublished: true } : quiz));
+      setShowPublishConfirm(false);
+      toast.success('Demo answers published locally.');
+      return;
+    }
+
+    try {
+      setPublishingAnswers(true);
+      const res = await apiClient.fetch(`/api/v1/faculty/quiz/${quizId}/publish`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ publish: true })
+      });
+      const data = await res.json();
+      if (!isMountedRef.current) return;
+      if (res?.ok !== false && data?.status === 'success') {
+        toast.success('Answers published! Students can now view their results and answer keys.');
+        setActiveSubmissionsQuiz(prev => prev ? { ...prev, answersPublished: true } : { id: quizId, title: data.data?.title || 'Quiz', answersPublished: true });
+        setQuizzes(previous => previous.map(quiz => quiz.id === quizId ? { ...quiz, answersPublished: true } : quiz));
+        setShowPublishConfirm(false);
+      } else {
+        toast.error(data?.message || 'Failed to publish answers.');
+      }
+    } catch (err) {
+      console.error(err);
+      if (isMountedRef.current) toast.error('Error publishing answers.');
+    } finally {
+      if (isMountedRef.current) setPublishingAnswers(false);
     }
   };
 
@@ -591,7 +923,7 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
     try {
       let query = `count=${templateConfig.totalQuestions}`;
       if (templateConfig.isMixedTypes) {
-        query += `&mcq=${templateConfig.mcqCount}&numerical=${templateConfig.numericalCount}&short=${templateConfig.shortCount}&long=${templateConfig.longCount}&matching=${templateConfig.matchingCount}`;
+        query += `&mcq=${templateConfig.mcqCount}&numerical=${templateConfig.numericalCount}&short=${templateConfig.shortCount}&long=${templateConfig.longCount}&matching=${templateConfig.matchingCount}&fillBlank=${templateConfig.fillBlankCount}`;
       }
       const res = await apiClient.fetch(`/api/v1/faculty/quiz/template?${query}`);
       const blob = await res.blob();
@@ -627,10 +959,10 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
         setQuestions(data.data.questions);
         setFormData(prev => ({
           ...prev,
-          title: data.data.metadata.title || '',
-          subject: data.data.metadata.subject || '',
-          description: data.data.metadata.instructions || '',
-          totalMarks: data.data.metadata.totalMarks?.toString() || '0'
+          title: prev.title || data.data.metadata.title || '',
+          subject: prev.subject || facultySubject || data.data.metadata.subject || '',
+          description: prev.description || data.data.metadata.instructions || '',
+          totalMarks: prev.totalMarks || data.data.metadata.totalMarks?.toString() || ''
         }));
         setParsedTotalMarks(Number(data.data.metadata.totalMarks) || 0);
         setParsedTotalQuestions(Number(data.data.metadata.totalQuestions) || 0);
@@ -671,8 +1003,11 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
       if (!q.text && !q.hasImagePlaceholder && !q.image) {
         q.validationError = "Question must have either text or an image.";
         isValid = false;
-      } else if (!q.answerKey && !['SHORT_WRITTEN', 'LONG_WRITTEN', 'MATCHING'].includes(q.type)) {
+      } else if (!q.answerKey && !['SHORT_WRITTEN', 'LONG_WRITTEN', 'MATCHING', 'FILL_BLANK'].includes(q.type)) {
         q.validationError = "Answer key is required.";
+        isValid = false;
+      } else if (q.type === 'FILL_BLANK' && (!q.answerKey || (Array.isArray(q.answerKey) && q.answerKey.every((a: any) => !String(a).trim())) || (!Array.isArray(q.answerKey) && !String(q.answerKey).trim()))) {
+        q.validationError = "Expected answer is required for Fill in the Blanks.";
         isValid = false;
       } else if (!q.topic || q.topic.trim() === '') {
         q.validationError = "Topic is mandatory for every question.";
@@ -690,8 +1025,9 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
     return isValid;
   };
 
-  const handleSaveQuizAndQuestions = async () => {
-    if (!editingQuizId && !validateQuestions()) return;
+  const handleSaveQuizAndQuestions = async (skipQuestionValidation = false) => {
+    if (loading) return;
+    if (!skipQuestionValidation && !validateQuestions()) return;
 
     setLoading(true);
     
@@ -705,42 +1041,24 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
         return q;
       });
 
-      if (editingQuizId) {
-        const res = await apiClient.fetch(`/api/v1/faculty/quiz/${editingQuizId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        const data = await res.json();
-        if (data?.status !== 'success') throw new Error('Failed to update quiz: ' + data.message);
-        toast.success('Quiz details updated successfully!');
-        clearDraft(quizDraftKey);
-        skipQuizDraftWrite.current = true;
-        setRestoredQuizDraft(false);
-        setEditingQuizId(null);
-        setActiveView('list');
-        fetchQuizzes();
-        return;
-      }
-
       if (activeQuizId) {
-        // Edit flow
+        // Unified Edit flow: updates quiz details, target audience, and questions
         const res = await apiClient.fetch(`/api/v1/faculty/quiz/${activeQuizId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...payload, questions: sanitizedQuestions })
+          body: JSON.stringify(skipQuestionValidation ? payload : { ...payload, questions: sanitizedQuestions })
         });
         const data = await res.json();
         
-        if (data?.status === 'success') {
+        if (res?.ok !== false && data?.status === 'success') {
           toast.success('Quiz updated successfully!');
           clearDraft(quizDraftKey);
           skipQuizDraftWrite.current = true;
           setRestoredQuizDraft(false);
           setActiveView('list');
-          fetchQuizzes();
+          void fetchQuizzes(1);
         } else {
-          throw new Error('Failed to update quiz: ' + data.message);
+          throw new Error('Failed to update quiz: ' + (data?.message || 'Unknown error'));
         }
       } else {
         // Create flow
@@ -751,10 +1069,10 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
         });
         const data = await res.json();
         let quizIdToUse = '';
-        if (data?.status === 'success') {
+        if (res?.ok !== false && data?.status === 'success') {
           quizIdToUse = data.data.id;
         } else {
-          throw new Error('Failed to create quiz: ' + data.message);
+          throw new Error('Failed to create quiz: ' + (data?.message || 'Unknown error'));
         }
 
         const qRes = await apiClient.fetch(`/api/v1/faculty/quiz/${quizIdToUse}/questions`, {
@@ -764,22 +1082,22 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
         });
         const qData = await qRes.json();
 
-        if (qData?.status === 'success') {
+        if (qRes?.ok !== false && qData?.status === 'success') {
           toast.success('Quiz and Questions published successfully!');
           clearDraft(quizDraftKey);
           skipQuizDraftWrite.current = true;
           setRestoredQuizDraft(false);
           setActiveView('list');
-          fetchQuizzes();
+          void fetchQuizzes(1);
         } else {
-           throw new Error('Failed to save questions: ' + qData.message);
+           throw new Error('Failed to save questions: ' + (qData?.message || 'Unknown error'));
         }
       }
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || 'An error occurred while saving.');
+      if (isMountedRef.current) toast.error(err.message || 'An error occurred while saving.');
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) setLoading(false);
     }
   };
 
@@ -867,6 +1185,18 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
       countSummary.push(`${longWritten.length} Long Written`);
     }
 
+    if (bulkConfig.MATCHING?.selected && bulkConfig.MATCHING.text.trim()) {
+      const matching = parseMatching(bulkConfig.MATCHING.text);
+      parsedQuestions = [...parsedQuestions, ...matching];
+      countSummary.push(`${matching.length} Match the Following`);
+    }
+
+    if (bulkConfig.FILL_BLANK?.selected && bulkConfig.FILL_BLANK.text.trim()) {
+      const fillBlanks = parseFillBlanks(bulkConfig.FILL_BLANK.text);
+      parsedQuestions = [...parsedQuestions, ...fillBlanks];
+      countSummary.push(`${fillBlanks.length} Fill in the Blanks`);
+    }
+
     if (parsedQuestions.length === 0) {
       toast.error('No valid questions parsed. Please check your formatting!');
       return;
@@ -887,24 +1217,108 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
       SHORT_WRITTEN: { selected: false, text: '' },
       NUMERICAL: { selected: false, text: '' },
       LONG_WRITTEN: { selected: false, text: '' },
+      MATCHING: { selected: false, text: '' },
+      FILL_BLANK: { selected: false, text: '' },
     });
     setShowBulkImport(false);
     setActiveView('add_questions');
   };
 
 
-  const handleOpenGradeView = async (quizId: string) => {
+  const handleOpenSubmissions = async (quizId: string) => {
+    const requestId = ++submissionsRequestIdRef.current;
     setActiveQuizId(quizId);
-    setActiveView('grade_submissions');
+    setSubmissions([]);
+    setAssignedClasses([]);
+    setSelectedClassFilter('ALL');
+    setSubmissionStatusFilter('ALL');
+    setSubmissionsError(null);
+    setSubmissionsLoading(true);
+    const localQuiz = quizzes.find(q => q.id === quizId);
+    if (localQuiz) {
+      setActiveSubmissionsQuiz({
+        id: localQuiz.id,
+        title: localQuiz.title || 'Quiz',
+        subject: localQuiz.subject || null,
+        totalMarks: localQuiz.totalMarks,
+        answersPublished: Boolean(localQuiz.answersPublished)
+      });
+    } else {
+      setActiveSubmissionsQuiz(null);
+    }
+    setActiveView('view_submissions');
     try {
       const res = await apiClient.fetch(`/api/v1/faculty/quiz/${quizId}/submissions`);
+      if (!isMountedRef.current || requestId !== submissionsRequestIdRef.current) return;
+      if (res?.ok === false) {
+        throw new Error('Unable to load submissions. Please try again.');
+      }
       const data = await res.json();
-      if (data?.status === 'success') setSubmissions(data.data);
-    } catch (err) { console.error(err); }
+      if (!isMountedRef.current || requestId !== submissionsRequestIdRef.current) return;
+      if (data?.status === 'error') {
+        throw new Error(data?.message || 'Unable to load submissions. Please try again.');
+      }
+      if (data?.status === 'success') {
+        const rawList = Array.isArray(data.roster)
+          ? data.roster
+          : Array.isArray(data.data)
+          ? data.data.map((sub: any) => {
+              const deptName = sub.user?.department?.name || '';
+              const secName = sub.user?.section?.name || '';
+              const classKey = sub.classKey || (sub.user?.sectionId ? `section:${sub.user.sectionId}` : sub.user?.departmentId ? `dept:${sub.user.departmentId}` : 'unassigned');
+              const shortLabel = sub.classShortLabel || (secName ? `${deptName || 'Department'} – ${secName}` : deptName);
+              return {
+                ...sub,
+                userId: sub.userId || sub.user?.id || sub.id,
+                hasSubmitted: sub.hasSubmitted !== undefined ? Boolean(sub.hasSubmitted) : sub.status !== 'IN_PROGRESS' && sub.status !== 'NOT_SUBMITTED',
+                classKey,
+                classLabel: sub.classLabel || shortLabel || 'Unassigned',
+                classShortLabel: shortLabel || sub.classLabel || '',
+              };
+            })
+          : [];
+        setSubmissions(rawList);
+
+        if (Array.isArray(data.assignedClasses)) {
+          setAssignedClasses(data.assignedClasses);
+        } else {
+          const derivedClasses = new Map<string, { id: string; label: string; shortLabel?: string }>();
+          for (const row of rawList) {
+            if (row.classKey && row.classKey !== 'unassigned' && !derivedClasses.has(row.classKey)) {
+              derivedClasses.set(row.classKey, {
+                id: row.classKey,
+                label: row.classLabel || row.classShortLabel || row.classKey,
+                shortLabel: row.classShortLabel || row.classLabel,
+              });
+            }
+          }
+          setAssignedClasses(Array.from(derivedClasses.values()));
+        }
+
+        if (data.quiz) {
+          setActiveSubmissionsQuiz({
+            id: data.quiz.id,
+            title: data.quiz.title,
+            subject: data.quiz.subject,
+            totalMarks: data.quiz.totalMarks,
+            answersPublished: Boolean(data.quiz.answersPublished)
+          });
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      if (!isMountedRef.current || requestId !== submissionsRequestIdRef.current) return;
+      setSubmissionsError('Unable to load quiz submissions. Please try again.');
+      toast.error('Failed to load quiz submissions.');
+    } finally {
+      if (isMountedRef.current && requestId === submissionsRequestIdRef.current) {
+        setSubmissionsLoading(false);
+      }
+    }
   };
 
   useEffect(() => {
-    if (initialSubmissionsQuizId) void handleOpenGradeView(initialSubmissionsQuizId);
+    if (initialSubmissionsQuizId) void handleOpenSubmissions(initialSubmissionsQuizId);
   }, [initialSubmissionsQuizId]);
 
   const handleOpenAttempt = (attempt: any) => {
@@ -930,7 +1344,7 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
       const data = await res.json();
       if (data?.status === 'success') {
         toast.success('Evaluation saved!');
-        handleOpenGradeView(activeQuizId!);
+        handleOpenSubmissions(activeQuizId!);
       } else toast.error('Error: ' + data.message);
     } catch (err) { console.error(err); } finally { setLoading(false); }
   };
@@ -938,24 +1352,207 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
   // Creation mode tab
   const [creationMode, setCreationMode] = useState<'paste' | 'docx' | 'manual'>('paste');
 
-  const availableSections = departments.filter(d => formData.targetDepartments.includes(d.id)).flatMap(d => d.sections || []);
   const visibleQuizzes = quizzes.filter(quiz => `${quiz.title || ''} ${quiz.subject || ''}`.toLowerCase().includes(quizSearch.toLowerCase()));
 
+  const validateWizardStep = (step: QuizWizardStep): Record<string, string> => {
+    const errors: Record<string, string> = {};
+    if (step === 1) {
+      if (!formData.title.trim()) {
+        errors.title = 'Quiz title is required.';
+      }
+      const effectiveSubject = (formData.subject || facultySubject || '').trim();
+      if (!effectiveSubject) {
+        errors.subject = 'Subject / Course is required.';
+      }
+      const durationText = formData.durationMinutes?.toString().trim() || '';
+      const duration = Number(durationText);
+      if (!durationText || !Number.isFinite(duration) || duration <= 0 || !Number.isInteger(duration)) {
+        errors.durationMinutes = 'Enter a valid duration in minutes (greater than 0).';
+      }
+    } else if (step === 2) {
+      const startValid = !formData.startDate || !Number.isNaN(new Date(formData.startDate).getTime());
+      const endValid = !formData.endDate || !Number.isNaN(new Date(formData.endDate).getTime());
+      if (!startValid) errors.startDate = 'Enter a valid start date and time.';
+      if (!endValid) errors.endDate = 'Enter a valid end date and time.';
+      if (formData.startDate && formData.endDate && startValid && endValid) {
+        if (new Date(formData.endDate) <= new Date(formData.startDate)) {
+          errors.endDate = 'End time must be later than start time.';
+        }
+      }
+    } else if (step === 3) {
+      const totalRaw = formData.totalMarks?.toString().trim() || '';
+      const passingRaw = formData.passingMarks?.toString().trim() || '';
+      const total = Number(totalRaw);
+      const passing = Number(passingRaw);
+      if (totalRaw !== '' && (!Number.isFinite(total) || total <= 0)) {
+        errors.totalMarks = 'Total marks must be greater than 0.';
+      }
+      if (passingRaw !== '' && (!Number.isFinite(passing) || passing < 0)) {
+        errors.passingMarks = 'Passing marks cannot be negative.';
+      }
+      if (
+        totalRaw !== '' &&
+        passingRaw !== '' &&
+        Number.isFinite(total) &&
+        total > 0 &&
+        Number.isFinite(passing) &&
+        passing >= 0 &&
+        passing > total
+      ) {
+        errors.passingMarks = 'Passing marks cannot exceed total marks.';
+      }
+    }
+    return errors;
+  };
+
+  const handleNextWizardStep = () => {
+    const errors = validateWizardStep(wizardStep);
+    if (Object.keys(errors).length > 0) {
+      setStepErrors(errors);
+      toast.error(Object.values(errors)[0]);
+      return;
+    }
+    setStepErrors({});
+    setCompletedWizardSteps(prev => (prev.includes(wizardStep) ? prev : [...prev, wizardStep]));
+    if (wizardStep < 5) {
+      setWizardStep((wizardStep + 1) as QuizWizardStep);
+    }
+  };
+
+  const handlePrevWizardStep = () => {
+    setStepErrors({});
+    if (wizardStep > 1) {
+      setWizardStep((wizardStep - 1) as QuizWizardStep);
+    }
+  };
+
+  const handleJumpToWizardStep = (targetStep: QuizWizardStep) => {
+    if (targetStep === wizardStep) return;
+    const isReachable =
+      targetStep < wizardStep ||
+      completedWizardSteps.includes(targetStep) ||
+      completedWizardSteps.includes((targetStep - 1) as QuizWizardStep);
+    if (!isReachable) {
+      const errors = validateWizardStep(wizardStep);
+      setStepErrors(errors);
+      toast.error(Object.values(errors)[0] || 'Please complete the current step before proceeding.');
+      return;
+    }
+    setStepErrors({});
+    setWizardStep(targetStep);
+  };
+
+  const hasUnsavedWizardChanges = !activeQuizId && Boolean(
+    formData.title.trim() ||
+    formData.totalMarks.toString().trim() ||
+    formData.passingMarks.toString().trim() ||
+    formData.startDate ||
+    formData.endDate ||
+    formData.durationMinutes !== '60' ||
+    formData.targetDepartments.length > 0 ||
+    formData.targetSections.length > 0 ||
+    Object.values(bulkConfig).some(c => c.text.trim().length > 0) ||
+    questions.length > 1 ||
+    questions[0]?.text?.trim()
+  );
+
+  const handleRequestCancelWizard = () => {
+    if (hasUnsavedWizardChanges) {
+      setShowDiscardConfirm(true);
+      return;
+    }
+    setStepErrors({});
+    setActiveView('list');
+  };
+
+  const handleDiscardWizardChanges = () => {
+    setShowDiscardConfirm(false);
+    setStepErrors({});
+    setActiveView('list');
+  };
+
   if (activeView === 'create') {
+    const currentStepMeta = QUIZ_WIZARD_STEPS.find(s => s.step === wizardStep)!;
+    const hasStagedQuestions = questions.some(q => Boolean(q.text?.trim() || q.image));
+
     return (
       <>
       <Card className="bg-white dark:bg-[#1E1E22] border border-border-soft text-ink shadow-sm rounded-xl">
         <CardContent className="p-6">
-          <div className="flex justify-between items-center mb-6 pb-4 border-b border-border-soft">
+          <div className="flex flex-wrap justify-between items-start gap-4 mb-5 pb-4 border-b border-border-soft">
             <div>
-              <h2 className="text-2xl font-serif font-bold text-ink">{editingQuizId ? 'Edit Quiz Details' : 'Schedule & Create Quiz'}</h2>
-              <p className="text-gray-body text-xs mt-1">{editingQuizId ? 'Update the quiz name, timing, marks, or publication targets.' : 'Configure metadata and add questions via direct paste, DOCX, or manual builder.'}</p>
+              <div className="flex flex-wrap items-center gap-2.5">
+                <h2 className="text-2xl font-serif font-bold text-ink">{activeQuizId ? 'Edit Quiz' : 'Schedule & Create Quiz'}</h2>
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-cream text-maroon border border-maroon/20">
+                  Step {wizardStep} of 5
+                </span>
+              </div>
+              <p className="text-gray-body text-xs mt-1">{currentStepMeta.description}</p>
             </div>
             <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setShowTemplateModal(true)} className="border-border-soft hover:bg-cream/40 text-xs font-semibold">Download DOCX Template</Button>
-              <Button onClick={() => setActiveView('list')} variant="ghost" className="text-xs font-semibold text-gray-body">Cancel</Button>
+              <Button type="button" onClick={handleRequestCancelWizard} variant="ghost" className="text-xs font-semibold text-gray-body">Cancel</Button>
             </div>
           </div>
+
+          {/* 5-Step Progress Indicator */}
+          <nav aria-label="Quiz creation steps" className="mb-6">
+            {/* Desktop Stepper */}
+            <ol className="hidden md:grid grid-cols-5 gap-2">
+              {QUIZ_WIZARD_STEPS.map((item) => {
+                const isCurrent = item.step === wizardStep;
+                const isCompleted = completedWizardSteps.includes(item.step) && !isCurrent;
+                const isReachable =
+                  item.step <= wizardStep ||
+                  completedWizardSteps.includes(item.step) ||
+                  completedWizardSteps.includes((item.step - 1) as QuizWizardStep);
+
+                return (
+                  <li key={item.step}>
+                    <button
+                      type="button"
+                      onClick={() => handleJumpToWizardStep(item.step)}
+                      aria-current={isCurrent ? 'step' : undefined}
+                      disabled={!isReachable}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-left transition-all ${
+                        isCurrent
+                          ? 'bg-maroon text-white border-maroon shadow-sm'
+                          : isCompleted
+                          ? 'bg-cream/60 dark:bg-[#242429] text-ink border-maroon/30 hover:bg-cream cursor-pointer'
+                          : isReachable
+                          ? 'bg-white dark:bg-[#1E1E22] text-ink border-border-soft hover:bg-cream/30 cursor-pointer'
+                          : 'bg-cream/20 dark:bg-[#18181B] text-gray-body border-border-soft opacity-60 cursor-not-allowed'
+                      }`}
+                    >
+                      <span
+                        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                          isCurrent
+                            ? 'bg-white text-maroon'
+                            : isCompleted
+                            ? 'bg-maroon text-white'
+                            : 'bg-cream text-gray-body border border-border-soft'
+                        }`}
+                      >
+                        {isCompleted ? <Check className="w-3.5 h-3.5" /> : item.step}
+                      </span>
+                      <span className="min-w-0 truncate text-xs font-bold">{item.step}. {item.label}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ol>
+
+            {/* Mobile Stepper */}
+            <div className="md:hidden bg-cream/30 dark:bg-[#242429] border border-border-soft rounded-xl p-3 space-y-2">
+              <div className="flex items-center justify-between text-xs font-bold text-ink">
+                <span>Step {wizardStep} of 5: {currentStepMeta.label}</span>
+                <span className="text-maroon">{Math.round((wizardStep / 5) * 100)}%</span>
+              </div>
+              <div className="w-full h-1.5 bg-cream rounded-full overflow-hidden">
+                <div className="h-full bg-maroon transition-all duration-200" style={{ width: `${(wizardStep / 5) * 100}%` }} />
+              </div>
+            </div>
+          </nav>
+
           {restoredQuizDraft && (
             <div className="mb-5 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-info/30 bg-info/5 px-3 py-2 text-sm text-ink" role="status">
               <span>Restored draft from this device.</span>
@@ -963,79 +1560,440 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                 clearDraft(quizDraftKey);
                 skipQuizDraftWrite.current = true;
                 setFormData({
-                  title: '', subject: '', description: '', totalMarks: '', passingMarks: '',
+                  title: '', subject: facultySubject, description: '', totalMarks: '', passingMarks: '',
                   durationMinutes: '60', startDate: '', endDate: '', targetDepartments: [], targetSections: [],
                 });
                 setQuestions([{ type: 'MCQ', text: '', marks: 1, options: ['', '', '', ''], answerKey: '', topic: '' }]);
+                setWizardStep(1);
+                setCompletedWizardSteps([]);
+                setStepErrors({});
                 setRestoredQuizDraft(false);
               }}>Discard</button>
             </div>
           )}
-          
-          <div className="space-y-6">
-            {/* Metadata Fields */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-cream/20 dark:bg-[#242429] p-5 rounded-xl border border-border-soft">
-              <div className="space-y-1">
-                <Label className="text-ink font-semibold text-xs">Quiz Title *</Label>
-                <Input value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="e.g. Midterm Examination: Data Structures" className="bg-white dark:bg-[#18181B] border-border-soft text-ink text-sm focus:border-maroon focus:ring-1 focus:ring-maroon" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-ink font-semibold text-xs">Subject / Course *</Label>
-                <Input value={formData.subject} onChange={e => setFormData({...formData, subject: e.target.value})} placeholder="e.g. Computer Science & Engineering" className="bg-white dark:bg-[#18181B] border-border-soft text-ink text-sm focus:border-maroon focus:ring-1 focus:ring-maroon" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-ink font-semibold text-xs">Duration (mins) *</Label>
-                <Input value={formData.durationMinutes} onChange={e => setFormData({...formData, durationMinutes: e.target.value})} type="number" placeholder="60" className="bg-white dark:bg-[#18181B] border-border-soft text-ink text-sm focus:border-maroon focus:ring-1 focus:ring-maroon" />
-              </div>
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="space-y-1">
-                <Label className="text-ink font-semibold text-xs">Start Time</Label>
-                <Input value={formData.startDate} onChange={e => setFormData({...formData, startDate: e.target.value})} type="datetime-local" className="bg-white dark:bg-[#18181B] border-border-soft text-ink text-xs focus:border-maroon focus:ring-1 focus:ring-maroon" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-ink font-semibold text-xs">End Time</Label>
-                <Input value={formData.endDate} onChange={e => setFormData({...formData, endDate: e.target.value})} type="datetime-local" className="bg-white dark:bg-[#18181B] border-border-soft text-ink text-xs focus:border-maroon focus:ring-1 focus:ring-maroon" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-ink font-semibold text-xs">Total Marks (Optional)</Label>
-                <Input value={formData.totalMarks} onChange={e => setFormData({...formData, totalMarks: e.target.value})} type="number" placeholder="Calculated automatically if empty" className="bg-white dark:bg-[#18181B] border-border-soft text-ink text-xs focus:border-maroon focus:ring-1 focus:ring-maroon" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-ink font-semibold text-xs">Passing Marks</Label>
-                <Input value={formData.passingMarks} onChange={e => setFormData({...formData, passingMarks: e.target.value})} type="number" placeholder="e.g. 40" className="bg-white dark:bg-[#18181B] border-border-soft text-ink text-xs focus:border-maroon focus:ring-1 focus:ring-maroon" />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1 p-4 bg-cream/30 dark:bg-[#242429] rounded-xl border border-border-soft">
-                <Label className="block mb-1 text-ink font-semibold text-xs">Target Departments (Hold Ctrl to select multiple)</Label>
-                <select multiple value={formData.targetDepartments} onChange={e => setFormData({...formData, targetDepartments: Array.from(e.target.selectedOptions).map(o => o.value)})} className="w-full bg-white dark:bg-[#18181B] border border-border-soft rounded-lg px-3 py-2 text-ink h-24 focus:border-maroon focus:ring-1 focus:ring-maroon outline-none text-xs">
-                  {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                </select>
-              </div>
-              <div className="space-y-1 p-4 bg-cream/30 dark:bg-[#242429] rounded-xl border border-border-soft">
-                <Label className="block mb-1 text-ink font-semibold text-xs">Target Sections</Label>
-                <select multiple value={formData.targetSections} onChange={e => setFormData({...formData, targetSections: Array.from(e.target.selectedOptions).map(o => o.value)})} className="w-full bg-white dark:bg-[#18181B] border border-border-soft rounded-lg px-3 py-2 text-ink h-24 focus:border-maroon focus:ring-1 focus:ring-maroon outline-none text-xs disabled:opacity-50" disabled={availableSections.length === 0}>
-                  {availableSections.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-              </div>
-            </div>
-
-            {editingQuizId && (
-              <div className="flex justify-end border-t border-border-soft pt-5">
-                <Button onClick={handleSaveQuizAndQuestions} disabled={loading} className="bg-maroon hover:bg-maroon-deep text-white font-bold rounded-full px-7">
-                  {loading ? 'Updating...' : 'Update Quiz Details'}
-                </Button>
+          <div key={wizardStep} className="space-y-6 transition-opacity duration-200">
+            {/* Step 1: Basic Quiz Details */}
+            {wizardStep === 1 && (
+              <div className="bg-cream/20 dark:bg-[#242429] p-5 rounded-xl border border-border-soft space-y-4">
+                <div>
+                  <h3 className="text-base font-serif font-bold text-ink">Basic Quiz Details</h3>
+                  <p className="text-xs text-gray-body mt-0.5">Fields marked with * are required to continue.</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-1">
+                    <Label htmlFor="quiz-title-input" className="text-ink font-semibold text-xs">Quiz Title *</Label>
+                    <Input
+                      id="quiz-title-input"
+                      value={formData.title}
+                      onChange={e => {
+                        setFormData({ ...formData, title: e.target.value });
+                        if (stepErrors.title) setStepErrors(prev => ({ ...prev, title: '' }));
+                      }}
+                      placeholder="e.g. Midterm Examination: Data Structures"
+                      aria-invalid={Boolean(stepErrors.title)}
+                      className={`bg-white dark:bg-[#18181B] text-ink text-sm focus:border-maroon focus:ring-1 focus:ring-maroon ${stepErrors.title ? 'border-red-500 ring-1 ring-red-500' : 'border-border-soft'}`}
+                    />
+                    {stepErrors.title && <p className="text-xs text-red-600 font-medium">{stepErrors.title}</p>}
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="quiz-subject-input" className="text-ink font-semibold text-xs">Subject / Course *</Label>
+                    <Input
+                      id="quiz-subject-input"
+                      value={formData.subject || facultySubject}
+                      readOnly
+                      placeholder="e.g. Computer Science & Engineering"
+                      aria-invalid={Boolean(stepErrors.subject)}
+                      className={`bg-cream/40 dark:bg-[#18181B] text-ink text-sm cursor-not-allowed font-medium opacity-90 ${stepErrors.subject ? 'border-red-500 ring-1 ring-red-500' : 'border-border-soft'}`}
+                    />
+                    {stepErrors.subject && <p className="text-xs text-red-600 font-medium">{stepErrors.subject}</p>}
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="quiz-duration-input" className="text-ink font-semibold text-xs">Duration (mins) *</Label>
+                    <Input
+                      id="quiz-duration-input"
+                      value={formData.durationMinutes}
+                      onChange={e => {
+                        setFormData({ ...formData, durationMinutes: e.target.value });
+                        if (stepErrors.durationMinutes) setStepErrors(prev => ({ ...prev, durationMinutes: '' }));
+                      }}
+                      type="number"
+                      min={1}
+                      placeholder="60"
+                      aria-invalid={Boolean(stepErrors.durationMinutes)}
+                      className={`bg-white dark:bg-[#18181B] text-ink text-sm focus:border-maroon focus:ring-1 focus:ring-maroon ${stepErrors.durationMinutes ? 'border-red-500 ring-1 ring-red-500' : 'border-border-soft'}`}
+                    />
+                    {stepErrors.durationMinutes && <p className="text-xs text-red-600 font-medium">{stepErrors.durationMinutes}</p>}
+                  </div>
+                </div>
               </div>
             )}
 
+            {/* Step 2: Quiz Schedule */}
+            {wizardStep === 2 && (
+              <div className="bg-cream/20 dark:bg-[#242429] p-5 rounded-xl border border-border-soft space-y-4">
+                <div>
+                  <h3 className="text-base font-serif font-bold text-ink">Quiz Schedule</h3>
+                  <p className="text-xs text-gray-body mt-0.5">Optionally restrict when students can access this quiz. Leave blank for flexible availability.</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <Label htmlFor="quiz-start-date" className="text-ink font-semibold text-xs">Start Time</Label>
+                    <Input
+                      id="quiz-start-date"
+                      value={formData.startDate}
+                      onChange={e => {
+                        setFormData({ ...formData, startDate: e.target.value });
+                        if (stepErrors.startDate || stepErrors.endDate) setStepErrors(prev => ({ ...prev, startDate: '', endDate: '' }));
+                      }}
+                      type="datetime-local"
+                      aria-invalid={Boolean(stepErrors.startDate)}
+                      className={`bg-white dark:bg-[#18181B] text-ink text-xs focus:border-maroon focus:ring-1 focus:ring-maroon ${stepErrors.startDate ? 'border-red-500 ring-1 ring-red-500' : 'border-border-soft'}`}
+                    />
+                    {stepErrors.startDate && <p className="text-xs text-red-600 font-medium">{stepErrors.startDate}</p>}
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="quiz-end-date" className="text-ink font-semibold text-xs">End Time</Label>
+                    <Input
+                      id="quiz-end-date"
+                      value={formData.endDate}
+                      onChange={e => {
+                        setFormData({ ...formData, endDate: e.target.value });
+                        if (stepErrors.endDate) setStepErrors(prev => ({ ...prev, endDate: '' }));
+                      }}
+                      type="datetime-local"
+                      aria-invalid={Boolean(stepErrors.endDate)}
+                      className={`bg-white dark:bg-[#18181B] text-ink text-xs focus:border-maroon focus:ring-1 focus:ring-maroon ${stepErrors.endDate ? 'border-red-500 ring-1 ring-red-500' : 'border-border-soft'}`}
+                    />
+                    {stepErrors.endDate && <p className="text-xs text-red-600 font-medium">{stepErrors.endDate}</p>}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Step 3: Marks Configuration */}
+            {wizardStep === 3 && (
+              <div className="bg-cream/20 dark:bg-[#242429] p-5 rounded-xl border border-border-soft space-y-4">
+                <div>
+                  <h3 className="text-base font-serif font-bold text-ink">Marks Configuration</h3>
+                  <p className="text-xs text-gray-body mt-0.5">Specify total and passing marks. Total marks can be left blank to calculate automatically from questions.</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <Label htmlFor="quiz-total-marks" className="text-ink font-semibold text-xs">Total Marks (Optional)</Label>
+                    <Input
+                      id="quiz-total-marks"
+                      value={formData.totalMarks}
+                      onChange={e => {
+                        setFormData({ ...formData, totalMarks: e.target.value });
+                        if (stepErrors.totalMarks || stepErrors.passingMarks) setStepErrors(prev => ({ ...prev, totalMarks: '', passingMarks: '' }));
+                      }}
+                      type="number"
+                      min={1}
+                      placeholder="Calculated automatically if empty"
+                      aria-invalid={Boolean(stepErrors.totalMarks)}
+                      className={`bg-white dark:bg-[#18181B] text-ink text-xs focus:border-maroon focus:ring-1 focus:ring-maroon ${stepErrors.totalMarks ? 'border-red-500 ring-1 ring-red-500' : 'border-border-soft'}`}
+                    />
+                    {stepErrors.totalMarks && <p className="text-xs text-red-600 font-medium">{stepErrors.totalMarks}</p>}
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="quiz-passing-marks" className="text-ink font-semibold text-xs">Passing Marks</Label>
+                    <Input
+                      id="quiz-passing-marks"
+                      value={formData.passingMarks}
+                      onChange={e => {
+                        setFormData({ ...formData, passingMarks: e.target.value });
+                        if (stepErrors.passingMarks) setStepErrors(prev => ({ ...prev, passingMarks: '' }));
+                      }}
+                      type="number"
+                      min={0}
+                      placeholder="e.g. 40"
+                      aria-invalid={Boolean(stepErrors.passingMarks)}
+                      className={`bg-white dark:bg-[#18181B] text-ink text-xs focus:border-maroon focus:ring-1 focus:ring-maroon ${stepErrors.passingMarks ? 'border-red-500 ring-1 ring-red-500' : 'border-border-soft'}`}
+                    />
+                    {stepErrors.passingMarks && <p className="text-xs text-red-600 font-medium">{stepErrors.passingMarks}</p>}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Step 4: Hierarchical Target Audience Selector: Batch -> Department -> Section */}
+            {wizardStep === 4 && (
+            <div className="p-4 bg-cream/30 dark:bg-[#242429] rounded-xl border border-border-soft space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-ink font-semibold text-xs block">Assign to:</Label>
+                  <p className="text-[11px] text-gray-body mt-0.5">Select a Batch, then Department, then Section to add the target class.</p>
+                </div>
+                {(formData.targetDepartments.length > 0 || formData.targetSections.length > 0) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormData(prev => ({ ...prev, targetDepartments: [], targetSections: [] }));
+                      setSelectedBatchId('');
+                      setSelectedDepartmentId('');
+                      setSelectedSectionId('');
+                    }}
+                    className="text-[11px] text-red-500 hover:text-red-700 font-semibold"
+                  >
+                    Clear All
+                  </button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+                {/* 1. Batch Selector */}
+                <div className="space-y-1">
+                  <Label htmlFor="target-batch-select" className="text-ink font-semibold text-[11px] block">1. Batch</Label>
+                  <select
+                    id="target-batch-select"
+                    value={selectedBatchId}
+                    onChange={e => {
+                      setSelectedBatchId(e.target.value);
+                      setSelectedDepartmentId('');
+                      setSelectedSectionId('');
+                    }}
+                    className="w-full bg-white dark:bg-[#18181B] border border-border-soft rounded-lg px-3 py-2 text-ink h-10 focus:border-maroon focus:ring-1 focus:ring-maroon outline-none text-xs"
+                  >
+                    <option value="">Select Batch...</option>
+                    {batches.map(b => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 2. Department Selector */}
+                <div className="space-y-1">
+                  <Label htmlFor="target-dept-select" className="text-ink font-semibold text-[11px] block">2. Department</Label>
+                  <select
+                    id="target-dept-select"
+                    value={selectedDepartmentId}
+                    disabled={!selectedBatchId}
+                    onChange={e => {
+                      setSelectedDepartmentId(e.target.value);
+                      setSelectedSectionId('');
+                    }}
+                    className="w-full bg-white dark:bg-[#18181B] border border-border-soft rounded-lg px-3 py-2 text-ink h-10 focus:border-maroon focus:ring-1 focus:ring-maroon outline-none text-xs disabled:opacity-50"
+                  >
+                    <option value="">{!selectedBatchId ? 'Select Batch first' : 'Select Department...'}</option>
+                    {departments
+                      .filter(d => d.batchId === selectedBatchId)
+                      .map(d => (
+                        <option key={d.id} value={d.id}>{d.name}</option>
+                      ))}
+                  </select>
+                </div>
+
+                {/* 3. Section Selector */}
+                <div className="space-y-1">
+                  <Label htmlFor="target-sec-select" className="text-ink font-semibold text-[11px] block">3. Section</Label>
+                  <select
+                    id="target-sec-select"
+                    value={selectedSectionId}
+                    disabled={!selectedDepartmentId}
+                    onChange={e => {
+                      const secId = e.target.value;
+                      setSelectedSectionId(secId);
+                      if (secId && selectedDepartmentId) {
+                        // Automatically add when section is picked
+                        setFormData(prev => ({
+                          ...prev,
+                          targetDepartments: prev.targetDepartments.includes(selectedDepartmentId)
+                            ? prev.targetDepartments
+                            : [...prev.targetDepartments, selectedDepartmentId],
+                          targetSections: prev.targetSections.includes(secId)
+                            ? prev.targetSections
+                            : [...prev.targetSections, secId]
+                        }));
+                        setSelectedSectionId('');
+                      }
+                    }}
+                    className="w-full bg-white dark:bg-[#18181B] border border-border-soft rounded-lg px-3 py-2 text-ink h-10 focus:border-maroon focus:ring-1 focus:ring-maroon outline-none text-xs disabled:opacity-50"
+                  >
+                    <option value="">{!selectedDepartmentId ? 'Select Dept first' : 'Select Section to Add...'}</option>
+                    {(departments.find(d => d.id === selectedDepartmentId)?.sections || [])
+                      .filter((s: any) => !formData.targetSections.includes(s.id))
+                      .map((s: any) => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                  </select>
+                </div>
+
+                {/* Add Entire Department button (optional if user wants whole dept) */}
+                <div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!selectedDepartmentId || (formData.targetDepartments.includes(selectedDepartmentId) && (departments.find(d => d.id === selectedDepartmentId)?.sections || []).every((s: any) => formData.targetSections.includes(s.id)))}
+                    onClick={() => {
+                      if (!selectedDepartmentId) return;
+                      const dept = departments.find(d => d.id === selectedDepartmentId);
+                      const deptSecIds = (dept?.sections || []).map((s: any) => s.id);
+                      setFormData(prev => ({
+                        ...prev,
+                        targetDepartments: prev.targetDepartments.includes(selectedDepartmentId)
+                          ? prev.targetDepartments
+                          : [...prev.targetDepartments, selectedDepartmentId],
+                        targetSections: Array.from(new Set([...prev.targetSections, ...deptSecIds]))
+                      }));
+                    }}
+                    className="w-full h-10 border-border-soft hover:bg-cream text-xs font-semibold"
+                  >
+                    + Add All Sections
+                  </Button>
+                </div>
+              </div>
+
+              {/* Combined Listed Items: "Batch - Department - Section" */}
+              <div className="pt-2 border-t border-border-soft/60">
+                <div className="text-[11px] font-semibold text-ink mb-2">
+                  Selected Target Classes ({formData.targetSections.length}):
+                </div>
+                {formData.targetSections.length > 0 || formData.targetDepartments.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {/* List each selected section with its Batch - Department - Section */}
+                    {formData.targetSections.map(secId => {
+                      const dept = departments.find(d => (d.sections || []).some((s: any) => s.id === secId));
+                      const section = (dept?.sections || []).find((s: any) => s.id === secId);
+                      const batch = batches.find(b => b.id === dept?.batchId);
+                      const label = `${batch?.name || 'Batch'} - ${dept?.name || 'Dept'} - ${section?.name || secId}`;
+                      return (
+                        <span
+                          key={secId}
+                          className="inline-flex items-center gap-2 bg-white dark:bg-[#18181B] border border-border-soft text-ink px-3 py-1.5 rounded-full text-xs font-semibold shadow-xs"
+                        >
+                          <span>{label}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFormData(prev => {
+                                const remainingSections = prev.targetSections.filter(id => id !== secId);
+                                // Check if the department still has any other selected sections
+                                const deptSecIds = (dept?.sections || []).map((s: any) => s.id);
+                                const hasOtherSecInDept = remainingSections.some(id => deptSecIds.includes(id));
+                                return {
+                                  ...prev,
+                                  targetSections: remainingSections,
+                                  targetDepartments: dept && !hasOtherSecInDept
+                                    ? prev.targetDepartments.filter(id => id !== dept.id)
+                                    : prev.targetDepartments
+                                };
+                              });
+                            }}
+                            className="text-gray-body hover:text-red-600 font-bold text-xs focus:outline-none"
+                            title="Remove target class"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      );
+                    })}
+
+                    {/* Fallback if a department was selected without specific sections (e.g. legacy or edited quiz) */}
+                    {formData.targetDepartments
+                      .filter(deptId => {
+                        const dept = departments.find(d => d.id === deptId);
+                        const deptSecIds = (dept?.sections || []).map((s: any) => s.id);
+                        return !deptSecIds.some((id: string) => formData.targetSections.includes(id));
+                      })
+                      .map(deptId => {
+                        const dept = departments.find(d => d.id === deptId);
+                        const batch = batches.find(b => b.id === dept?.batchId);
+                        const label = `${batch?.name || 'Batch'} - ${dept?.name || deptId} - All Sections`;
+                        return (
+                          <span
+                            key={`dept-only-${deptId}`}
+                            className="inline-flex items-center gap-2 bg-white dark:bg-[#18181B] border border-border-soft text-ink px-3 py-1.5 rounded-full text-xs font-semibold shadow-xs"
+                          >
+                            <span>{label}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFormData(prev => ({
+                                  ...prev,
+                                  targetDepartments: prev.targetDepartments.filter(id => id !== deptId)
+                                }));
+                              }}
+                              className="text-gray-body hover:text-red-600 font-bold text-xs focus:outline-none"
+                              title="Remove target department"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        );
+                      })}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-gray-body italic">
+                    No target classes added yet. Select Batch → Department → Section above to add.
+                  </p>
+                )}
+              </div>
+            </div>
+            )}
+
+            {/* Step 5: Add Questions */}
+            {wizardStep === 5 && (
+            <div className="space-y-5">
+              {/* Configured Quiz Summary Strip */}
+              <div className="bg-cream/30 dark:bg-[#242429] border border-border-soft rounded-xl p-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-gray-body block">Quiz & Subject</span>
+                  <span className="font-semibold text-ink block truncate">{formData.title || 'Untitled Quiz'}</span>
+                  <span className="text-[11px] text-maroon truncate block">{formData.subject || facultySubject || '—'}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-gray-body block">Duration & Marks</span>
+                  <span className="font-semibold text-ink block">{formData.durationMinutes || 60} mins</span>
+                  <span className="text-[11px] text-gray-body block">
+                    {formData.totalMarks ? `${formData.totalMarks} total` : 'Auto total'}
+                    {formData.passingMarks ? ` · Pass ${formData.passingMarks}` : ''}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-gray-body block">Schedule</span>
+                  <span className="font-semibold text-ink block">{formData.startDate ? 'Scheduled Window' : 'Flexible Window'}</span>
+                  <button type="button" onClick={() => handleJumpToWizardStep(2)} className="text-[11px] text-maroon underline font-semibold">Edit schedule</button>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-gray-body block">Target Classes</span>
+                  <span className="font-semibold text-ink block">
+                    {(formData.targetSections.length || formData.targetDepartments.length) > 0
+                      ? `${formData.targetSections.length || formData.targetDepartments.length} selected`
+                      : 'None added'}
+                  </span>
+                  <button type="button" onClick={() => handleJumpToWizardStep(4)} className="text-[11px] text-maroon underline font-semibold">Edit classes</button>
+                </div>
+              </div>
+
+              {activeQuizId && (
+                <div className="flex flex-wrap justify-between items-center gap-3 bg-cream/20 dark:bg-[#242429] border border-border-soft rounded-xl p-4">
+                  <span className="text-xs text-gray-body font-medium">Review existing questions or save metadata & class updates directly.</span>
+                  <div className="flex flex-wrap gap-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setActiveView('add_questions')}
+                      className="border-border-soft hover:bg-cream/40 font-semibold rounded-full px-6"
+                    >
+                      Review & Edit Questions ({questions.length})
+                    </Button>
+                    <Button onClick={() => handleSaveQuizAndQuestions(true)} disabled={loading} className="bg-maroon hover:bg-maroon-deep text-white font-bold rounded-full px-7">
+                      {loading ? 'Saving...' : 'Save Quiz Changes'}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
             {/* Question Creation Options Tabs */}
-            <div className="border-t border-border-soft pt-6 mt-6">
-              <div className="flex items-center justify-between mb-4">
+            <div className="border-t border-border-soft pt-5">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                 <Label className="text-ink font-serif font-bold text-lg">Add Questions Method</Label>
-                <div className="flex gap-2 bg-cream/40 p-1 rounded-full border border-border-soft">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button type="button" variant="outline" onClick={() => setShowTemplateModal(true)} className="border-border-soft hover:bg-cream/40 text-xs font-semibold">
+                    Download DOCX Template
+                  </Button>
+                  <div className="flex gap-2 bg-cream/40 p-1 rounded-full border border-border-soft">
                   <button
                     type="button"
                     onClick={() => setCreationMode('paste')}
@@ -1057,6 +2015,7 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                   >
                     ✏️ Manual Builder
                   </button>
+                  </div>
                 </div>
               </div>
 
@@ -1072,22 +2031,24 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-white dark:bg-[#1E1E22] rounded-lg border border-border-soft">
-                    {(['MCQ', 'SHORT_WRITTEN', 'NUMERICAL', 'LONG_WRITTEN'] as const).map(type => {
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 p-3 bg-white dark:bg-[#1E1E22] rounded-lg border border-border-soft">
+                    {(['MCQ', 'SHORT_WRITTEN', 'NUMERICAL', 'LONG_WRITTEN', 'MATCHING', 'FILL_BLANK'] as const).map(type => {
                       const labelMap = {
                         MCQ: 'MCQ (Single/Multi)',
                         SHORT_WRITTEN: 'Short Written',
                         NUMERICAL: 'Numerical',
                         LONG_WRITTEN: 'Long Written',
+                        MATCHING: 'Match Following',
+                        FILL_BLANK: 'Fill in Blanks',
                       };
                       return (
                         <label key={type} className="flex items-center space-x-2 cursor-pointer p-2 rounded hover:bg-cream/40 select-none">
                           <input
                             type="checkbox"
-                            checked={bulkConfig[type].selected}
+                            checked={bulkConfig[type]?.selected || false}
                             onChange={(e) => setBulkConfig({
                               ...bulkConfig,
-                              [type]: { ...bulkConfig[type], selected: e.target.checked }
+                              [type]: { ...(bulkConfig[type] || { text: '' }), selected: e.target.checked }
                             })}
                             className="w-4 h-4 rounded text-maroon focus:ring-maroon accent-maroon"
                           />
@@ -1178,6 +2139,46 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                         />
                       </div>
                     )}
+
+                    {bulkConfig.MATCHING?.selected && (
+                      <div className="space-y-2 bg-white dark:bg-[#1E1E22] p-4 rounded-xl border border-border-soft shadow-sm">
+                        <div className="flex justify-between items-center">
+                          <Label className="text-xs text-maroon font-bold flex items-center gap-1">
+                            <Clipboard className="w-3.5 h-3.5" /> Match the Following Box
+                          </Label>
+                          <span className="text-[10px] text-gray-body bg-cream/60 px-2 py-0.5 rounded border border-border-soft font-mono">{"Format: Term -> Match"}</span>
+                        </div>
+                        <Textarea
+                          placeholder={`1. Match the data structures with their complexities:\nBinary Search -> O(log n)\nLinear Search -> O(n)\nHash Table Lookup -> O(1)\nMerge Sort -> O(n log n)\n\n2. Match countries to capitals:\nFrance -> Paris\nJapan -> Tokyo`}
+                          value={bulkConfig.MATCHING.text}
+                          onChange={(e) => setBulkConfig({
+                            ...bulkConfig,
+                            MATCHING: { ...bulkConfig.MATCHING, text: e.target.value }
+                          })}
+                          className="h-52 bg-cream/10 dark:bg-[#18181B] border-border-soft font-mono text-xs text-ink focus:border-maroon focus:ring-1 focus:ring-maroon"
+                        />
+                      </div>
+                    )}
+
+                    {bulkConfig.FILL_BLANK?.selected && (
+                      <div className="space-y-2 bg-white dark:bg-[#1E1E22] p-4 rounded-xl border border-border-soft shadow-sm">
+                        <div className="flex justify-between items-center">
+                          <Label className="text-xs text-maroon font-bold flex items-center gap-1">
+                            <Clipboard className="w-3.5 h-3.5" /> Fill in the Blanks Box
+                          </Label>
+                          <span className="text-[10px] text-gray-body bg-cream/60 px-2 py-0.5 rounded border border-border-soft font-mono">{"Format: Question with [blank] -> Answer: ..."}</span>
+                        </div>
+                        <Textarea
+                          placeholder={`1. The time complexity of binary search is [blank].\nAnswer: O(log n), log n\n\n2. The capital of France is [blank].\nAnswer: Paris`}
+                          value={bulkConfig.FILL_BLANK.text}
+                          onChange={(e) => setBulkConfig({
+                            ...bulkConfig,
+                            FILL_BLANK: { ...bulkConfig.FILL_BLANK, text: e.target.value }
+                          })}
+                          className="h-52 bg-cream/10 dark:bg-[#18181B] border-border-soft font-mono text-xs text-ink focus:border-maroon focus:ring-1 focus:ring-maroon"
+                        />
+                      </div>
+                    )}
                   </div>
 
                   {!Object.values(bulkConfig).some(c => c.selected) && (
@@ -1230,9 +2231,58 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                 </div>
               )}
             </div>
+            </div>
+            )}
+
+            {/* Step Wizard Footer Navigation */}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border-soft pt-5">
+              <div>
+                {wizardStep > 1 ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handlePrevWizardStep}
+                    className="border-border-soft hover:bg-cream/40 font-semibold text-xs px-5 rounded-full inline-flex items-center gap-1.5"
+                  >
+                    <ChevronLeft className="w-4 h-4" /> Back
+                  </Button>
+                ) : (
+                  <span className="text-xs text-gray-body">Step {wizardStep} of 5</span>
+                )}
+              </div>
+              <div className="flex items-center gap-3">
+                {wizardStep < 5 ? (
+                  <Button
+                    type="button"
+                    onClick={handleNextWizardStep}
+                    className="bg-maroon hover:bg-maroon-deep text-white font-bold text-xs px-7 h-10 rounded-full inline-flex items-center gap-1.5 shadow-sm"
+                  >
+                    Next <ChevronRight className="w-4 h-4" />
+                  </Button>
+                ) : !activeQuizId && hasStagedQuestions ? (
+                  <Button
+                    type="button"
+                    onClick={() => handleSaveQuizAndQuestions(false)}
+                    disabled={loading}
+                    className="bg-maroon hover:bg-maroon-deep text-white font-bold text-xs px-7 h-10 rounded-full shadow-sm"
+                  >
+                    {loading ? 'Scheduling...' : 'Create Quiz'}
+                  </Button>
+                ) : null}
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
+
+      <ConfirmationDialog
+        open={showDiscardConfirm}
+        title="Discard unsaved quiz?"
+        description="You have unsaved changes in this quiz wizard. Returning to Quiz Management will discard your progress."
+        confirmLabel="Discard Changes"
+        onCancel={() => setShowDiscardConfirm(false)}
+        onConfirm={handleDiscardWizardChanges}
+      />
 
       {/* Template Configuration Modal */}
       {showTemplateModal && typeof document !== 'undefined' && createPortal(
@@ -1267,7 +2317,8 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                     numericalCount: 0,
                     shortCount: 0,
                     longCount: 0,
-                    matchingCount: 0
+                    matchingCount: 0,
+                    fillBlankCount: 0
                   }))}
                   className="rounded text-maroon focus:ring-maroon accent-maroon"
                 />
@@ -1296,9 +2347,13 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                     <Label className="text-xs font-medium text-ink">Match the Following</Label>
                     <Input type="number" min={0} value={templateConfig.matchingCount} onChange={e => setTemplateConfig(p => ({ ...p, matchingCount: parseInt(e.target.value) || 0 }))} className="bg-white dark:bg-[#18181B] border-border-soft text-ink" />
                   </div>
+                  <div className="grid grid-cols-2 gap-4 items-center">
+                    <Label className="text-xs font-medium text-ink">Fill in the Blanks</Label>
+                    <Input type="number" min={0} value={templateConfig.fillBlankCount} onChange={e => setTemplateConfig(p => ({ ...p, fillBlankCount: parseInt(e.target.value) || 0 }))} className="bg-white dark:bg-[#18181B] border-border-soft text-ink" />
+                  </div>
                   
                   {(() => {
-                    const sum = templateConfig.mcqCount + templateConfig.numericalCount + templateConfig.shortCount + templateConfig.longCount + templateConfig.matchingCount;
+                    const sum = templateConfig.mcqCount + templateConfig.numericalCount + templateConfig.shortCount + templateConfig.longCount + templateConfig.matchingCount + templateConfig.fillBlankCount;
                     return (
                       <div className={`text-xs font-bold ${sum !== templateConfig.totalQuestions ? 'text-red-500' : 'text-green-700 dark:text-green-400'}`}>
                         Sum: {sum} / {templateConfig.totalQuestions}
@@ -1313,7 +2368,7 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
               <Button variant="ghost" onClick={() => setShowTemplateModal(false)} className="text-xs font-semibold">Cancel</Button>
               <Button 
                 onClick={downloadTemplate}
-                disabled={templateConfig.isMixedTypes && (templateConfig.mcqCount + templateConfig.numericalCount + templateConfig.shortCount + templateConfig.longCount + templateConfig.matchingCount) !== templateConfig.totalQuestions}
+                disabled={templateConfig.isMixedTypes && (templateConfig.mcqCount + templateConfig.numericalCount + templateConfig.shortCount + templateConfig.longCount + templateConfig.matchingCount + templateConfig.fillBlankCount) !== templateConfig.totalQuestions}
                 className="bg-maroon hover:bg-maroon-deep text-white font-bold text-xs rounded-full px-6"
               >
                 Generate Template
@@ -1340,7 +2395,18 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
               <h2 className="text-2xl font-serif font-bold text-ink">{formData.title || 'Review & Finalize Quiz Questions'}</h2>
               <p className="text-gray-body text-xs mt-0.5">{formData.subject || 'Subject'} | {formData.durationMinutes || 60} mins | {questions.length} Questions ({sumMarks} Total Marks)</p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                variant="outline"
+                type="button"
+                onClick={() => {
+                  setWizardStep(5);
+                  setActiveView('create');
+                }}
+                className="border-border-soft hover:bg-cream/40 text-ink font-semibold text-xs flex items-center gap-1"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" /> Back to Step 5
+              </Button>
               <Button
                 variant="outline"
                 type="button"
@@ -1364,15 +2430,15 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                 <span className="text-[10px] text-gray-body">Select question types below and paste text to append to this quiz.</span>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-2 bg-white dark:bg-[#1E1E22] rounded-lg border border-border-soft">
-                {(['MCQ', 'SHORT_WRITTEN', 'NUMERICAL', 'LONG_WRITTEN'] as const).map(type => (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 p-2 bg-white dark:bg-[#1E1E22] rounded-lg border border-border-soft">
+                {(['MCQ', 'SHORT_WRITTEN', 'NUMERICAL', 'LONG_WRITTEN', 'MATCHING', 'FILL_BLANK'] as const).map(type => (
                   <label key={type} className="flex items-center space-x-2 cursor-pointer p-1.5 rounded hover:bg-cream/40 select-none">
                     <input
                       type="checkbox"
-                      checked={bulkConfig[type].selected}
+                      checked={bulkConfig[type]?.selected || false}
                       onChange={(e) => setBulkConfig({
                         ...bulkConfig,
-                        [type]: { ...bulkConfig[type], selected: e.target.checked }
+                        [type]: { ...(bulkConfig[type] || { text: '' }), selected: e.target.checked }
                       })}
                       className="w-3.5 h-3.5 rounded text-maroon focus:ring-maroon accent-maroon"
                     />
@@ -1404,6 +2470,18 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                   <div className="space-y-1">
                     <Label className="text-[11px] font-bold text-maroon">Long Written Textbox</Label>
                     <Textarea value={bulkConfig.LONG_WRITTEN.text} onChange={e => setBulkConfig({...bulkConfig, LONG_WRITTEN: {...bulkConfig.LONG_WRITTEN, text: e.target.value}})} placeholder="1. Question...\nAnswer: detailed points" className="h-36 font-mono text-xs bg-white dark:bg-[#18181B] text-ink" />
+                  </div>
+                )}
+                {bulkConfig.MATCHING?.selected && (
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-bold text-maroon">Match the Following Textbox</Label>
+                    <Textarea value={bulkConfig.MATCHING.text} onChange={e => setBulkConfig({...bulkConfig, MATCHING: {...bulkConfig.MATCHING, text: e.target.value}})} placeholder="1. Match pairs:\nFrance -> Paris\nJapan -> Tokyo" className="h-36 font-mono text-xs bg-white dark:bg-[#18181B] text-ink" />
+                  </div>
+                )}
+                {bulkConfig.FILL_BLANK?.selected && (
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-bold text-maroon">Fill in the Blanks Textbox</Label>
+                    <Textarea value={bulkConfig.FILL_BLANK.text} onChange={e => setBulkConfig({...bulkConfig, FILL_BLANK: {...bulkConfig.FILL_BLANK, text: e.target.value}})} placeholder="1. The capital of France is [blank].\nAnswer: Paris" className="h-36 font-mono text-xs bg-white dark:bg-[#18181B] text-ink" />
                   </div>
                 )}
               </div>
@@ -1441,6 +2519,7 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                         <option value="SHORT_WRITTEN">Short Written</option>
                         <option value="LONG_WRITTEN">Long Written</option>
                         <option value="MATCHING">Match the Following</option>
+                        <option value="FILL_BLANK">Fill in the Blanks</option>
                       </select>
                       <button onClick={() => { const n = [...questions]; n.splice(qIndex, 1); setQuestions(n); }} className="text-red-500 text-xs font-bold hover:underline">Remove</button>
                     </div>
@@ -1568,24 +2647,164 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
 
                   {q.type === 'MATCHING' && (
                     <div className="mt-2 bg-white/60 dark:bg-[#1E1E22] p-4 border border-border-soft rounded-xl">
-                      <div className="text-sm font-semibold text-gray-body mb-2">Define Correct Pairs (Left maps to Right):</div>
+                      <div className="flex justify-between items-center mb-3">
+                        <div className="text-xs font-bold text-gray-body">
+                          Define Matching Pairs (Column A matches Column B). Use ▲/▼ to reorder Column B:
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-12 gap-2 mb-2 text-xs font-bold text-gray-body px-1">
+                        <div className="col-span-5">Column A (Questions / Terms)</div>
+                        <div className="col-span-1 text-center">→</div>
+                        <div className="col-span-5">Column B (Matching Answers)</div>
+                        <div className="col-span-1 text-center">Order</div>
+                      </div>
                       {q.options.map((pair: any, optIndex: number) => (
-                        <div key={optIndex} className="flex gap-4 items-center mb-2">
-                          <Input type="text" value={pair.left || ''} onChange={(e) => updateMatchingOption(qIndex, optIndex, 'left', e.target.value)} placeholder={`Left ${optIndex + 1}`} className="flex-1 bg-white dark:bg-[#18181B] border-border-soft text-ink focus:border-maroon focus:ring-1 focus:ring-maroon" />
-                          <span className="text-gray-body">→</span>
-                          <Input type="text" value={pair.right || ''} onChange={(e) => updateMatchingOption(qIndex, optIndex, 'right', e.target.value)} placeholder={`Right ${optIndex + 1}`} className="flex-1 bg-white dark:bg-[#18181B] border-border-soft text-ink focus:border-maroon focus:ring-1 focus:ring-maroon" />
+                        <div key={optIndex} className="grid grid-cols-12 gap-2 items-center mb-2">
+                          <div className="col-span-5 flex items-center gap-1.5">
+                            <span className="text-[11px] font-bold text-maroon min-w-4 text-center">{optIndex + 1}.</span>
+                            <Input 
+                              type="text" 
+                              value={pair.left || ''} 
+                              onChange={(e) => updateMatchingOption(qIndex, optIndex, 'left', e.target.value)} 
+                              placeholder={`Term / Question ${optIndex + 1}`} 
+                              className="flex-1 bg-white dark:bg-[#18181B] border-border-soft text-ink text-xs focus:border-maroon focus:ring-1 focus:ring-maroon" 
+                            />
+                          </div>
+                          <span className="col-span-1 text-center text-gray-body font-bold">→</span>
+                          <div className="col-span-5 flex items-center gap-1.5">
+                            <span className="text-[11px] font-bold text-maroon min-w-4 text-center">{String.fromCharCode(65 + optIndex)}.</span>
+                            <Input 
+                              type="text" 
+                              value={pair.right || ''} 
+                              onChange={(e) => updateMatchingOption(qIndex, optIndex, 'right', e.target.value)} 
+                              placeholder={`Answer / Match ${String.fromCharCode(65 + optIndex)}`} 
+                              className="flex-1 bg-white dark:bg-[#18181B] border-border-soft text-ink text-xs focus:border-maroon focus:ring-1 focus:ring-maroon" 
+                            />
+                          </div>
+                          <div className="col-span-1 flex items-center justify-center gap-1">
+                            <button
+                              type="button"
+                              disabled={optIndex === 0}
+                              onClick={() => {
+                                const newQs = [...questions];
+                                const pairs = [...newQs[qIndex].options];
+                                const temp = pairs[optIndex].right;
+                                pairs[optIndex].right = pairs[optIndex - 1].right;
+                                pairs[optIndex - 1].right = temp;
+                                newQs[qIndex].options = pairs;
+                                setQuestions(newQs);
+                              }}
+                              className="p-1 text-xs hover:text-maroon disabled:opacity-30 disabled:hover:text-inherit"
+                              title="Move Column B option up"
+                            >
+                              ▲
+                            </button>
+                            <button
+                              type="button"
+                              disabled={optIndex === q.options.length - 1}
+                              onClick={() => {
+                                const newQs = [...questions];
+                                const pairs = [...newQs[qIndex].options];
+                                const temp = pairs[optIndex].right;
+                                pairs[optIndex].right = pairs[optIndex + 1].right;
+                                pairs[optIndex + 1].right = temp;
+                                newQs[qIndex].options = pairs;
+                                setQuestions(newQs);
+                              }}
+                              className="p-1 text-xs hover:text-maroon disabled:opacity-30 disabled:hover:text-inherit"
+                              title="Move Column B option down"
+                            >
+                              ▼
+                            </button>
+                            {q.options.length > 2 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const newQs = [...questions];
+                                  newQs[qIndex].options = newQs[qIndex].options.filter((_: any, idx: number) => idx !== optIndex);
+                                  setQuestions(newQs);
+                                }}
+                                className="p-1 text-red-500 hover:text-red-700 font-bold text-xs"
+                                title="Remove pair"
+                              >
+                                ×
+                              </button>
+                            )}
+                          </div>
                         </div>
                       ))}
-                      <button onClick={() => { const n = [...questions]; n[qIndex].options.push({left:'', right:''}); setQuestions(n); }} className="text-sm text-maroon hover:text-maroon-deep font-semibold mt-2">+ Add Pair</button>
+                      <button 
+                        type="button"
+                        onClick={() => { const n = [...questions]; n[qIndex].options.push({left:'', right:''}); setQuestions(n); }} 
+                        className="text-xs text-maroon hover:text-maroon-deep font-semibold mt-2"
+                      >
+                        + Add Matching Pair
+                      </button>
                     </div>
                   )}
+
+                  {q.type === 'FILL_BLANK' && (() => {
+                    const blankMatches = (q.text || '').match(/\[blank\]/gi) || [];
+                    const blankCount = Math.max(1, blankMatches.length);
+                    const blankAnswers = Array.isArray(q.answerKey) 
+                      ? q.answerKey 
+                      : (q.answerKey ? [q.answerKey] : ['']);
+
+                    return (
+                      <div className="mt-2 bg-white/60 dark:bg-[#1E1E22] p-4 border border-border-soft rounded-xl space-y-3">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs text-green-700 dark:text-green-400 font-bold block">
+                            Fill in the Blanks Configuration
+                          </Label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const currentText = q.text || '';
+                              updateQuestion(qIndex, 'text', currentText ? `${currentText} [blank]` : 'The capital of France is [blank]');
+                            }}
+                            className="text-xs text-maroon hover:text-maroon-deep font-bold border border-maroon/30 px-2.5 py-1 rounded-md hover:bg-cream/40 transition-all"
+                          >
+                            + Insert [blank] tag
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-gray-body">
+                          Include <code className="bg-cream/60 px-1 py-0.5 rounded font-mono text-maroon font-bold">[blank]</code> wherever a missing word should appear. For each blank, enter the correct expected answer (multiple acceptable answers can be separated by commas, e.g. "Paris, City of Light").
+                        </p>
+
+                        <div className="space-y-2 pt-1">
+                          {Array.from({ length: blankCount }).map((_, bIdx) => {
+                            const val = blankAnswers[bIdx] || '';
+                            return (
+                              <div key={bIdx} className="flex items-center gap-3">
+                                <span className="text-xs font-bold text-ink min-w-16">
+                                  {blankCount > 1 ? `Blank ${bIdx + 1}:` : 'Expected Answer:'}
+                                </span>
+                                <Input
+                                  type="text"
+                                  value={val}
+                                  onChange={(e) => {
+                                    const updated = [...blankAnswers];
+                                    while (updated.length < blankCount) updated.push('');
+                                    updated[bIdx] = e.target.value;
+                                    updateQuestion(qIndex, 'answerKey', blankCount === 1 ? updated[0] : updated);
+                                  }}
+                                  placeholder={blankCount > 1 ? `Accepted answers for Blank ${bIdx + 1} (comma-separated)` : 'Accepted answers (comma-separated for variants)'}
+                                  className="flex-1 bg-white dark:bg-[#18181B] border-green-200 dark:border-green-900/50 focus-visible:ring-green-600 text-ink text-xs"
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })}
             
             <div className="flex justify-between items-center border-t border-border-soft pt-6">
               <Button variant="outline" className="border-border-soft hover:bg-cream/40" onClick={handleAddQuestionRow}>+ Add Another Question</Button>
-              <Button onClick={handleSaveQuizAndQuestions} disabled={loading || isMismatch} className="bg-maroon hover:bg-maroon-deep text-white font-bold h-10 px-6 rounded-full transition-all disabled:opacity-50">{loading ? 'Saving...' : 'Save & Publish Quiz'}</Button>
+              <Button onClick={() => handleSaveQuizAndQuestions(false)} disabled={loading || isMismatch} className="bg-maroon hover:bg-maroon-deep text-white font-bold h-10 px-6 rounded-full transition-all disabled:opacity-50">{loading ? 'Saving...' : activeQuizId ? 'Save Quiz Changes' : 'Save & Publish Quiz'}</Button>
             </div>
           </div>
         </CardContent>
@@ -1593,107 +2812,422 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
     );
   }
 
-  if (activeView === 'grade_submissions') {
-    const handleAllowRestart = async (attemptId: string) => {
-      if (!confirm('Are you sure you want to allow this student to retake the exam? Their current attempt and all responses will be deleted.')) return;
+  if (activeView === 'view_submissions') {
+    const answersPublished = Boolean(activeSubmissionsQuiz?.answersPublished);
+
+    const handleConfirmRestartAttempt = async () => {
+      if (!attemptPendingRestart || restartingAttemptId) return;
+      const { attemptId } = attemptPendingRestart;
       try {
+        setRestartingAttemptId(attemptId);
         const res = await apiClient.fetch(`/api/v1/faculty/quiz/attempt/${attemptId}/allow-restart`, { method: 'POST' });
         const data = await res.json();
-        if (data?.status === 'success') {
-          toast.success('Student can now retake the exam.');
-          setSubmissions(prev => prev.filter(s => s.id !== attemptId));
+        if (!isMountedRef.current) return;
+        if (res?.ok !== false && data?.status === 'success') {
+          toast.success('Student attempt deleted. Student can now retake the exam.');
+          setSubmissions(prev =>
+            prev.map(s =>
+              s.id === attemptId
+                ? {
+                    ...s,
+                    id: null,
+                    hasSubmitted: false,
+                    status: 'NOT_SUBMITTED',
+                    startTime: null,
+                    endTime: null,
+                    objectiveScore: null,
+                    writtenScore: null,
+                    totalScore: null,
+                    facultyFeedback: null,
+                    violationReason: null,
+                    responses: [],
+                  }
+                : s
+            )
+          );
+          setAttemptPendingRestart(null);
         } else {
-          toast.error('Failed to allow restart: ' + (data?.message || 'Unknown error'));
+          const msg = data?.error?.message || data?.message || 'Failed to allow restart.';
+          toast.error(msg);
+          throw new Error(msg);
         }
-      } catch (err) {
-        console.error(err);
-        toast.error('Failed to allow restart.');
+      } finally {
+        if (isMountedRef.current) setRestartingAttemptId(null);
       }
     };
 
+    const formatSubmissionDateTime = (sub: any) => {
+      if (!sub?.id && !sub?.endTime && !sub?.startTime) return '—';
+      const ts = sub.endTime || sub.startTime || sub.createdAt;
+      if (!ts) return '—';
+      return new Date(ts).toLocaleString();
+    };
+
+    const isRowSubmitted = (row: any) =>
+      row.hasSubmitted !== undefined
+        ? Boolean(row.hasSubmitted)
+        : row.status !== 'NOT_SUBMITTED' && row.status !== 'IN_PROGRESS';
+
+    const classScopedSubmissions =
+      selectedClassFilter === 'ALL'
+        ? submissions
+        : submissions.filter(row => row.classKey === selectedClassFilter);
+
+    const totalAssignedCount = classScopedSubmissions.length;
+    const submittedCount = classScopedSubmissions.filter(isRowSubmitted).length;
+    const notSubmittedCount = totalAssignedCount - submittedCount;
+    const violatedCount = classScopedSubmissions.filter(row => Boolean(row.violationReason)).length;
+
+    const filteredSubmissions = classScopedSubmissions.filter(row => {
+      if (submissionStatusFilter === 'SUBMITTED') return isRowSubmitted(row);
+      if (submissionStatusFilter === 'NOT_SUBMITTED') return !isRowSubmitted(row);
+      if (submissionStatusFilter === 'VIOLATED') return Boolean(row.violationReason);
+      return true;
+    });
+
     return (
-      <Card className="quiz-attempts-view bg-white dark:bg-[#1E1E22] border border-border-soft text-ink shadow-sm rounded-xl">
+      <>
+      <Card className="bg-white dark:bg-[#1E1E22] border border-border-soft text-ink shadow-sm rounded-xl">
         <CardContent className="p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-serif font-bold text-ink">View Submissions</h2>
-            <div className="flex gap-2">
-              <button type="button" onClick={() => downloadCsv(submissions.map(sub => ({
-                student: sub.user?.name,
-                rollNumber: sub.user?.rollNumber,
-                objectiveScore: sub.objectiveScore,
-                writtenScore: sub.writtenScore,
-                status: sub.status,
-                violation: sub.violationReason,
-              })), ['student', 'rollNumber', 'objectiveScore', 'writtenScore', 'status', 'violation'], `quiz_attempts_${activeQuizId || 'all'}_${new Date().toISOString().slice(0, 10)}`)} disabled={submissions.length === 0} className="rounded-lg border border-border-soft bg-white px-3 py-2 text-sm font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-50">Export CSV</button>
-              <button type="button" onClick={() => window.print()} className="rounded-lg border border-border-soft bg-white px-3 py-2 text-sm font-semibold text-ink print:hidden">Print</button>
-              <button onClick={() => setActiveView('list')} className="text-maroon hover:text-maroon-deep font-semibold text-sm">Back to Quizzes</button>
+          <div className="flex flex-wrap justify-between items-start gap-4 mb-6 pb-4 border-b border-border-soft">
+            <div>
+              <div className="flex flex-wrap items-center gap-3">
+                <h2 className="text-xl font-serif font-bold text-ink">View Submissions</h2>
+                <span
+                  className={`px-3 py-1 rounded-full text-xs font-bold border ${
+                    answersPublished
+                      ? 'bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-400 border-green-200 dark:border-green-900/50'
+                      : 'bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300 border-amber-200 dark:border-amber-900/50'
+                  }`}
+                >
+                  {answersPublished ? 'Answers Published' : 'Answers Not Published'}
+                </span>
+              </div>
+              {activeSubmissionsQuiz && (
+                <p className="text-xs text-gray-body mt-1">
+                  {activeSubmissionsQuiz.title}
+                  {activeSubmissionsQuiz.subject ? ` • ${activeSubmissionsQuiz.subject}` : ''}
+                  {typeof activeSubmissionsQuiz.totalMarks === 'number' ? ` • Max Marks: ${activeSubmissionsQuiz.totalMarks}` : ''}
+                </p>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {!answersPublished ? (
+                <Button
+                  type="button"
+                  onClick={() => setShowPublishConfirm(true)}
+                  disabled={publishingAnswers}
+                  className="bg-maroon hover:bg-maroon-deep text-white font-bold text-xs rounded-full px-5 shadow-sm"
+                >
+                  {publishingAnswers ? 'Publishing...' : 'Publish Answers'}
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled
+                  className="border-green-300 dark:border-green-900/50 text-green-700 dark:text-green-400 bg-green-50/40 dark:bg-green-950/20 text-xs font-bold rounded-full px-5 cursor-default opacity-90"
+                >
+                  Answers Published
+                </Button>
+              )}
+              <button
+                type="button"
+                onClick={() => downloadCsv(filteredSubmissions.map(sub => ({
+                  student: sub.user?.name,
+                  rollNumber: sub.user?.rollNumber,
+                  class: sub.classShortLabel || sub.classLabel || '',
+                  submittedAt: isRowSubmitted(sub) || sub.id ? formatSubmissionDateTime(sub) : '—',
+                  status: sub.status === 'IN_PROGRESS' ? 'ABANDONED' : sub.status === 'NOT_SUBMITTED' ? 'NOT SUBMITTED' : sub.status,
+                  totalScore: !isRowSubmitted(sub) ? '—' : answersPublished ? (sub.totalScore ?? 0) : 'Not Published',
+                  violation: sub.violationReason || '',
+                })), ['student', 'rollNumber', 'class', 'submittedAt', 'status', 'totalScore', 'violation'], `quiz_attempts_${activeQuizId || 'all'}_${new Date().toISOString().slice(0, 10)}`)}
+                disabled={filteredSubmissions.length === 0}
+                className="rounded-lg border border-border-soft bg-white dark:bg-[#18181B] px-3 py-2 text-sm font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Export CSV
+              </button>
+              <button onClick={() => setActiveView('list')} className="text-maroon hover:text-maroon-deep font-semibold text-sm ml-2">Back to Quizzes</button>
             </div>
           </div>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="border-b border-border-soft">
-                  <TableHead className="text-gray-body font-semibold">Student</TableHead>
-                  <TableHead className="text-gray-body font-semibold">Roll Number</TableHead>
-                  <TableHead className="text-gray-body font-semibold">Auto-Score</TableHead>
-                  <TableHead className="text-gray-body font-semibold">Written Score</TableHead>
-                  <TableHead className="text-gray-body font-semibold">Status</TableHead>
-                  <TableHead className="text-gray-body font-semibold">Violation</TableHead>
-                  <TableHead className="text-gray-body font-semibold">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {submissions.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="p-0 border-0">
-                      <div className="py-8">
-                        <EmptyState icon={<Clipboard className="w-8 h-8 text-maroon" />} title="No Submissions" description="There are no student submissions for this quiz yet." />
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  submissions.map((sub: any) => (
-                    <TableRow key={sub.id} className={`border-b border-border-soft hover:bg-cream/20 transition-colors ${sub.violationReason ? 'bg-red-50/30 dark:bg-red-950/20' : sub.status === 'IN_PROGRESS' ? 'bg-yellow-50/30 dark:bg-yellow-950/20' : ''}`}>
-                      <TableCell className="py-4 font-semibold text-ink">{sub.user?.name}</TableCell>
-                      <TableCell className="font-mono text-xs text-gray-body">{sub.user?.rollNumber || 'N/A'}</TableCell>
-                      <TableCell className="text-ink">{sub.objectiveScore}</TableCell>
-                      <TableCell className="text-ink">{sub.writtenScore}</TableCell>
-                      <TableCell>
-                        <span className={`px-2 py-0.5 text-xs font-semibold rounded-full border ${
-                          sub.status === 'EVALUATED' ? 'bg-green-50/10 text-green-700 dark:text-green-400 border-green-200 dark:border-green-900/50' 
-                          : sub.status === 'IN_PROGRESS' ? 'bg-orange-50 dark:bg-orange-950/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-900/50'
-                          : 'bg-yellow-50/10 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-900/50'
-                        }`}>{sub.status === 'IN_PROGRESS' ? 'ABANDONED' : sub.status}</span>
-                      </TableCell>
-                      <TableCell className="max-w-[400px]">
-                        {sub.violationReason ? (
-                          <div className="px-3 py-2 text-sm font-semibold rounded-lg bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-900/50">
-                            <span className="font-bold">⚠ Violation:</span> {sub.violationReason}
-                          </div>
-                        ) : sub.status === 'IN_PROGRESS' ? (
-                          <div className="px-3 py-2 text-sm font-semibold rounded-lg bg-orange-50 dark:bg-orange-950/30 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-900/50">
-                            Student left the exam without submitting
-                          </div>
-                        ) : (
-                          <span className="text-xs text-gray-body/50">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <Button variant="outline" size="sm" className="border-border-soft hover:bg-cream/40" onClick={() => handleOpenAttempt(sub)}>Grade Submission</Button>
-                          {(sub.violationReason || sub.status === 'IN_PROGRESS') && (
-                            <Button variant="outline" size="sm" className="border-green-300 dark:border-green-900/50 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30 hover:border-green-400" onClick={() => handleAllowRestart(sub.id)}>Allow Restart</Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
+          {submissionsLoading ? (
+            <LoadingState label="Loading submissions..." className="min-h-[200px]" />
+          ) : submissionsError ? (
+            <ErrorState
+              message={submissionsError}
+              onRetry={() => activeQuizId && handleOpenSubmissions(activeQuizId)}
+              className="min-h-[200px]"
+            />
+          ) : (
+            <div className="space-y-5">
+              {/* Summary Metrics */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3" aria-label="Submission summary">
+                <div className="rounded-xl border border-border-soft bg-cream/25 dark:bg-[#242429] p-3.5">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-gray-body">Total Assigned</div>
+                  <div className="text-2xl font-bold text-ink mt-1 tabular-nums">{totalAssignedCount}</div>
+                </div>
+                <div className="rounded-xl border border-green-200 dark:border-green-900/50 bg-green-50/40 dark:bg-green-950/20 p-3.5">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-green-700 dark:text-green-400">Submitted</div>
+                  <div className="text-2xl font-bold text-green-800 dark:text-green-300 mt-1 tabular-nums">{submittedCount}</div>
+                </div>
+                <div className="rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50/40 dark:bg-amber-950/20 p-3.5">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300">Not Submitted</div>
+                  <div className="text-2xl font-bold text-amber-900 dark:text-amber-200 mt-1 tabular-nums">{notSubmittedCount}</div>
+                </div>
+                <div className="rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50/40 dark:bg-red-950/20 p-3.5">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-red-700 dark:text-red-400">Violated</div>
+                  <div className="text-2xl font-bold text-red-800 dark:text-red-300 mt-1 tabular-nums">{violatedCount}</div>
+                </div>
+              </div>
+
+              {/* Class Tabs + Submission Status Filters */}
+              <div className="space-y-3 bg-cream/20 dark:bg-[#242429] border border-border-soft rounded-xl p-3.5">
+                {assignedClasses.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="Assigned classes">
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={selectedClassFilter === 'ALL'}
+                      onClick={() => setSelectedClassFilter('ALL')}
+                      className={`px-3.5 py-1.5 rounded-full text-xs font-bold border transition-all ${
+                        selectedClassFilter === 'ALL'
+                          ? 'bg-maroon text-white border-maroon shadow-sm'
+                          : 'bg-white dark:bg-[#18181B] text-ink border-border-soft hover:bg-cream/50'
+                      }`}
+                    >
+                      All Classes ({submissions.length})
+                    </button>
+                    {assignedClasses.map(cls => {
+                      const clsCount = submissions.filter(row => row.classKey === cls.id).length;
+                      const isSelected = selectedClassFilter === cls.id;
+                      return (
+                        <button
+                          key={cls.id}
+                          type="button"
+                          role="tab"
+                          aria-selected={isSelected}
+                          onClick={() => setSelectedClassFilter(cls.id)}
+                          className={`px-3.5 py-1.5 rounded-full text-xs font-bold border transition-all ${
+                            isSelected
+                              ? 'bg-maroon text-white border-maroon shadow-sm'
+                              : 'bg-white dark:bg-[#18181B] text-ink border-border-soft hover:bg-cream/50'
+                          }`}
+                        >
+                          {cls.shortLabel || cls.label} ({clsCount})
+                        </button>
+                      );
+                    })}
+                  </div>
                 )}
-              </TableBody>
-            </Table>
-          </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Submission status filters">
+                    {([
+                      { key: 'ALL', label: 'All Students', count: totalAssignedCount },
+                      { key: 'SUBMITTED', label: 'Submitted', count: submittedCount },
+                      { key: 'NOT_SUBMITTED', label: 'Not Submitted', count: notSubmittedCount },
+                      { key: 'VIOLATED', label: 'Violated', count: violatedCount },
+                    ] as const).map(filterItem => {
+                      const isActive = submissionStatusFilter === filterItem.key;
+                      return (
+                        <button
+                          key={filterItem.key}
+                          type="button"
+                          aria-pressed={isActive}
+                          onClick={() => setSubmissionStatusFilter(filterItem.key)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                            isActive
+                              ? 'bg-ink text-white border-ink dark:bg-maroon dark:border-maroon'
+                              : 'bg-white dark:bg-[#18181B] text-gray-body border-border-soft hover:text-ink hover:bg-cream/40'
+                          }`}
+                        >
+                          {filterItem.label} ({filterItem.count})
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {(selectedClassFilter !== 'ALL' || submissionStatusFilter !== 'ALL') && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedClassFilter('ALL');
+                        setSubmissionStatusFilter('ALL');
+                      }}
+                      className="text-xs font-semibold text-maroon hover:underline"
+                    >
+                      Reset filters
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-b border-border-soft">
+                      <TableHead className="text-gray-body font-semibold">Student Name</TableHead>
+                      <TableHead className="text-gray-body font-semibold">Roll Number</TableHead>
+                      <TableHead className="text-gray-body font-semibold">Status</TableHead>
+                      <TableHead className="text-gray-body font-semibold">Submitted At</TableHead>
+                      <TableHead className="text-gray-body font-semibold">Student Score</TableHead>
+                      <TableHead className="text-gray-body font-semibold">Violation</TableHead>
+                      <TableHead className="text-gray-body font-semibold text-center">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {classScopedSubmissions.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="p-0 border-0">
+                          <div className="py-8">
+                            <EmptyState icon={<Clipboard className="w-8 h-8 text-maroon" />} title="No Submissions" description="There are no eligible students or submissions for this quiz yet." />
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : filteredSubmissions.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="p-0 border-0">
+                          <div className="py-8">
+                            <EmptyState icon={<Clipboard className="w-8 h-8 text-maroon" />} title="No Matching Students" description="No students match the current class or submission filter." />
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredSubmissions.map((sub: any) => {
+                        const rowSubmitted = isRowSubmitted(sub);
+                        const hasAttemptRecord = Boolean(sub.id);
+                        const displayStatus =
+                          sub.status === 'IN_PROGRESS'
+                            ? 'ABANDONED'
+                            : sub.status === 'NOT_SUBMITTED'
+                            ? 'NOT SUBMITTED'
+                            : sub.status;
+
+                        return (
+                          <TableRow
+                            key={sub.id || `roster-${sub.userId || sub.user?.id}`}
+                            className={`border-b border-border-soft hover:bg-cream/20 transition-colors ${
+                              sub.violationReason
+                                ? 'bg-red-50/30 dark:bg-red-950/20'
+                                : sub.status === 'IN_PROGRESS'
+                                ? 'bg-yellow-50/30 dark:bg-yellow-950/20'
+                                : ''
+                            }`}
+                          >
+                            <TableCell className="py-4">
+                              <div className="font-semibold text-ink">{sub.user?.name || 'Student'}</div>
+                              {(sub.classShortLabel || sub.classLabel) && sub.classKey !== 'unassigned' && (
+                                <div className="text-[11px] text-gray-body mt-0.5">{sub.classShortLabel || sub.classLabel}</div>
+                              )}
+                            </TableCell>
+                            <TableCell className="font-mono text-xs text-gray-body">{sub.user?.rollNumber || 'N/A'}</TableCell>
+                            <TableCell>
+                              <span
+                                className={`px-2 py-0.5 text-xs font-semibold rounded-full border whitespace-nowrap ${
+                                  sub.status === 'EVALUATED'
+                                    ? 'bg-green-50/10 text-green-700 dark:text-green-400 border-green-200 dark:border-green-900/50'
+                                    : sub.status === 'IN_PROGRESS'
+                                    ? 'bg-orange-50 dark:bg-orange-950/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-900/50'
+                                    : sub.status === 'NOT_SUBMITTED'
+                                    ? 'bg-cream/50 dark:bg-[#242429] text-gray-body border-border-soft'
+                                    : 'bg-yellow-50/10 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-900/50'
+                                }`}
+                              >
+                                {displayStatus}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-xs text-gray-body whitespace-nowrap">
+                              {rowSubmitted || hasAttemptRecord ? formatSubmissionDateTime(sub) : '—'}
+                            </TableCell>
+                            <TableCell className="text-ink">
+                              {!rowSubmitted ? (
+                                <span className="text-xs text-gray-body/60">—</span>
+                              ) : answersPublished ? (
+                                <div>
+                                  <div className="font-bold text-maroon">{sub.totalScore ?? 0}</div>
+                                  <div className="text-[11px] text-gray-body">Auto: {sub.objectiveScore ?? 0} | Written: {sub.writtenScore ?? 0}</div>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-gray-body italic">Hidden until published</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="max-w-[400px]">
+                              {sub.violationReason ? (
+                                <div className="px-3 py-2 text-sm font-semibold rounded-lg bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-900/50">
+                                  <span className="font-bold">⚠ Violation:</span> {sub.violationReason}
+                                </div>
+                              ) : sub.status === 'IN_PROGRESS' ? (
+                                <div className="px-3 py-2 text-sm font-semibold rounded-lg bg-orange-50 dark:bg-orange-950/30 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-900/50">
+                                  Student left the exam without submitting
+                                </div>
+                              ) : (
+                                <span className="text-xs text-gray-body/50">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {hasAttemptRecord ? (
+                                <div className="flex items-center space-x-2">
+                                  <Button variant="outline" size="sm" className="border-border-soft hover:bg-cream/40" onClick={() => handleOpenAttempt(sub)}>Review & Grade</Button>
+                                  {(sub.violationReason || sub.status === 'IN_PROGRESS') && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      disabled={restartingAttemptId === sub.id}
+                                      className="border-green-300 dark:border-green-900/50 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30 hover:border-green-400"
+                                      onClick={() => setAttemptPendingRestart({ attemptId: sub.id, studentName: sub.user?.name || 'Student' })}
+                                    >
+                                      {restartingAttemptId === sub.id ? 'Restarting...' : 'Allow Restart'}
+                                    </Button>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-xs text-gray-body italic">Not submitted</span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      <DeleteConfirmationDialog
+        open={Boolean(attemptPendingRestart)}
+        itemName={attemptPendingRestart ? `${attemptPendingRestart.studentName}'s attempt` : 'this attempt'}
+        title="Confirm Deletion"
+        description="Deleting this attempt will permanently erase all student answers so they can retake the quiz. This action cannot be undone."
+        confirmLabel="Delete"
+        onCancel={() => setAttemptPendingRestart(null)}
+        onConfirm={handleConfirmRestartAttempt}
+      />
+
+      {/* Publish Answers Confirmation Dialog */}
+      {showPublishConfirm && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/25 dark:bg-black/60 backdrop-blur-[2px] p-4" role="dialog" aria-modal="true" aria-labelledby="publish-answers-dialog-title">
+          <div className="bg-white dark:bg-[#1E1E22] border border-border-soft rounded-xl shadow-xl w-full max-w-md p-6 space-y-4">
+            <h3 id="publish-answers-dialog-title" className="text-lg font-serif font-bold text-ink">Publish Quiz Answers?</h3>
+            <p className="text-sm text-gray-body leading-relaxed">
+              Publishing answers will make quiz results, total scores, submitted answers, correct answers, and question-by-question evaluation visible to all students who submitted{' '}
+              <strong className="text-ink">{activeSubmissionsQuiz?.title || 'this quiz'}</strong>.
+            </p>
+            <div className="flex justify-end gap-3 pt-2">
+              <Button type="button" variant="outline" onClick={() => setShowPublishConfirm(false)} disabled={publishingAnswers} className="border-border-soft text-xs font-semibold">
+                Cancel
+              </Button>
+              <Button type="button" onClick={handleConfirmPublishAnswers} disabled={publishingAnswers} className="bg-maroon hover:bg-maroon-deep text-white font-bold text-xs rounded-full px-5">
+                {publishingAnswers ? 'Publishing...' : 'Confirm & Publish'}
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+      </>
     );
   }
 
@@ -1710,12 +3244,12 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                 <span>Total Score: <strong className="text-green-700 dark:text-green-400 text-sm font-bold">{activeAttempt.totalScore}</strong></span>
               </div>
             </div>
-            <button onClick={() => setActiveView('grade_submissions')} className="text-maroon hover:text-maroon-deep font-semibold text-sm">Back</button>
+            <button onClick={() => setActiveView('view_submissions')} className="text-maroon hover:text-maroon-deep font-semibold text-sm">Back to Submissions</button>
           </div>
 
           <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-4">
             {activeAttempt.responses?.map((r: any, idx: number) => {
-              const isObjective = ['MCQ', 'MULTI_SELECT', 'NUMERICAL', 'MATCHING'].includes(r.question.type);
+              const isObjective = ['MCQ', 'MULTI_SELECT', 'NUMERICAL', 'MATCHING', 'FILL_BLANK'].includes(r.question.type);
               return (
                 <div key={r.id} className="p-5 bg-cream/30 dark:bg-[#242429] rounded-xl border border-border-soft">
                   <div className="flex justify-between items-start mb-2">
@@ -1725,6 +3259,11 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                     )}
                   </div>
                   <div className="text-ink font-semibold text-base mb-4">{r.question.text}</div>
+                  {r.question.image && (
+                    <div className="mb-4">
+                      <img src={r.question.image} alt={`Question ${idx + 1}`} className="max-h-48 rounded-lg border border-border-soft" />
+                    </div>
+                  )}
                   
                   <div className="grid grid-cols-2 gap-4">
                     <div className="bg-white dark:bg-[#18181B] p-3 rounded-lg border border-border-soft">
@@ -1762,18 +3301,157 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
     );
   }
 
+  if (activeView === 'print_paper' && printQuiz) {
+    const paperQuestions: any[] = Array.isArray(printQuiz.questions) ? printQuiz.questions : [];
+    const paperTotalMarks =
+      Number(printQuiz.totalMarks) > 0
+        ? Number(printQuiz.totalMarks)
+        : paperQuestions.reduce((sum, q) => sum + (Number(q.marks) || 0), 0);
+    const deptNames = (printQuiz.targetDepartments || []).map((d: any) => d.department?.name).filter(Boolean).join(', ');
+    const secNames = (printQuiz.targetSections || []).map((s: any) => s.section?.name).filter(Boolean).join(', ');
+
+    return (
+      <section className="space-y-5 rounded-xl border border-border-soft bg-white p-6 sm:p-10 text-ink shadow-sm question-paper-print">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-soft pb-4 print:hidden">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              setPrintQuiz(null);
+              setActiveView('list');
+            }}
+            className="border-border-soft hover:bg-cream/40 text-xs font-semibold"
+          >
+            <ChevronLeft className="w-4 h-4 mr-1" /> Back to Quizzes
+          </Button>
+          <Button
+            type="button"
+            onClick={() => window.print()}
+            className="bg-maroon hover:bg-maroon-deep text-white font-bold text-xs rounded-full px-5"
+          >
+            <Printer className="w-4 h-4 mr-1.5" /> Save PDF / Print
+          </Button>
+        </div>
+
+        <div className="border-b-2 border-ink/80 pb-4 text-center space-y-1">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-gray-body">
+            CIRA · Question Paper{deptNames ? ` · ${deptNames}` : ''}{secNames ? ` (${secNames})` : ''}
+          </p>
+          <h1 className="text-2xl font-serif font-bold text-ink">{printQuiz.title}</h1>
+          <p className="text-sm text-ink/80">
+            {printQuiz.subject || 'Subject'} &nbsp;|&nbsp; Duration: {printQuiz.durationMinutes || 60} mins &nbsp;|&nbsp; Max Marks: {paperTotalMarks}
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs border-b border-border-soft pb-3">
+          <div>Student Name: ______________________________________</div>
+          <div>Roll Number: ________________________</div>
+        </div>
+
+        {(printQuiz.instructions || printQuiz.description) && (
+          <div className="text-xs bg-cream/20 border border-border-soft rounded-lg p-3">
+            <span className="font-bold">Instructions: </span>
+            <span>{printQuiz.instructions || printQuiz.description}</span>
+          </div>
+        )}
+
+        {paperQuestions.length === 0 ? (
+          <p className="text-sm text-gray-body italic py-6 text-center">No questions have been added to this quiz yet.</p>
+        ) : (
+          <ol className="list-decimal space-y-6 pl-5">
+            {paperQuestions.map((q: any, idx: number) => {
+              const displayQuestionText =
+                q.type === 'FILL_BLANK'
+                  ? String(q.text || '').replace(/\[blank\]/gi, '____________')
+                  : String(q.text || '');
+
+              return (
+                <li key={q.id || idx} className="break-inside-avoid space-y-2.5">
+                  <div className="flex items-start justify-between gap-4">
+                    <p className="text-sm font-medium text-ink whitespace-pre-wrap">{displayQuestionText}</p>
+                    <span className="shrink-0 text-xs font-bold text-ink/80">[{q.marks ?? 1} mark{(Number(q.marks) || 1) === 1 ? '' : 's'}]</span>
+                  </div>
+
+                  {q.image && (
+                    <img src={q.image} alt={`Question ${idx + 1} illustration`} className="my-2 max-h-48 max-w-full object-contain rounded border border-border-soft" />
+                  )}
+
+                  {(q.type === 'MCQ' || q.type === 'MULTI_SELECT') && Array.isArray(q.options) && (
+                    <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pl-1 text-sm">
+                      {q.options.map((opt: any, optIdx: number) => (
+                        <li key={optIdx} className="flex items-baseline gap-2">
+                          <span className="font-semibold">{String.fromCharCode(65 + optIdx)}.</span>
+                          <span>{typeof opt === 'string' ? opt : String(opt)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {q.type === 'MATCHING' && Array.isArray(q.options) && (
+                    <div className="grid grid-cols-2 gap-6 text-sm pl-1 pt-1">
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wider text-gray-body mb-1">Column A</p>
+                        <ul className="space-y-1">
+                          {q.options.map((pair: any, pIdx: number) => (
+                            <li key={pIdx}>{pIdx + 1}. {pair?.left ?? ''}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wider text-gray-body mb-1">Column B</p>
+                        <ul className="space-y-1">
+                          {[...q.options]
+                            .map((pair: any) => String(pair?.right ?? ''))
+                            .sort((a, b) => a.localeCompare(b))
+                            .map((rightText: string, rIdx: number) => (
+                              <li key={rIdx}>{String.fromCharCode(97 + rIdx)}. {rightText}</li>
+                            ))}
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+
+                  {q.type === 'NUMERICAL' && (
+                    <p className="text-xs text-gray-body pt-1">Answer: ____________________________</p>
+                  )}
+
+                  {(q.type === 'SHORT_WRITTEN' || q.type === 'LONG_WRITTEN') && (
+                    <div className="space-y-3 pt-2">
+                      <div className="border-b border-border-soft h-4" />
+                      <div className="border-b border-border-soft h-4" />
+                      {q.type === 'LONG_WRITTEN' && (
+                        <>
+                          <div className="border-b border-border-soft h-4" />
+                          <div className="border-b border-border-soft h-4" />
+                        </>
+                      )}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
+        )}
+
+        <div className="border-t border-border-soft pt-3 text-right text-xs font-bold text-ink">
+          Total Marks: {paperTotalMarks}
+        </div>
+      </section>
+    );
+  }
+
   return (
+    <>
     <Card className="bg-white dark:bg-[#1E1E22] border border-border-soft text-ink shadow-sm rounded-xl">
       <CardContent className="p-6">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-serif font-bold text-ink">Quiz Management</h2>
           <button
             onClick={() => {
-              setEditingQuizId(null);
               setActiveQuizId(null);
               setFormData({
                 title: '',
-                subject: '',
+                subject: facultySubject,
                 description: '',
                 totalMarks: '',
                 passingMarks: '',
@@ -1786,6 +3464,10 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
               setQuestions([{ type: 'MCQ', text: '', marks: 1, options: ['', '', '', ''], answerKey: '', topic: '' }]);
               setParsedTotalMarks(0);
               setParsedTotalQuestions(0);
+              setWizardStep(1);
+              setCompletedWizardSteps([]);
+              setStepErrors({});
+              setShowDiscardConfirm(false);
               setActiveView('create');
             }}
             className="px-5 py-2 bg-maroon hover:bg-maroon-deep text-white rounded-full text-sm font-bold transition-all shadow-sm hover:scale-105 active:scale-95"
@@ -1798,82 +3480,135 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
           <button type="button" onClick={() => { clearSavedFilters(quizFilterKey); setQuizSearch(''); }} className="rounded-lg border border-border-soft px-3 py-2 text-sm font-semibold text-ink hover:bg-cream">Reset filters</button>
         </div>
 
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow className="border-b border-border-soft">
-                <TableHead className="text-gray-body font-semibold">Title</TableHead>
-                <TableHead className="text-gray-body font-semibold">Subject</TableHead>
-                <TableHead className="text-gray-body font-semibold">Visible Schedule</TableHead>
-                <TableHead className="text-gray-body font-semibold">Published To</TableHead>
-                <TableHead className="text-gray-body font-semibold">Questions</TableHead>
-                <TableHead className="text-gray-body font-semibold">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {visibleQuizzes.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="p-0 border-0">
-                    <div className="py-8">
-                      <EmptyState icon={<FileText className="w-8 h-8 text-maroon" />} title="No Quizzes" description="You haven't created any quizzes yet." />
-                    </div>
-                  </TableCell>
+        {quizzesLoading ? (
+          <LoadingState label="Loading quizzes..." className="min-h-[200px]" />
+        ) : quizzesError ? (
+          <ErrorState
+            message={quizzesError}
+            onRetry={() => void fetchQuizzes(1)}
+            className="min-h-[200px]"
+          />
+        ) : hasFetchedQuizzes && visibleQuizzes.length === 0 ? (
+          <EmptyState
+            icon={<FileText className="w-8 h-8 text-maroon" />}
+            title="No quizzes found"
+            description={quizzes.length === 0 ? "You haven't created any quizzes yet." : 'No quizzes match your current search filter.'}
+            action={
+              quizzes.length > 0 ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    clearSavedFilters(quizFilterKey);
+                    setQuizSearch('');
+                  }}
+                  className="border-border-soft text-xs font-semibold"
+                >
+                  Clear Search Filter
+                </Button>
+              ) : undefined
+            }
+          />
+        ) : (
+          <div>
+            <Table className="w-full lg:table-fixed">
+              <TableHeader>
+                <TableRow className="border-b border-border-soft">
+                  <TableHead className="text-gray-body font-semibold lg:w-[200px]">Title</TableHead>
+                  <TableHead className="text-gray-body font-semibold lg:w-[150px]">Subject</TableHead>
+                  <TableHead className="text-gray-body font-semibold lg:w-[170px]">Time</TableHead>
+                  <TableHead className="text-gray-body font-semibold lg:w-[160px]">Published To</TableHead>
+                  <TableHead className="text-gray-body font-semibold text-center lg:w-[90px]">Questions</TableHead>
+                  <TableHead className="text-gray-body font-semibold text-center lg:w-[240px]">Actions</TableHead>
                 </TableRow>
-              ) : (
-                visibleQuizzes.map((quiz) => (
+              </TableHeader>
+              <TableBody>
+                {visibleQuizzes.map((quiz) => (
                   <TableRow key={quiz.id} className="border-b border-border-soft hover:bg-cream/20 transition-colors">
-                    <TableCell className="font-semibold text-ink">{quiz.title}</TableCell>
-                    <TableCell className="text-gray-body">{quiz.subject}</TableCell>
-                    <TableCell className="text-gray-body text-xs whitespace-nowrap">
+                    <TableCell className="w-[200px] max-w-[200px] whitespace-normal break-words font-semibold text-ink">{quiz.title}</TableCell>
+                    <TableCell className="max-w-[150px] whitespace-normal break-words text-gray-body">{quiz.subject}</TableCell>
+                    <TableCell className="whitespace-normal text-gray-body text-xs">
                       <div>From: {quiz.startDate ? new Date(quiz.startDate).toLocaleString() : 'Immediately'}</div>
                       <div>Until: {quiz.endDate ? new Date(quiz.endDate).toLocaleString() : 'No end time'}</div>
                     </TableCell>
-                    <TableCell className="text-gray-body text-xs min-w-[170px]">
+                    <TableCell className="max-w-[160px] whitespace-normal break-words text-gray-body text-xs">
                       <div>{quiz.targetDepartments?.length ? quiz.targetDepartments.map((target: any) => target.department?.name).filter(Boolean).join(', ') : 'All departments'}</div>
                       <div className="text-ink/60">{quiz.targetSections?.length ? `Sections: ${quiz.targetSections.map((target: any) => target.section?.name).filter(Boolean).join(', ')}` : 'All sections'}</div>
                     </TableCell>
-                    <TableCell className="text-ink font-mono text-sm">{quiz._count?.questions || 0}</TableCell>
-                    <TableCell className="space-x-2 flex items-center flex-wrap gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="border-border-soft hover:bg-cream/40"
-                        onClick={() => handleEditQuiz(quiz.id, quiz._count?.attempts || 0)}
-                        title="Edit quiz details"
-                      >
-                        <Pencil className="w-3.5 h-3.5 mr-1" /> Edit
-                      </Button>
-                      <Button variant="outline" size="sm" className="border-border-soft hover:bg-cream/40" onClick={() => handleOpenEditQuiz(quiz.id)}>
-                        Edit Details
-                      </Button>
-                      <Button variant="outline" size="sm" className="border-border-soft hover:bg-cream/40" onClick={() => handleTogglePublishAnswers(quiz.id, quiz.answersPublished)}>
-                        {quiz.answersPublished ? 'Hide Answers' : 'Publish Answers'}
-                      </Button>
-                      <Button variant="outline" size="sm" className="border-border-soft hover:bg-cream/40" onClick={() => { setActiveQuizId(quiz.id); setActiveView('add_questions'); }}>
-                        Edit Questions
-                      </Button>
-                      <Button variant="outline" size="sm" className="border-border-soft hover:bg-cream/40" onClick={() => handleOpenGradeView(quiz.id)}>
-                        Grade Submissions
-                      </Button>
-                      <Button variant="destructive" size="sm" className="bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/50 border border-red-200 dark:border-red-900/50" onClick={() => handleDeleteQuiz(quiz.id)}>
-                        Delete
-                      </Button>
+                    <TableCell className="text-center text-ink font-mono text-sm">{quiz._count?.questions || 0}</TableCell>
+                    <TableCell className="align-middle py-3">
+                      <div className="grid grid-cols-[auto_auto] gap-1.5 sm:gap-2 w-fit mx-auto items-center justify-items-start" data-testid="quiz-actions-grid">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={editingQuizIdLoading !== null}
+                          className="h-8 px-3 rounded-lg text-xs font-semibold whitespace-nowrap w-fit border-border-soft hover:bg-cream/40"
+                          onClick={() => handleEditQuiz(quiz.id, quiz._count?.attempts || 0)}
+                          title="Edit quiz details and questions"
+                        >
+                          <Pencil className="w-3.5 h-3.5 mr-1 shrink-0" />
+                          {editingQuizIdLoading === quiz.id ? 'Loading...' : 'Edit'}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-3 rounded-lg text-xs font-semibold whitespace-nowrap w-fit border-border-soft hover:bg-cream/40"
+                          onClick={() => handleOpenSubmissions(quiz.id)}
+                        >
+                          View Submissions
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={printingQuizIdLoading !== null}
+                          className="h-8 px-3 rounded-lg text-xs font-semibold whitespace-nowrap w-fit border-border-soft hover:bg-cream/40"
+                          onClick={() => void handlePrintQuestionPaper(quiz.id)}
+                          title="Download or print question paper PDF without answers"
+                        >
+                          <Printer className="w-3.5 h-3.5 mr-1 shrink-0" />
+                          {printingQuizIdLoading === quiz.id ? 'Preparing...' : 'Print'}
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          className="h-8 px-3 rounded-lg text-xs font-semibold whitespace-nowrap w-fit bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/50 border border-red-200 dark:border-red-900/50"
+                          onClick={() => setQuizPendingDelete({ id: quiz.id, title: quiz.title || 'this quiz' })}
+                        >
+                          Delete
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
 
-        {hasMore && (
+        {!quizzesLoading && !quizzesError && hasMore && (
           <div className="mt-6 flex justify-center">
-            <Button variant="outline" onClick={() => fetchQuizzes(page + 1)} className="border-maroon text-maroon hover:bg-maroon hover:text-white rounded-full px-8 py-2 font-bold transition-all shadow-sm">
-              Load More
+            <Button
+              variant="outline"
+              disabled={loadingMoreQuizzes}
+              onClick={() => void fetchQuizzes(page + 1)}
+              className="border-maroon text-maroon hover:bg-maroon hover:text-white rounded-full px-8 py-2 font-bold transition-all shadow-sm"
+            >
+              {loadingMoreQuizzes ? 'Loading more...' : 'Load More'}
             </Button>
           </div>
         )}
       </CardContent>
     </Card>
+
+    <DeleteConfirmationDialog
+      open={Boolean(quizPendingDelete)}
+      itemName={quizPendingDelete?.title || 'this quiz'}
+      title="Confirm Deletion"
+      description="This action will permanently delete the quiz and its question setup. This action cannot be undone."
+      confirmLabel="Delete"
+      onCancel={() => setQuizPendingDelete(null)}
+      onConfirm={handleConfirmDeleteQuiz}
+    />
+    </>
   );
 }

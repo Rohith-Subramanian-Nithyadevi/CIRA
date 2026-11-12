@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { AlertTriangle, ImagePlus, Loader2, Plus, RotateCw, Search, Trash2, Upload, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { apiClient, getApiErrorMessage } from '@/lib/apiClient';
+import { DeleteConfirmationDialog } from '@/components/ui/DeleteConfirmationDialog';
 import { useFacultyDemo } from '@/context/FacultyDemoContext';
 import { facultyDemoQuestionBank } from '@/lib/facultyDemoData';
 
@@ -68,6 +70,7 @@ export default function QuestionBank() {
   const [uploading, setUploading] = useState(false);
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [preview, setPreview] = useState(false);
+  const [questionToDelete, setQuestionToDelete] = useState<Question | null>(null);
 
   const filterQuery = useMemo(() => paramsFromFilters({ category, search, subject, topic, difficulty, type, tag, includeReused: String(includeReused), page: String(page), limit: '12' }).toString(), [category, search, subject, topic, difficulty, type, tag, includeReused, page]);
 
@@ -148,14 +151,27 @@ export default function QuestionBank() {
     finally { setUploading(false); }
   };
 
-  const removeQuestion = async (question: Question) => {
-    if (saving || !window.confirm('Remove this question from your bank? Existing assessments will keep their question.')) return;
-    setSaving(true); setMutationError(null);
+  const confirmRemoveQuestion = async () => {
+    if (!questionToDelete) return;
+    const question = questionToDelete;
+    setMutationError(null);
     try {
-      await apiClient.fetch(`/api/v1/faculty/quiz/question-bank/${question.id}`, { method: 'DELETE' });
-      if (editing?.id === question.id) resetEditor(); setRetry((value) => value + 1);
-    } catch (error) { setMutationError(getApiErrorMessage(error, 'We could not remove this question. Please try again, or contact your administrator if the problem continues.')); }
-    finally { setSaving(false); }
+      const response = await apiClient.fetch(`/api/v1/faculty/quiz/question-bank/${question.id}`, { method: 'DELETE' });
+      const json = await response.json?.().catch(() => null);
+      if (response?.ok === false || json?.status === 'error') {
+        const message = json?.error?.message || json?.message || 'We could not remove this question. Please try again.';
+        toast.error(message);
+        throw new Error(message);
+      }
+      toast.success('Question removed from your bank.');
+      if (editing?.id === question.id) resetEditor();
+      setQuestionToDelete(null);
+      setRetry((value) => value + 1);
+    } catch (error) {
+      const msg = getApiErrorMessage(error, 'We could not remove this question. Please try again, or contact your administrator if the problem continues.');
+      setMutationError(msg);
+      throw new Error(msg);
+    }
   };
 
   const updateOption = (index: number, value: string) => setField('options', (form.options || []).map((option: string, currentIndex: number) => currentIndex === index ? value : option));
@@ -212,9 +228,18 @@ export default function QuestionBank() {
       </form></section> : null}
 
     <section aria-label="Question bank results" className="overflow-hidden rounded-2xl border border-border-soft bg-white shadow-sm">
-      {loading ? <div className="flex min-h-48 items-center justify-center gap-3 text-sm text-gray-body"><Loader2 className="h-5 w-5 animate-spin text-maroon" />Loading question bank…</div> : listError ? <div className="flex min-h-48 flex-col items-center justify-center gap-3 p-6 text-center"><p role="alert" className="text-sm text-red-800 dark:text-red-300">{listError}</p><button onClick={() => setRetry((value) => value + 1)} className="inline-flex items-center gap-2 rounded-lg border border-border-soft px-3 py-2 text-sm font-semibold"><RotateCw className="h-4 w-4" />Retry</button></div> : !questions.length ? <div className="flex min-h-48 flex-col items-center justify-center gap-2 p-6 text-center"><ImagePlus className="h-8 w-8 text-maroon" /><p className="font-semibold">No questions found</p><p className="text-sm text-gray-body">Create a question or adjust your filters.</p>{!isDemo && <button onClick={startCreate} className="mt-2 rounded-lg bg-maroon px-3 py-2 text-sm font-semibold text-white">Create question</button>}</div> : <div className="divide-y divide-border-soft">{questions.map((question) => <article key={question.id} className="p-4 sm:p-5"><div className="flex flex-col justify-between gap-3 sm:flex-row"><div className="min-w-0"><div className="mb-2 flex flex-wrap items-center gap-2"><span className="rounded-full bg-cream px-2.5 py-1 text-[11px] font-bold text-maroon">{types.find((item) => item.value === question.type)?.label || question.type}</span><span className="text-xs text-gray-body">{question.subject || 'No subject'} · {question.topic || 'No topic'} · {question.difficulty || 'Unrated'} · {question.marks} marks</span>{question.ownership === 'shared' && <span className="rounded-full bg-slate-100 dark:bg-neutral-800 px-2 py-1 text-[10px] font-semibold text-slate-700 dark:text-neutral-300">Shared · read only</span>}</div><p className="whitespace-pre-wrap font-semibold">{question.text}</p>{question.image && <img src={question.image} alt="Question attachment" className="mt-3 max-h-36 rounded-lg object-contain" />}{question.tags.length > 0 && <p className="mt-2 text-xs text-gray-body">Tags: {question.tags.join(', ')}</p>}{question.reuse.usedInOppositeCategory && <p role="status" className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-amber-800 dark:text-amber-300"><AlertTriangle className="h-3.5 w-3.5" />{question.reuse.warning} Usage: {question.usages.filter((usage) => usage.category !== category).map((usage) => usage.assessmentTitle).join(', ')}</p>}<p className="mt-2 text-[11px] text-gray-body">Used in {question.usages.length} assessment{question.usages.length === 1 ? '' : 's'} · {question.usages.map((usage) => usage.assessmentTitle).join(', ') || 'Not used yet'}</p></div>{!isDemo && question.ownership === 'owned' && <div className="flex shrink-0 gap-2"><button onClick={() => startEdit(question)} className="h-fit rounded-lg border border-border-soft px-3 py-2 text-xs font-semibold hover:bg-cream">Edit</button><button aria-label={`Remove question ${question.id}`} onClick={() => void removeQuestion(question)} className="h-fit rounded-lg border border-red-200 dark:border-red-900/50 px-3 py-2 text-xs font-semibold text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30"><Trash2 className="h-4 w-4" /></button></div>}</div></article>)}</div>}
+      {loading ? <div className="flex min-h-48 items-center justify-center gap-3 text-sm text-gray-body"><Loader2 className="h-5 w-5 animate-spin text-maroon" />Loading question bank…</div> : listError ? <div className="flex min-h-48 flex-col items-center justify-center gap-3 p-6 text-center"><p role="alert" className="text-sm text-red-800 dark:text-red-300">{listError}</p><button onClick={() => setRetry((value) => value + 1)} className="inline-flex items-center gap-2 rounded-lg border border-border-soft px-3 py-2 text-sm font-semibold"><RotateCw className="h-4 w-4" />Retry</button></div> : !questions.length ? <div className="flex min-h-48 flex-col items-center justify-center gap-2 p-6 text-center"><ImagePlus className="h-8 w-8 text-maroon" /><p className="font-semibold">No questions found</p><p className="text-sm text-gray-body">Create a question or adjust your filters.</p>{!isDemo && <button onClick={startCreate} className="mt-2 rounded-lg bg-maroon px-3 py-2 text-sm font-semibold text-white">Create question</button>}</div> : <div className="divide-y divide-border-soft">{questions.map((question) => <article key={question.id} className="p-4 sm:p-5"><div className="flex flex-col justify-between gap-3 sm:flex-row"><div className="min-w-0"><div className="mb-2 flex flex-wrap items-center gap-2"><span className="rounded-full bg-cream px-2.5 py-1 text-[11px] font-bold text-maroon">{types.find((item) => item.value === question.type)?.label || question.type}</span><span className="text-xs text-gray-body">{question.subject || 'No subject'} · {question.topic || 'No topic'} · {question.difficulty || 'Unrated'} · {question.marks} marks</span>{question.ownership === 'shared' && <span className="rounded-full bg-slate-100 dark:bg-neutral-800 px-2 py-1 text-[10px] font-semibold text-slate-700 dark:text-neutral-300">Shared · read only</span>}</div><p className="whitespace-pre-wrap font-semibold">{question.text}</p>{question.image && <img src={question.image} alt="Question attachment" className="mt-3 max-h-36 rounded-lg object-contain" />}{question.tags.length > 0 && <p className="mt-2 text-xs text-gray-body">Tags: {question.tags.join(', ')}</p>}{question.reuse.usedInOppositeCategory && <p role="status" className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-amber-800 dark:text-amber-300"><AlertTriangle className="h-3.5 w-3.5" />{question.reuse.warning} Usage: {question.usages.filter((usage) => usage.category !== category).map((usage) => usage.assessmentTitle).join(', ')}</p>}<p className="mt-2 text-[11px] text-gray-body">Used in {question.usages.length} assessment{question.usages.length === 1 ? '' : 's'} · {question.usages.map((usage) => usage.assessmentTitle).join(', ') || 'Not used yet'}</p></div>{!isDemo && question.ownership === 'owned' && <div className="flex shrink-0 gap-2"><button onClick={() => startEdit(question)} className="h-fit rounded-lg border border-border-soft px-3 py-2 text-xs font-semibold hover:bg-cream">Edit</button><button aria-label={`Remove question ${question.id}`} onClick={() => setQuestionToDelete(question)} className="h-fit rounded-lg border border-red-200 dark:border-red-900/50 px-3 py-2 text-xs font-semibold text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30"><Trash2 className="h-4 w-4" /></button></div>}</div></article>)}</div>}
       {!loading && !listError && questions.length > 0 && <footer className="flex items-center justify-between border-t border-border-soft p-3"><span className="text-xs text-gray-body">Page {page} of {pages}</span><div className="flex gap-2"><button onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={page <= 1} className="rounded-lg border border-border-soft px-3 py-1.5 text-xs font-semibold disabled:opacity-50">Previous</button><button onClick={() => setPage((value) => Math.min(pages, value + 1))} disabled={page >= pages} className="rounded-lg border border-border-soft px-3 py-1.5 text-xs font-semibold disabled:opacity-50">Next</button></div></footer>}
     </section>
+    <DeleteConfirmationDialog
+      open={Boolean(questionToDelete)}
+      itemName={questionToDelete?.text ? (questionToDelete.text.length > 60 ? `${questionToDelete.text.slice(0, 60)}...` : questionToDelete.text) : 'this question'}
+      title="Confirm Deletion"
+      description="This will remove the question from your Question Bank. Existing published assessments will retain their copy, but it cannot be undone in the bank."
+      confirmLabel="Delete"
+      onCancel={() => setQuestionToDelete(null)}
+      onConfirm={confirmRemoveQuestion}
+    />
   </div>;
 }
 

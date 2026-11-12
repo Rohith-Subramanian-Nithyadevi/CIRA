@@ -57,10 +57,16 @@ export const updateTask = async (req: Request, res: Response) => {
 export const deleteTask = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
-    const facultyId = (req as any).user.userId;
-    
+    const facultyId = (req as any).user?.userId;
+    if (!facultyId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
     const existing = await prisma.task.findUnique({ where: { id } });
-    if (!existing || existing.facultyId !== facultyId) {
+    if (!existing) {
+      return res.status(404).json({ success: false, message: 'Task not found' });
+    }
+    if (existing.facultyId !== facultyId) {
       return res.status(403).json({ success: false, message: 'Unauthorized' });
     }
 
@@ -106,10 +112,16 @@ export const createCalendarEvent = async (req: Request, res: Response) => {
 export const deleteCalendarEvent = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
-    const facultyId = (req as any).user.userId;
-    
+    const facultyId = (req as any).user?.userId;
+    if (!facultyId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
     const existing = await prisma.calendarEvent.findUnique({ where: { id } });
-    if (!existing || existing.facultyId !== facultyId) {
+    if (!existing) {
+      return res.status(404).json({ success: false, message: 'Calendar event not found' });
+    }
+    if (existing.facultyId !== facultyId) {
       return res.status(403).json({ success: false, message: 'Unauthorized' });
     }
 
@@ -190,10 +202,17 @@ export const createAnnouncement = async (req: Request, res: Response) => {
 export const deleteAnnouncement = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
-    const facultyId = (req as any).user.userId;
-    
+    const facultyId = (req as any).user?.userId;
+    const userRole = (req as any).user?.role;
+    if (!facultyId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
     const existing = await prisma.announcement.findUnique({ where: { id } });
-    if (!existing || existing.facultyId !== facultyId) {
+    if (!existing) {
+      return res.status(404).json({ success: false, message: 'Announcement not found' });
+    }
+    if (userRole !== 'ADMIN' && existing.facultyId !== facultyId) {
       return res.status(403).json({ success: false, message: 'Unauthorized' });
     }
 
