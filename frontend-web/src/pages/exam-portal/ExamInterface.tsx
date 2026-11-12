@@ -33,13 +33,18 @@ export default function ExamInterface() {
   const [startingExam, setStartingExam] = useState(false);
   const [hasStartedSecureExam, setHasStartedSecureExam] = useState(false);
   const [fullscreenError, setFullscreenError] = useState<string | null>(null);
+  const [lockedOutMessage, setLockedOutMessage] = useState<string | null>(null);
+  const [showMobilePalette, setShowMobilePalette] = useState(false);
+  const [zoomedImageUrl, setZoomedImageUrl] = useState<string | null>(null);
+  const [imageStatus, setImageStatus] = useState<'loading' | 'loaded' | 'error'>('loaded');
   const submittingRef = useRef(false);
   const attemptIdRef = useRef('');
 
-  // Persist monitored violation to backend; auto-submit only when policy threshold is reached
+  // Zero-tolerance: any monitored violation immediately hides quiz (black screen), persists violation, and quits/submits exam
   const handleSecurityViolation = useCallback(async (event: SecurityViolationEvent) => {
     const activeAttemptId = attemptIdRef.current || attemptId;
     if (!activeAttemptId || submittingRef.current) return;
+    submittingRef.current = true;
     try {
       const res = await apiClient.fetch(`/api/v1/student/exam/attempt/${activeAttemptId}/violation`, {
         method: 'POST',
@@ -51,17 +56,26 @@ export default function ExamInterface() {
           metadata: event.metadata,
         }),
       });
-      const data = await res.json().catch(() => null);
-      if (data?.data?.autoSubmitted) {
-        submittingRef.current = true;
-        if (typeof document !== 'undefined' && document.fullscreenElement && document.exitFullscreen) {
-          await document.exitFullscreen().catch(() => {});
-        }
-        toast.error('Maximum security violations reached. Your exam has been automatically submitted.');
-        navigate('/student/dashboard?tab=quizzes', { replace: true });
+      if (!res?.ok) {
+        await apiClient.fetch(`/api/v1/student/exam/attempt/${activeAttemptId}/submit`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ violationReason: `${event.type}: ${event.reason}` }),
+        }).catch(() => {});
       }
     } catch (e) {
       console.error('Failed to record violation:', e);
+      await apiClient.fetch(`/api/v1/student/exam/attempt/${activeAttemptId}/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ violationReason: `${event.type}: ${event.reason}` }),
+      }).catch(() => {});
+    } finally {
+      if (typeof document !== 'undefined' && document.fullscreenElement && document.exitFullscreen) {
+        await document.exitFullscreen().catch(() => {});
+      }
+      toast.error(`Security violation detected (${event.type}). Your exam has been submitted.`);
+      navigate('/student/dashboard?tab=quizzes', { replace: true });
     }
   }, [attemptId, navigate]);
 
@@ -73,6 +87,12 @@ export default function ExamInterface() {
   useEffect(() => {
     document.documentElement.classList.remove('dark');
   }, []);
+
+  useEffect(() => {
+    const activeQ = questions[currentQuestionIdx];
+    setImageStatus(activeQ?.image ? 'loading' : 'loaded');
+    setZoomedImageUrl(null);
+  }, [currentQuestionIdx, questions]);
 
   const loadInstructions = useCallback(async () => {
     if (!quizId) {
@@ -93,7 +113,11 @@ export default function ExamInterface() {
       } else {
         const msg = data?.error?.message || data?.message || 'Unable to load quiz instructions.';
         const code = data?.error?.code;
-        const nonRetryable = ['NOT_FOUND', 'FORBIDDEN', 'ALREADY_SUBMITTED', 'NOT_STARTED', 'EXPIRED'].includes(code);
+        if (code === 'ATTEMPT_LOCKED') {
+          setLockedOutMessage(msg);
+          return;
+        }
+        const nonRetryable = ['NOT_FOUND', 'FORBIDDEN', 'ALREADY_SUBMITTED', 'NOT_STARTED', 'EXPIRED', 'ATTEMPT_LOCKED'].includes(code);
         setInstructionsError({ message: msg, retryable: !nonRetryable });
       }
     } catch (err) {
@@ -252,6 +276,11 @@ export default function ExamInterface() {
           await document.exitFullscreen().catch(() => {});
         }
         const msg = data?.error?.message || data?.message || 'Unable to start this quiz.';
+        const code = data?.error?.code;
+        if (code === 'ATTEMPT_LOCKED') {
+          setLockedOutMessage(msg);
+          return;
+        }
         toast.error(msg);
         setInstructionsError({ message: msg, retryable: false });
       }
@@ -265,6 +294,31 @@ export default function ExamInterface() {
       setStartingExam(false);
     }
   };
+
+  if (lockedOutMessage) {
+    return (
+      <div className="min-h-screen bg-[#FDFBF7] text-ink flex items-center justify-center p-6 font-sans">
+        <div className="max-w-md w-full bg-white border border-red-200 rounded-2xl p-8 text-center shadow-sm space-y-5">
+          <div className="inline-flex items-center px-3 py-1 rounded-full bg-red-50 border border-red-200 text-xs font-bold text-red-700 uppercase tracking-wide">
+            Locked
+          </div>
+          <h1 className="text-2xl font-serif font-bold text-ink">Quiz Attempt Locked</h1>
+          <p className="text-sm text-gray-body leading-relaxed">
+            You have violated the quiz rules. Your quiz attempt has been locked. Please contact your faculty member if you require permission to restart.
+          </p>
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={() => navigate('/student/dashboard?tab=quizzes', { replace: true })}
+              className="px-6 py-2.5 bg-maroon hover:bg-maroon-deep text-white rounded-full text-sm font-bold cursor-pointer"
+            >
+              Back to Quizzes
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!hasStartedSecureExam) {
     if (loadingInstructions && !quizDetails) {
@@ -490,15 +544,76 @@ export default function ExamInterface() {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-[#FDFBF7] flex flex-col font-sans text-ink">
-      <header className="bg-white border-b border-border-soft px-6 py-4 flex justify-between items-center shadow-sm">
-        <div>
-          <h1 className="text-xl font-serif font-bold text-ink">{quizDetails?.title || 'Examination'}</h1>
-          <div className="text-xs font-semibold text-gray-body mt-0.5">Subject: {quizDetails?.subject || 'N/A'}</div>
+  const renderPaletteContent = (closeOnSelect = false) => (
+    <>
+      <div className="p-4 border-b border-border-soft bg-cream/20 flex items-center justify-between">
+        <h3 className="font-bold text-ink text-base font-serif">Question Palette</h3>
+        {closeOnSelect && (
+          <button
+            type="button"
+            aria-label="Close question palette"
+            onClick={() => setShowMobilePalette(false)}
+            className="px-3 py-1.5 rounded-lg border border-border-soft text-xs font-bold text-ink hover:bg-cream cursor-pointer"
+          >
+            Close
+          </button>
+        )}
+      </div>
+      
+      <div className="p-4 border-b border-border-soft text-xs font-semibold space-y-2.5 bg-white text-gray-body">
+        <div className="grid grid-cols-2 gap-2">
+          <div className="flex items-center space-x-2"><div className="w-5 h-5 shrink-0 bg-green-600 rounded text-white flex items-center justify-center font-bold">✓</div><span>Answered</span></div>
+          <div className="flex items-center space-x-2"><div className="w-5 h-5 shrink-0 bg-red-600 rounded text-white flex items-center justify-center font-bold">✗</div><span>Not Answered</span></div>
+          <div className="flex items-center space-x-2"><div className="w-5 h-5 shrink-0 bg-cream border border-border-soft rounded text-ink flex items-center justify-center font-bold">•</div><span>Not Visited</span></div>
+          <div className="flex items-center space-x-2"><div className="w-5 h-5 shrink-0 bg-purple-600 rounded text-white flex items-center justify-center font-bold">?</div><span>Review</span></div>
         </div>
-        <div className="flex items-center space-x-6">
-          <div className="flex items-center space-x-2">
+      </div>
+
+      <div className="p-4 sm:p-6 flex-1 overflow-y-auto bg-cream/10">
+        <div className="grid grid-cols-5 sm:grid-cols-4 gap-2.5 sm:gap-3">
+          {questions.map((q, idx) => {
+            const status = responses[q.id]?.status;
+            return (
+              <button
+                key={q.id}
+                type="button"
+                onClick={() => {
+                  setCurrentQuestionIdx(idx);
+                  if (closeOnSelect) setShowMobilePalette(false);
+                }}
+                className={`w-11 h-11 rounded-lg font-bold flex items-center justify-center transition-all shadow-sm hover:scale-105 active:scale-95 text-sm cursor-pointer ${getStatusColor(status)} ${currentQuestionIdx === idx ? 'ring-2 ring-maroon ring-offset-2 scale-110' : ''}`}
+              >
+                {idx + 1}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="p-4 border-t border-border-soft bg-white text-center">
+        <button
+          type="button"
+          onClick={() => {
+            if (closeOnSelect) setShowMobilePalette(false);
+            void handleSubmit();
+          }}
+          className="w-full min-h-[44px] py-3 bg-maroon text-white hover:bg-maroon-deep font-bold rounded-full shadow-sm transition-colors cursor-pointer"
+        >
+          Finish & Submit Exam
+        </button>
+      </div>
+    </>
+  );
+
+  return (
+    <div className="min-h-[100dvh] h-[100dvh] bg-[#FDFBF7] flex flex-col font-sans text-ink overflow-hidden">
+      <header className="bg-white border-b border-border-soft px-3 py-2.5 sm:px-6 sm:py-4 flex justify-between items-center gap-2 sm:gap-4 shadow-sm shrink-0">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-sm sm:text-xl font-serif font-bold text-ink truncate">{quizDetails?.title || 'Examination'}</h1>
+          <div className="text-[11px] sm:text-xs font-semibold text-gray-body mt-0.5 truncate">Subject: {quizDetails?.subject || 'N/A'}</div>
+        </div>
+        <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+          <div className="hidden sm:flex items-center space-x-2">
             {saving ? (
               <span className="text-yellow-700 text-sm font-semibold flex items-center">
                 <span className="animate-pulse w-2 h-2 bg-yellow-500 rounded-full mr-2"></span> Saving...
@@ -509,39 +624,78 @@ export default function ExamInterface() {
               </span>
             )}
           </div>
-          <div className="text-2xl font-mono font-bold text-maroon bg-cream px-4 py-2 rounded-xl border border-border-soft">
+          <button
+            type="button"
+            onClick={() => setShowMobilePalette(true)}
+            className="lg:hidden px-2.5 py-1.5 rounded-lg border border-border-soft bg-cream/60 text-xs font-bold text-ink hover:bg-cream shrink-0 cursor-pointer"
+            aria-label="Open question palette"
+          >
+            Q {currentQuestionIdx + 1}/{questions.length}
+          </button>
+          <div className="text-sm sm:text-2xl font-mono font-bold text-maroon bg-cream px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-xl border border-border-soft tabular-nums">
             {formatTime(timeLeft)}
           </div>
         </div>
       </header>
 
-      <div className="flex flex-1 overflow-hidden">
-        <div className="flex-1 flex flex-col border-r border-border-soft bg-white">
-          <div className="flex-1 p-8 overflow-y-auto">
-            <div className="flex justify-between items-center border-b border-border-soft pb-4 mb-6">
-              <h2 className="text-xl font-serif font-bold text-ink">Question {currentQuestionIdx + 1}</h2>
-              <span className="bg-maroon/10 text-maroon border border-maroon/20 px-3 py-1 rounded-full text-xs font-bold">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        <div className="flex-1 min-w-0 flex flex-col lg:border-r border-border-soft bg-white">
+          <div className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
+            <div className="flex justify-between items-center gap-2 border-b border-border-soft pb-3 sm:pb-4 mb-4 sm:mb-6">
+              <h2 className="text-base sm:text-xl font-serif font-bold text-ink">Question {currentQuestionIdx + 1} of {questions.length}</h2>
+              <span className="bg-maroon/10 text-maroon border border-maroon/20 px-2.5 py-1 rounded-full text-xs font-bold shrink-0">
                 {currentQ.marks} Marks
               </span>
             </div>
             
-            <div className="prose max-w-none mb-8 text-ink font-semibold text-lg leading-relaxed">
+            <div className="prose max-w-none mb-5 sm:mb-8 text-ink font-semibold text-base sm:text-lg leading-relaxed break-words">
               {currentQ.text}
             </div>
-            {currentQ.image && <img src={currentQ.image} alt="Question illustration" className="mb-8 max-h-96 max-w-full rounded-xl border border-border-soft object-contain" />}
+            {currentQ.image && (
+              <div className="mb-6 sm:mb-8 space-y-2">
+                {imageStatus === 'loading' && (
+                  <div className="h-40 w-full max-w-md rounded-xl border border-border-soft bg-cream/40 animate-pulse flex items-center justify-center text-xs font-semibold text-gray-body">
+                    Loading question image...
+                  </div>
+                )}
+                {imageStatus === 'error' ? (
+                  <div className="p-4 rounded-xl border border-red-200 bg-red-50 text-xs font-semibold text-red-700">
+                    Question image failed to load. Please continue answering or notify your faculty member.
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setZoomedImageUrl(currentQ.image || null)}
+                    className={`group relative inline-block max-w-full rounded-xl border border-border-soft bg-cream/10 overflow-hidden cursor-zoom-in ${imageStatus === 'loading' ? 'hidden' : ''}`}
+                    aria-label="Enlarge question image"
+                  >
+                    <img
+                      src={currentQ.image}
+                      alt="Question illustration"
+                      onLoad={() => setImageStatus('loaded')}
+                      onError={() => setImageStatus('error')}
+                      className="max-h-56 sm:max-h-80 lg:max-h-96 max-w-full w-auto h-auto object-contain mx-auto"
+                    />
+                    <span className="block sm:inline-block sm:absolute sm:bottom-2 sm:right-2 px-2.5 py-1 bg-black/70 text-white text-[11px] font-semibold sm:rounded-md">
+                      Tap to zoom
+                    </span>
+                  </button>
+                )}
+              </div>
+            )}
 
-            <div className="space-y-4">
+            <div className="space-y-3 sm:space-y-4">
               {currentQ.type === 'MCQ' && currentQ.options?.map((opt: string, idx: number) => (
-                <label key={idx} className={`block p-4 border rounded-xl cursor-pointer transition-colors ${currentResp?.data === opt ? 'bg-maroon/5 border-maroon' : 'bg-white border-border-soft hover:bg-cream/20'}`}>
-                  <div className="flex items-center space-x-3">
+                <label key={idx} className={`block p-3.5 sm:p-4 min-h-[48px] border rounded-xl cursor-pointer transition-colors ${currentResp?.data === opt ? 'bg-maroon/5 border-maroon' : 'bg-white border-border-soft hover:bg-cream/20'}`}>
+                  <div className="flex items-start sm:items-center gap-3 min-w-0">
                     <input 
                       type="radio" 
                       name={`q-${currentQ.id}`} 
-                      className="w-5 h-5 text-maroon border-border-soft focus:ring-maroon cursor-pointer accent-maroon"
+                      className="w-5 h-5 mt-0.5 sm:mt-0 shrink-0 text-maroon border-border-soft focus:ring-maroon cursor-pointer accent-maroon"
                       checked={currentResp?.data === opt}
                       onChange={() => handleSaveResponse(currentQ.id, opt, 'ANSWERED')}
                     />
-                    <span className="text-ink text-base font-semibold">{opt}</span>
+                    <span className="text-ink text-sm sm:text-base font-semibold min-w-0 flex-1 break-words">{opt}</span>
                   </div>
                 </label>
               ))}
@@ -549,15 +703,15 @@ export default function ExamInterface() {
               {currentQ.type === 'MULTI_SELECT' && currentQ.options?.map((opt: string, idx: number) => {
                 const isSelected = Array.isArray(currentResp?.data) && currentResp.data.includes(opt);
                 return (
-                  <label key={idx} className={`block p-4 border rounded-xl cursor-pointer transition-colors ${isSelected ? 'bg-maroon/5 border-maroon' : 'bg-white border-border-soft hover:bg-cream/20'}`}>
-                    <div className="flex items-center space-x-3">
+                  <label key={idx} className={`block p-3.5 sm:p-4 min-h-[48px] border rounded-xl cursor-pointer transition-colors ${isSelected ? 'bg-maroon/5 border-maroon' : 'bg-white border-border-soft hover:bg-cream/20'}`}>
+                    <div className="flex items-start sm:items-center gap-3 min-w-0">
                       <input 
                         type="checkbox" 
-                        className="w-5 h-5 text-maroon border-border-soft rounded focus:ring-maroon cursor-pointer accent-maroon"
+                        className="w-5 h-5 mt-0.5 sm:mt-0 shrink-0 text-maroon border-border-soft rounded focus:ring-maroon cursor-pointer accent-maroon"
                         checked={isSelected}
                         onChange={() => handleToggleMultiSelect(opt)}
                       />
-                      <span className="text-ink text-base font-semibold">{opt}</span>
+                      <span className="text-ink text-sm sm:text-base font-semibold min-w-0 flex-1 break-words">{opt}</span>
                     </div>
                   </label>
                 );
@@ -565,7 +719,7 @@ export default function ExamInterface() {
 
               {(currentQ.type === 'SHORT_WRITTEN' || currentQ.type === 'LONG_WRITTEN') && (
                 <textarea 
-                  className={`w-full p-4 border border-border-soft rounded-xl focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon resize-none text-ink bg-white text-base ${currentQ.type === 'LONG_WRITTEN' ? 'h-64' : 'h-32'}`}
+                  className={`w-full p-3.5 sm:p-4 border border-border-soft rounded-xl focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon resize-none text-ink bg-white text-sm sm:text-base ${currentQ.type === 'LONG_WRITTEN' ? 'h-48 sm:h-64' : 'h-28 sm:h-32'}`}
                   placeholder="Type your answer here..."
                   value={currentResp?.data || ''}
                   onChange={(e) => handleSaveResponse(currentQ.id, e.target.value, 'ANSWERED')}
@@ -576,12 +730,11 @@ export default function ExamInterface() {
                 <input 
                   type="text"
                   inputMode="decimal"
-                  className="w-full p-4 border border-border-soft rounded-xl focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon text-ink bg-white text-base font-semibold"
+                  className="w-full p-3.5 sm:p-4 border border-border-soft rounded-xl focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon text-ink bg-white text-base font-semibold"
                   placeholder="Enter the numerical value..."
                   value={currentResp?.data || ''}
                   onChange={(e) => {
                     const val = e.target.value;
-                    // Only allow digits and a single decimal point
                     if (/^[0-9]*\.?[0-9]*$/.test(val)) {
                       handleSaveResponse(currentQ.id, val, 'ANSWERED');
                     }
@@ -594,16 +747,16 @@ export default function ExamInterface() {
                 const rights: string[] = currentQ.options?.rights || (Array.isArray(currentQ.options) ? currentQ.options.map((o: any) => o.right) : []);
 
                 return (
-                  <div className="space-y-4">
+                  <div className="space-y-3 sm:space-y-4">
                     {lefts.map((leftOpt: string, idx: number) => {
                       const currentArr = Array.isArray(currentResp?.data) ? currentResp.data : [];
                       const selectedRight = currentArr.find((x: any) => x.left === leftOpt)?.right || '';
                       return (
-                        <div key={idx} className="flex items-center space-x-4 p-4 bg-cream/20 border border-border-soft rounded-xl">
-                          <div className="flex-1 text-ink text-base font-semibold">{leftOpt}</div>
-                          <div className="text-gray-body">→</div>
+                        <div key={idx} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 p-3.5 sm:p-4 bg-cream/20 border border-border-soft rounded-xl">
+                          <div className="sm:flex-1 text-ink text-sm sm:text-base font-semibold min-w-0 break-words">{leftOpt}</div>
+                          <div className="hidden sm:block text-gray-body shrink-0">→</div>
                           <select 
-                            className="flex-1 p-2 border border-border-soft rounded-lg bg-white focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon text-ink font-semibold text-sm shadow-sm"
+                            className="w-full sm:flex-1 min-w-0 min-h-[42px] p-2.5 border border-border-soft rounded-lg bg-white focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon text-ink font-semibold text-sm shadow-sm"
                             value={selectedRight}
                             onChange={(e) => handleMatchingSelect(leftOpt, e.target.value)}
                           >
@@ -620,7 +773,6 @@ export default function ExamInterface() {
               })()}
 
               {currentQ.type === 'FILL_BLANK' && (() => {
-                // If question has multiple blanks defined in options or text contains [blank]
                 const blankCount = currentQ.options?.blanks?.length || (currentQ.text.match(/\[blank\]/gi) || []).length || 1;
                 
                 if (blankCount > 1) {
@@ -629,11 +781,11 @@ export default function ExamInterface() {
                     <div className="space-y-3">
                       <div className="text-sm font-semibold text-gray-body mb-2">Fill in the answer for each blank:</div>
                       {Array.from({ length: blankCount }).map((_, bIdx) => (
-                        <div key={bIdx} className="flex items-center gap-3 p-3 bg-cream/20 rounded-xl border border-border-soft">
-                          <span className="text-sm font-bold text-maroon min-w-16">Blank {bIdx + 1}:</span>
+                        <div key={bIdx} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 bg-cream/20 rounded-xl border border-border-soft">
+                          <span className="text-sm font-bold text-maroon sm:min-w-16 shrink-0">Blank {bIdx + 1}:</span>
                           <input
                             type="text"
-                            className="flex-1 p-2.5 border border-border-soft rounded-lg bg-white focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon text-ink text-sm font-medium shadow-sm"
+                            className="w-full sm:flex-1 min-w-0 min-h-[42px] p-2.5 border border-border-soft rounded-lg bg-white focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon text-ink text-sm font-medium shadow-sm"
                             placeholder={`Answer for blank ${bIdx + 1}...`}
                             value={currentAnswers[bIdx] || ''}
                             onChange={(e) => {
@@ -654,7 +806,7 @@ export default function ExamInterface() {
                     <label className="text-sm font-semibold text-gray-body block">Your Answer:</label>
                     <input
                       type="text"
-                      className="w-full p-4 border border-border-soft rounded-xl focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon text-ink bg-white text-base font-semibold shadow-sm"
+                      className="w-full min-h-[44px] p-3.5 sm:p-4 border border-border-soft rounded-xl focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon text-ink bg-white text-base font-semibold shadow-sm"
                       placeholder="Type your answer here..."
                       value={typeof currentResp?.data === 'string' ? currentResp.data : (Array.isArray(currentResp?.data) ? currentResp.data[0] || '' : '')}
                       onChange={(e) => handleSaveResponse(currentQ.id, e.target.value, 'ANSWERED')}
@@ -665,58 +817,66 @@ export default function ExamInterface() {
             </div>
           </div>
 
-          <div className="bg-white border-t border-border-soft p-4 flex justify-between items-center shadow-sm">
-            <div className="space-x-3">
-              <button onClick={handleMarkReview} className="px-5 py-2 border border-purple-600 text-purple-700 hover:bg-purple-50 font-bold text-sm rounded-full transition-all">Mark for Review & Next</button>
-              <button onClick={handleClear} className="px-5 py-2 border border-border-soft text-gray-body hover:bg-cream/40 font-bold text-sm rounded-full transition-all">Clear Response</button>
+          <div className="bg-white border-t border-border-soft p-3 sm:p-4 flex flex-col-reverse sm:flex-row sm:justify-between sm:items-center gap-2.5 sm:gap-3 shadow-sm shrink-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" onClick={handleMarkReview} className="flex-1 sm:flex-initial min-h-[42px] px-3.5 sm:px-5 py-2 border border-purple-600 text-purple-700 hover:bg-purple-50 font-bold text-xs sm:text-sm rounded-full transition-all cursor-pointer">Mark for Review & Next</button>
+              <button type="button" onClick={handleClear} className="min-h-[42px] px-3.5 sm:px-5 py-2 border border-border-soft text-gray-body hover:bg-cream/40 font-bold text-xs sm:text-sm rounded-full transition-all cursor-pointer">Clear</button>
             </div>
-            <div className="space-x-3 flex items-center">
-              <button onClick={handlePrevious} disabled={currentQuestionIdx === 0} className="px-5 py-2 bg-cream border border-border-soft text-ink hover:bg-cream-edge/30 disabled:opacity-50 font-bold text-sm rounded-full transition-all">Previous</button>
-              <button onClick={handleNext} disabled={currentQuestionIdx === questions.length - 1} className="px-5 py-2 bg-maroon text-white hover:bg-maroon-deep disabled:opacity-50 font-bold text-sm rounded-full transition-all">Save & Next</button>
+            <div className="flex items-center gap-2 sm:gap-3">
+              <button type="button" onClick={handlePrevious} disabled={currentQuestionIdx === 0} className="flex-1 sm:flex-initial min-h-[44px] px-4 sm:px-5 py-2 bg-cream border border-border-soft text-ink hover:bg-cream-edge/30 disabled:opacity-50 font-bold text-xs sm:text-sm rounded-full transition-all cursor-pointer">Previous</button>
+              <button type="button" onClick={handleNext} disabled={currentQuestionIdx === questions.length - 1} className="flex-1 sm:flex-initial min-h-[44px] px-4 sm:px-5 py-2 bg-maroon text-white hover:bg-maroon-deep disabled:opacity-50 font-bold text-xs sm:text-sm rounded-full transition-all cursor-pointer">Save & Next</button>
               {currentQuestionIdx === questions.length - 1 && (
-                <button onClick={handleSubmit} className="px-6 py-2 bg-green-700 text-white hover:bg-green-800 font-bold text-sm rounded-full transition-all ml-4 shadow-sm hover:scale-105 active:scale-95">Submit Exam</button>
+                <button type="button" onClick={handleSubmit} className="flex-1 sm:flex-initial min-h-[44px] px-4 sm:px-6 py-2 bg-green-700 text-white hover:bg-green-800 font-bold text-xs sm:text-sm rounded-full transition-all shadow-sm cursor-pointer">Submit Exam</button>
               )}
             </div>
           </div>
         </div>
 
-        <div className="w-80 bg-white flex flex-col border-l border-border-soft">
-          <div className="p-4 border-b border-border-soft bg-cream/20">
-            <h3 className="font-bold text-ink text-base font-serif">Question Palette</h3>
-          </div>
-          
-          <div className="p-4 border-b border-border-soft text-xs font-semibold space-y-3 bg-white text-gray-body">
-            <div className="flex space-x-4">
-              <div className="flex items-center space-x-2"><div className="w-5 h-5 bg-green-600 rounded text-white flex items-center justify-center font-bold">✓</div><span>Answered</span></div>
-              <div className="flex items-center space-x-2"><div className="w-5 h-5 bg-red-600 rounded text-white flex items-center justify-center font-bold">✗</div><span>Not Answered</span></div>
-            </div>
-            <div className="flex space-x-4">
-              <div className="flex items-center space-x-2"><div className="w-5 h-5 bg-cream border border-border-soft rounded text-ink flex items-center justify-center font-bold">•</div><span>Not Visited</span></div>
-              <div className="flex items-center space-x-2"><div className="w-5 h-5 bg-purple-600 rounded text-white flex items-center justify-center font-bold">?</div><span>Review</span></div>
-            </div>
-          </div>
-
-          <div className="p-6 flex-1 overflow-y-auto bg-cream/10">
-            <div className="grid grid-cols-4 gap-3">
-              {questions.map((q, idx) => {
-                const status = responses[q.id]?.status;
-                return (
-                  <button
-                    key={q.id}
-                    onClick={() => setCurrentQuestionIdx(idx)}
-                    className={`w-11 h-11 rounded-lg font-bold flex items-center justify-center transition-all shadow-sm hover:scale-105 active:scale-95 text-sm
-                      ${getStatusColor(status)}
-                      ${currentQuestionIdx === idx ? 'ring-2 ring-maroon ring-offset-2 scale-110' : ''}
-                    `}
-                  >
-                    {idx + 1}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+        {/* Desktop Question Palette */}
+        <div className="hidden lg:flex w-80 bg-white flex-col border-l border-border-soft shrink-0">
+          {renderPaletteContent(false)}
         </div>
       </div>
+
+      {/* Mobile / Tablet Question Palette Drawer */}
+      {showMobilePalette && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 lg:hidden flex justify-end"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setShowMobilePalette(false);
+          }}
+        >
+          <div className="w-80 max-w-[88vw] h-full bg-white flex flex-col shadow-xl">
+            {renderPaletteContent(true)}
+          </div>
+        </div>
+      )}
+
+      {/* Question Image Lightbox */}
+      {zoomedImageUrl && (
+        <div
+          className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Zoomed question image"
+          onClick={() => setZoomedImageUrl(null)}
+        >
+          <div className="relative max-w-[95vw] max-h-[90vh] flex flex-col items-end gap-2" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => setZoomedImageUrl(null)}
+              className="px-4 py-1.5 rounded-full bg-white text-black text-xs font-bold shadow cursor-pointer"
+            >
+              Close
+            </button>
+            <img
+              src={zoomedImageUrl}
+              alt="Question illustration enlarged"
+              className="max-w-[95vw] max-h-[82vh] w-auto h-auto object-contain rounded-lg bg-white"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

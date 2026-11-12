@@ -279,4 +279,126 @@ describe('Simplified Student Quiz Navigation Flow', () => {
     expect(screen.queryByText('Question Palette')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Enter Fullscreen/i })).toBeInTheDocument();
   });
+
+  it('shows Quiz Attempt Locked screen with no Begin Quiz button when attempt is locked after a violation', async () => {
+    (apiClient.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: false,
+      status: 403,
+      json: async () => ({
+        status: 'error',
+        error: {
+          code: 'ATTEMPT_LOCKED',
+          message:
+            'You have violated the quiz rules. Your quiz attempt has been locked. Please contact your faculty member if you require permission to restart.',
+        },
+      }),
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/exam-portal/take/quiz-locked-1']}>
+        <Routes>
+          <Route path="/student/dashboard" element={<StudentDashboard />} />
+          <Route path="/exam-portal/take/:quizId" element={<ExamInterface />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('Quiz Attempt Locked')).toBeInTheDocument();
+    expect(
+      screen.getByText(/You have violated the quiz rules\. Your quiz attempt has been locked\./i)
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Begin Quiz/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Reattempt/i })).not.toBeInTheDocument();
+  });
+
+  it('supports mobile question palette drawer, image zoom lightbox, and all answer types cleanly', async () => {
+    (apiClient.fetch as jest.Mock).mockImplementation(async (path: string) => {
+      if (path === '/api/v1/student/exam/instructions/quiz-img-1') {
+        return {
+          ok: true,
+          json: async () => ({
+            status: 'success',
+            data: {
+              quiz: {
+                id: 'quiz-img-1',
+                title: 'Visual Architecture Quiz',
+                subject: 'CN',
+                durationMinutes: 30,
+                totalMarks: 10,
+                questionCount: 2,
+              },
+            },
+          }),
+        };
+      }
+      if (path === '/api/v1/student/exam/start/quiz-img-1') {
+        return {
+          ok: true,
+          json: async () => ({
+            status: 'success',
+            data: {
+              attempt: { id: 'attempt-img-1', startTime: new Date().toISOString(), responses: [] },
+              quiz: {
+                id: 'quiz-img-1',
+                title: 'Visual Architecture Quiz',
+                subject: 'CN',
+                durationMinutes: 30,
+                questions: [
+                  {
+                    id: 'q-img',
+                    type: 'MCQ',
+                    text: 'Identify the network topology shown below.',
+                    marks: 5,
+                    image: 'https://example.com/topology.png',
+                    options: ['Star Topology', 'Mesh Topology'],
+                  },
+                  {
+                    id: 'q-match',
+                    type: 'MATCHING',
+                    text: 'Match protocol to layer.',
+                    marks: 5,
+                    options: {
+                      lefts: ['HTTP', 'TCP'],
+                      rights: ['Application', 'Transport'],
+                    },
+                  },
+                ],
+              },
+            },
+          }),
+        };
+      }
+      return { ok: true, json: async () => ({ status: 'success', data: {} }) };
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/exam-portal/take/quiz-img-1']}>
+        <Routes>
+          <Route path="/exam-portal/take/:quizId" element={<ExamInterface />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: /Begin Quiz/i }));
+    expect(await screen.findByText('Identify the network topology shown below.')).toBeInTheDocument();
+
+    // Open mobile question palette drawer
+    const paletteBtn = screen.getByRole('button', { name: /Open question palette/i });
+    fireEvent.click(paletteBtn);
+    expect(screen.getByRole('button', { name: /Close question palette/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Close question palette/i }));
+
+    // Image loads and supports tap-to-zoom lightbox
+    const qImg = screen.getByAltText('Question illustration');
+    fireEvent.load(qImg);
+    fireEvent.click(screen.getByRole('button', { name: /Enlarge question image/i }));
+    expect(await screen.findByRole('dialog', { name: /Zoomed question image/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+
+    // Navigate to Matching question and verify responsive select works
+    fireEvent.click(screen.getByRole('button', { name: /Save & Next/i }));
+    expect(await screen.findByText('Match protocol to layer.')).toBeInTheDocument();
+    const selects = screen.getAllByRole('combobox');
+    expect(selects).toHaveLength(2);
+  });
 });

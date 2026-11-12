@@ -60,8 +60,9 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
     navigate('/');
   };
 
-  const getNavClass = (tab: string) => {
-    return `flex items-center w-full ${isCollapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2'} rounded-lg transition-all font-medium text-sm cursor-pointer ${activeTab === tab
+  const getNavClass = (tab: string, forceExpanded = false) => {
+    const collapsed = isCollapsed && !forceExpanded;
+    return `flex items-center w-full ${collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2'} rounded-lg transition-all font-medium text-sm cursor-pointer min-h-[40px] ${activeTab === tab
       ? 'bg-maroon/10 dark:bg-rose-500/15 text-maroon dark:text-rose-300 font-semibold border border-maroon/40 dark:border-rose-500/40 shadow-xs'
       : 'text-gray-body dark:text-neutral-300 hover:text-ink dark:hover:text-white hover:bg-cream-edge/40 dark:hover:bg-neutral-800/80 border border-transparent'
       }`;
@@ -159,6 +160,128 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
     );
   };
 
+  const handleNavClick = (tab: string, closeOnSelect = false) => {
+    onTabChange(tab);
+    if (closeOnSelect) setMobileNavOpen(false);
+  };
+
+  const renderRoleNavigation = (closeOnSelect = false) => {
+    const showLabels = closeOnSelect || !isCollapsed;
+    const navClass = (tab: string) => getNavClass(tab, closeOnSelect);
+    const iconMargin = showLabels ? 'mr-3' : '';
+
+    if (role === 'ADMIN') {
+      return (
+        <>
+          <button title={!showLabels ? 'Admin Hub' : undefined} aria-current={activeTab === 'hub' ? 'page' : undefined} onClick={() => handleNavClick('hub', closeOnSelect)} className={navClass('hub')}>
+            <LayoutDashboard className={`w-5 h-5 shrink-0 ${iconMargin}`} />
+            {showLabels && <span className="truncate">Admin Hub</span>}
+          </button>
+          <button title={!showLabels ? 'Faculty Approvals' : undefined} aria-current={activeTab === 'faculty' ? 'page' : undefined} onClick={() => handleNavClick('faculty', closeOnSelect)} className={navClass('faculty')}>
+            <CheckSquare className={`w-5 h-5 shrink-0 ${iconMargin}`} />
+            {showLabels && <span className="truncate">Faculty Approvals</span>}
+          </button>
+          <button title={!showLabels ? 'User Management' : undefined} aria-current={activeTab === 'users' ? 'page' : undefined} onClick={() => handleNavClick('users', closeOnSelect)} className={navClass('users')}>
+            <Users className={`w-5 h-5 shrink-0 ${iconMargin}`} />
+            {showLabels && <span className="truncate">User Management</span>}
+          </button>
+          <button title={!showLabels ? 'Departments' : undefined} aria-current={activeTab === 'departments' ? 'page' : undefined} onClick={() => handleNavClick('departments', closeOnSelect)} className={navClass('departments')}>
+            <Settings className={`w-5 h-5 shrink-0 ${iconMargin}`} />
+            {showLabels && <span className="truncate">Departments</span>}
+          </button>
+          <button title={!showLabels ? 'My Profile' : undefined} aria-current={activeTab === 'profile' ? 'page' : undefined} onClick={() => handleNavClick('profile', closeOnSelect)} className={navClass('profile')}>
+            <User className={`w-5 h-5 shrink-0 ${iconMargin}`} />
+            {showLabels && <span className="truncate">My Profile</span>}
+          </button>
+        </>
+      );
+    }
+
+    if (role === 'FACULTY' && useFacultyNavigation) {
+      return renderFacultyNavigation(closeOnSelect);
+    }
+
+    if (role === 'FACULTY') {
+      return (
+        <>
+          <button title={!showLabels ? 'Home' : undefined} aria-current={activeTab === 'home' ? 'page' : undefined} onClick={() => handleNavClick('home', closeOnSelect)} className={navClass('home')}>
+            <Home className={`w-5 h-5 shrink-0 ${iconMargin}`} />
+            {showLabels && <span className="truncate">Home</span>}
+          </button>
+          <button title={!showLabels ? 'Student Reports' : undefined} aria-current={activeTab === 'reports' ? 'page' : undefined} onClick={() => handleNavClick('reports', closeOnSelect)} className={navClass('reports')}>
+            <Users className={`w-5 h-5 shrink-0 ${iconMargin}`} />
+            {showLabels && <span className="flex-1 text-left truncate">Student Reports</span>}
+            {showLabels && <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-maroon/10 text-maroon dark:bg-maroon/30 dark:text-red-300 border border-maroon/20">Analytics</span>}
+          </button>
+          <button title={!showLabels ? 'Quizzes' : undefined} aria-current={activeTab === 'quizzes' ? 'page' : undefined} onClick={() => handleNavClick('quizzes', closeOnSelect)} className={navClass('quizzes')}>
+            <BookOpen className={`w-5 h-5 shrink-0 ${iconMargin}`} />
+            {showLabels && <span className="truncate">Quizzes</span>}
+          </button>
+          <button title={!showLabels ? 'Assignments' : undefined} aria-current={activeTab === 'assignments' ? 'page' : undefined} onClick={() => handleNavClick('assignments', closeOnSelect)} className={navClass('assignments')}>
+            <FileText className={`w-5 h-5 shrink-0 ${iconMargin}`} />
+            {showLabels && <span className="truncate">Assignments</span>}
+          </button>
+          <button title={!showLabels ? 'My Profile' : undefined} aria-current={activeTab === 'profile' ? 'page' : undefined} onClick={() => handleNavClick('profile', closeOnSelect)} className={navClass('profile')}>
+            <User className={`w-5 h-5 shrink-0 ${iconMargin}`} />
+            {showLabels && <span className="truncate">My Profile</span>}
+          </button>
+        </>
+      );
+    }
+
+    return (
+      <>
+        <SectionHeader title="Dashboard" forceExpanded={closeOnSelect} />
+        <button title={!showLabels ? 'Overview' : undefined} aria-current={activeTab === 'overview' ? 'page' : undefined} onClick={() => handleNavClick('overview', closeOnSelect)} className={navClass('overview')}>
+          <LayoutDashboard className={`w-5 h-5 shrink-0 ${iconMargin}`} />
+          {showLabels && <span className="truncate">Overview</span>}
+        </button>
+        <button title={!showLabels ? 'Announcements' : undefined} aria-current={activeTab === 'announcements' ? 'page' : undefined} onClick={() => handleNavClick('announcements', closeOnSelect)} className={navClass('announcements')}>
+          <Bell className={`w-5 h-5 shrink-0 ${iconMargin}`} />
+          {showLabels && <span className="truncate">Announcements</span>}
+        </button>
+
+        <SectionHeader title="All Analysis" forceExpanded={closeOnSelect} />
+        <button title={!showLabels ? 'Topic Skills' : undefined} aria-current={activeTab === 'topics' ? 'page' : undefined} onClick={() => handleNavClick('topics', closeOnSelect)} className={navClass('topics')}>
+          <BookMarked className={`w-5 h-5 shrink-0 ${iconMargin}`} />
+          {showLabels && <span className="truncate">Topic Skills</span>}
+        </button>
+        <button title={!showLabels ? 'Analytics' : undefined} aria-current={activeTab === 'analytics' ? 'page' : undefined} onClick={() => handleNavClick('analytics', closeOnSelect)} className={navClass('analytics')}>
+          <Target className={`w-5 h-5 shrink-0 ${iconMargin}`} />
+          {showLabels && <span className="truncate">Analytics</span>}
+        </button>
+
+        <SectionHeader title="Resources" forceExpanded={closeOnSelect} />
+        <button title={!showLabels ? 'Resource Hub' : undefined} aria-current={activeTab === 'resources' ? 'page' : undefined} onClick={() => handleNavClick('resources', closeOnSelect)} className={navClass('resources')}>
+          <FileText className={`w-5 h-5 shrink-0 ${iconMargin}`} />
+          {showLabels && <span className="truncate">Resource Hub</span>}
+        </button>
+
+        <SectionHeader title="Student essentials" forceExpanded={closeOnSelect} />
+        <button title={!showLabels ? 'My Goals' : undefined} aria-current={activeTab === 'goals' ? 'page' : undefined} onClick={() => handleNavClick('goals', closeOnSelect)} className={navClass('goals')}>
+          <Target className={`w-5 h-5 shrink-0 ${iconMargin}`} />
+          {showLabels && <span className="truncate">My Goals</span>}
+        </button>
+        <button title={!showLabels ? 'Assignments' : undefined} aria-current={activeTab === 'assignments' ? 'page' : undefined} onClick={() => handleNavClick('assignments', closeOnSelect)} className={navClass('assignments')}>
+          <FileText className={`w-5 h-5 shrink-0 ${iconMargin}`} />
+          {showLabels && <span className="truncate">Assignments</span>}
+        </button>
+
+        <SectionHeader title="Quiz" forceExpanded={closeOnSelect} />
+        <button title={!showLabels ? 'Quizzes' : undefined} aria-current={activeTab === 'quizzes' ? 'page' : undefined} onClick={() => handleNavClick('quizzes', closeOnSelect)} className={navClass('quizzes')}>
+          <BookOpen className={`w-5 h-5 shrink-0 ${iconMargin}`} />
+          {showLabels && <span className="truncate">Quizzes</span>}
+        </button>
+
+        <SectionHeader title="Profile" forceExpanded={closeOnSelect} />
+        <button title={!showLabels ? 'My Profile' : undefined} aria-current={activeTab === 'profile' ? 'page' : undefined} onClick={() => handleNavClick('profile', closeOnSelect)} className={navClass('profile')}>
+          <User className={`w-5 h-5 shrink-0 ${iconMargin}`} />
+          {showLabels && <span className="truncate">My Profile</span>}
+        </button>
+      </>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-cream dark:bg-[#111113] flex text-ink dark:text-neutral-100 font-sans transition-colors duration-200">
       {/* Sidebar */}
@@ -203,109 +326,7 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
         </div>
 
         <nav aria-label="Primary navigation" className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {role === 'ADMIN' && (
-            <>
-              <button title={isCollapsed ? "Admin Hub" : undefined} aria-current={activeTab === 'hub' ? 'page' : undefined} onClick={() => onTabChange('hub')} className={getNavClass('hub')}>
-                <LayoutDashboard className={`w-5 h-5 shrink-0 ${isCollapsed ? '' : 'mr-3'}`} />
-                {!isCollapsed && <span className="truncate">Admin Hub</span>}
-              </button>
-              <button title={isCollapsed ? "Faculty Approvals" : undefined} aria-current={activeTab === 'faculty' ? 'page' : undefined} onClick={() => onTabChange('faculty')} className={getNavClass('faculty')}>
-                <CheckSquare className={`w-5 h-5 shrink-0 ${isCollapsed ? '' : 'mr-3'}`} />
-                {!isCollapsed && <span className="truncate">Faculty Approvals</span>}
-              </button>
-              <button title={isCollapsed ? "User Management" : undefined} aria-current={activeTab === 'users' ? 'page' : undefined} onClick={() => onTabChange('users')} className={getNavClass('users')}>
-                <Users className={`w-5 h-5 shrink-0 ${isCollapsed ? '' : 'mr-3'}`} />
-                {!isCollapsed && <span className="truncate">User Management</span>}
-              </button>
-              <button title={isCollapsed ? "Departments" : undefined} aria-current={activeTab === 'departments' ? 'page' : undefined} onClick={() => onTabChange('departments')} className={getNavClass('departments')}>
-                <Settings className={`w-5 h-5 shrink-0 ${isCollapsed ? '' : 'mr-3'}`} />
-                {!isCollapsed && <span className="truncate">Departments</span>}
-              </button>
-              <button title={isCollapsed ? "My Profile" : undefined} aria-current={activeTab === 'profile' ? 'page' : undefined} onClick={() => onTabChange('profile')} className={getNavClass('profile')}>
-                <User className={`w-5 h-5 shrink-0 ${isCollapsed ? '' : 'mr-3'}`} />
-                {!isCollapsed && <span className="truncate">My Profile</span>}
-              </button>
-            </>
-          )}
-
-          {role === 'FACULTY' && useFacultyNavigation && renderFacultyNavigation()}
-          {role === 'FACULTY' && !useFacultyNavigation && (
-            <>
-              <button title={isCollapsed ? "Home" : undefined} aria-current={activeTab === 'home' ? 'page' : undefined} onClick={() => onTabChange('home')} className={getNavClass('home')}>
-                <Home className={`w-5 h-5 shrink-0 ${isCollapsed ? '' : 'mr-3'}`} />
-                {!isCollapsed && <span className="truncate">Home</span>}
-              </button>
-              <button title={isCollapsed ? "Student Reports" : undefined} aria-current={activeTab === 'reports' ? 'page' : undefined} onClick={() => onTabChange('reports')} className={getNavClass('reports')}>
-                <Users className={`w-5 h-5 shrink-0 ${isCollapsed ? '' : 'mr-3'}`} /> 
-                {!isCollapsed && <span className="flex-1 text-left truncate">Student Reports</span>}
-                {!isCollapsed && <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-maroon/10 text-maroon dark:bg-maroon/30 dark:text-red-300 border border-maroon/20">Analytics</span>}
-              </button>
-              <button title={isCollapsed ? "Quizzes" : undefined} aria-current={activeTab === 'quizzes' ? 'page' : undefined} onClick={() => onTabChange('quizzes')} className={getNavClass('quizzes')}>
-                <BookOpen className={`w-5 h-5 shrink-0 ${isCollapsed ? '' : 'mr-3'}`} />
-                {!isCollapsed && <span className="truncate">Quizzes</span>}
-              </button>
-              <button title={isCollapsed ? "Assignments" : undefined} aria-current={activeTab === 'assignments' ? 'page' : undefined} onClick={() => onTabChange('assignments')} className={getNavClass('assignments')}>
-                <FileText className={`w-5 h-5 shrink-0 ${isCollapsed ? '' : 'mr-3'}`} />
-                {!isCollapsed && <span className="truncate">Assignments</span>}
-              </button>
-              <button title={isCollapsed ? "My Profile" : undefined} aria-current={activeTab === 'profile' ? 'page' : undefined} onClick={() => onTabChange('profile')} className={getNavClass('profile')}>
-                <User className={`w-5 h-5 shrink-0 ${isCollapsed ? '' : 'mr-3'}`} />
-                {!isCollapsed && <span className="truncate">My Profile</span>}
-              </button>
-            </>
-          )}
-
-          {role === 'STUDENT' && (
-            <>
-              <SectionHeader title="Dashboard" />
-              <button title={isCollapsed ? "Overview" : undefined} aria-current={activeTab === 'overview' ? 'page' : undefined} onClick={() => onTabChange('overview')} className={getNavClass('overview')}>
-                <LayoutDashboard className={`w-5 h-5 shrink-0 ${isCollapsed ? '' : 'mr-3'}`} />
-                {!isCollapsed && <span className="truncate">Overview</span>}
-              </button>
-              <button title={isCollapsed ? "Announcements" : undefined} aria-current={activeTab === 'announcements' ? 'page' : undefined} onClick={() => onTabChange('announcements')} className={getNavClass('announcements')}>
-                <Bell className={`w-5 h-5 shrink-0 ${isCollapsed ? '' : 'mr-3'}`} />
-                {!isCollapsed && <span className="truncate">Announcements</span>}
-              </button>
-
-              <SectionHeader title="All Analysis" />
-              <button title={isCollapsed ? "Topic Skills" : undefined} aria-current={activeTab === 'topics' ? 'page' : undefined} onClick={() => onTabChange('topics')} className={getNavClass('topics')}>
-                <BookMarked className={`w-5 h-5 shrink-0 ${isCollapsed ? '' : 'mr-3'}`} />
-                {!isCollapsed && <span className="truncate">Topic Skills</span>}
-              </button>
-              <button title={isCollapsed ? "Analytics" : undefined} aria-current={activeTab === 'analytics' ? 'page' : undefined} onClick={() => onTabChange('analytics')} className={getNavClass('analytics')}>
-                <Target className={`w-5 h-5 shrink-0 ${isCollapsed ? '' : 'mr-3'}`} />
-                {!isCollapsed && <span className="truncate">Analytics</span>}
-              </button>
-
-              <SectionHeader title="Resources" />
-              <button title={isCollapsed ? "Resource Hub" : undefined} aria-current={activeTab === 'resources' ? 'page' : undefined} onClick={() => onTabChange('resources')} className={getNavClass('resources')}>
-                <FileText className={`w-5 h-5 shrink-0 ${isCollapsed ? '' : 'mr-3'}`} />
-                {!isCollapsed && <span className="truncate">Resource Hub</span>}
-              </button>
-
-              <SectionHeader title="Student essentials" />
-              <button title={isCollapsed ? "My Goals" : undefined} aria-current={activeTab === 'goals' ? 'page' : undefined} onClick={() => onTabChange('goals')} className={getNavClass('goals')}>
-                <Target className={`w-5 h-5 shrink-0 ${isCollapsed ? '' : 'mr-3'}`} />
-                {!isCollapsed && <span className="truncate">My Goals</span>}
-              </button>
-              <button title={isCollapsed ? "Assignments" : undefined} aria-current={activeTab === 'assignments' ? 'page' : undefined} onClick={() => onTabChange('assignments')} className={getNavClass('assignments')}>
-                <FileText className={`w-5 h-5 shrink-0 ${isCollapsed ? '' : 'mr-3'}`} />
-                {!isCollapsed && <span className="truncate">Assignments</span>}
-              </button>
-
-              <SectionHeader title="Quiz" />
-              <button title={isCollapsed ? "Quizzes" : undefined} aria-current={activeTab === 'quizzes' ? 'page' : undefined} onClick={() => onTabChange('quizzes')} className={getNavClass('quizzes')}>
-                <BookOpen className={`w-5 h-5 shrink-0 ${isCollapsed ? '' : 'mr-3'}`} />
-                {!isCollapsed && <span className="truncate">Quizzes</span>}
-              </button>
-
-              <SectionHeader title="Profile" />
-              <button title={isCollapsed ? "My Profile" : undefined} aria-current={activeTab === 'profile' ? 'page' : undefined} onClick={() => onTabChange('profile')} className={getNavClass('profile')}>
-                <User className={`w-5 h-5 shrink-0 ${isCollapsed ? '' : 'mr-3'}`} />
-                {!isCollapsed && <span className="truncate">My Profile</span>}
-              </button>
-            </>
-          )}
+          {renderRoleNavigation(false)}
         </nav>
 
         <div className="p-3 border-t border-border-soft dark:border-neutral-800 shrink-0">
@@ -320,40 +341,44 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
         </div>
       </aside>
 
-      {useFacultyNavigation && (
-        <>
-          <button type="button" aria-label="Open faculty navigation" onClick={() => setMobileNavOpen(true)} className="fixed left-4 top-4 z-30 rounded-lg border border-border-soft dark:border-neutral-700 bg-white dark:bg-[#1E1E22] p-2 text-ink dark:text-white shadow-sm md:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maroon/30">
-            <Menu className="h-5 w-5" aria-hidden="true" />
-          </button>
-          {mobileNavOpen && (
-            <div className="fixed inset-0 z-40 bg-black/40 md:hidden" onMouseDown={(event) => { if (event.target === event.currentTarget) setMobileNavOpen(false); }}>
-              <aside ref={mobileNavRef} role="dialog" aria-modal="true" aria-label="Faculty navigation" className="flex h-full w-72 max-w-[85vw] flex-col bg-white dark:bg-[#18181B] shadow-lg">
-                <div className="flex h-16 items-center justify-between border-b border-border-soft dark:border-neutral-800 px-5">
-                  <span className="font-bold text-ink dark:text-white">CIRA Workspace</span>
-                  <button type="button" aria-label="Close faculty navigation" onClick={() => setMobileNavOpen(false)} className="rounded-lg p-2 text-gray-body dark:text-neutral-300 hover:bg-cream dark:hover:bg-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maroon/30">
-                    <X className="h-5 w-5" aria-hidden="true" />
-                  </button>
-                </div>
-                <nav aria-label="Faculty mobile navigation" className="flex-1 space-y-1 overflow-y-auto px-4 py-4">
-                  {renderFacultyNavigation(true)}
-                </nav>
-                <div className="border-t border-border-soft dark:border-neutral-800 p-4">
-                  <button onClick={handleLogout} className="flex w-full items-center rounded-lg px-3 py-2 text-sm font-medium text-gray-body dark:text-neutral-300 hover:bg-cream-edge/30 dark:hover:bg-neutral-800 hover:text-ink dark:hover:text-white">
-                    <LogOut className="mr-3 h-5 w-5" /> Sign Out
-                  </button>
-                </div>
-              </aside>
+      <button
+        type="button"
+        aria-label={useFacultyNavigation ? 'Open faculty navigation' : 'Open navigation'}
+        onClick={() => setMobileNavOpen(true)}
+        className="fixed left-3 top-3 z-30 rounded-lg border border-border-soft dark:border-neutral-700 bg-white dark:bg-[#1E1E22] p-2.5 text-ink dark:text-white shadow-sm md:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maroon/30"
+      >
+        <Menu className="h-5 w-5" aria-hidden="true" />
+      </button>
+      {mobileNavOpen && (
+        <div className="fixed inset-0 z-40 bg-black/40 md:hidden" onMouseDown={(event) => { if (event.target === event.currentTarget) setMobileNavOpen(false); }}>
+          <aside ref={mobileNavRef} role="dialog" aria-modal="true" aria-label="Workspace navigation" className="flex h-full w-72 max-w-[85vw] flex-col bg-white dark:bg-[#18181B] shadow-lg">
+            <div className="flex h-16 items-center justify-between border-b border-border-soft dark:border-neutral-800 px-5">
+              <div className="flex items-center min-w-0">
+                <img src="/img/favicon.ico" alt="CIRA Logo" className="w-7 h-7 rounded-md mr-2 object-contain shrink-0" />
+                <span className="font-bold text-ink dark:text-white truncate">CIRA Workspace</span>
+              </div>
+              <button type="button" aria-label={useFacultyNavigation ? 'Close faculty navigation' : 'Close navigation'} onClick={() => setMobileNavOpen(false)} className="rounded-lg p-2 text-gray-body dark:text-neutral-300 hover:bg-cream dark:hover:bg-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maroon/30">
+                <X className="h-5 w-5" aria-hidden="true" />
+              </button>
             </div>
-          )}
-        </>
+            <nav aria-label="Mobile navigation" className="flex-1 space-y-1 overflow-y-auto px-4 py-4">
+              {renderRoleNavigation(true)}
+            </nav>
+            <div className="border-t border-border-soft dark:border-neutral-800 p-4">
+              <button onClick={handleLogout} className="flex w-full items-center rounded-lg px-3 py-2.5 text-sm font-medium text-gray-body dark:text-neutral-300 hover:bg-cream-edge/30 dark:hover:bg-neutral-800 hover:text-ink dark:hover:text-white">
+                <LogOut className="mr-3 h-5 w-5" /> Sign Out
+              </button>
+            </div>
+          </aside>
+        </div>
       )}
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col h-screen overflow-hidden">
-        <div className="h-16 shrink-0 flex items-center justify-between pl-14 md:pl-8 pr-3 sm:px-8 border-b border-border-soft dark:border-neutral-800 bg-white/85 dark:bg-[#18181B]/90 backdrop-blur-md transition-colors duration-200">
+      <main className="flex-1 min-w-0 flex flex-col h-[100dvh] overflow-hidden">
+        <div className="h-16 shrink-0 flex items-center justify-between gap-2 pl-14 md:pl-8 pr-3 sm:px-8 border-b border-border-soft dark:border-neutral-800 bg-white/85 dark:bg-[#18181B]/90 backdrop-blur-md transition-colors duration-200">
           <h2 className="min-w-0 flex-1 truncate text-base font-serif font-bold text-ink dark:text-white sm:text-xl">{title}</h2>
 
-          <div className="flex shrink-0 items-center gap-2 sm:gap-4 lg:gap-6">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-4 lg:gap-6">
             <ThemeToggle />
             {useFacultyNavigation && onCommandPalette && (
               <button type="button" onClick={onCommandPalette} aria-label="Open command palette" className="flex items-center gap-2 rounded-lg border border-border-soft dark:border-neutral-700 bg-white dark:bg-[#242429] px-3 py-2 text-sm font-semibold text-gray-body dark:text-neutral-300 hover:bg-cream dark:hover:bg-neutral-800 dark:hover:text-white transition-colors">

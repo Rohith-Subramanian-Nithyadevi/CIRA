@@ -117,7 +117,8 @@ export const getEligibleQuizzes = async (req: Request, res: Response, next: Next
       },
       include: {
         attempts: {
-          where: { userId: user.id }
+          where: { userId: user.id },
+          orderBy: { createdAt: 'desc' }
         }
       }
     });
@@ -133,6 +134,8 @@ export const getEligibleQuizzes = async (req: Request, res: Response, next: Next
               quizId: attempt.quizId,
               userId: attempt.userId,
               status: attempt.status,
+              violationReason: attempt.violationReason,
+              restartAuthorized: Boolean((attempt as any).restartAuthorized),
               startTime: attempt.startTime,
               endTime: attempt.endTime
             }
@@ -182,24 +185,40 @@ export const getQuizInstructions = async (req: Request, res: Response, next: Nex
 
     const attempt = await prisma.quizAttempt.findFirst({
       where: { quizId, userId },
-      select: { id: true, status: true, startTime: true, violationCount: true }
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        status: true,
+        startTime: true,
+        violationCount: true,
+        violationReason: true,
+        restartAuthorized: true
+      }
     });
 
     if (attempt) {
-      if (attempt.status !== 'IN_PROGRESS') {
+      if (attempt.status === 'VIOLATED' && !attempt.restartAuthorized) {
+        throw new ForbiddenError(
+          'You have violated the quiz rules. Your quiz attempt has been locked. Please contact your faculty member if you require permission to restart.',
+          'ATTEMPT_LOCKED'
+        );
+      }
+      if (attempt.status !== 'IN_PROGRESS' && !attempt.restartAuthorized) {
         throw new BadRequestError('You have already submitted this quiz.', 'ALREADY_SUBMITTED');
       }
-      const durationSeconds = (quiz.durationMinutes || 60) * 60;
-      const elapsedSeconds = (Date.now() - new Date(attempt.startTime).getTime()) / 1000;
-      if (elapsedSeconds >= durationSeconds) {
-        await prisma.quizAttempt.update({
-          where: { id: attempt.id },
-          data: { status: 'SUBMITTED', endTime: new Date(), violationReason: 'Quiz time expired' }
-        });
-        throw new BadRequestError(
-          'Your quiz time has expired and your attempt has been submitted.',
-          'ALREADY_SUBMITTED'
-        );
+      if (attempt.status === 'IN_PROGRESS') {
+        const durationSeconds = (quiz.durationMinutes || 60) * 60;
+        const elapsedSeconds = (Date.now() - new Date(attempt.startTime).getTime()) / 1000;
+        if (elapsedSeconds >= durationSeconds) {
+          await prisma.quizAttempt.update({
+            where: { id: attempt.id },
+            data: { status: 'SUBMITTED', endTime: new Date(), violationReason: 'Quiz time expired' }
+          });
+          throw new BadRequestError(
+            'Your quiz time has expired and your attempt has been submitted.',
+            'ALREADY_SUBMITTED'
+          );
+        }
       }
     } else {
       const now = new Date();
@@ -228,7 +247,7 @@ export const getQuizInstructions = async (req: Request, res: Response, next: Nex
           totalMarks: quiz.totalMarks,
           passingMarks: quiz.passingMarks,
           durationMinutes: quiz.durationMinutes,
-          maxViolations: quiz.maxViolations ?? 3,
+          maxViolations: 1,
           hasActiveAttempt: Boolean(attempt),
           violationCount: attempt?.violationCount ?? 0,
           startDate: quiz.startDate,
@@ -248,9 +267,10 @@ export const startExam = async (req: Request, res: Response, next: NextFunction)
     const quizId = req.params.quizId as string;
     const userId = (req as any).user?.userId;
 
-    // Check if attempt exists
+    // Check if latest attempt exists
     let attempt = await prisma.quizAttempt.findFirst({
       where: { quizId, userId },
+      orderBy: { createdAt: 'desc' },
       include: {
         responses: true
       }
@@ -263,7 +283,62 @@ export const startExam = async (req: Request, res: Response, next: NextFunction)
     const targeted = quizMetadata.targetDepartments.some((target) => target.departmentId === student?.departmentId) || quizMetadata.targetSections.some((target) => target.sectionId === student?.sectionId) || quizMetadata.targetStudents.some((target) => target.userId === userId);
     if (quizMetadata.paperStatus !== 'PUBLISHED' || !targeted) throw new ForbiddenError('This assessment is not available to your class.', 'FORBIDDEN');
     
-    if (!attempt) {
+    if (attempt) {
+      if (attempt.status === 'VIOLATED' && !attempt.restartAuthorized) {
+        throw new ForbiddenError(
+          'You have violated the quiz rules. Your quiz attempt has been locked. Please contact your faculty member if you require permission to restart.',
+          'ATTEMPT_LOCKED'
+        );
+      }
+
+      if (attempt.status !== 'IN_PROGRESS' && !attempt.restartAuthorized) {
+        throw new BadRequestError('Exam already submitted', 'FORBIDDEN');
+      }
+
+      if (attempt.restartAuthorized) {
+        const now = new Date();
+        if (quizMetadata.startDate && quizMetadata.startDate > now) {
+          throw new BadRequestError('Exam has not started yet', 'FORBIDDEN');
+        }
+        if (quizMetadata.endDate && quizMetadata.endDate < now) {
+          throw new BadRequestError('Exam has already ended', 'FORBIDDEN');
+        }
+
+        const priorAttemptId = attempt.id;
+        attempt = await prisma.$transaction(async (tx) => {
+          const consumed = await tx.quizAttempt.updateMany({
+            where: { id: priorAttemptId, restartAuthorized: true },
+            data: { restartAuthorized: false },
+          });
+          if (consumed.count === 0) {
+            throw new ForbiddenError('Restart authorization has already been consumed.', 'FORBIDDEN');
+          }
+          return tx.quizAttempt.create({
+            data: {
+              quizId,
+              userId,
+              status: 'IN_PROGRESS',
+              startTime: new Date(),
+              violationCount: 0,
+              restartAuthorized: false,
+            },
+            include: {
+              responses: true,
+            },
+          });
+        });
+      } else {
+        const durationSeconds = (quizMetadata.durationMinutes || 60) * 60;
+        const elapsedSeconds = (Date.now() - new Date(attempt.startTime).getTime()) / 1000;
+        if (elapsedSeconds >= durationSeconds) {
+          await prisma.quizAttempt.update({
+            where: { id: attempt.id },
+            data: { status: 'SUBMITTED', endTime: new Date(), violationReason: 'Quiz time expired' }
+          });
+          throw new BadRequestError('Your quiz time has expired and your attempt has been submitted.', 'EXPIRED');
+        }
+      }
+    } else {
       const now = new Date();
       if (quizMetadata.startDate && quizMetadata.startDate > now) {
         throw new BadRequestError('Exam has not started yet', 'FORBIDDEN');
@@ -284,22 +359,6 @@ export const startExam = async (req: Request, res: Response, next: NextFunction)
           responses: true
         }
       });
-    }
-
-    if (attempt) {
-      if (attempt.status !== 'IN_PROGRESS') {
-        throw new BadRequestError('Exam already submitted', 'FORBIDDEN');
-      }
-
-      const durationSeconds = (quizMetadata.durationMinutes || 60) * 60;
-      const elapsedSeconds = (Date.now() - new Date(attempt.startTime).getTime()) / 1000;
-      if (elapsedSeconds >= durationSeconds) {
-        await prisma.quizAttempt.update({
-          where: { id: attempt.id },
-          data: { status: 'SUBMITTED', endTime: new Date(), violationReason: 'Quiz time expired' }
-        });
-        throw new BadRequestError('Your quiz time has expired and your attempt has been submitted.', 'EXPIRED');
-      }
     }
 
     // Fetch quiz questions (without answers if we want to be secure, but we'll fetch full for simplicity in this MVP)
@@ -344,7 +403,13 @@ export const saveResponse = async (req: Request, res: Response, next: NextFuncti
     const { questionId, answerData, status } = req.body; // status is ResponseStatus enum
 
     const attempt = await prisma.quizAttempt.findUnique({ where: { id: attemptId } });
-    if (!attempt || attempt.status !== 'IN_PROGRESS') {
+    if (!attempt) {
+      throw new BadRequestError('Invalid or submitted attempt', 'FORBIDDEN');
+    }
+    if (attempt.status === 'VIOLATED') {
+      throw new ForbiddenError('Your quiz attempt has been locked due to a security violation.', 'ATTEMPT_LOCKED');
+    }
+    if (attempt.status !== 'IN_PROGRESS') {
       throw new BadRequestError('Invalid or submitted attempt', 'FORBIDDEN');
     }
 
@@ -398,7 +463,8 @@ const VALID_VIOLATION_TYPES = new Set([
 async function finalizeAttemptSubmission(
   attempt: any,
   violationReason?: string | null,
-  violationCount?: number
+  violationCount?: number,
+  targetStatus: 'SUBMITTED' | 'VIOLATED' = 'SUBMITTED'
 ) {
   const usedQuestionIds = new Set(attempt.quiz.questions.map((question: any) => question.id));
   const gradingQuestions = [
@@ -434,18 +500,19 @@ async function finalizeAttemptSubmission(
     return tx.quizAttempt.update({
       where: { id: attempt.id },
       data: {
-        status: 'SUBMITTED',
+        status: targetStatus,
         endTime: new Date(),
         objectiveScore,
         totalScore: objectiveScore, // Written score is 0 until graded
         violationReason: violationReason || attempt.violationReason || null,
+        restartAuthorized: false,
         ...(typeof violationCount === 'number' ? { violationCount } : {})
       }
     });
   });
 }
 
-// Record a monitored security violation for an active quiz attempt
+// Record a monitored security violation and immediately lock the active attempt as VIOLATED
 export const recordViolation = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const attemptId = req.params.attemptId as string;
@@ -466,39 +533,17 @@ export const recordViolation = async (req: Request, res: Response, next: NextFun
     if (!attempt) throw new BadRequestError('Attempt not found', 'NOT_FOUND');
     assertStudentOwnsAttempt((req as any).user, attempt);
 
-    const maxViolations = attempt.quiz.maxViolations ?? 3;
+    const maxViolations = 1;
     if (attempt.status !== 'IN_PROGRESS') {
       res.set?.('Cache-Control', 'no-store');
       res.status(200).json({
         status: 'success',
         data: {
+          status: attempt.status,
           violationCount: attempt.violationCount ?? 0,
           maxViolations,
           autoSubmitted: true,
-          deduplicated: false,
-        }
-      });
-      return;
-    }
-
-    // Server-side deduplication window (1.5s) to prevent duplicate counts when visibilitychange & blur fire together
-    const dedupeSince = new Date(Date.now() - 1500);
-    const recentViolation = await prisma.quizViolation.findFirst({
-      where: {
-        attemptId,
-        createdAt: { gte: dedupeSince }
-      },
-      orderBy: { createdAt: 'desc' }
-    });
-
-    if (recentViolation) {
-      res.set?.('Cache-Control', 'no-store');
-      res.status(200).json({
-        status: 'success',
-        data: {
-          violationCount: attempt.violationCount ?? 0,
-          maxViolations,
-          autoSubmitted: false,
+          locked: attempt.status === 'VIOLATED',
           deduplicated: true,
         }
       });
@@ -507,8 +552,56 @@ export const recordViolation = async (req: Request, res: Response, next: NextFun
 
     const nextCount = (attempt.violationCount ?? 0) + 1;
     const summaryReason = reason ? `${type}: ${reason}` : type;
+    const finalReason = `${summaryReason} (${nextCount}/${maxViolations} violations)`;
 
-    await prisma.$transaction(async (tx) => {
+    const usedQuestionIds = new Set(attempt.quiz.questions.map((question: any) => question.id));
+    const gradingQuestions = [
+      ...attempt.quiz.questions,
+      ...attempt.quiz.questionUsages
+        .filter((usage: any) => !usedQuestionIds.has(usage.questionId))
+        .map((usage: any) => ({ ...usage.question, marks: usage.marks })),
+    ];
+    let objectiveScore = 0;
+    const responseUpdates: { id: string; marksAwarded: number }[] = [];
+    for (const response of attempt.responses) {
+      if (response.status === 'ANSWERED' || response.status === 'ANSWERED_AND_MARKED_FOR_REVIEW') {
+        const question = gradingQuestions.find((q: any) => q.id === response.questionId);
+        if (question) {
+          const awarded = gradeObjectiveResponse(question, response);
+          if (awarded !== null) {
+            objectiveScore += awarded;
+            responseUpdates.push({ id: response.id, marksAwarded: awarded });
+          }
+        }
+      }
+    }
+
+    const lockResult = await prisma.$transaction(async (tx) => {
+      // Atomic guard: only the first concurrent violation locks the IN_PROGRESS attempt
+      const updated = await tx.quizAttempt.updateMany({
+        where: { id: attemptId, status: 'IN_PROGRESS' },
+        data: {
+          status: 'VIOLATED',
+          endTime: new Date(),
+          objectiveScore,
+          totalScore: objectiveScore,
+          violationCount: nextCount,
+          violationReason: finalReason,
+          restartAuthorized: false,
+        }
+      });
+
+      if (updated.count === 0) {
+        return { lockedNow: false };
+      }
+
+      for (const upd of responseUpdates) {
+        await tx.quizResponse.update({
+          where: { id: upd.id },
+          data: { marksAwarded: upd.marksAwarded }
+        });
+      }
+
       await tx.quizViolation.create({
         data: {
           attemptId,
@@ -524,32 +617,19 @@ export const recordViolation = async (req: Request, res: Response, next: NextFun
         }
       });
 
-      await tx.quizAttempt.update({
-        where: { id: attemptId },
-        data: {
-          violationCount: nextCount,
-          violationReason: summaryReason,
-        }
-      });
+      return { lockedNow: true };
     });
-
-    const shouldAutoSubmit = Boolean(attempt.quiz.autoSubmit ?? true) && nextCount >= maxViolations;
-    if (shouldAutoSubmit) {
-      await finalizeAttemptSubmission(
-        attempt,
-        `${summaryReason} (${nextCount}/${maxViolations} violations)`,
-        nextCount
-      );
-    }
 
     res.set?.('Cache-Control', 'no-store');
     res.status(200).json({
       status: 'success',
       data: {
-        violationCount: nextCount,
+        status: 'VIOLATED',
+        violationCount: lockResult.lockedNow ? nextCount : (attempt.violationCount ?? 1),
         maxViolations,
-        autoSubmitted: shouldAutoSubmit,
-        deduplicated: false,
+        autoSubmitted: true,
+        locked: true,
+        deduplicated: !lockResult.lockedNow,
       }
     });
   } catch (error) {
@@ -572,11 +652,19 @@ export const submitExam = async (req: Request, res: Response, next: NextFunction
     });
 
     if (!attempt) throw new BadRequestError('Attempt not found', 'NOT_FOUND');
+    if (attempt.status === 'VIOLATED') {
+      throw new ForbiddenError('Your quiz attempt has been locked due to a security violation.', 'ATTEMPT_LOCKED');
+    }
     if (attempt.status !== 'IN_PROGRESS') throw new BadRequestError('Exam already submitted', 'FORBIDDEN');
 
     assertStudentOwnsAttempt((req as any).user, attempt);
 
-    const updated = await finalizeAttemptSubmission(attempt, violationReason);
+    const updated = await finalizeAttemptSubmission(
+      attempt,
+      violationReason,
+      violationReason ? (attempt.violationCount ?? 0) + 1 : undefined,
+      violationReason ? 'VIOLATED' : 'SUBMITTED'
+    );
 
     res.set?.('Cache-Control', 'no-store');
     res.status(200).json({
@@ -597,7 +685,7 @@ export const submitExam = async (req: Request, res: Response, next: NextFunction
   }
 };
 
-// Faculty: Allow a student to restart an exam (deletes their attempt)
+// Faculty: Authorize a student to restart a quiz while preserving previous attempt & violation records
 export const allowRestart = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const attemptId = req.params.attemptId as string;
@@ -608,16 +696,34 @@ export const allowRestart = async (req: Request, res: Response, next: NextFuncti
     });
     if (!attempt) throw new BadRequestError('Attempt not found', 'NOT_FOUND');
 
-    // Authorization check: only ADMIN or the quiz creator can delete an attempt
+    // Authorization check: only ADMIN or the quiz creator can authorize a restart
     if (req.user?.role !== 'ADMIN' && attempt.quiz.createdBy !== req.user?.userId) {
       throw new UnauthorizedError('Not authorized to modify attempts for this quiz', 'UNAUTHORIZED');
     }
 
-    // Delete the attempt and all its responses (cascade)
-    await prisma.quizAttempt.delete({ where: { id: attemptId } });
+    const updated = await prisma.quizAttempt.update({
+      where: { id: attemptId },
+      data: {
+        restartAuthorized: true,
+        restartAuthorizedAt: new Date(),
+        restartAuthorizedBy: req.user?.userId || null,
+      },
+      select: {
+        id: true,
+        quizId: true,
+        userId: true,
+        status: true,
+        restartAuthorized: true,
+        restartAuthorizedAt: true,
+      },
+    });
 
     res.set?.('Cache-Control', 'no-store');
-    res.status(200).json({ status: 'success', message: 'Student can now retake the exam.' });
+    res.status(200).json({
+      status: 'success',
+      message: 'Restart authorized. Student can now start a fresh attempt.',
+      data: updated,
+    });
   } catch (error) {
     next(error);
   }

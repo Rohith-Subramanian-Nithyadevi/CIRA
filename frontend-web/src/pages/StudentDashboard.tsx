@@ -119,24 +119,24 @@ export default function StudentDashboard() {
                   const isLive = !startDate || startDate <= now;
                   const isExpired = Boolean(endDate && endDate < now);
                   const attempt = quiz.attempts?.[0] || null;
-                  const isCompleted = attempt?.status === 'SUBMITTED' || attempt?.status === 'EVALUATED';
-                  const isAbandoned =
-                    attempt?.status === 'IN_PROGRESS' &&
-                    attempt?.startTime &&
-                    (Date.now() - new Date(attempt.startTime).getTime()) / 1000 > 60;
-                  const canStartQuiz = isLive && !isExpired && !isAbandoned;
+                  const isRestartAuthorized = Boolean(attempt?.restartAuthorized);
+                  const isViolatedLocked = attempt?.status === 'VIOLATED' && !isRestartAuthorized;
+                  const isCompleted = !isRestartAuthorized && (attempt?.status === 'SUBMITTED' || attempt?.status === 'EVALUATED');
+                  const canStartQuiz = isLive && !isExpired && !isViolatedLocked && !isCompleted;
                   return (
                     <div key={quiz.id} className="bg-white dark:bg-[#222227] border border-border-soft dark:border-neutral-800 rounded-xl p-5 shadow-sm hover:border-maroon/30 dark:hover:border-rose-400/40 transition-colors">
                       <div className="flex justify-between items-start mb-3">
                         <h3 className="font-bold text-ink dark:text-neutral-100 text-lg">{quiz.title}</h3>
                         <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${
-                          isCompleted
+                          isViolatedLocked
+                            ? 'bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800'
+                            : isCompleted
                             ? 'bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800'
                             : isLive
                             ? 'bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800'
                             : 'bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800'
                         }`}>
-                          {isCompleted ? 'Submitted Successfully' : isLive ? 'Live' : 'Upcoming'}
+                          {isViolatedLocked ? 'Attempt Locked' : isCompleted ? 'Submitted Successfully' : isRestartAuthorized ? 'Restart Authorized' : isLive ? 'Live' : 'Upcoming'}
                         </span>
                       </div>
                       <div className="text-sm text-gray-body dark:text-neutral-400 space-y-1 mb-4">
@@ -146,7 +146,11 @@ export default function StudentDashboard() {
                         )}
                         <p>Duration: <span className="font-semibold text-ink dark:text-neutral-200">{quiz.durationMinutes} mins</span></p>
                       </div>
-                      {isCompleted ? (
+                      {isViolatedLocked ? (
+                        <div className="w-full py-2 px-3 rounded-lg text-xs font-bold text-center bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-900/50">
+                          Quiz Attempt Locked — Contact Faculty to Restart
+                        </div>
+                      ) : isCompleted ? (
                         quiz.answersPublished ? (
                           <button
                             onClick={() => navigate(`/exam-portal/results/${quiz.id}`)}
@@ -159,10 +163,6 @@ export default function StudentDashboard() {
                             Submitted Successfully
                           </div>
                         )
-                      ) : isAbandoned ? (
-                        <div className="w-full py-2 rounded-lg text-sm font-bold text-center bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-900/50">
-                          Left Exam (Cannot Resume)
-                        </div>
                       ) : (
                         <button 
                           onClick={() => navigate(`/exam-portal/take/${quiz.id}`, { state: { quiz } })}

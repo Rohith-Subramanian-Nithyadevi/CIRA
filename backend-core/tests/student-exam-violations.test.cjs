@@ -32,9 +32,12 @@ function createMockRes() {
 }
 
 describe('Student Exam Violation Monitoring & Session Persistence', () => {
-  it('persists violations, deduplicates simultaneous events, and auto-submits at maxViolations', async () => {
+  it('persists VIOLATED lock atomically, blocks instructions/start/save/submit while locked, and allows fresh attempt after faculty allowRestart without deleting history', async () => {
     const origAttemptFindUnique = prisma.quizAttempt.findUnique;
-    const origViolationFindFirst = prisma.quizViolation.findFirst;
+    const origAttemptFindFirst = prisma.quizAttempt.findFirst;
+    const origAttemptUpdate = prisma.quizAttempt.update;
+    const origQuizFindUnique = prisma.quiz.findUnique;
+    const origUserFindUnique = prisma.user.findUnique;
     const origTransaction = prisma.$transaction;
 
     let attemptState = {
@@ -42,15 +45,25 @@ describe('Student Exam Violation Monitoring & Session Persistence', () => {
       quizId: 'quiz-1',
       userId: 'stu-1',
       status: 'IN_PROGRESS',
+      startTime: new Date(Date.now() - 30_000),
       violationCount: 0,
       violationReason: null,
+      restartAuthorized: false,
+      restartAuthorizedAt: null,
+      restartAuthorizedBy: null,
       responses: [
         { id: 'r-1', questionId: 'q-1', status: 'ANSWERED', answerData: 'A' },
       ],
       quiz: {
         id: 'quiz-1',
+        createdBy: 'faculty-1',
+        durationMinutes: 45,
         autoSubmit: true,
-        maxViolations: 3,
+        maxViolations: 1,
+        paperStatus: 'PUBLISHED',
+        targetDepartments: [{ departmentId: 'dept-1' }],
+        targetSections: [],
+        targetStudents: [],
         questions: [
           { id: 'q-1', type: 'MCQ', marks: 5, negativeMarks: 0, answerKey: 'A' },
         ],
@@ -58,12 +71,16 @@ describe('Student Exam Violation Monitoring & Session Persistence', () => {
       },
     };
     const recordedViolations = [];
+    const createdAttempts = [];
 
     prisma.quizAttempt.findUnique = async () => ({ ...attemptState });
-    prisma.quizViolation.findFirst = async ({ where }) => {
-      const since = where.createdAt.gte;
-      return recordedViolations.find((v) => v.createdAt >= since) || null;
+    prisma.quizAttempt.findFirst = async () => ({ ...attemptState });
+    prisma.quizAttempt.update = async ({ data }) => {
+      attemptState = { ...attemptState, ...data };
+      return attemptState;
     };
+    prisma.quiz.findUnique = async () => attemptState.quiz;
+    prisma.user.findUnique = async () => ({ departmentId: 'dept-1', sectionId: 'sec-1' });
     prisma.$transaction = async (fn) => {
       const tx = {
         quizViolation: {
@@ -77,9 +94,18 @@ describe('Student Exam Violation Monitoring & Session Persistence', () => {
           update: async () => ({}),
         },
         quizAttempt: {
-          update: async ({ data }) => {
+          updateMany: async ({ where, data }) => {
+            if (where.status && attemptState.status !== where.status) return { count: 0 };
+            if (where.restartAuthorized !== undefined && attemptState.restartAuthorized !== where.restartAuthorized) {
+              return { count: 0 };
+            }
             attemptState = { ...attemptState, ...data };
-            return attemptState;
+            return { count: 1 };
+          },
+          create: async ({ data }) => {
+            const fresh = { id: 'att-fresh-2', ...data, responses: [] };
+            createdAttempts.push(fresh);
+            return fresh;
           },
         },
       };
@@ -87,7 +113,7 @@ describe('Student Exam Violation Monitoring & Session Persistence', () => {
     };
 
     try {
-      // 1. First violation: TAB_SWITCH
+      // 1. Violation immediately locks attempt as VIOLATED
       const res1 = createMockRes();
       await studentExamController.recordViolation(
         {
@@ -99,11 +125,14 @@ describe('Student Exam Violation Monitoring & Session Persistence', () => {
         (err) => { throw err; }
       );
       assert.equal(res1.statusCode, 200);
-      assert.equal(res1.body.data.violationCount, 1);
-      assert.equal(res1.body.data.autoSubmitted, false);
-      assert.equal(res1.body.data.deduplicated, false);
+      assert.equal(res1.body.data.status, 'VIOLATED');
+      assert.equal(res1.body.data.locked, true);
+      assert.equal(res1.body.data.autoSubmitted, true);
+      assert.equal(attemptState.status, 'VIOLATED');
+      assert.equal(attemptState.objectiveScore, 5);
+      assert.equal(recordedViolations.length, 1);
 
-      // 2. Simultaneous WINDOW_BLUR within 1500ms -> deduplicated
+      // 2. Simultaneous second violation does not create duplicate record
       const res2 = createMockRes();
       await studentExamController.recordViolation(
         {
@@ -114,49 +143,52 @@ describe('Student Exam Violation Monitoring & Session Persistence', () => {
         res2,
         (err) => { throw err; }
       );
-      assert.equal(res2.statusCode, 200);
-      assert.equal(res2.body.data.violationCount, 1);
       assert.equal(res2.body.data.deduplicated, true);
+      assert.equal(recordedViolations.length, 1);
 
-      // Clear dedupe window by backdating recorded violation
-      recordedViolations[0].createdAt = new Date(Date.now() - 5000);
+      // 3. Student is blocked on instructions, startExam, saveResponse, and submitExam
+      for (const [handler, req] of [
+        [studentExamController.getQuizInstructions, { user: { userId: 'stu-1', role: 'STUDENT' }, params: { quizId: 'quiz-1' } }],
+        [studentExamController.startExam, { user: { userId: 'stu-1', role: 'STUDENT' }, params: { quizId: 'quiz-1' } }],
+        [studentExamController.saveResponse, { user: { userId: 'stu-1', role: 'STUDENT' }, params: { attemptId: 'att-1' }, body: { questionId: 'q-1', answerData: 'B' } }],
+        [studentExamController.submitExam, { user: { userId: 'stu-1', role: 'STUDENT' }, params: { attemptId: 'att-1' }, body: {} }],
+      ]) {
+        let err;
+        await handler(req, createMockRes(), (e) => { err = e; });
+        assert.equal(err.statusCode, 403);
+        assert.equal(err.errorCode, 'ATTEMPT_LOCKED');
+      }
 
-      // 3. Second violation: FULLSCREEN_EXIT
-      const res3 = createMockRes();
-      await studentExamController.recordViolation(
-        {
-          user: { userId: 'stu-1', role: 'STUDENT' },
-          params: { attemptId: 'att-1' },
-          body: { type: 'FULLSCREEN_EXIT', reason: 'Exited fullscreen' },
-        },
-        res3,
+      // 4. Faculty authorizes restart -> preserves old VIOLATED attempt & violation history
+      const restartRes = createMockRes();
+      await studentExamController.allowRestart(
+        { user: { userId: 'faculty-1', role: 'FACULTY' }, params: { attemptId: 'att-1' } },
+        restartRes,
         (err) => { throw err; }
       );
-      assert.equal(res3.body.data.violationCount, 2);
-      assert.equal(res3.body.data.autoSubmitted, false);
+      assert.equal(restartRes.statusCode, 200);
+      assert.equal(attemptState.restartAuthorized, true);
+      assert.equal(attemptState.status, 'VIOLATED');
+      assert.equal(recordedViolations.length, 1);
 
-      recordedViolations[1].createdAt = new Date(Date.now() - 5000);
-
-      // 4. Third violation -> reaches maxViolations (3) and auto-submits with objective grading
-      const res4 = createMockRes();
-      await studentExamController.recordViolation(
-        {
-          user: { userId: 'stu-1', role: 'STUDENT' },
-          params: { attemptId: 'att-1' },
-          body: { type: 'TAB_SWITCH', reason: 'Switched tab again' },
-        },
-        res4,
+      // 5. Student starts fresh attempt after authorization
+      const startRes = createMockRes();
+      await studentExamController.startExam(
+        { user: { userId: 'stu-1', role: 'STUDENT' }, params: { quizId: 'quiz-1' } },
+        startRes,
         (err) => { throw err; }
       );
-      assert.equal(res4.body.data.violationCount, 3);
-      assert.equal(res4.body.data.autoSubmitted, true);
-      assert.equal(attemptState.status, 'SUBMITTED');
-      assert.equal(attemptState.objectiveScore, 5);
-      assert.equal(attemptState.totalScore, 5);
-      assert.match(attemptState.violationReason, /3\/3 violations/);
+      assert.equal(startRes.statusCode, 200);
+      assert.equal(startRes.body.data.attempt.id, 'att-fresh-2');
+      assert.equal(startRes.body.data.attempt.status, 'IN_PROGRESS');
+      assert.equal(startRes.body.data.attempt.violationCount, 0);
+      assert.equal(attemptState.restartAuthorized, false);
     } finally {
       prisma.quizAttempt.findUnique = origAttemptFindUnique;
-      prisma.quizViolation.findFirst = origViolationFindFirst;
+      prisma.quizAttempt.findFirst = origAttemptFindFirst;
+      prisma.quizAttempt.update = origAttemptUpdate;
+      prisma.quiz.findUnique = origQuizFindUnique;
+      prisma.user.findUnique = origUserFindUnique;
       prisma.$transaction = origTransaction;
     }
   });
