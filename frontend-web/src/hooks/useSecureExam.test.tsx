@@ -135,5 +135,129 @@ describe('useSecureExam', () => {
     });
     expect(onViolation).toHaveBeenCalledTimes(1);
   });
+
+  it('captures Alt + Tab + blur sequence accurately without duplicating visibilitychange', () => {
+    jest.useFakeTimers();
+    fsElement = document.documentElement;
+    const onViolation = jest.fn();
+
+    const { result } = renderHook(() =>
+      useSecureExam({ isActive: true, onViolation, dedupeWindowMs: 1500, captureWindowMs: 1200 })
+    );
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Alt', code: 'AltLeft', altKey: true, bubbles: true }));
+    });
+    expect(result.current.isBlackScreen).toBe(true);
+    expect(onViolation).not.toHaveBeenCalled();
+
+    act(() => {
+      jest.advanceTimersByTime(65);
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', code: 'Tab', altKey: true, bubbles: true }));
+    });
+
+    act(() => {
+      jest.advanceTimersByTime(25);
+      hasFocusValue = false;
+      window.dispatchEvent(new Event('blur'));
+      visibilityStateValue = 'hidden';
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+
+    expect(onViolation).toHaveBeenCalledTimes(1);
+    const payload = onViolation.mock.calls[0][0];
+    expect(payload.type).toBe('WINDOW_BLUR');
+    const evidence = payload.metadata.shortcutEvidence;
+    expect(evidence.detectedSequence).toBe('Alt + Tab');
+    expect(evidence.evidenceQuality).toBe('COMPLETE');
+    expect(evidence.focusLost).toBe(true);
+    expect(evidence.captureDurationMs).toBe(90);
+    expect(evidence.events.map((e: any) => `${e.eventType}:${e.key || ''}`)).toEqual([
+      'keydown:Alt',
+      'keydown:Tab',
+      'blur:',
+    ]);
+
+    jest.useRealTimers();
+  });
+
+  it('captures Ctrl + Tab and blocked F12 key without capturing ordinary typed answer text', () => {
+    jest.useFakeTimers();
+    fsElement = document.documentElement;
+    const onViolation = jest.fn();
+
+    renderHook(() =>
+      useSecureExam({ isActive: true, onViolation, dedupeWindowMs: 1500, captureWindowMs: 1200 })
+    );
+
+    // Ordinary answer typing must NEVER trigger a violation or enter the shortcut buffer
+    act(() => {
+      for (const ch of ['h', 'e', 'l', 'l', 'o', ' ', '1', 'Backspace']) {
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: ch, bubbles: true }));
+      }
+    });
+    expect(onViolation).not.toHaveBeenCalled();
+
+    // Blur alone after normal typing -> partial evidence, zero keyboard events, no typed text
+    act(() => {
+      hasFocusValue = false;
+      window.dispatchEvent(new Event('blur'));
+    });
+
+    expect(onViolation).toHaveBeenCalledTimes(1);
+    const blurEvidence = onViolation.mock.calls[0][0].metadata.shortcutEvidence;
+    expect(blurEvidence.detectedSequence).toBeNull();
+    expect(blurEvidence.evidenceQuality).toBe('PARTIAL');
+    expect(blurEvidence.summary).toBe('Possible application switch – shortcut events partially observed');
+    expect(blurEvidence.events.every((e: any) => e.eventType === 'blur')).toBe(true);
+
+    // Advance past dedupe window and test Ctrl + Tab
+    act(() => {
+      jest.advanceTimersByTime(1600);
+      hasFocusValue = true;
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', code: 'Tab', ctrlKey: true, bubbles: true }));
+      jest.advanceTimersByTime(300);
+    });
+
+    expect(onViolation).toHaveBeenCalledTimes(2);
+    const ctrlTabEvidence = onViolation.mock.calls[1][0].metadata.shortcutEvidence;
+    expect(ctrlTabEvidence.detectedSequence).toBe('Ctrl + Tab');
+    expect(ctrlTabEvidence.evidenceQuality).toBe('COMPLETE');
+
+    // Advance past dedupe window and test F12 blocked key
+    act(() => {
+      jest.advanceTimersByTime(1600);
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'F12', code: 'F12', bubbles: true }));
+    });
+
+    expect(onViolation).toHaveBeenCalledTimes(3);
+    expect(onViolation.mock.calls[2][0].type).toBe('BLOCKED_KEY');
+    expect(onViolation.mock.calls[2][0].metadata.shortcutEvidence.detectedSequence).toBe('F12');
+
+    jest.useRealTimers();
+  });
+
+  it('flushes pending shortcut capture safely on unmount without duplicate violations', () => {
+    jest.useFakeTimers();
+    fsElement = document.documentElement;
+    const onViolation = jest.fn();
+
+    const { unmount } = renderHook(() =>
+      useSecureExam({ isActive: true, onViolation, dedupeWindowMs: 1500, captureWindowMs: 1200 })
+    );
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Alt', code: 'AltLeft', altKey: true, bubbles: true }));
+    });
+    expect(onViolation).not.toHaveBeenCalled();
+
+    unmount();
+    expect(onViolation).toHaveBeenCalledTimes(1);
+    expect(onViolation.mock.calls[0][0].metadata.shortcutEvidence.detectedSequence).toBe('Alt');
+
+    jest.runAllTimers();
+    expect(onViolation).toHaveBeenCalledTimes(1);
+    jest.useRealTimers();
+  });
 });
 

@@ -1097,5 +1097,125 @@ describe('QuizManagement View Submissions class-wise roster & filters', () => {
     });
     expect(savedManualBody.evaluations).toEqual([{ questionId: 'q-viva', marks: 6 }]);
   });
+
+  it('displays keyboard shortcut evidence and partial focus-loss fallback in Violation Details modal', async () => {
+    (apiClient.fetch as jest.Mock).mockImplementation((path: string) => {
+      if (path.includes('/api/v1/auth/me')) {
+        return Promise.resolve({ json: async () => ({ data: { user: { id: 'faculty-1', subject: 'Operating Systems' } } }) });
+      }
+      if (path.includes('/api/v1/batches')) {
+        return Promise.resolve({ json: async () => ({ data: { batches: [] } }) });
+      }
+      if (path.includes('/api/v1/departments')) {
+        return Promise.resolve({ json: async () => ({ data: { departments: [] } }) });
+      }
+      if (path.includes('/api/v1/faculty/quiz?')) {
+        return Promise.resolve({
+          json: async () => ({
+            status: 'success',
+            data: {
+              items: [{ id: 'quiz-viol-1', title: 'Security Test Quiz', subject: 'Operating Systems', totalMarks: 20, answersPublished: false }],
+              total: 1,
+              page: 1,
+              hasMore: false,
+            },
+          }),
+        });
+      }
+      if (path === '/api/v1/faculty/quiz/quiz-viol-1/submissions') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            status: 'success',
+            quiz: { id: 'quiz-viol-1', title: 'Security Test Quiz', subject: 'Operating Systems', totalMarks: 20, answersPublished: false, questions: [] },
+            assignedClasses: [],
+            roster: [
+              {
+                id: 'att-viol-1',
+                userId: 'stu-viol-1',
+                hasSubmitted: true,
+                status: 'VIOLATED',
+                objectiveScore: 5,
+                writtenScore: 0,
+                totalScore: 5,
+                startTime: '2026-11-12T10:20:00.000Z',
+                endTime: '2026-11-12T10:24:31.210Z',
+                violationReason: 'WINDOW_BLUR: Window lost focus (1/1 violations)',
+                violations: [
+                  {
+                    id: 'v-1',
+                    type: 'WINDOW_BLUR',
+                    reason: 'Window lost focus',
+                    createdAt: '2026-11-12T10:24:31.210Z',
+                    metadata: {
+                      shortcutEvidence: {
+                        triggeringEvent: 'keydown',
+                        captureReason: 'FOCUS_LOST',
+                        detectedSequence: 'Alt + Tab',
+                        summary: 'Shortcut sequence followed by focus/visibility loss',
+                        evidenceQuality: 'COMPLETE',
+                        focusLost: true,
+                        visibilityHidden: false,
+                        captureStartedAt: '2026-11-12T10:24:31.120Z',
+                        captureEndedAt: '2026-11-12T10:24:31.210Z',
+                        captureDurationMs: 90,
+                        events: [
+                          { eventType: 'keydown', key: 'Alt', code: 'AltLeft', modifiers: { ctrl: false, alt: true, shift: false, meta: false }, timestamp: '2026-11-12T10:24:31.120Z', relativeMs: 0 },
+                          { eventType: 'keydown', key: 'Tab', code: 'Tab', modifiers: { ctrl: false, alt: true, shift: false, meta: false }, timestamp: '2026-11-12T10:24:31.185Z', relativeMs: 65 },
+                          { eventType: 'blur', modifiers: { ctrl: false, alt: false, shift: false, meta: false }, timestamp: '2026-11-12T10:24:31.210Z', relativeMs: 90 },
+                        ],
+                      },
+                    },
+                  },
+                  {
+                    id: 'v-2',
+                    type: 'TAB_SWITCH',
+                    reason: 'Page became hidden',
+                    createdAt: '2026-11-12T10:22:00.000Z',
+                    metadata: {
+                      shortcutEvidence: {
+                        triggeringEvent: 'visibilitychange',
+                        captureReason: 'VISIBILITY_HIDDEN',
+                        detectedSequence: null,
+                        summary: 'Possible application switch – shortcut events partially observed',
+                        evidenceQuality: 'PARTIAL',
+                        focusLost: true,
+                        visibilityHidden: true,
+                        captureStartedAt: '2026-11-12T10:22:00.000Z',
+                        captureEndedAt: '2026-11-12T10:22:00.000Z',
+                        captureDurationMs: 0,
+                        events: [
+                          { eventType: 'visibilitychange', modifiers: { ctrl: false, alt: false, shift: false, meta: false }, timestamp: '2026-11-12T10:22:00.000Z', relativeMs: 0 },
+                        ],
+                      },
+                    },
+                  },
+                ],
+                user: { id: 'stu-viol-1', name: 'Riya Shortcut', rollNumber: '24CS099' },
+                responses: [],
+              },
+            ],
+          }),
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) });
+    });
+
+    render(<QuizManagement />, ['/faculty/dashboard?tab=quizzes&view=submissions&quizId=quiz-viol-1']);
+
+    expect(await screen.findByText('Riya Shortcut')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Violation Details/i }));
+
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    expect(screen.getAllByText(/Keyboard Activity \/ Shortcut Evidence/i)).toHaveLength(2);
+    expect(screen.getByText('Alt key down')).toBeInTheDocument();
+    expect(screen.getByText('Tab key down')).toBeInTheDocument();
+    expect(screen.getByText('Window lost focus', { selector: 'td' })).toBeInTheDocument();
+    expect(screen.getByText('Alt + Tab')).toBeInTheDocument();
+    expect(screen.getByText('90 ms')).toBeInTheDocument();
+    expect(
+      screen.getByText(/No keyboard shortcut sequence was captured for this violation\. Focus\/visibility evidence is available separately\./i)
+    ).toBeInTheDocument();
+  });
 });
 

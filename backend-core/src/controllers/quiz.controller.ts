@@ -795,7 +795,17 @@ export const getSubmissions = async (req: Request, res: Response, next: NextFunc
               section: { select: { id: true, name: true } }
             }
           },
-          responses: { include: { question: true } }
+          responses: { include: { question: true } },
+          violations: {
+            orderBy: { createdAt: 'desc' },
+            select: {
+              id: true,
+              type: true,
+              reason: true,
+              metadata: true,
+              createdAt: true,
+            },
+          },
         },
         orderBy: { createdAt: 'desc' }
       }),
@@ -897,6 +907,7 @@ export const getSubmissions = async (req: Request, res: Response, next: NextFunc
         facultyFeedback: attempt?.facultyFeedback || null,
         violationReason: attempt?.violationReason || null,
         violationCount: attempt?.violationCount ?? 0,
+        violations: attempt?.violations || [],
         restartAuthorized: Boolean(attempt?.restartAuthorized),
         restartAuthorizedAt: attempt?.restartAuthorizedAt || null,
         responses: attempt?.responses || [],

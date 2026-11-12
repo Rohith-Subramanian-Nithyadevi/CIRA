@@ -512,6 +512,146 @@ async function finalizeAttemptSubmission(
   });
 }
 
+const VALID_SHORTCUT_EVENT_TYPES = new Set([
+  'keydown',
+  'keyup',
+  'blur',
+  'visibilitychange',
+  'fullscreenchange',
+]);
+
+const VALID_TRIGGER_EVENTS = new Set([
+  'keydown',
+  'keyup',
+  'blur',
+  'visibilitychange',
+  'fullscreenchange',
+  'clipboard',
+]);
+
+const VALID_CAPTURE_REASONS = new Set([
+  'BLOCKED_SHORTCUT',
+  'FOCUS_LOST',
+  'VISIBILITY_HIDDEN',
+  'FULLSCREEN_EXIT',
+  'CLIPBOARD',
+]);
+
+const SAFE_KEY_LABEL_REGEX = /^[A-Za-z0-9 +\/_-]{1,32}$/;
+const SAFE_CODE_REGEX = /^[A-Za-z0-9_]{1,32}$/;
+
+const sanitizeShortString = (value: unknown, maxLen: number): string | null => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return trimmed.slice(0, maxLen);
+};
+
+const sanitizeIsoTimestamp = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null;
+  const parsed = Date.parse(value);
+  if (Number.isNaN(parsed)) return null;
+  return new Date(parsed).toISOString();
+};
+
+export function sanitizeViolationMetadata(rawMetadata: unknown): Record<string, unknown> {
+  if (!rawMetadata || typeof rawMetadata !== 'object' || Array.isArray(rawMetadata)) {
+    return {};
+  }
+
+  const input = rawMetadata as Record<string, unknown>;
+  const sanitized: Record<string, unknown> = {};
+
+  const visibilityState = sanitizeShortString(input.visibilityState, 24);
+  if (visibilityState) sanitized.visibilityState = visibilityState;
+
+  const recentKey = sanitizeShortString(input.recentKey, 64);
+  if (recentKey) sanitized.recentKey = recentKey;
+
+  const key = sanitizeShortString(input.key, 64);
+  if (key) sanitized.key = key;
+
+  const action = sanitizeShortString(input.action, 24);
+  if (action) sanitized.action = action;
+
+  const rawEvidence = input.shortcutEvidence;
+  if (rawEvidence && typeof rawEvidence === 'object' && !Array.isArray(rawEvidence)) {
+    const ev = rawEvidence as Record<string, unknown>;
+    const rawEvents = Array.isArray(ev.events) ? ev.events.slice(0, 25) : [];
+    const events = rawEvents
+      .map((item: unknown) => {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+        const entry = item as Record<string, unknown>;
+        if (typeof entry.eventType !== 'string' || !VALID_SHORTCUT_EVENT_TYPES.has(entry.eventType)) {
+          return null;
+        }
+        const timestamp = sanitizeIsoTimestamp(entry.timestamp);
+        if (!timestamp) return null;
+
+        const modifiersObj =
+          entry.modifiers && typeof entry.modifiers === 'object' && !Array.isArray(entry.modifiers)
+            ? (entry.modifiers as Record<string, unknown>)
+            : {};
+
+        const safeKey =
+          typeof entry.key === 'string' && SAFE_KEY_LABEL_REGEX.test(entry.key.trim())
+            ? entry.key.trim()
+            : undefined;
+        const safeCode =
+          typeof entry.code === 'string' && SAFE_CODE_REGEX.test(entry.code.trim())
+            ? entry.code.trim()
+            : undefined;
+
+        const relativeMs =
+          typeof entry.relativeMs === 'number' && Number.isFinite(entry.relativeMs)
+            ? Math.max(-5000, Math.min(5000, Math.round(entry.relativeMs)))
+            : undefined;
+
+        return {
+          eventType: entry.eventType,
+          ...(safeKey ? { key: safeKey } : {}),
+          ...(safeCode ? { code: safeCode } : {}),
+          modifiers: {
+            ctrl: Boolean(modifiersObj.ctrl),
+            alt: Boolean(modifiersObj.alt),
+            shift: Boolean(modifiersObj.shift),
+            meta: Boolean(modifiersObj.meta),
+          },
+          timestamp,
+          ...(relativeMs !== undefined ? { relativeMs } : {}),
+        };
+      })
+      .filter(Boolean);
+
+    const captureDurationMs =
+      typeof ev.captureDurationMs === 'number' && Number.isFinite(ev.captureDurationMs)
+        ? Math.max(0, Math.min(10000, Math.round(ev.captureDurationMs)))
+        : 0;
+
+    sanitized.shortcutEvidence = {
+      triggeringEvent:
+        typeof ev.triggeringEvent === 'string' && VALID_TRIGGER_EVENTS.has(ev.triggeringEvent)
+          ? ev.triggeringEvent
+          : null,
+      captureReason:
+        typeof ev.captureReason === 'string' && VALID_CAPTURE_REASONS.has(ev.captureReason)
+          ? ev.captureReason
+          : null,
+      detectedSequence: sanitizeShortString(ev.detectedSequence, 120),
+      summary: sanitizeShortString(ev.summary, 200),
+      evidenceQuality: ev.evidenceQuality === 'COMPLETE' ? 'COMPLETE' : 'PARTIAL',
+      focusLost: Boolean(ev.focusLost),
+      visibilityHidden: Boolean(ev.visibilityHidden),
+      captureStartedAt: sanitizeIsoTimestamp(ev.captureStartedAt),
+      captureEndedAt: sanitizeIsoTimestamp(ev.captureEndedAt),
+      captureDurationMs,
+      events,
+    };
+  }
+
+  return sanitized;
+}
+
 // Record a monitored security violation and immediately lock the active attempt as VIOLATED
 export const recordViolation = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -602,6 +742,9 @@ export const recordViolation = async (req: Request, res: Response, next: NextFun
         });
       }
 
+      const sanitizedMetadata = sanitizeViolationMetadata(metadata);
+      const clientTimestamp = sanitizeIsoTimestamp(timestamp);
+
       await tx.quizViolation.create({
         data: {
           attemptId,
@@ -610,8 +753,8 @@ export const recordViolation = async (req: Request, res: Response, next: NextFun
           type,
           reason: reason || null,
           metadata: {
-            ...(metadata && typeof metadata === 'object' ? metadata : {}),
-            ...(timestamp ? { clientTimestamp: timestamp } : {}),
+            ...sanitizedMetadata,
+            ...(clientTimestamp ? { clientTimestamp } : {}),
             violationNumber: nextCount,
           },
         }

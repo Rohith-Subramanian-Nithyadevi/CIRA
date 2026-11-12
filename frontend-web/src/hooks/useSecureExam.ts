@@ -7,6 +7,46 @@ export type SecurityViolationType =
   | 'BLOCKED_KEY'
   | 'CLIPBOARD';
 
+export type ShortcutEventType =
+  | 'keydown'
+  | 'keyup'
+  | 'blur'
+  | 'visibilitychange'
+  | 'fullscreenchange';
+
+export interface ShortcutObservedEvent {
+  eventType: ShortcutEventType;
+  key?: string;
+  code?: string;
+  modifiers: {
+    ctrl: boolean;
+    alt: boolean;
+    shift: boolean;
+    meta: boolean;
+  };
+  timestamp: string;
+  relativeMs?: number;
+}
+
+export interface ShortcutEvidence {
+  triggeringEvent: ShortcutEventType | 'clipboard';
+  captureReason:
+    | 'BLOCKED_SHORTCUT'
+    | 'FOCUS_LOST'
+    | 'VISIBILITY_HIDDEN'
+    | 'FULLSCREEN_EXIT'
+    | 'CLIPBOARD';
+  detectedSequence: string | null;
+  summary: string | null;
+  evidenceQuality: 'COMPLETE' | 'PARTIAL';
+  focusLost: boolean;
+  visibilityHidden: boolean;
+  captureStartedAt: string;
+  captureEndedAt: string;
+  captureDurationMs: number;
+  events: ShortcutObservedEvent[];
+}
+
 export interface SecurityViolationEvent {
   type: SecurityViolationType;
   reason: string;
@@ -24,7 +64,26 @@ interface UseSecureExamProps {
   onViolation?: (event: SecurityViolationEvent) => void | Promise<void>;
   isActive?: boolean;
   dedupeWindowMs?: number;
+  captureWindowMs?: number;
 }
+
+const ROLLING_BUFFER_WINDOW_MS = 2000;
+const MAX_ROLLING_EVENTS = 25;
+const MODIFIER_KEYS = new Set(['Alt', 'Control', 'Shift', 'Meta']);
+const MODIFIER_LABELS = new Set(['Alt', 'Ctrl', 'Shift', 'Win/Cmd']);
+const NAVIGATION_OR_SYSTEM_KEYS = new Set([
+  'Tab',
+  'Escape',
+  'F1', 'F2', 'F3', 'F4', 'F5', 'F6',
+  'F7', 'F8', 'F9', 'F10', 'F11', 'F12',
+  'PrintScreen',
+  'ContextMenu',
+  'Insert',
+  'Pause',
+  'ScrollLock',
+  'OS',
+  'AltGraph',
+]);
 
 // Keys that are ALLOWED during the exam for typing answers.
 const ALLOWED_KEYS = new Set([
@@ -37,12 +96,9 @@ const ALLOWED_KEYS = new Set([
   ' ',
   'Backspace',
   'Delete',
-  'Enter',
-  'Shift',
   'CapsLock',
   'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
   'Home', 'End',
-  'Tab',
 ]);
 
 export function getFullscreenElement(): Element | null {
@@ -92,6 +148,7 @@ export function useSecureExam({
   onViolation,
   isActive = true,
   dedupeWindowMs = 1500,
+  captureWindowMs = 1200,
 }: UseSecureExamProps = {}) {
   const [violationCount, setViolationCount] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(() => Boolean(getFullscreenElement()));
@@ -202,8 +259,186 @@ export function useSecureExam({
       return;
     }
 
+    type InternalObservedEvent = ShortcutObservedEvent & { epochMs: number };
+
+    interface PendingCapture {
+      type: SecurityViolationType;
+      reason: string;
+      triggeringEvent: ShortcutEvidence['triggeringEvent'];
+      captureReason: ShortcutEvidence['captureReason'];
+      triggerEpochMs: number;
+      metadata: Record<string, unknown>;
+      events: InternalObservedEvent[];
+      timerId: ReturnType<typeof setTimeout> | null;
+    }
+
+    const boundedCaptureMs = Math.max(200, Math.min(2000, captureWindowMs));
+    let rollingBuffer: InternalObservedEvent[] = [];
+    let pendingCapture: PendingCapture | null = null;
     let lastKeyCombo = '';
     let lastKeyTime = 0;
+
+    const normalizeKeyLabel = (e: KeyboardEvent): string => {
+      if (e.key === 'Control') return 'Ctrl';
+      if (e.key === 'Meta') return 'Win/Cmd';
+      if (e.key === ' ') return 'Space';
+      if (e.key === 'Unidentified' && e.code) return e.code;
+      if (e.key && e.key.length === 1 && (e.ctrlKey || e.altKey || e.metaKey)) {
+        return e.key.toUpperCase();
+      }
+      return e.key || e.code || 'Unknown';
+    };
+
+    const isEligibleShortcutKey = (e: KeyboardEvent): boolean => {
+      if (MODIFIER_KEYS.has(e.key) || NAVIGATION_OR_SYSTEM_KEYS.has(e.key)) {
+        return true;
+      }
+      if (e.ctrlKey || e.altKey || e.metaKey) {
+        return true;
+      }
+      // Never capture ordinary text typed into answers/inputs when no shortcut modifier is active
+      if (ALLOWED_KEYS.has(e.key)) {
+        return false;
+      }
+      return true;
+    };
+
+    const pruneRollingBuffer = (now: number) => {
+      const cutoff = now - ROLLING_BUFFER_WINDOW_MS;
+      rollingBuffer = rollingBuffer
+        .filter((ev) => ev.epochMs >= cutoff)
+        .slice(-MAX_ROLLING_EVENTS);
+    };
+
+    const pushObservedEvent = (ev: InternalObservedEvent) => {
+      pruneRollingBuffer(ev.epochMs);
+      const last = rollingBuffer[rollingBuffer.length - 1];
+      const isDuplicate =
+        last &&
+        last.eventType === ev.eventType &&
+        last.key === ev.key &&
+        last.code === ev.code &&
+        ev.epochMs - last.epochMs < 15;
+      if (!isDuplicate) {
+        rollingBuffer.push(ev);
+        if (rollingBuffer.length > MAX_ROLLING_EVENTS) {
+          rollingBuffer = rollingBuffer.slice(-MAX_ROLLING_EVENTS);
+        }
+      }
+      if (pendingCapture) {
+        const lastPending = pendingCapture.events[pendingCapture.events.length - 1];
+        const isPendingDup =
+          lastPending &&
+          lastPending.eventType === ev.eventType &&
+          lastPending.key === ev.key &&
+          lastPending.code === ev.code &&
+          ev.epochMs - lastPending.epochMs < 15;
+        if (!isPendingDup && pendingCapture.events.length < MAX_ROLLING_EVENTS) {
+          pendingCapture.events.push(ev);
+        }
+      }
+    };
+
+    const buildShortcutEvidence = (
+      rawEvents: InternalObservedEvent[],
+      triggerEpochMs: number,
+      triggeringEvent: ShortcutEvidence['triggeringEvent'],
+      captureReason: ShortcutEvidence['captureReason']
+    ): ShortcutEvidence => {
+      const sorted = [...rawEvents].sort((a, b) => a.epochMs - b.epochMs);
+      const startMs = sorted.length > 0 ? sorted[0].epochMs : triggerEpochMs;
+      const endMs = sorted.length > 0 ? sorted[sorted.length - 1].epochMs : triggerEpochMs;
+
+      const keyDownEvents = sorted.filter((ev) => ev.eventType === 'keydown' && ev.key);
+      const keyboardEvents = sorted.filter(
+        (ev) => ev.eventType === 'keydown' || ev.eventType === 'keyup'
+      );
+
+      const sequenceParts: string[] = [];
+      for (const ev of keyDownEvents) {
+        if (ev.modifiers.ctrl && !sequenceParts.includes('Ctrl')) sequenceParts.push('Ctrl');
+        if (ev.modifiers.alt && !sequenceParts.includes('Alt')) sequenceParts.push('Alt');
+        if (ev.modifiers.shift && ev.key !== 'Shift' && !sequenceParts.includes('Shift')) {
+          sequenceParts.push('Shift');
+        }
+        if (ev.modifiers.meta && !sequenceParts.includes('Win/Cmd')) sequenceParts.push('Win/Cmd');
+        if (ev.key && !sequenceParts.includes(ev.key)) {
+          sequenceParts.push(ev.key);
+        }
+      }
+
+      const detectedSequence = sequenceParts.length > 0 ? sequenceParts.join(' + ') : null;
+      const focusLost = sorted.some((ev) => ev.eventType === 'blur');
+      const visibilityHidden = sorted.some((ev) => ev.eventType === 'visibilitychange');
+
+      const onlySingleModifierKey =
+        keyDownEvents.length === 1 &&
+        Boolean(keyDownEvents[0].key && MODIFIER_LABELS.has(keyDownEvents[0].key));
+
+      let evidenceQuality: 'COMPLETE' | 'PARTIAL' = 'PARTIAL';
+      let summary: string | null = null;
+
+      if (keyboardEvents.length === 0 && (focusLost || visibilityHidden)) {
+        evidenceQuality = 'PARTIAL';
+        summary = 'Possible application switch – shortcut events partially observed';
+      } else if ((focusLost || visibilityHidden) && onlySingleModifierKey) {
+        evidenceQuality = 'PARTIAL';
+        summary = 'Possible application switch – shortcut events partially observed';
+      } else if (keyboardEvents.length >= 1) {
+        evidenceQuality = 'COMPLETE';
+        summary =
+          focusLost || visibilityHidden
+            ? 'Shortcut sequence followed by focus/visibility loss'
+            : 'Blocked shortcut sequence observed';
+      }
+
+      return {
+        triggeringEvent,
+        captureReason,
+        detectedSequence,
+        summary,
+        evidenceQuality,
+        focusLost,
+        visibilityHidden,
+        captureStartedAt: new Date(startMs).toISOString(),
+        captureEndedAt: new Date(endMs).toISOString(),
+        captureDurationMs: Math.max(0, endMs - startMs),
+        events: sorted.map(({ epochMs, ...rest }) => ({
+          ...rest,
+          relativeMs: epochMs - triggerEpochMs,
+        })),
+      };
+    };
+
+    const finalizePendingCapture = (
+      overrideType?: SecurityViolationType,
+      overrideReason?: string,
+      overrideCaptureReason?: ShortcutEvidence['captureReason']
+    ) => {
+      if (!pendingCapture) return;
+      const current = pendingCapture;
+      pendingCapture = null;
+      if (current.timerId !== null) {
+        clearTimeout(current.timerId);
+      }
+
+      const finalType = overrideType ?? current.type;
+      const finalReason = overrideReason ?? current.reason;
+      const finalCaptureReason = overrideCaptureReason ?? current.captureReason;
+      const evidence = buildShortcutEvidence(
+        current.events,
+        current.triggerEpochMs,
+        current.triggeringEvent,
+        finalCaptureReason
+      );
+
+      recordViolation(finalType, finalReason, {
+        ...current.metadata,
+        ...(evidence.detectedSequence ? { key: evidence.detectedSequence } : {}),
+        shortcutEvidence: evidence,
+      });
+      rollingBuffer = [];
+    };
 
     const buildKeyCombo = (e: KeyboardEvent) => {
       const parts: string[] = [];
@@ -211,25 +446,45 @@ export function useSecureExam({
       if (e.altKey) parts.push('Alt');
       if (e.shiftKey && e.key !== 'Shift') parts.push('Shift');
       if (e.metaKey) parts.push('Win/Cmd');
-      parts.push(e.key);
+      const label = normalizeKeyLabel(e);
+      if (!parts.includes(label)) {
+        parts.push(label);
+      }
       return parts.join('+');
     };
 
     const getRecentKeyContext = () => {
       const timeSinceLastKey = Date.now() - lastKeyTime;
-      if (timeSinceLastKey < 2000 && lastKeyCombo) {
+      if (timeSinceLastKey < ROLLING_BUFFER_WINDOW_MS && lastKeyCombo) {
         return { recentKey: lastKeyCombo };
       }
       return undefined;
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isEligibleShortcutKey(e)) {
+        return;
+      }
+
+      const now = Date.now();
       const combo = buildKeyCombo(e);
       lastKeyCombo = combo;
-      lastKeyTime = Date.now();
+      lastKeyTime = now;
 
-      if (ALLOWED_KEYS.has(e.key)) {
-        return;
+      if (!e.repeat) {
+        pushObservedEvent({
+          eventType: 'keydown',
+          key: normalizeKeyLabel(e),
+          code: e.code || undefined,
+          modifiers: {
+            ctrl: e.ctrlKey,
+            alt: e.altKey,
+            shift: e.shiftKey,
+            meta: e.metaKey,
+          },
+          timestamp: new Date(now).toISOString(),
+          epochMs: now,
+        });
       }
 
       // Let Escape be handled by fullscreenchange (FULLSCREEN_EXIT) without double-counting
@@ -239,10 +494,75 @@ export function useSecureExam({
 
       e.preventDefault();
       e.stopImmediatePropagation();
-      recordViolation('BLOCKED_KEY', `Blocked key pressed: ${combo}`, { key: combo });
+      setIsBlackScreen(true);
+
+      const isModifierOnly = MODIFIER_KEYS.has(e.key);
+      const isFocusSwitchCombo =
+        e.key === 'Tab' && (e.altKey || e.ctrlKey || e.metaKey);
+
+      if (pendingCapture) {
+        // Extend/update pending capture with the newly observed shortcut key
+        pendingCapture.reason = `Blocked key pressed: ${combo}`;
+        pendingCapture.metadata = { ...pendingCapture.metadata, key: combo };
+        if (pendingCapture.timerId !== null) {
+          clearTimeout(pendingCapture.timerId);
+        }
+        const remainingWait = isFocusSwitchCombo ? 250 : isModifierOnly ? boundedCaptureMs : 150;
+        pendingCapture.timerId = setTimeout(() => {
+          finalizePendingCapture();
+        }, remainingWait);
+        return;
+      }
+
+      if (isModifierOnly || isFocusSwitchCombo) {
+        pruneRollingBuffer(now);
+        const waitMs = isFocusSwitchCombo ? 250 : boundedCaptureMs;
+        pendingCapture = {
+          type: 'BLOCKED_KEY',
+          reason: `Blocked key pressed: ${combo}`,
+          triggeringEvent: 'keydown',
+          captureReason: 'BLOCKED_SHORTCUT',
+          triggerEpochMs: now,
+          metadata: { key: combo },
+          events: [...rollingBuffer],
+          timerId: setTimeout(() => {
+            finalizePendingCapture();
+          }, waitMs),
+        };
+        return;
+      }
+
+      pruneRollingBuffer(now);
+      const evidence = buildShortcutEvidence(
+        rollingBuffer,
+        now,
+        'keydown',
+        'BLOCKED_SHORTCUT'
+      );
+      recordViolation('BLOCKED_KEY', `Blocked key pressed: ${combo}`, {
+        key: combo,
+        shortcutEvidence: evidence,
+      });
+      rollingBuffer = [];
     };
 
     const handleKeyUpPress = (e: KeyboardEvent) => {
+      if (e.type === 'keyup' && isEligibleShortcutKey(e)) {
+        const now = Date.now();
+        pushObservedEvent({
+          eventType: 'keyup',
+          key: normalizeKeyLabel(e),
+          code: e.code || undefined,
+          modifiers: {
+            ctrl: e.ctrlKey,
+            alt: e.altKey,
+            shift: e.shiftKey,
+            meta: e.metaKey,
+          },
+          timestamp: new Date(now).toISOString(),
+          epochMs: now,
+        });
+      }
       if (!ALLOWED_KEYS.has(e.key) && e.key !== 'Escape') {
         e.preventDefault();
         e.stopImmediatePropagation();
@@ -252,7 +572,19 @@ export function useSecureExam({
     const nukeClipboard = (e: ClipboardEvent) => {
       e.preventDefault();
       e.stopImmediatePropagation();
-      recordViolation('CLIPBOARD', `Clipboard operation attempted (${e.type})`, { action: e.type });
+      const now = Date.now();
+      pruneRollingBuffer(now);
+      const evidence = buildShortcutEvidence(
+        rollingBuffer,
+        now,
+        'clipboard',
+        'CLIPBOARD'
+      );
+      recordViolation('CLIPBOARD', `Clipboard operation attempted (${e.type})`, {
+        action: e.type,
+        shortcutEvidence: evidence,
+      });
+      rollingBuffer = [];
     };
 
     const nukeContextMenu = (e: MouseEvent) => {
@@ -276,20 +608,68 @@ export function useSecureExam({
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden' || document.hidden) {
+        const now = Date.now();
+        pushObservedEvent({
+          eventType: 'visibilitychange',
+          modifiers: { ctrl: false, alt: false, shift: false, meta: false },
+          timestamp: new Date(now).toISOString(),
+          epochMs: now,
+        });
+        if (pendingCapture) {
+          finalizePendingCapture(
+            'TAB_SWITCH',
+            'Page became hidden (tab switch, minimize, or app switch)',
+            'VISIBILITY_HIDDEN'
+          );
+          return;
+        }
+        pruneRollingBuffer(now);
+        const evidence = buildShortcutEvidence(
+          rollingBuffer,
+          now,
+          'visibilitychange',
+          'VISIBILITY_HIDDEN'
+        );
         recordViolation('TAB_SWITCH', 'Page became hidden (tab switch, minimize, or app switch)', {
           visibilityState: document.visibilityState,
           ...getRecentKeyContext(),
+          shortcutEvidence: evidence,
         });
+        rollingBuffer = [];
       } else {
         evaluateSecurityState();
       }
     };
 
     const handleBlur = () => {
+      const now = Date.now();
+      pushObservedEvent({
+        eventType: 'blur',
+        modifiers: { ctrl: false, alt: false, shift: false, meta: false },
+        timestamp: new Date(now).toISOString(),
+        epochMs: now,
+      });
+      if (pendingCapture) {
+        finalizePendingCapture(
+          'WINDOW_BLUR',
+          'Window lost focus',
+          'FOCUS_LOST'
+        );
+        return;
+      }
+      pruneRollingBuffer(now);
+      const evidence = buildShortcutEvidence(
+        rollingBuffer,
+        now,
+        'blur',
+        'FOCUS_LOST'
+      );
       recordViolation('WINDOW_BLUR', 'Window lost focus', {
         visibilityState: document.visibilityState,
         ...getRecentKeyContext(),
+        shortcutEvidence: evidence,
       });
+      rollingBuffer = [];
     };
 
     const handleFocus = () => {
@@ -300,12 +680,42 @@ export function useSecureExam({
       const fsActive = Boolean(getFullscreenElement());
       setIsFullscreen(fsActive);
       if (!fsActive) {
+        const now = Date.now();
+        pushObservedEvent({
+          eventType: 'fullscreenchange',
+          modifiers: { ctrl: false, alt: false, shift: false, meta: false },
+          timestamp: new Date(now).toISOString(),
+          epochMs: now,
+        });
+        if (pendingCapture) {
+          finalizePendingCapture(
+            'FULLSCREEN_EXIT',
+            'Exited fullscreen mode',
+            'FULLSCREEN_EXIT'
+          );
+          return;
+        }
+        pruneRollingBuffer(now);
+        const evidence = buildShortcutEvidence(
+          rollingBuffer,
+          now,
+          'fullscreenchange',
+          'FULLSCREEN_EXIT'
+        );
         recordViolation('FULLSCREEN_EXIT', 'Exited fullscreen mode', {
           visibilityState: document.visibilityState,
           ...getRecentKeyContext(),
+          shortcutEvidence: evidence,
         });
+        rollingBuffer = [];
       } else {
         evaluateSecurityState();
+      }
+    };
+
+    const handlePageExit = () => {
+      if (pendingCapture) {
+        finalizePendingCapture();
       }
     };
 
@@ -337,11 +747,17 @@ export function useSecureExam({
 
     document.addEventListener('dragstart', nukeDrag, true);
     document.addEventListener('drop', nukeDrag, true);
+    window.addEventListener('pagehide', handlePageExit);
+    window.addEventListener('beforeunload', handlePageExit);
 
     // Initial check when exam becomes active
     evaluateSecurityState();
 
     return () => {
+      if (pendingCapture) {
+        finalizePendingCapture();
+      }
+      rollingBuffer = [];
       window.removeEventListener('keydown', handleKeyDown, true);
       window.removeEventListener('keyup', handleKeyUpPress, true);
       window.removeEventListener('keypress', handleKeyUpPress, true);
@@ -365,8 +781,10 @@ export function useSecureExam({
 
       document.removeEventListener('dragstart', nukeDrag, true);
       document.removeEventListener('drop', nukeDrag, true);
+      window.removeEventListener('pagehide', handlePageExit);
+      window.removeEventListener('beforeunload', handlePageExit);
     };
-  }, [isActive, evaluateSecurityState, recordViolation]);
+  }, [isActive, captureWindowMs, evaluateSecurityState, recordViolation]);
 
   return {
     violationCount,
