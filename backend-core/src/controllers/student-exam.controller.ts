@@ -2,8 +2,23 @@ import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../config/prisma';
 import { BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError } from '../utils/errors';
 import { assertStudentOwnsAttempt } from '../utils/faculty-security';
+import { resolveQuestionImages } from '../utils/object-storage';
 
-const OBJECTIVE_TYPES = ['MCQ', 'MULTI_SELECT', 'TRUE_FALSE', 'MATCHING', 'NUMERICAL', 'FILL_BLANK'];
+export const OBJECTIVE_TYPES = ['MCQ', 'MULTI_SELECT', 'TRUE_FALSE', 'MATCHING', 'NUMERICAL', 'FILL_BLANK'];
+
+export function gradeObjectiveResponse(
+  question: any,
+  response: { status?: string | null; answerData?: any }
+): number | null {
+  if (!question || !OBJECTIVE_TYPES.includes(question.type)) return null;
+  if (question.answerKey === null || question.answerKey === undefined) return null;
+  const isAnswered =
+    response.status === 'ANSWERED' ||
+    response.status === 'ANSWERED_AND_MARKED_FOR_REVIEW';
+  if (!isAnswered) return 0;
+  const isCorrect = isObjectiveAnswerCorrect(question, response.answerData);
+  return isCorrect ? Number(question.marks || 0) : -Number(question.negativeMarks || 0);
+}
 
 export function isObjectiveAnswerCorrect(question: any, answerData: any): boolean {
   if (!question || question.answerKey === null || question.answerKey === undefined) return false;
@@ -124,6 +139,7 @@ export const getEligibleQuizzes = async (req: Request, res: Response, next: Next
       )
     }));
 
+    res.set?.('Cache-Control', 'no-store');
     res.status(200).json({ status: 'success', data: sanitizedQuizzes });
   } catch (error) {
     next(error);
@@ -166,22 +182,23 @@ export const getQuizInstructions = async (req: Request, res: Response, next: Nex
 
     const attempt = await prisma.quizAttempt.findFirst({
       where: { quizId, userId },
-      select: { id: true, status: true, startTime: true }
+      select: { id: true, status: true, startTime: true, violationCount: true }
     });
 
     if (attempt) {
       if (attempt.status !== 'IN_PROGRESS') {
         throw new BadRequestError('You have already submitted this quiz.', 'ALREADY_SUBMITTED');
       }
-      const ageInSeconds = (Date.now() - new Date(attempt.startTime).getTime()) / 1000;
-      if (ageInSeconds > 60) {
+      const durationSeconds = (quiz.durationMinutes || 60) * 60;
+      const elapsedSeconds = (Date.now() - new Date(attempt.startTime).getTime()) / 1000;
+      if (elapsedSeconds >= durationSeconds) {
         await prisma.quizAttempt.update({
           where: { id: attempt.id },
-          data: { status: 'SUBMITTED', endTime: new Date() }
+          data: { status: 'SUBMITTED', endTime: new Date(), violationReason: 'Quiz time expired' }
         });
         throw new BadRequestError(
-          'You left the secure exam environment. Your exam has been automatically submitted and cannot be resumed.',
-          'FORBIDDEN'
+          'Your quiz time has expired and your attempt has been submitted.',
+          'ALREADY_SUBMITTED'
         );
       }
     } else {
@@ -199,6 +216,7 @@ export const getQuizInstructions = async (req: Request, res: Response, next: Nex
       ...quiz.questionUsages.map((u) => u.questionId)
     ]);
 
+    res.set?.('Cache-Control', 'no-store');
     res.status(200).json({
       status: 'success',
       data: {
@@ -210,6 +228,9 @@ export const getQuizInstructions = async (req: Request, res: Response, next: Nex
           totalMarks: quiz.totalMarks,
           passingMarks: quiz.passingMarks,
           durationMinutes: quiz.durationMinutes,
+          maxViolations: quiz.maxViolations ?? 3,
+          hasActiveAttempt: Boolean(attempt),
+          violationCount: attempt?.violationCount ?? 0,
           startDate: quiz.startDate,
           endDate: quiz.endDate,
           questionCount: questionIds.size
@@ -270,16 +291,14 @@ export const startExam = async (req: Request, res: Response, next: NextFunction)
         throw new BadRequestError('Exam already submitted', 'FORBIDDEN');
       }
 
-      // Prevent resuming: if the attempt was created more than 60 seconds ago,
-      // it means they left the portal and are trying to resume.
-      // We block this and auto-submit the exam to enforce the strict "no re-entry" rule.
-      const ageInSeconds = (new Date().getTime() - new Date(attempt.startTime).getTime()) / 1000;
-      if (ageInSeconds > 60) {
+      const durationSeconds = (quizMetadata.durationMinutes || 60) * 60;
+      const elapsedSeconds = (Date.now() - new Date(attempt.startTime).getTime()) / 1000;
+      if (elapsedSeconds >= durationSeconds) {
         await prisma.quizAttempt.update({
           where: { id: attempt.id },
-          data: { status: 'SUBMITTED', endTime: new Date() }
+          data: { status: 'SUBMITTED', endTime: new Date(), violationReason: 'Quiz time expired' }
         });
-        throw new BadRequestError('You left the secure exam environment. Your exam has been automatically submitted and cannot be resumed.', 'FORBIDDEN');
+        throw new BadRequestError('Your quiz time has expired and your attempt has been submitted.', 'EXPIRED');
       }
     }
 
@@ -301,16 +320,17 @@ export const startExam = async (req: Request, res: Response, next: NextFunction)
       delete (quiz as any).questionUsages;
     }
     if (quiz && quiz.questions) {
-      quiz.questions = quiz.questions.map((q: any) => {
+      quiz.questions = await resolveQuestionImages(quiz.questions.map((q: any) => {
         if (q.type === 'MATCHING' && Array.isArray(q.options)) {
           const lefts = q.options.map((o: any) => o.left);
           const rights = q.options.map((o: any) => o.right).sort(() => Math.random() - 0.5);
           q.options = { lefts, rights };
         }
         return q;
-      });
+      }));
     }
 
+    res.set?.('Cache-Control', 'no-store');
     res.status(200).json({ status: 'success', data: { attempt, quiz } });
   } catch (error) {
     next(error);
@@ -360,7 +380,178 @@ export const saveResponse = async (req: Request, res: Response, next: NextFuncti
       }
     });
 
+    res.set?.('Cache-Control', 'no-store');
     res.status(200).json({ status: 'success', data: response });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const VALID_VIOLATION_TYPES = new Set([
+  'TAB_SWITCH',
+  'WINDOW_BLUR',
+  'FULLSCREEN_EXIT',
+  'BLOCKED_KEY',
+  'CLIPBOARD',
+]);
+
+async function finalizeAttemptSubmission(
+  attempt: any,
+  violationReason?: string | null,
+  violationCount?: number
+) {
+  const usedQuestionIds = new Set(attempt.quiz.questions.map((question: any) => question.id));
+  const gradingQuestions = [
+    ...attempt.quiz.questions,
+    ...attempt.quiz.questionUsages
+      .filter((usage: any) => !usedQuestionIds.has(usage.questionId))
+      .map((usage: any) => ({ ...usage.question, marks: usage.marks })),
+  ];
+  let objectiveScore = 0;
+
+  const responseUpdates: { id: string; marksAwarded: number }[] = [];
+  for (const response of attempt.responses) {
+    if (response.status === 'ANSWERED' || response.status === 'ANSWERED_AND_MARKED_FOR_REVIEW') {
+      const question = gradingQuestions.find((q: any) => q.id === response.questionId);
+      if (question) {
+        const awarded = gradeObjectiveResponse(question, response);
+        if (awarded !== null) {
+          objectiveScore += awarded;
+          responseUpdates.push({ id: response.id, marksAwarded: awarded });
+        }
+      }
+    }
+  }
+
+  return prisma.$transaction(async (tx) => {
+    for (const upd of responseUpdates) {
+      await tx.quizResponse.update({
+        where: { id: upd.id },
+        data: { marksAwarded: upd.marksAwarded }
+      });
+    }
+
+    return tx.quizAttempt.update({
+      where: { id: attempt.id },
+      data: {
+        status: 'SUBMITTED',
+        endTime: new Date(),
+        objectiveScore,
+        totalScore: objectiveScore, // Written score is 0 until graded
+        violationReason: violationReason || attempt.violationReason || null,
+        ...(typeof violationCount === 'number' ? { violationCount } : {})
+      }
+    });
+  });
+}
+
+// Record a monitored security violation for an active quiz attempt
+export const recordViolation = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const attemptId = req.params.attemptId as string;
+    const { type, reason, metadata, timestamp } = req.body ?? {};
+
+    if (!type || !VALID_VIOLATION_TYPES.has(type)) {
+      throw new BadRequestError('Invalid violation type', 'INVALID_VIOLATION_TYPE');
+    }
+
+    const attempt = await prisma.quizAttempt.findUnique({
+      where: { id: attemptId },
+      include: {
+        responses: true,
+        quiz: { include: { questions: true, questionUsages: { where: { isFinalized: true }, include: { question: true } } } }
+      }
+    });
+
+    if (!attempt) throw new BadRequestError('Attempt not found', 'NOT_FOUND');
+    assertStudentOwnsAttempt((req as any).user, attempt);
+
+    const maxViolations = attempt.quiz.maxViolations ?? 3;
+    if (attempt.status !== 'IN_PROGRESS') {
+      res.set?.('Cache-Control', 'no-store');
+      res.status(200).json({
+        status: 'success',
+        data: {
+          violationCount: attempt.violationCount ?? 0,
+          maxViolations,
+          autoSubmitted: true,
+          deduplicated: false,
+        }
+      });
+      return;
+    }
+
+    // Server-side deduplication window (1.5s) to prevent duplicate counts when visibilitychange & blur fire together
+    const dedupeSince = new Date(Date.now() - 1500);
+    const recentViolation = await prisma.quizViolation.findFirst({
+      where: {
+        attemptId,
+        createdAt: { gte: dedupeSince }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    if (recentViolation) {
+      res.set?.('Cache-Control', 'no-store');
+      res.status(200).json({
+        status: 'success',
+        data: {
+          violationCount: attempt.violationCount ?? 0,
+          maxViolations,
+          autoSubmitted: false,
+          deduplicated: true,
+        }
+      });
+      return;
+    }
+
+    const nextCount = (attempt.violationCount ?? 0) + 1;
+    const summaryReason = reason ? `${type}: ${reason}` : type;
+
+    await prisma.$transaction(async (tx) => {
+      await tx.quizViolation.create({
+        data: {
+          attemptId,
+          quizId: attempt.quizId,
+          userId: attempt.userId,
+          type,
+          reason: reason || null,
+          metadata: {
+            ...(metadata && typeof metadata === 'object' ? metadata : {}),
+            ...(timestamp ? { clientTimestamp: timestamp } : {}),
+            violationNumber: nextCount,
+          },
+        }
+      });
+
+      await tx.quizAttempt.update({
+        where: { id: attemptId },
+        data: {
+          violationCount: nextCount,
+          violationReason: summaryReason,
+        }
+      });
+    });
+
+    const shouldAutoSubmit = Boolean(attempt.quiz.autoSubmit ?? true) && nextCount >= maxViolations;
+    if (shouldAutoSubmit) {
+      await finalizeAttemptSubmission(
+        attempt,
+        `${summaryReason} (${nextCount}/${maxViolations} violations)`,
+        nextCount
+      );
+    }
+
+    res.set?.('Cache-Control', 'no-store');
+    res.status(200).json({
+      status: 'success',
+      data: {
+        violationCount: nextCount,
+        maxViolations,
+        autoSubmitted: shouldAutoSubmit,
+        deduplicated: false,
+      }
+    });
   } catch (error) {
     next(error);
   }
@@ -385,47 +576,9 @@ export const submitExam = async (req: Request, res: Response, next: NextFunction
 
     assertStudentOwnsAttempt((req as any).user, attempt);
 
-    const usedQuestionIds = new Set(attempt.quiz.questions.map((question: any) => question.id));
-    const gradingQuestions = [...attempt.quiz.questions, ...attempt.quiz.questionUsages.filter((usage: any) => !usedQuestionIds.has(usage.questionId)).map((usage: any) => ({ ...usage.question, marks: usage.marks }))];
-    let objectiveScore = 0;
+    const updated = await finalizeAttemptSubmission(attempt, violationReason);
 
-    // Auto Evaluate
-    const responseUpdates: { id: string; marksAwarded: number }[] = [];
-    for (const response of attempt.responses) {
-      if (response.status === 'ANSWERED' || response.status === 'ANSWERED_AND_MARKED_FOR_REVIEW') {
-        const question = gradingQuestions.find((q: any) => q.id === response.questionId);
-        if (question) {
-          const isObjective = OBJECTIVE_TYPES.includes(question.type);
-          if (isObjective && question.answerKey !== null && question.answerKey !== undefined) {
-            const isCorrect = isObjectiveAnswerCorrect(question, response.answerData);
-            const awarded = isCorrect ? Number(question.marks || 0) : -Number(question.negativeMarks || 0);
-            objectiveScore += awarded;
-            responseUpdates.push({ id: response.id, marksAwarded: awarded });
-          }
-        }
-      }
-    }
-
-    const updated = await prisma.$transaction(async (tx) => {
-      for (const upd of responseUpdates) {
-        await tx.quizResponse.update({
-          where: { id: upd.id },
-          data: { marksAwarded: upd.marksAwarded }
-        });
-      }
-
-      return tx.quizAttempt.update({
-        where: { id: attemptId },
-        data: {
-          status: 'SUBMITTED',
-          endTime: new Date(),
-          objectiveScore,
-          totalScore: objectiveScore, // Written score is 0 until graded
-          violationReason: violationReason || null
-        }
-      });
-    });
-
+    res.set?.('Cache-Control', 'no-store');
     res.status(200).json({
       status: 'success',
       message: 'Quiz submitted successfully',
@@ -463,6 +616,7 @@ export const allowRestart = async (req: Request, res: Response, next: NextFuncti
     // Delete the attempt and all its responses (cascade)
     await prisma.quizAttempt.delete({ where: { id: attemptId } });
 
+    res.set?.('Cache-Control', 'no-store');
     res.status(200).json({ status: 'success', message: 'Student can now retake the exam.' });
   } catch (error) {
     next(error);
@@ -517,12 +671,14 @@ export const getQuizResult = async (req: Request, res: Response, next: NextFunct
       return r;
     });
 
+    const resolvedQuestions = await resolveQuestionImages(mergedQuestions);
     const sanitizedQuiz = {
       ...attempt.quiz,
-      questions: mergedQuestions
+      questions: resolvedQuestions
     };
     delete (sanitizedQuiz as any).questionUsages;
 
+    res.set?.('Cache-Control', 'no-store');
     res.status(200).json({
       status: 'success',
       data: {

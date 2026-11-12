@@ -8,11 +8,16 @@ jest.mock('@/lib/apiClient', () => ({
   apiClient: { fetch: jest.fn() },
 }));
 
+const mockSecureExamState = {
+  isFullscreen: true,
+  isBlackScreen: false,
+  fullscreenSupported: true,
+  violationCount: 0,
+  enterFullscreen: jest.fn(async () => ({ ok: true })),
+};
+
 jest.mock('../../hooks/useSecureExam', () => ({
-  useSecureExam: () => ({
-    isFullscreen: true,
-    enterFullscreen: jest.fn(async () => {}),
-  }),
+  useSecureExam: () => mockSecureExamState,
 }));
 
 jest.mock('@/components/DashboardLayout', () => ({
@@ -41,6 +46,9 @@ describe('Simplified Student Quiz Navigation Flow', () => {
     jest.clearAllMocks();
     localStorage.clear();
     localStorage.setItem('cira_user', JSON.stringify({ id: 'student-1', name: 'Asha', role: 'STUDENT' }));
+    mockSecureExamState.isFullscreen = true;
+    mockSecureExamState.isBlackScreen = false;
+    mockSecureExamState.enterFullscreen = jest.fn(async () => ({ ok: true }));
   });
 
   it('navigates directly from Quizzes -> Start Quiz -> Instructions -> Begin Quiz -> Actual Quiz and supports Back', async () => {
@@ -185,5 +193,90 @@ describe('Simplified Student Quiz Navigation Flow', () => {
     expect(await screen.findByText('Quiz Unavailable')).toBeInTheDocument();
     expect(screen.getByText('You have already submitted this quiz.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Begin Quiz/i })).not.toBeInTheDocument();
+  });
+
+  it('blocks quiz start with retry option when fullscreen is denied, and hides all quiz content under pure black screen on violation', async () => {
+    mockSecureExamState.enterFullscreen = jest
+      .fn()
+      .mockResolvedValueOnce({ ok: false, error: 'Fullscreen permission was denied.' })
+      .mockResolvedValueOnce({ ok: true });
+
+    (apiClient.fetch as jest.Mock).mockImplementation(async (path: string) => {
+      if (path === '/api/v1/student/exam/instructions/quiz-os-1') {
+        return {
+          ok: true,
+          json: async () => ({
+            status: 'success',
+            data: {
+              quiz: {
+                id: 'quiz-os-1',
+                title: 'OS Processes Quiz',
+                subject: 'Operating Systems',
+                durationMinutes: 45,
+                totalMarks: 20,
+                questionCount: 1,
+              },
+            },
+          }),
+        };
+      }
+      if (path === '/api/v1/student/exam/start/quiz-os-1') {
+        return {
+          ok: true,
+          json: async () => ({
+            status: 'success',
+            data: {
+              attempt: { id: 'attempt-1', startTime: new Date().toISOString(), responses: [] },
+              quiz: {
+                id: 'quiz-os-1',
+                title: 'OS Processes Quiz',
+                subject: 'Operating Systems',
+                durationMinutes: 45,
+                questions: [
+                  { id: 'q-1', type: 'MCQ', text: 'What is a process?', marks: 5, options: ['Program in execution', 'Disk file'] },
+                ],
+              },
+            },
+          }),
+        };
+      }
+      return { ok: true, json: async () => ({ status: 'success', data: {} }) };
+    });
+
+    const { rerender } = render(
+      <MemoryRouter initialEntries={['/exam-portal/take/quiz-os-1']}>
+        <Routes>
+          <Route path="/exam-portal/take/:quizId" element={<ExamInterface />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    const beginBtn = await screen.findByRole('button', { name: /Begin Quiz/i });
+    fireEvent.click(beginBtn);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Fullscreen permission was denied.');
+    expect(screen.getByRole('button', { name: /Retry Fullscreen/i })).toBeInTheDocument();
+    expect(apiClient.fetch).not.toHaveBeenCalledWith('/api/v1/student/exam/start/quiz-os-1', expect.anything());
+
+    // Retry succeeds -> enters quiz
+    fireEvent.click(screen.getByRole('button', { name: /Retry Fullscreen/i }));
+    expect(await screen.findByText('What is a process?')).toBeInTheDocument();
+
+    // Simulate violation -> black screen hides all quiz content with #000000
+    mockSecureExamState.isBlackScreen = true;
+    mockSecureExamState.isFullscreen = false;
+    rerender(
+      <MemoryRouter initialEntries={['/exam-portal/take/quiz-os-1']}>
+        <Routes>
+          <Route path="/exam-portal/take/:quizId" element={<ExamInterface />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    const blackScreen = await screen.findByTestId('security-black-screen');
+    expect(blackScreen).toHaveStyle({ backgroundColor: '#000000' });
+    expect(screen.queryByText('What is a process?')).not.toBeInTheDocument();
+    expect(screen.queryByText('Question Palette')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Enter Fullscreen/i })).toBeInTheDocument();
   });
 });

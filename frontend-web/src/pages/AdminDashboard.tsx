@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import DashboardLayout from '../components/DashboardLayout';
 import UserProfile from '../components/dashboard/UserProfile';
@@ -37,7 +38,17 @@ interface Batch {
 }
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState('hub');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'hub';
+  const setActiveTab = (tab: string) => {
+    const nextParams = new URLSearchParams(searchParams);
+    if (!tab || tab === 'hub') {
+      nextParams.delete('tab');
+    } else {
+      nextParams.set('tab', tab);
+    }
+    setSearchParams(nextParams);
+  };
   const [facultyList, setFacultyList] = useState<Faculty[]>([]);
   const [userList, setUserList] = useState<User[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);

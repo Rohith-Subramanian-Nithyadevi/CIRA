@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import AssignmentManagement from '../dashboard/AssignmentManagement';
 import StudyPlanner from '../student/StudyPlanner';
 import { apiClient } from '@/lib/apiClient';
@@ -38,7 +39,11 @@ describe('Standardized double-confirmation across modules', () => {
       return { ok: true, json: async () => ({ success: true, data: [] }) };
     });
 
-    render(<AssignmentManagement />);
+    render(
+      <MemoryRouter>
+        <AssignmentManagement />
+      </MemoryRouter>
+    );
     expect(await screen.findByText('Lab Assignment 1')).toBeInTheDocument();
 
     // Clicking Delete opens confirmation dialog instead of deleting immediately

@@ -24,8 +24,8 @@ export default function StudentDashboard() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const urlTab = searchParams.get('tab');
-    if (urlTab && urlTab !== activeTab) {
+    const urlTab = searchParams.get('tab') || 'overview';
+    if (urlTab !== activeTab) {
       setActiveTabState(urlTab);
     }
   }, [searchParams]);
@@ -38,7 +38,7 @@ export default function StudentDashboard() {
     } else {
       nextParams.set('tab', tab);
     }
-    setSearchParams(nextParams, { replace: true });
+    setSearchParams(nextParams);
   };
 
   useEffect(() => {

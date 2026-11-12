@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import FacultyHome from '../components/dashboard/FacultyHome';
 import UserProfile from '../components/dashboard/UserProfile';
@@ -49,11 +50,38 @@ const facultyNavigation: DashboardNavGroup[] = [
 const allowedFacultyTabs = new Set(facultyNavigation.flatMap((group) => group.items.map((item) => item.id)));
 
 export default function FacultyDashboard() {
-  const [activeTab, setActiveTab] = useState('home');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const rawTab = searchParams.get('tab') || 'home';
+  const activeTab = allowedFacultyTabs.has(rawTab) ? rawTab : 'home';
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [isDemo, setIsDemo] = useState(false);
   const [paperSubmissionsId, setPaperSubmissionsId] = useState<string | null>(null);
-  const navigateFaculty = (tab: string) => setActiveTab(allowedFacultyTabs.has(tab) ? tab : 'home');
+
+  useEffect(() => {
+    if (rawTab !== 'home' && !allowedFacultyTabs.has(rawTab)) {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete('tab');
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [rawTab, searchParams, setSearchParams]);
+
+  const navigateFaculty = (tab: string) => {
+    const nextTab = allowedFacultyTabs.has(tab) ? tab : 'home';
+    const nextParams = new URLSearchParams(searchParams);
+    if (nextTab === 'home') {
+      nextParams.delete('tab');
+    } else {
+      nextParams.set('tab', nextTab);
+    }
+    if (nextTab !== activeTab) {
+      nextParams.delete('view');
+      nextParams.delete('quizId');
+      nextParams.delete('attemptId');
+      nextParams.delete('assignmentId');
+      setPaperSubmissionsId(null);
+    }
+    setSearchParams(nextParams);
+  };
 
   return (
     <FacultyDemoProvider value={isDemo}>
@@ -68,7 +96,15 @@ export default function FacultyDashboard() {
       {activeTab === 'quizzes' && <QuizManagement initialSubmissionsQuizId={paperSubmissionsId} />}
       {activeTab === 'assignments' && <AssignmentManagement />}
       {activeTab === 'question-bank' && <QuestionBank />}
-      {activeTab === 'question-papers' && <QuestionPaperManagement onSubmissions={(id) => { setPaperSubmissionsId(id); setActiveTab('quizzes'); }} />}
+      {activeTab === 'question-papers' && <QuestionPaperManagement onSubmissions={(id) => {
+        setPaperSubmissionsId(id);
+        const nextParams = new URLSearchParams(searchParams);
+        nextParams.set('tab', 'quizzes');
+        nextParams.set('view', 'submissions');
+        nextParams.set('quizId', id);
+        nextParams.delete('attemptId');
+        setSearchParams(nextParams);
+      }} />}
     </DashboardLayout>
     </FacultyNotificationsProvider>
     <FacultyCommandPalette open={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} onNavigate={navigateFaculty} />
