@@ -48,6 +48,7 @@ export default function ExamInterface() {
     try {
       const res = await apiClient.fetch(`/api/v1/student/exam/attempt/${activeAttemptId}/violation`, {
         method: 'POST',
+        keepalive: true,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: event.type,

@@ -21,6 +21,36 @@ import { DeleteConfirmationDialog } from '@/components/ui/DeleteConfirmationDial
 type QuizWizardStep = 1 | 2 | 3 | 4 | 5;
 const OBJECTIVE_QUESTION_TYPES = ['MCQ', 'MULTI_SELECT', 'TRUE_FALSE', 'MATCHING', 'NUMERICAL', 'FILL_BLANK'];
 
+const formatEvidenceTimeMs = (iso?: string | null): string => {
+  if (!iso) return '—';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '—';
+  const hh = String(date.getHours()).padStart(2, '0');
+  const mm = String(date.getMinutes()).padStart(2, '0');
+  const ss = String(date.getSeconds()).padStart(2, '0');
+  const ms = String(date.getMilliseconds()).padStart(3, '0');
+  return `${hh}:${mm}:${ss}.${ms}`;
+};
+
+const formatObservedEventLabel = (ev: any): string => {
+  if (!ev || typeof ev !== 'object') return 'Unknown event';
+  const keyLabel = ev.key || ev.code || 'Key';
+  switch (ev.eventType) {
+    case 'keydown':
+      return `${keyLabel} key down`;
+    case 'keyup':
+      return `${keyLabel} key up`;
+    case 'blur':
+      return 'Window lost focus';
+    case 'visibilitychange':
+      return 'Page became hidden';
+    case 'fullscreenchange':
+      return 'Exited fullscreen';
+    default:
+      return String(ev.eventType || 'Event');
+  }
+};
+
 const QUIZ_WIZARD_STEPS: { step: QuizWizardStep; label: string; shortLabel: string; description: string }[] = [
   { step: 1, label: 'Basic Details', shortLabel: 'Basic', description: 'Enter the quiz title, course subject, and time duration.' },
   { step: 2, label: 'Schedule', shortLabel: 'Schedule', description: 'Configure optional start and end availability times.' },
@@ -604,6 +634,7 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
     questions?: any[];
   } | null>(null);
   const [showPublishConfirm, setShowPublishConfirm] = useState(false);
+  const [selectedViolationRow, setSelectedViolationRow] = useState<any | null>(null);
   const [publishingAnswers, setPublishingAnswers] = useState(false);
   const [quizPendingDelete, setQuizPendingDelete] = useState<{ id: string; title: string } | null>(null);
   const [activeAttempt, setActiveAttempt] = useState<any>(null);
@@ -3351,9 +3382,18 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                               )}
                             </TableCell>
                             <TableCell className="max-w-[400px]">
-                              {sub.violationReason ? (
-                                <div className="px-3 py-2 text-sm font-semibold rounded-lg bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-900/50">
-                                  <span className="font-bold">⚠ Violation:</span> {sub.violationReason}
+                              {sub.violationReason || (Array.isArray(sub.violations) && sub.violations.length > 0) ? (
+                                <div className="px-3 py-2 text-sm font-semibold rounded-lg bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-900/50 space-y-1.5">
+                                  <div>
+                                    <span className="font-bold">⚠ Violation:</span> {sub.violationReason || sub.violations?.[0]?.reason || sub.violations?.[0]?.type}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedViolationRow(sub)}
+                                    className="inline-flex items-center text-xs font-semibold underline underline-offset-2 text-maroon dark:text-red-200 hover:text-maroon-deep cursor-pointer"
+                                  >
+                                    Violation Details
+                                  </button>
                                 </div>
                               ) : sub.status === 'IN_PROGRESS' ? (
                                 <div className="px-3 py-2 text-sm font-semibold rounded-lg bg-orange-50 dark:bg-orange-950/30 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-900/50">
@@ -3405,6 +3445,166 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
         </CardContent>
       </Card>
 
+      {/* Violation Details & Keyboard Shortcut Evidence Modal */}
+      {selectedViolationRow && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 dark:bg-black/70 backdrop-blur-[2px] p-3 sm:p-4" role="dialog" aria-modal="true" aria-labelledby="violation-details-dialog-title">
+          <div className="bg-white dark:bg-[#1E1E22] border border-border-soft rounded-xl shadow-xl w-full max-w-2xl max-h-[90dvh] flex flex-col overflow-hidden">
+            <div className="flex items-start justify-between gap-3 px-4 sm:px-6 py-4 border-b border-border-soft">
+              <div className="min-w-0">
+                <h3 id="violation-details-dialog-title" className="text-lg font-serif font-bold text-ink">
+                  Violation Details
+                </h3>
+                <p className="text-xs text-gray-body mt-0.5 truncate">
+                  {selectedViolationRow.user?.name || 'Student'}
+                  {selectedViolationRow.user?.rollNumber ? ` • ${selectedViolationRow.user.rollNumber}` : ''}
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedViolationRow(null)}
+                className="border-border-soft text-xs font-semibold shrink-0"
+              >
+                Close
+              </Button>
+            </div>
+
+            <div className="p-4 sm:p-6 space-y-5 overflow-y-auto">
+              {selectedViolationRow.violationReason && (
+                <div className="px-3.5 py-2.5 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 text-xs sm:text-sm text-red-700 dark:text-red-300">
+                  <span className="font-bold">Recorded Violation Summary:</span> {selectedViolationRow.violationReason}
+                </div>
+              )}
+
+              {(() => {
+                const violationList =
+                  Array.isArray(selectedViolationRow.violations) && selectedViolationRow.violations.length > 0
+                    ? selectedViolationRow.violations
+                    : selectedViolationRow.violationReason
+                    ? [
+                        {
+                          id: 'legacy-summary',
+                          type: 'VIOLATION',
+                          reason: selectedViolationRow.violationReason,
+                          createdAt: selectedViolationRow.endTime || selectedViolationRow.startTime || null,
+                          metadata: null,
+                        },
+                      ]
+                    : [];
+
+                return violationList.map((v: any, vIdx: number) => {
+                  const evidence = v?.metadata?.shortcutEvidence;
+                  const events = Array.isArray(evidence?.events) ? evidence.events : [];
+                  const keyboardEvents = events.filter(
+                    (ev: any) => ev?.eventType === 'keydown' || ev?.eventType === 'keyup'
+                  );
+                  const hasKeyboardEvents = keyboardEvents.length > 0;
+                  const eventTimestamp = v?.createdAt || evidence?.captureEndedAt || v?.metadata?.clientTimestamp || null;
+
+                  return (
+                    <div key={v.id || `violation-${vIdx}`} className="rounded-xl border border-border-soft bg-cream/20 dark:bg-[#242429] p-4 space-y-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border-soft pb-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 dark:bg-red-950/50 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-900/50">
+                            {v.type || 'VIOLATION'}
+                          </span>
+                          {v.reason && (
+                            <span className="text-xs sm:text-sm font-medium text-ink">{v.reason}</span>
+                          )}
+                        </div>
+                        <span className="text-xs text-gray-body font-mono">
+                          {eventTimestamp ? new Date(eventTimestamp).toLocaleString() : '—'}
+                        </span>
+                      </div>
+
+                      <div className="space-y-3">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-maroon">
+                          Keyboard Activity / Shortcut Evidence
+                        </h4>
+
+                        {hasKeyboardEvents ? (
+                          <div className="overflow-x-auto rounded-lg border border-border-soft bg-white dark:bg-[#18181B]">
+                            <table className="w-full text-left border-collapse text-xs sm:text-sm">
+                              <thead>
+                                <tr className="border-b border-border-soft bg-cream/40 dark:bg-[#202025] text-gray-body">
+                                  <th className="py-2 px-3 font-semibold">Time</th>
+                                  <th className="py-2 px-3 font-semibold">Observed event</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {events.map((ev: any, evIdx: number) => (
+                                  <tr key={`${v.id || vIdx}-ev-${evIdx}`} className="border-b last:border-b-0 border-border-soft">
+                                    <td className="py-2 px-3 font-mono text-xs text-gray-body whitespace-nowrap">
+                                      {formatEvidenceTimeMs(ev.timestamp)}
+                                    </td>
+                                    <td className="py-2 px-3 text-ink font-medium">
+                                      {formatObservedEventLabel(ev)}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : (
+                          <div className="rounded-lg border border-border-soft bg-white dark:bg-[#18181B] px-3.5 py-3 text-xs sm:text-sm text-gray-body">
+                            No keyboard shortcut sequence was captured for this violation. Focus/visibility evidence is available separately.
+                          </div>
+                        )}
+
+                        {evidence ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs bg-white dark:bg-[#18181B] p-3.5 rounded-lg border border-border-soft">
+                            <div>
+                              <span className="text-gray-body font-semibold">Detected sequence:</span>{' '}
+                              <span className="font-mono font-bold text-ink">{evidence.detectedSequence || 'None observed'}</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-body font-semibold">Violation:</span>{' '}
+                              <span className="text-ink font-medium">{evidence.summary || v.reason || v.type}</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-body font-semibold">Capture duration:</span>{' '}
+                              <span className="font-mono text-ink">{typeof evidence.captureDurationMs === 'number' ? `${evidence.captureDurationMs} ms` : '—'}</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-body font-semibold">Evidence quality:</span>{' '}
+                              <span className="font-semibold text-ink">{evidence.evidenceQuality === 'COMPLETE' ? 'Complete' : 'Partial'}</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-body font-semibold">Focus status:</span>{' '}
+                              <span className="text-ink font-medium">
+                                {evidence.focusLost ? 'Lost' : 'Retained'}
+                                {evidence.visibilityHidden ? ' (Page hidden)' : ''}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-gray-body font-semibold">Timestamp:</span>{' '}
+                              <span className="font-mono text-ink">{formatEvidenceTimeMs(eventTimestamp)}</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs bg-white dark:bg-[#18181B] p-3.5 rounded-lg border border-border-soft">
+                            <div>
+                              <span className="text-gray-body font-semibold">Evidence quality:</span>{' '}
+                              <span className="font-semibold text-ink">Partial</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-body font-semibold">Timestamp:</span>{' '}
+                              <span className="font-mono text-ink">{formatEvidenceTimeMs(eventTimestamp)}</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       {/* Publish Answers Confirmation Dialog */}
       {showPublishConfirm && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/25 dark:bg-black/60 backdrop-blur-[2px] p-4" role="dialog" aria-modal="true" aria-labelledby="publish-answers-dialog-title">
@@ -3452,6 +3652,19 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                 <span>Current Written Score: <strong className="text-maroon text-sm font-semibold">{activeAttempt.writtenScore}</strong></span>
                 <span>Total Score: <strong className="text-green-700 dark:text-green-400 text-sm font-bold">{activeAttempt.totalScore}</strong></span>
               </div>
+              {(activeAttempt.violationReason || (Array.isArray(activeAttempt.violations) && activeAttempt.violations.length > 0)) && (
+                <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 px-3 py-2 text-xs text-red-700 dark:text-red-300">
+                  <span className="font-bold">⚠ Violation:</span>
+                  <span>{activeAttempt.violationReason || activeAttempt.violations?.[0]?.reason || activeAttempt.violations?.[0]?.type}</span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedViolationRow(activeAttempt)}
+                    className="font-semibold underline underline-offset-2 text-maroon dark:text-red-200 hover:text-maroon-deep cursor-pointer"
+                  >
+                    Violation Details
+                  </button>
+                </div>
+              )}
             </div>
             <button onClick={() => { setActiveView('view_submissions'); syncQuizUrlParams({ view: 'submissions', quizId: activeQuizId, attemptId: null, studentId: null }); }} className="text-maroon hover:text-maroon-deep font-semibold text-sm">Back to Submissions</button>
           </div>
