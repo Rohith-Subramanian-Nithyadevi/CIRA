@@ -109,8 +109,15 @@ const parseMCQs = (rawText: string): any[] => {
       startLineIdx++;
     }
 
+    let extractedTopic = '';
     for (let i = startLineIdx; i < lines.length; i++) {
       const line = lines[i];
+
+      const topicMatch = line.match(/^(?:Topic|Subject)[\s\:\-\=]+(.*)/i);
+      if (topicMatch) {
+        extractedTopic = topicMatch[1].trim();
+        continue;
+      }
 
       const answerMatch = line.match(/^(?:Answer|Correct|Ans|Correct Answer|Key)[\s\:\-\=]+(.*)/i);
       if (answerMatch) {
@@ -166,7 +173,7 @@ const parseMCQs = (rawText: string): any[] => {
       marks: 1,
       options: options,
       answerKey: correctOptionText || '',
-      topic: ''
+      topic: extractedTopic || ''
     });
   }
 
@@ -214,10 +221,16 @@ const parseShortWritten = (rawText: string): any[] => {
     }
 
     let answerKey = '';
+    let extractedTopic = '';
     let foundAnswer = false;
 
     for (let i = startLineIdx; i < lines.length; i++) {
       const line = lines[i];
+      const topicMatch = line.match(/^(?:Topic|Subject)[\s\:\-\=]+(.*)/i);
+      if (topicMatch) {
+        extractedTopic = topicMatch[1].trim();
+        continue;
+      }
       const answerMatch = line.match(/^(?:Answer|Correct|Ans|Expected Answer)[\s\:\-\=]+(.*)/i);
       if (answerMatch) {
         answerKey = answerMatch[1].trim();
@@ -237,7 +250,7 @@ const parseShortWritten = (rawText: string): any[] => {
       marks: 2,
       options: null,
       answerKey: answerKey,
-      topic: ''
+      topic: extractedTopic || ''
     });
   }
   return parsed;
@@ -284,9 +297,15 @@ const parseNumerical = (rawText: string): any[] => {
     }
 
     let answerKey = '';
+    let extractedTopic = '';
 
     for (let i = startLineIdx; i < lines.length; i++) {
       const line = lines[i];
+      const topicMatch = line.match(/^(?:Topic|Subject)[\s\:\-\=]+(.*)/i);
+      if (topicMatch) {
+        extractedTopic = topicMatch[1].trim();
+        continue;
+      }
       const answerMatch = line.match(/^(?:Answer|Correct|Ans)[\s\:\-\=]+([\d\.]+)/i);
       if (answerMatch) {
         answerKey = answerMatch[1].trim();
@@ -301,7 +320,7 @@ const parseNumerical = (rawText: string): any[] => {
       marks: 1,
       options: null,
       answerKey: answerKey ? Number(answerKey) : '',
-      topic: ''
+      topic: extractedTopic || ''
     });
   }
   return parsed;
@@ -355,10 +374,16 @@ const parseLongWritten = (rawText: string): any[] => {
     }
 
     let answerKey = '';
+    let extractedTopic = '';
     let foundAnswer = false;
 
     for (let i = startLineIdx; i < lines.length; i++) {
       const line = lines[i];
+      const topicMatch = line.match(/^(?:Topic|Subject)[\s\:\-\=]+(.*)/i);
+      if (topicMatch) {
+        extractedTopic = topicMatch[1].trim();
+        continue;
+      }
       const answerMatch = line.match(/^(?:Answer|Correct|Ans|Expected Answer)[\s\:\-\=]+(.*)/i);
       if (answerMatch) {
         answerKey = answerMatch[1].trim();
@@ -378,7 +403,7 @@ const parseLongWritten = (rawText: string): any[] => {
       marks: 5,
       options: null,
       answerKey: answerKey,
-      topic: ''
+      topic: extractedTopic || ''
     });
   }
   return parsed;
@@ -419,10 +444,16 @@ const parseMatching = (rawText: string): any[] => {
     if (/^\d+[\.\)]\s*$/.test(lines[0])) startLineIdx = 1;
 
     let questionText = '';
+    let extractedTopic = '';
     const pairs: { left: string; right: string }[] = [];
 
     for (let i = startLineIdx; i < lines.length; i++) {
       const line = lines[i];
+      const topicMatch = line.match(/^(?:Topic|Subject)[\s\:\-\=]+(.*)/i);
+      if (topicMatch) {
+        extractedTopic = topicMatch[1].trim();
+        continue;
+      }
       // Check for matching pair formats like:
       // "Term A -> Def A" or "Term A = Def A" or "1. Term -> Def"
       const pairMatch = line.match(/^(?:(?:\d+|[A-Za-z])[\.\)]\s*)?(.+?)\s*(?:->|=>|=|:)\s*(.+)$/);
@@ -445,7 +476,7 @@ const parseMatching = (rawText: string): any[] => {
         marks: Math.max(1, pairs.length),
         options: pairs,
         answerKey: pairs,
-        topic: ''
+        topic: extractedTopic || ''
       });
     }
   }
@@ -488,9 +519,15 @@ const parseFillBlanks = (rawText: string): any[] => {
 
     let questionText = '';
     let answerKey = '';
+    let extractedTopic = '';
 
     for (let i = startLineIdx; i < lines.length; i++) {
       const line = lines[i];
+      const topicMatch = line.match(/^(?:Topic|Subject)[\s\:\-\=]+(.*)/i);
+      if (topicMatch) {
+        extractedTopic = topicMatch[1].trim();
+        continue;
+      }
       const answerMatch = line.match(/^(?:Answer|Correct|Ans|Expected Answer|Key)[\s\:\-\=]+(.*)/i);
       if (answerMatch) {
         answerKey = answerMatch[1].trim();
@@ -511,7 +548,7 @@ const parseFillBlanks = (rawText: string): any[] => {
       marks: 1,
       options: null,
       answerKey: answerKey || '',
-      topic: ''
+      topic: extractedTopic || ''
     });
   }
   return parsed;
@@ -609,6 +646,8 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
 
   // Bulk Import State
   const [showBulkImport, setShowBulkImport] = useState(false);
+  const [pasteTopic, setPasteTopic] = useState<string>('');
+  const [customPasteTopic, setCustomPasteTopic] = useState<string>('');
   const [bulkConfig, setBulkConfig] = useState<Record<string, { selected: boolean; text: string }>>({
     MCQ: { selected: false, text: '' },
     SHORT_WRITTEN: { selected: false, text: '' },
@@ -1355,12 +1394,21 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
       return;
     }
 
+    const resolvedTopic = pasteTopic === '__custom__'
+      ? customPasteTopic.trim()
+      : (pasteTopic.trim() || formData.subject || '');
+
+    const questionsWithTopic = parsedQuestions.map(q => ({
+      ...q,
+      topic: q.topic || resolvedTopic || ''
+    }));
+
     setQuestions(prev => {
       const isDefaultSingleEmpty = prev.length === 1 && prev[0].text === '' && (!prev[0].options || prev[0].options.every((o: string) => o === '')) && prev[0].answerKey === '';
       if (isDefaultSingleEmpty) {
-        return parsedQuestions;
+        return questionsWithTopic;
       }
-      return [...prev, ...parsedQuestions];
+      return [...prev, ...questionsWithTopic];
     });
 
     toast.success(`Successfully imported ${parsedQuestions.length} questions (${countSummary.join(', ')}).`);
@@ -2394,6 +2442,50 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
               {/* Mode 1: Paste Textboxes */}
               {creationMode === 'paste' && (
                 <div className="p-5 bg-cream/30 dark:bg-[#242429] rounded-xl border border-border-soft space-y-5">
+                  {/* Topic selection for pasted questions */}
+                  <div className="p-4 bg-white dark:bg-[#1E1E22] rounded-xl border border-border-soft space-y-2">
+                    <Label htmlFor="paste-topic-select" className="text-xs font-bold text-ink flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-maroon" /> Select Topic for Pasted Questions
+                    </Label>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <select
+                        id="paste-topic-select"
+                        aria-label="Select topic for pasted questions"
+                        value={availableTopics.includes(pasteTopic) ? pasteTopic : (pasteTopic ? '__custom__' : '')}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '__custom__') {
+                            setPasteTopic('__custom__');
+                          } else {
+                            setPasteTopic(val);
+                          }
+                        }}
+                        className="flex-1 h-10 px-3 rounded-lg border border-border-soft bg-cream/20 dark:bg-[#18181B] text-ink text-xs font-semibold focus:border-maroon focus:ring-1 focus:ring-maroon"
+                      >
+                        <option value="">Select Topic from Dropdown (or use Quiz Subject)...</option>
+                        {availableTopics.map((topicItem) => (
+                          <option key={topicItem} value={topicItem}>
+                            {topicItem}
+                          </option>
+                        ))}
+                        <option value="__custom__">+ Custom Topic</option>
+                      </select>
+                      {(pasteTopic === '__custom__' || (!availableTopics.includes(pasteTopic) && pasteTopic !== '')) && (
+                        <Input
+                          type="text"
+                          value={customPasteTopic}
+                          onChange={(e) => setCustomPasteTopic(e.target.value)}
+                          placeholder="Type specific topic name..."
+                          className="flex-1 h-10 text-xs bg-white dark:bg-[#18181B] border-border-soft text-ink focus:border-maroon focus:ring-1 focus:ring-maroon"
+                          aria-label="Custom topic for pasted questions"
+                        />
+                      )}
+                    </div>
+                    <p className="text-[11px] text-gray-body">
+                      Questions pasted in the boxes below will automatically be assigned this topic upon conversion.
+                    </p>
+                  </div>
+
                   <div>
                     <h3 className="text-sm font-bold text-ink mb-1 flex items-center gap-2">
                       <Sparkles className="w-4 h-4 text-maroon" /> Select Question Types to Paste
@@ -2806,6 +2898,47 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                   <Sparkles className="w-4 h-4 text-maroon" /> Quick Paste Additional Questions
                 </h3>
                 <span className="text-[10px] text-gray-body">Select question types below and paste text to append to this quiz.</span>
+              </div>
+
+              {/* Quick Paste Topic Selector */}
+              <div className="p-3 bg-white dark:bg-[#1E1E22] rounded-lg border border-border-soft space-y-1.5">
+                <Label htmlFor="quick-paste-topic-select" className="text-xs font-bold text-ink flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-maroon" /> Topic for Quick Pasted Questions:
+                </Label>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <select
+                    id="quick-paste-topic-select"
+                    aria-label="Select topic for quick pasted questions"
+                    value={availableTopics.includes(pasteTopic) ? pasteTopic : (pasteTopic ? '__custom__' : '')}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '__custom__') {
+                        setPasteTopic('__custom__');
+                      } else {
+                        setPasteTopic(val);
+                      }
+                    }}
+                    className="flex-1 h-9 px-3 rounded-lg border border-border-soft bg-cream/20 dark:bg-[#18181B] text-ink text-xs font-semibold focus:border-maroon focus:outline-none"
+                  >
+                    <option value="">Select Topic from Dropdown (or use Quiz Subject)...</option>
+                    {availableTopics.map((topicItem) => (
+                      <option key={topicItem} value={topicItem}>
+                        {topicItem}
+                      </option>
+                    ))}
+                    <option value="__custom__">+ Custom Topic</option>
+                  </select>
+                  {(pasteTopic === '__custom__' || (!availableTopics.includes(pasteTopic) && pasteTopic !== '')) && (
+                    <Input
+                      type="text"
+                      value={customPasteTopic}
+                      onChange={(e) => setCustomPasteTopic(e.target.value)}
+                      placeholder="Type specific topic name..."
+                      className="flex-1 h-9 text-xs bg-white dark:bg-[#18181B] border-border-soft text-ink focus:border-maroon focus:ring-1 focus:ring-maroon"
+                      aria-label="Custom topic for quick pasted questions"
+                    />
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 p-2 bg-white dark:bg-[#1E1E22] rounded-lg border border-border-soft">

@@ -94,3 +94,17 @@
   - `backend-core`: 17 suites, 67 tests passed, 0 failures.
   - `frontend-web`: 24 suites, 94 tests passed, 0 failures.
   - Production builds (`npm run build` in both backend-core and frontend-web) completed with 0 errors.
+
+
+## Follow-up: Topic Selection When Pasting Bulk Questions (2026-11-14)
+
+- **Feature**:
+  - Added a Topic selection dropdown menu directly in **Mode 1: Paste Textboxes** (Step 5 of Quiz Creation) and in the **Quick Paste Additional Questions** modal during quiz question review/editing.
+  - Faculty can select any predefined curriculum topic or specify a custom topic from the dropdown while pasting questions into the textboxes.
+  - Updated all bulk text parsers (`parseMCQs`, `parseShortWritten`, `parseNumerical`, `parseLongWritten`, `parseMatching`, `parseFillBlanks`) to check for per-question `Topic: <value>` or `Subject: <value>` lines in the pasted text.
+  - When questions are converted and added to the quiz via `handleImportBulkQuestions`, any question without an explicit in-text topic automatically inherits the topic chosen from the dropdown.
+- **Validation**:
+  - `frontend-web`: 24 test suites, 94 tests passed, 0 failures.
+  - `frontend-web run build`: `tsc -b && vite build` passed with 0 errors.
+  - `backend-core`: 17 test suites, 67 tests passed, 0 failures.
+
