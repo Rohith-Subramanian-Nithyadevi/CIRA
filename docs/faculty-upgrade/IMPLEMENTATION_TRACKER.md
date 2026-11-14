@@ -78,3 +78,19 @@
   - `backend-core`: `npm test` passed (16 test suites, 66 tests passed).
   - `frontend-web`: `npm test` passed (24 test suites, 94 tests passed).
   - Production builds: `npm --prefix backend-core run build` and `npm --prefix frontend-web run build` passed with 0 errors.
+
+
+## Follow-up: Question Pool Subset Sampling & Randomized Delivery (2026-11-14)
+
+- **Feature**:
+  - Added option in Quiz creation / editing for faculty to configure a question pool with subset sampling (`questionPoolCount`).
+  - Added "Question Pool & Subset Sampling" input in Step 3 (Marks Configuration) and pool metrics across Step 5 and the questions review view.
+  - When a student initiates the exam (`startExam`), if `questionPoolCount` is set, a non-repeated subset of $K$ questions is randomly sampled from the total pool ($N$) using Fisher-Yates shuffle with a deterministic per-student attempt seed (`${attempt.id}-${userId}-${quizId}`).
+  - Each student receives a unique, non-repeated, randomly shuffled question set.
+  - The sampled subset and shuffle sequence are stored in `attempt.metrics.questionOrder`, ensuring that page refreshes or session resumes deterministically preserve the exact same subset and question order for that student.
+  - Quiz total marks for the attempt automatically adjust to match the assigned subset.
+- **Validation**:
+  - Added `backend-core/tests/student-exam-pool-shuffle.test.cjs` verifying subset selection, absence of repeated questions, unique per-student permutations, resume preservation, and marks calculation.
+  - `backend-core`: 17 suites, 67 tests passed, 0 failures.
+  - `frontend-web`: 24 suites, 94 tests passed, 0 failures.
+  - Production builds (`npm run build` in both backend-core and frontend-web) completed with 0 errors.

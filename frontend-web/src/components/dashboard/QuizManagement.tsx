@@ -583,6 +583,7 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
     title: '', subject: initialSubject, description: '', totalMarks: '', passingMarks: '',
     durationMinutes: '60', startDate: '', endDate: '',
     targetDepartments: [] as string[], targetSections: [] as string[],
+    questionPoolCount: '',
   });
   const [wizardStep, setWizardStep] = useState<QuizWizardStep>(1);
   const [completedWizardSteps, setCompletedWizardSteps] = useState<QuizWizardStep[]>([]);
@@ -909,6 +910,7 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
           endDate: formatDateTimeLocal(quiz.endDate),
           targetDepartments: quiz.targetDepartments?.map((d: any) => d.departmentId) || [],
           targetSections: quiz.targetSections?.map((s: any) => s.sectionId) || [],
+          questionPoolCount: (quiz.questionPoolCount ?? (quiz.performanceBands as any)?.questionPoolCount ?? '')?.toString() || '',
         });
         
         let fetchedQuestions = quiz.questions;
@@ -1172,9 +1174,14 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
     setLoading(true);
     
     try {
-      const payload = { ...formData };
+      const payload: any = { ...formData };
       if (payload.startDate) payload.startDate = new Date(payload.startDate).toISOString();
       if (payload.endDate) payload.endDate = new Date(payload.endDate).toISOString();
+      if (payload.questionPoolCount) {
+        payload.questionPoolCount = Number(payload.questionPoolCount);
+      } else {
+        payload.questionPoolCount = null;
+      }
 
       const sanitizedQuestions = questions.map(q => {
         if (q.type === 'MATCHING') return { ...q, answerKey: q.options };
@@ -1870,6 +1877,7 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                 setFormData({
                   title: '', subject: facultySubject, description: '', totalMarks: '', passingMarks: '',
                   durationMinutes: '60', startDate: '', endDate: '', targetDepartments: [], targetSections: [],
+                  questionPoolCount: '',
                 });
                 setQuestions([{ type: 'MCQ', text: '', marks: 1, options: ['', '', '', ''], answerKey: '', topic: '' }]);
                 setWizardStep(1);
@@ -1996,7 +2004,7 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
               <div className="bg-cream/20 dark:bg-[#242429] p-5 rounded-xl border border-border-soft space-y-4">
                 <div>
                   <h3 className="text-base font-serif font-bold text-ink">Marks Configuration</h3>
-                  <p className="text-xs text-gray-body mt-0.5">Specify total and passing marks. Total marks can be left blank to calculate automatically from questions.</p>
+                  <p className="text-xs text-gray-body mt-0.5">Specify marks and optional question pool sampling. Total marks can be left blank to calculate automatically.</p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1">
@@ -2032,6 +2040,41 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                       className={`bg-white dark:bg-[#18181B] text-ink text-xs focus:border-maroon focus:ring-1 focus:ring-maroon ${stepErrors.passingMarks ? 'border-red-500 ring-1 ring-red-500' : 'border-border-soft'}`}
                     />
                     {stepErrors.passingMarks && <p className="text-xs text-red-600 font-medium">{stepErrors.passingMarks}</p>}
+                  </div>
+                </div>
+
+                {/* Question Pool Sampling Options */}
+                <div className="border border-border-soft rounded-lg p-4 bg-white dark:bg-[#1E1E22] space-y-3 mt-4">
+                  <div>
+                    <Label htmlFor="quiz-pool-count" className="text-ink font-semibold text-xs flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-maroon" />
+                      Question Pool & Subset Sampling (Optional)
+                    </Label>
+                    <p className="text-[11px] text-gray-body mt-0.5">
+                      Add a larger pool of questions, but only deliver a random subset to each student. Every student gets a randomized, non-repeated selection.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+                    <div>
+                      <Input
+                        id="quiz-pool-count"
+                        type="number"
+                        min={1}
+                        placeholder="e.g. 10 (Leave empty to give all questions)"
+                        value={formData.questionPoolCount || ''}
+                        onChange={(e) => setFormData({ ...formData, questionPoolCount: e.target.value })}
+                        className="bg-cream/20 dark:bg-[#18181B] text-ink text-xs focus:border-maroon focus:ring-1 focus:ring-maroon border-border-soft"
+                      />
+                    </div>
+                    <div className="text-[11px] text-gray-body">
+                      {formData.questionPoolCount && Number(formData.questionPoolCount) > 0 ? (
+                        <span className="text-maroon font-semibold">
+                          Each student will receive a random subset of {formData.questionPoolCount} non-repeated questions from the pool.
+                        </span>
+                      ) : (
+                        <span>All questions added to the quiz will be given to every student (with randomized question shuffling).</span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2256,7 +2299,7 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
             {wizardStep === 5 && (
             <div className="space-y-5">
               {/* Configured Quiz Summary Strip */}
-              <div className="bg-cream/30 dark:bg-[#242429] border border-border-soft rounded-xl p-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              <div className="bg-cream/30 dark:bg-[#242429] border border-border-soft rounded-xl p-4 grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
                 <div>
                   <span className="text-[10px] font-bold uppercase tracking-wider text-gray-body block">Quiz & Subject</span>
                   <span className="font-semibold text-ink block truncate">{formData.title || 'Untitled Quiz'}</span>
@@ -2283,6 +2326,15 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                       : 'None added'}
                   </span>
                   <button type="button" onClick={() => handleJumpToWizardStep(4)} className="text-[11px] text-maroon underline font-semibold">Edit classes</button>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-gray-body block">Pool & Delivery</span>
+                  <span className="font-semibold text-ink block">{questions.length} Pool Questions</span>
+                  <span className="text-[11px] text-maroon block font-medium">
+                    {formData.questionPoolCount && Number(formData.questionPoolCount) > 0
+                      ? `${formData.questionPoolCount} per student`
+                      : 'All delivered'}
+                  </span>
                 </div>
               </div>
 
@@ -2713,7 +2765,13 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
           <div className="flex justify-between items-center mb-6 pb-4 border-b border-border-soft">
             <div>
               <h2 className="text-2xl font-serif font-bold text-ink">{formData.title || 'Review & Finalize Quiz Questions'}</h2>
-              <p className="text-gray-body text-xs mt-0.5">{formData.subject || 'Subject'} | {formData.durationMinutes || 60} mins | {questions.length} Questions ({sumMarks} Total Marks)</p>
+              <p className="text-gray-body text-xs mt-0.5">
+                {formData.subject || 'Subject'} | {formData.durationMinutes || 60} mins | {questions.length} Pool Questions
+                {formData.questionPoolCount && Number(formData.questionPoolCount) > 0
+                  ? ` · (${formData.questionPoolCount} Randomly Selected per Student)`
+                  : ''}
+                {' '}({sumMarks} Total Pool Marks)
+              </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <Button
@@ -4156,6 +4214,7 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                 endDate: '',
                 targetDepartments: [],
                 targetSections: [],
+                questionPoolCount: '',
               });
               setQuestions([{ type: 'MCQ', text: '', marks: 1, options: ['', '', '', ''], answerKey: '', topic: '' }]);
               setParsedTotalMarks(0);

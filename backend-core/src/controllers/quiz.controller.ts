@@ -68,7 +68,11 @@ export const getQuizzes = async (req: Request, res: Response, next: NextFunction
       ]);
 
       const hasMore = skip + quizzes.length < total;
-      res.status(200).json({ status: 'success', data: { items: quizzes, total, page, hasMore } });
+      const items = quizzes.map((q: any) => ({
+        ...q,
+        questionPoolCount: (q.performanceBands as any)?.questionPoolCount ?? null,
+      }));
+      res.status(200).json({ status: 'success', data: { items, total, page, hasMore } });
     } else {
       const quizzes = await prisma.quiz.findMany({
         where: whereClause,
@@ -76,7 +80,11 @@ export const getQuizzes = async (req: Request, res: Response, next: NextFunction
         orderBy: { createdAt: 'desc' }
       });
 
-      res.status(200).json({ status: 'success', data: quizzes });
+      const mapped = quizzes.map((q: any) => ({
+        ...q,
+        questionPoolCount: (q.performanceBands as any)?.questionPoolCount ?? null,
+      }));
+      res.status(200).json({ status: 'success', data: mapped });
     }
   } catch (error) {
     next(error);
@@ -111,7 +119,8 @@ export const getQuizById = async (req: Request, res: Response, next: NextFunctio
       (quiz as any).questions = await resolveQuestionImages((quiz as any).questions);
     }
 
-    res.status(200).json({ status: 'success', data: quiz });
+    const questionPoolCount = (quiz.performanceBands as any)?.questionPoolCount ?? null;
+    res.status(200).json({ status: 'success', data: { ...quiz, questionPoolCount } });
   } catch (error) {
     next(error);
   }
@@ -166,6 +175,7 @@ export const createQuiz = async (req: Request, res: Response, next: NextFunction
       allowLateJoin,
       autoSubmit,
       performanceBands,
+      questionPoolCount,
       targetDepartments, // array of department IDs
       targetSections,    // array of section IDs
       targetStudents     // array of user IDs
@@ -186,6 +196,11 @@ export const createQuiz = async (req: Request, res: Response, next: NextFunction
       }
     }
 
+    const parsedPoolCount = questionPoolCount && Number(questionPoolCount) > 0 ? Number(questionPoolCount) : undefined;
+    const normalizedBands = typeof performanceBands === 'object' && performanceBands !== null
+      ? { ...performanceBands, ...(parsedPoolCount ? { questionPoolCount: parsedPoolCount } : {}) }
+      : (parsedPoolCount ? { questionPoolCount: parsedPoolCount } : performanceBands);
+
     const quiz = await prisma.quiz.create({
       data: {
         title,
@@ -199,7 +214,7 @@ export const createQuiz = async (req: Request, res: Response, next: NextFunction
         durationMinutes: Number(durationMinutes) || 60,
         allowLateJoin: Boolean(allowLateJoin),
         autoSubmit: Boolean(autoSubmit),
-        performanceBands,
+        performanceBands: normalizedBands,
         createdBy,
         targetDepartments: targetDepartments?.length ? {
           create: targetDepartments.map((depId: string) => ({ departmentId: depId }))
@@ -213,7 +228,7 @@ export const createQuiz = async (req: Request, res: Response, next: NextFunction
       }
     });
 
-    res.status(201).json({ status: 'success', data: quiz });
+    res.status(201).json({ status: 'success', data: { ...quiz, questionPoolCount: parsedPoolCount ?? null } });
   } catch (error) {
     next(error);
   }
@@ -238,6 +253,7 @@ export const updateQuiz = async (req: Request, res: Response, next: NextFunction
       allowLateJoin,
       autoSubmit,
       performanceBands,
+      questionPoolCount,
       targetDepartments = [],
       targetSections = [],
       targetStudents = [],
@@ -264,6 +280,24 @@ export const updateQuiz = async (req: Request, res: Response, next: NextFunction
       }
     }
 
+    const parsedPoolCount = questionPoolCount !== undefined && questionPoolCount !== '' && Number(questionPoolCount) > 0
+      ? Number(questionPoolCount)
+      : (questionPoolCount === '' || questionPoolCount === null ? null : undefined);
+
+    let updatedBands = performanceBands !== undefined ? performanceBands : existing.performanceBands;
+    if (parsedPoolCount !== undefined) {
+      if (typeof updatedBands === 'object' && updatedBands !== null) {
+        if (parsedPoolCount === null) {
+          const { questionPoolCount: _, ...rest } = updatedBands as any;
+          updatedBands = rest;
+        } else {
+          updatedBands = { ...updatedBands, questionPoolCount: parsedPoolCount };
+        }
+      } else if (parsedPoolCount !== null) {
+        updatedBands = { questionPoolCount: parsedPoolCount };
+      }
+    }
+
     let regradedCount = 0;
     const updated = await prisma.$transaction(async (tx) => {
       const attemptCount = Array.isArray(questions)
@@ -284,7 +318,7 @@ export const updateQuiz = async (req: Request, res: Response, next: NextFunction
           durationMinutes: Number(durationMinutes) || 60,
           allowLateJoin: Boolean(allowLateJoin),
           autoSubmit,
-          performanceBands
+          performanceBands: updatedBands
         }
       });
 
@@ -591,7 +625,8 @@ export const updateQuiz = async (req: Request, res: Response, next: NextFunction
       return quiz;
     });
 
-    res.status(200).json({ status: 'success', data: updated, regradedCount });
+    const finalPoolCount = (updated.performanceBands as any)?.questionPoolCount ?? null;
+    res.status(200).json({ status: 'success', data: { ...updated, questionPoolCount: finalPoolCount }, regradedCount });
   } catch (error) {
     next(error);
   }
@@ -705,6 +740,7 @@ export const getSubmissions = async (req: Request, res: Response, next: NextFunc
         totalMarks: true,
         answersPublished: true,
         createdBy: true,
+        performanceBands: true,
         questions: {
           orderBy: { createdAt: 'asc' },
           select: {
@@ -959,6 +995,7 @@ export const getSubmissions = async (req: Request, res: Response, next: NextFunc
         subject: quiz.subject,
         totalMarks: quiz.totalMarks,
         answersPublished: quiz.answersPublished,
+        questionPoolCount: (quiz as any).performanceBands?.questionPoolCount ?? null,
         questions: resolvedQuizQuestions,
       },
       data: attempts,
