@@ -618,6 +618,27 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
   });
 
   // Grading & Publication State
+  const [availableTopics, setAvailableTopics] = useState<string[]>([
+    'Data Structures',
+    'Algorithms',
+    'Object-Oriented Programming',
+    'Database Management Systems',
+    'Operating Systems',
+    'Computer Networks',
+    'Software Engineering',
+    'Web Technologies',
+    'Artificial Intelligence',
+    'Machine Learning',
+    'Cybersecurity',
+    'Discrete Mathematics',
+    'Computer Architecture',
+    'Cloud Computing',
+    'Theory of Computation'
+  ]);
+  const [liveOtp, setLiveOtp] = useState<{ otp: string; remainingSeconds: number } | null>(null);
+  const [liveOtpLoading, setLiveOtpLoading] = useState(false);
+  const [editingObjectiveIds, setEditingObjectiveIds] = useState<Record<string, boolean>>({});
+  const [keylogInterval, setKeylogInterval] = useState<'1.5s' | '5s' | '30s' | '1m' | 'all'>('1.5s');
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [assignedClasses, setAssignedClasses] = useState<{ id: string; label: string; shortLabel?: string }[]>([]);
   const [selectedClassFilter, setSelectedClassFilter] = useState<string>('ALL');
@@ -708,6 +729,58 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
       isMountedRef.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    const fetchTopics = async () => {
+      try {
+        const res = await apiClient.fetch('/api/v1/faculty/quiz/topics');
+        const data = await res.json();
+        if (isMountedRef.current && data?.status === 'success' && Array.isArray(data.data?.topics)) {
+          setAvailableTopics(data.data.topics);
+        }
+      } catch {
+        // preserve fallback topics
+      }
+    };
+    void fetchTopics();
+  }, []);
+
+  const fetchLiveOtp = useCallback(async (quizId: string) => {
+    try {
+      setLiveOtpLoading(true);
+      const res = await apiClient.fetch(`/api/v1/faculty/quiz/${quizId}/live-otp`);
+      const data = await res.json();
+      if (isMountedRef.current && data?.status === 'success' && data.data) {
+        setLiveOtp({
+          otp: data.data.otp,
+          remainingSeconds: data.data.remainingSeconds || 30
+        });
+      }
+    } catch {
+      // ignore or handle
+    } finally {
+      if (isMountedRef.current) setLiveOtpLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!activeSubmissionsQuiz?.id || activeView !== 'view_submissions') {
+      setLiveOtp(null);
+      return;
+    }
+    void fetchLiveOtp(activeSubmissionsQuiz.id);
+    const interval = setInterval(() => {
+      setLiveOtp((prev) => {
+        if (!prev) return prev;
+        if (prev.remainingSeconds <= 1) {
+          void fetchLiveOtp(activeSubmissionsQuiz.id);
+          return { ...prev, remainingSeconds: 30 };
+        }
+        return { ...prev, remainingSeconds: prev.remainingSeconds - 1 };
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [activeSubmissionsQuiz?.id, activeView, fetchLiveOtp]);
 
   const fetchBatches = async () => {
     try {
@@ -1056,9 +1129,17 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
       return false;
     }
 
-    // Check Completeness
+    // Check Completeness & Duplicates
+    const seenQuestionTexts = new Set<string>();
     newQs.forEach((q) => {
       q.validationError = null;
+      const normalizedText = (q.text || '').trim().toLowerCase();
+      if (normalizedText && seenQuestionTexts.has(normalizedText)) {
+        q.validationError = "Duplicate question: Questions cannot be repeated within the same quiz.";
+        isValid = false;
+      }
+      if (normalizedText) seenQuestionTexts.add(normalizedText);
+
       if (!q.text && !q.hasImagePlaceholder && !q.image) {
         q.validationError = "Question must have either text or an image.";
         isValid = false;
@@ -1550,18 +1631,20 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
       }
 
       const manualResponses = (activeAttempt?.responses || []).filter(
-        (r: any) => !OBJECTIVE_QUESTION_TYPES.includes(r.question?.type)
+        (r: any) => !OBJECTIVE_QUESTION_TYPES.includes(r.question?.type) || evaluations[r.id] !== undefined
       );
       const evalsArray = manualResponses.map((r: any) => {
-        const raw = Number(evaluations[r.id] ?? 0);
+        const raw = Number(evaluations[r.id] ?? r.marksAwarded ?? 0);
         const maxMarks = Number(r.question?.marks ?? 0);
         const clamped = Number.isFinite(raw) ? Math.min(Math.max(0, raw), maxMarks) : 0;
-        return { responseId: r.id, marks: clamped };
+        const isObj = OBJECTIVE_QUESTION_TYPES.includes(r.question?.type);
+        return { responseId: r.id, marks: clamped, ...(isObj ? { override: true } : {}) };
       });
+      const hasObjectiveOverride = evalsArray.some((e: any) => e.override);
       const res = await apiClient.fetch(`/api/v1/faculty/quiz/attempt/${activeAttempt.id}/evaluate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ evaluations: evalsArray, facultyFeedback })
+        body: JSON.stringify({ evaluations: evalsArray, facultyFeedback, allowObjectiveOverride: hasObjectiveOverride })
       });
       const data = await res.json();
       if (data?.status === 'success') {
@@ -1850,6 +1933,18 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                     />
                     {stepErrors.durationMinutes && <p className="text-xs text-red-600 font-medium">{stepErrors.durationMinutes}</p>}
                   </div>
+                </div>
+                <div className="space-y-1 pt-2">
+                  <Label htmlFor="quiz-instructions-input" className="text-ink font-semibold text-xs">Instructions (Optional)</Label>
+                  <Textarea
+                    id="quiz-instructions-input"
+                    value={formData.description}
+                    onChange={e => setFormData({ ...formData, description: e.target.value })}
+                    placeholder="Enter optional guidelines or instructions for candidates (can be left blank)..."
+                    rows={2}
+                    className="bg-white dark:bg-[#18181B] text-ink text-sm border-border-soft focus:border-maroon focus:ring-1 focus:ring-maroon"
+                  />
+                  <p className="text-[11px] text-gray-body">Instructions are optional for faculty. If omitted, default system instructions apply.</p>
                 </div>
               </div>
             )}
@@ -2756,8 +2851,40 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                   </div>
 
                   <div>
-                    <Label className="text-xs text-maroon block mb-1 font-semibold">Topic *</Label>
-                    <Input type="text" value={q.topic || ''} onChange={(e) => updateQuestion(qIndex, 'topic', e.target.value)} placeholder="e.g. Graphs, Inheritance, Kinematics" className="bg-white dark:bg-[#18181B] border-border-soft text-ink focus:border-maroon focus:ring-1 focus:ring-maroon" />
+                    <Label htmlFor={`question-topic-${qIndex}`} className="text-xs text-maroon block mb-1 font-semibold">Topic *</Label>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <select
+                        id={`question-topic-${qIndex}`}
+                        aria-label={`Select topic for question ${qIndex + 1}`}
+                        value={availableTopics.includes(q.topic) ? q.topic : (q.topic ? '__custom__' : '')}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '__custom__') {
+                            updateQuestion(qIndex, 'topic', '');
+                          } else {
+                            updateQuestion(qIndex, 'topic', val);
+                          }
+                        }}
+                        className="flex-1 h-10 px-3 rounded-lg border border-border-soft bg-white dark:bg-[#18181B] text-ink text-sm focus:border-maroon focus:ring-1 focus:ring-maroon"
+                      >
+                        <option value="">Select Topic from Dropdown...</option>
+                        {availableTopics.map((topicItem) => (
+                          <option key={topicItem} value={topicItem}>
+                            {topicItem}
+                          </option>
+                        ))}
+                        <option value="__custom__">+ Custom Topic</option>
+                      </select>
+                      {(!availableTopics.includes(q.topic) || q.topic === '') && (
+                        <Input
+                          type="text"
+                          value={q.topic || ''}
+                          onChange={(e) => updateQuestion(qIndex, 'topic', e.target.value)}
+                          placeholder="Type specific topic name"
+                          className="sm:w-64 bg-white dark:bg-[#18181B] border-border-soft text-ink focus:border-maroon focus:ring-1 focus:ring-maroon text-sm"
+                        />
+                      )}
+                    </div>
                   </div>
 
                   {q.validationError && (
@@ -3177,6 +3304,62 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
             />
           ) : (
             <div className="space-y-5">
+              {/* Live 30-Second Refreshing Access OTP Card */}
+              {activeSubmissionsQuiz?.id && (
+                <div className="bg-white dark:bg-[#18181B] border border-maroon/20 rounded-xl p-4 shadow-sm flex flex-wrap items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-maroon/10 text-maroon flex items-center justify-center font-bold text-lg shrink-0">
+                      🔑
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-serif font-bold text-sm text-ink">Live Classroom Access OTP</h4>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 uppercase">
+                          Refreshes every 30s
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-body mt-0.5">
+                        Students enter this live rolling code to verify presence in the examination hall.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <div className="text-right">
+                      <div className="font-mono text-2xl font-bold tracking-widest text-maroon">
+                        {liveOtpLoading ? '••••••' : (liveOtp?.otp || '------')}
+                      </div>
+                      <div className="text-[11px] font-semibold text-gray-body">
+                        Expires in: <span className="font-mono font-bold text-ink">{liveOtp?.remainingSeconds ?? 30}s</span>
+                      </div>
+                    </div>
+                    <div className="w-12 h-12 relative flex items-center justify-center">
+                      <svg className="w-12 h-12 transform -rotate-90" viewBox="0 0 36 36">
+                        <path
+                          className="text-border-soft"
+                          strokeWidth="3"
+                          stroke="currentColor"
+                          fill="none"
+                          d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                        />
+                        <path
+                          className="text-maroon transition-all duration-1000 ease-linear"
+                          strokeDasharray={`${(((liveOtp?.remainingSeconds ?? 30) / 30) * 100).toFixed(0)}, 100`}
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                          stroke="currentColor"
+                          fill="none"
+                          d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                        />
+                      </svg>
+                      <span className="absolute text-[11px] font-bold font-mono text-ink">
+                        {liveOtp?.remainingSeconds ?? 30}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Summary Metrics */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3" aria-label="Submission summary">
                 <div className="rounded-xl border border-border-soft bg-cream/25 dark:bg-[#242429] p-3.5">
@@ -3519,9 +3702,35 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                       </div>
 
                       <div className="space-y-3">
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-maroon">
-                          Keyboard Activity / Shortcut Evidence
-                        </h4>
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-maroon">
+                            Keyboard Activity / Shortcut Evidence
+                          </h4>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs text-gray-body font-medium">Monitoring Interval:</span>
+                            <select
+                              value={keylogInterval}
+                              onChange={(e) => setKeylogInterval(e.target.value as any)}
+                              className="text-xs bg-white dark:bg-[#18181B] border border-border-soft rounded px-2 py-0.5 text-ink font-medium focus:border-maroon focus:outline-none"
+                              aria-label="Keylogging monitoring interval"
+                            >
+                              <option value="1.5s">1.5s (Live telemetry window)</option>
+                              <option value="5s">5s (Short window)</option>
+                              <option value="30s">30s (Extended monitoring)</option>
+                              <option value="1m">1m (Aggregate rollup)</option>
+                              <option value="all">Full Exam Duration</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="text-xs text-gray-body flex items-center justify-between px-1">
+                          <span>
+                            Window: <strong className="text-ink">{keylogInterval === 'all' ? 'Full Session' : keylogInterval}</strong>
+                          </span>
+                          <span>
+                            Total Keystrokes Captured: <strong className="text-ink">{keyboardEvents.length}</strong>
+                          </span>
+                        </div>
 
                         {hasKeyboardEvents ? (
                           <div className="overflow-x-auto rounded-lg border border-border-soft bg-white dark:bg-[#18181B]">
@@ -3672,7 +3881,6 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
           <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-4">
             {activeAttempt.responses?.map((r: any, idx: number) => {
               const isObjective = OBJECTIVE_QUESTION_TYPES.includes(r.question.type);
-              const allowManualInput = isUnsubmittedManual || !isObjective;
               return (
                 <div key={r.id} className="p-5 bg-cream/30 dark:bg-[#242429] rounded-xl border border-border-soft">
                   <div className="flex justify-between items-start mb-2">
@@ -3704,13 +3912,72 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                     </div>
                   </div>
 
-                  {allowManualInput && (
-                    <div className="mt-4 flex items-center justify-end space-x-4 border-t border-border-soft pt-4">
-                      <span className="text-sm text-gray-body font-medium">Assign Marks:</span>
-                      <Input type="number" value={evaluations[r.id] ?? 0} onChange={(e) => setEvaluations({...evaluations, [r.id]: Number(e.target.value)})} className="w-24 bg-white dark:bg-[#18181B] border-border-soft text-ink focus-visible:ring-maroon" max={r.question.marks} min={0} step={0.5} />
-                      <span className="text-sm text-gray-body">/ {r.question.marks}</span>
+                  <div className="mt-4 flex items-center justify-between border-t border-border-soft pt-4 flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      {!isUnsubmittedManual && isObjective && (
+                        <span className="text-xs text-gray-body font-medium">
+                          Auto-graded score: <strong className="text-ink">{r.marksAwarded ?? 0}</strong>
+                        </span>
+                      )}
                     </div>
-                  )}
+                    {isUnsubmittedManual || !isObjective || editingObjectiveIds[r.id] ? (
+                      <div className="flex items-center space-x-3">
+                        <span className="text-sm text-gray-body font-medium">
+                          {isObjective && !isUnsubmittedManual ? 'Override Mark:' : 'Assign Marks:'}
+                        </span>
+                        <Input
+                          type="number"
+                          aria-label={`Marks for question ${idx + 1}`}
+                          value={evaluations[r.id] !== undefined ? evaluations[r.id] : (r.marksAwarded ?? 0)}
+                          onChange={(e) => setEvaluations({ ...evaluations, [r.id]: Number(e.target.value) })}
+                          className="w-24 bg-white dark:bg-[#18181B] border-border-soft text-ink focus-visible:ring-maroon text-sm font-semibold"
+                          max={r.question.marks}
+                          min={0}
+                          step={0.5}
+                        />
+                        <span className="text-sm text-gray-body">/ {r.question.marks}</span>
+                        {isObjective && !isUnsubmittedManual && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingObjectiveIds((prev) => {
+                                const next = { ...prev };
+                                delete next[r.id];
+                                return next;
+                              });
+                              setEvaluations((prev) => {
+                                const next = { ...prev };
+                                delete next[r.id];
+                                return next;
+                              });
+                            }}
+                            className="text-xs text-gray-body hover:text-ink underline ml-1"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-3">
+                        <span className="text-sm text-gray-body font-medium">Marks:</span>
+                        <span className="text-sm font-bold text-ink">
+                          {evaluations[r.id] !== undefined ? evaluations[r.id] : (r.marksAwarded ?? 0)} / {r.question.marks}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingObjectiveIds((prev) => ({ ...prev, [r.id]: true }));
+                            if (evaluations[r.id] === undefined) {
+                              setEvaluations((prev) => ({ ...prev, [r.id]: r.marksAwarded ?? 0 }));
+                            }
+                          }}
+                          className="text-xs text-maroon hover:text-maroon-deep font-semibold underline ml-1"
+                        >
+                          Edit Mark
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               );
             })}

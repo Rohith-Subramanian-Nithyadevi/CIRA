@@ -60,11 +60,23 @@ export interface FullscreenAttemptResult {
   error?: string;
 }
 
-interface UseSecureExamProps {
+export interface KeystrokeLogEntry {
+  key: string;
+  code?: string;
+  timestamp: string;
+  intervalMs: number;
+  isModifier: boolean;
+  isBlocked: boolean;
+}
+
+export interface UseSecureExamProps {
   onViolation?: (event: SecurityViolationEvent) => void | Promise<void>;
   isActive?: boolean;
   dedupeWindowMs?: number;
   captureWindowMs?: number;
+  onKeystrokeBatch?: (batch: KeystrokeLogEntry[]) => void;
+  maxViolations?: number;
+  onInstantLock?: () => void;
 }
 
 const ROLLING_BUFFER_WINDOW_MS = 2000;
@@ -144,34 +156,64 @@ export function isFullscreenSupported(): boolean {
   return hasMethod && enabled;
 }
 
+export function isMultiDisplayDetected(): boolean {
+  if (typeof window === 'undefined' || !window.screen) return false;
+  const screenWithExtended = window.screen as Screen & { isExtended?: boolean };
+  return Boolean(screenWithExtended.isExtended);
+}
+
 export function useSecureExam({
   onViolation,
   isActive = true,
   dedupeWindowMs = 1500,
   captureWindowMs = 1200,
+  onKeystrokeBatch,
+  maxViolations,
+  onInstantLock,
 }: UseSecureExamProps = {}) {
   const [violationCount, setViolationCount] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(() => Boolean(getFullscreenElement()));
   const [isBlackScreen, setIsBlackScreen] = useState(false);
+  const [isLocked, setIsLocked] = useState(false);
 
   const onViolationRef = useRef(onViolation);
   onViolationRef.current = onViolation;
+  const onKeystrokeBatchRef = useRef(onKeystrokeBatch);
+  onKeystrokeBatchRef.current = onKeystrokeBatch;
+  const onInstantLockRef = useRef(onInstantLock);
+  onInstantLockRef.current = onInstantLock;
 
+  const keystrokeBufferRef = useRef<KeystrokeLogEntry[]>([]);
+  const lastKeyTimestampRef = useRef<number>(Date.now());
   const lastViolationAtRef = useRef<number>(0);
+
+  // Periodic keystroke telemetry flush every 1.5 seconds (1–2s window)
+  useEffect(() => {
+    if (!isActive) return;
+    const interval = setInterval(() => {
+      if (keystrokeBufferRef.current.length > 0) {
+        const batch = [...keystrokeBufferRef.current];
+        keystrokeBufferRef.current = [];
+        onKeystrokeBatchRef.current?.(batch);
+      }
+    }, 1500);
+    return () => clearInterval(interval);
+  }, [isActive]);
 
   const evaluateSecurityState = useCallback(() => {
     if (typeof document === 'undefined') return;
     const fsActive = Boolean(getFullscreenElement());
     const visible = document.visibilityState !== 'hidden' && !document.hidden;
     const focused = typeof document.hasFocus === 'function' ? document.hasFocus() : true;
+    const isMultiDisplay = isMultiDisplayDetected();
 
     setIsFullscreen(fsActive);
-    if (fsActive && visible && focused) {
+    if (fsActive && visible && focused && !isMultiDisplay && !isLocked) {
       setIsBlackScreen(false);
     } else {
       setIsBlackScreen(true);
     }
-  }, []);
+  }, [isLocked]);
 
   const recordViolation = useCallback(
     (type: SecurityViolationType, reason: string, metadata?: Record<string, unknown>) => {
@@ -184,7 +226,14 @@ export function useSecureExam({
       }
       lastViolationAtRef.current = now;
 
-      setViolationCount((prev) => prev + 1);
+      setViolationCount((prev) => {
+        const nextCount = prev + 1;
+        if (maxViolations && nextCount >= maxViolations) {
+          setIsLocked(true);
+          onInstantLockRef.current?.();
+        }
+        return nextCount;
+      });
 
       const event: SecurityViolationEvent = {
         type,
@@ -197,7 +246,7 @@ export function useSecureExam({
         void onViolationRef.current(event);
       }
     },
-    [dedupeWindowMs]
+    [dedupeWindowMs, maxViolations]
   );
 
   const enterFullscreen = useCallback(async (): Promise<FullscreenAttemptResult> => {
@@ -713,6 +762,34 @@ export function useSecureExam({
       }
     };
 
+    const handleVisualViewportChange = () => {
+      if (typeof window === 'undefined' || !window.visualViewport) return;
+      const heightRatio = window.visualViewport.height / (window.innerHeight || 1);
+      // Detected split-screen or floating overlay
+      if (heightRatio < 0.65 && !document.hidden) {
+        setIsBlackScreen(true);
+        recordViolation('WINDOW_BLUR', 'External overlay or split-screen detected', {
+          visualHeight: window.visualViewport.height,
+          innerHeight: window.innerHeight,
+          ratio: heightRatio,
+        });
+      }
+    };
+
+    const handleKeyLogger = (e: KeyboardEvent) => {
+      const now = Date.now();
+      const intervalMs = Math.max(0, now - lastKeyTimestampRef.current);
+      lastKeyTimestampRef.current = now;
+      keystrokeBufferRef.current.push({
+        key: e.key,
+        code: e.code,
+        timestamp: new Date(now).toISOString(),
+        intervalMs,
+        isModifier: MODIFIER_KEYS.has(e.key),
+        isBlocked: !ALLOWED_KEYS.has(e.key) && !MODIFIER_KEYS.has(e.key),
+      });
+    };
+
     const handlePageExit = () => {
       if (pendingCapture) {
         finalizePendingCapture();
@@ -724,6 +801,7 @@ export function useSecureExam({
       e.stopImmediatePropagation();
     };
 
+    window.addEventListener('keydown', handleKeyLogger, true);
     window.addEventListener('keydown', handleKeyDown, true);
     window.addEventListener('keyup', handleKeyUpPress, true);
     window.addEventListener('keypress', handleKeyUpPress, true);
@@ -739,6 +817,10 @@ export function useSecureExam({
 
     window.addEventListener('blur', handleBlur);
     window.addEventListener('focus', handleFocus);
+    window.addEventListener('resize', evaluateSecurityState);
+    if (typeof window !== 'undefined' && window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleVisualViewportChange);
+    }
     document.addEventListener('visibilitychange', handleVisibilityChange);
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
@@ -758,6 +840,7 @@ export function useSecureExam({
         finalizePendingCapture();
       }
       rollingBuffer = [];
+      window.removeEventListener('keydown', handleKeyLogger, true);
       window.removeEventListener('keydown', handleKeyDown, true);
       window.removeEventListener('keyup', handleKeyUpPress, true);
       window.removeEventListener('keypress', handleKeyUpPress, true);
@@ -773,6 +856,10 @@ export function useSecureExam({
 
       window.removeEventListener('blur', handleBlur);
       window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('resize', evaluateSecurityState);
+      if (typeof window !== 'undefined' && window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleVisualViewportChange);
+      }
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
       document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
@@ -790,7 +877,11 @@ export function useSecureExam({
     violationCount,
     isFullscreen,
     isBlackScreen,
+    isLocked,
     fullscreenSupported: isFullscreenSupported(),
     enterFullscreen,
+    triggerBlackout: () => setIsBlackScreen(true),
+    dismissBlackout: () => evaluateSecurityState(),
+    lockScreen: () => setIsLocked(true),
   };
 }

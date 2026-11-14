@@ -2,7 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import { QuestionType } from '@prisma/client';
 import { prisma } from '../config/prisma';
 import { BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError } from '../utils/errors';
-import { normalizeStoredImageValue, resolveQuestionImages, uploadToObjectStorage } from '../utils/object-storage';
+import { normalizeStoredImageValue, resolveQuestionImages, uploadToObjectStorage, uploadBufferToObjectStorage } from '../utils/object-storage';
+import { generateQuizOtp, getOtpRemainingSeconds } from '../utils/totp';
 import { OBJECTIVE_TYPES, gradeObjectiveResponse } from './student-exam.controller';
 
 const stableJsonEqual = (a: unknown, b: unknown): boolean =>
@@ -1057,9 +1058,11 @@ export const evaluateAttempt = async (req: Request, res: Response, next: NextFun
         seenResponseIds.add(evalItem.responseId);
 
         // For submitted attempts, objective questions are auto-graded and accounted for in objectiveScore.
-        // Never overwrite them or double-count them into writtenScore.
+        // Permit faculty override when explicitly requested (allowObjectiveOverride / evalItem.override).
         // For unsubmitted manual evaluations (isManualWithoutSubmission), all entered marks are manual/written.
-        if (!attempt.isManualWithoutSubmission && resp.question && OBJECTIVE_TYPES.includes(resp.question.type)) {
+        const isObjective = Boolean(resp.question && OBJECTIVE_TYPES.includes(resp.question.type));
+        const isExplicitOverride = Boolean(req.body.allowObjectiveOverride || evalItem.override);
+        if (!attempt.isManualWithoutSubmission && isObjective && !isExplicitOverride) {
           continue;
         }
 
@@ -1101,22 +1104,39 @@ export const evaluateAttempt = async (req: Request, res: Response, next: NextFun
       }
 
       let writtenScore = 0;
+      let effectiveObjectiveScore = attempt.isManualWithoutSubmission ? 0 : Number(attempt.objectiveScore ?? 0);
+
       if (evaluations && Array.isArray(evaluations)) {
         const updatedMap = new Map(manualUpdates.map((m) => [m.responseId, m.marks]));
-        for (const resp of attempt.responses || []) {
-          if (!attempt.isManualWithoutSubmission && resp.question && OBJECTIVE_TYPES.includes(resp.question.type)) {
-            continue;
+        if (req.body.allowObjectiveOverride === true) {
+          let newObjScore = 0;
+          for (const resp of attempt.responses || []) {
+            const isObj = Boolean(resp.question && OBJECTIVE_TYPES.includes(resp.question.type));
+            const marks = updatedMap.has(resp.id)
+              ? updatedMap.get(resp.id)!
+              : Number(resp.marksAwarded ?? 0);
+            if (isObj) {
+              newObjScore += marks;
+            } else {
+              writtenScore += marks;
+            }
           }
-          const marks = updatedMap.has(resp.id)
-            ? updatedMap.get(resp.id)!
-            : Number(resp.marksAwarded ?? 0);
-          writtenScore += marks;
+          effectiveObjectiveScore = newObjScore;
+        } else {
+          for (const resp of attempt.responses || []) {
+            if (!attempt.isManualWithoutSubmission && resp.question && OBJECTIVE_TYPES.includes(resp.question.type)) {
+              continue;
+            }
+            const marks = updatedMap.has(resp.id)
+              ? updatedMap.get(resp.id)!
+              : Number(resp.marksAwarded ?? 0);
+            writtenScore += marks;
+          }
         }
       } else if (rawWrittenScore !== undefined) {
         writtenScore = Number(rawWrittenScore);
       }
 
-      const effectiveObjectiveScore = attempt.isManualWithoutSubmission ? 0 : Number(attempt.objectiveScore ?? 0);
       const totalScore = effectiveObjectiveScore + writtenScore;
       const feedbackChanged = (facultyFeedback ?? null) !== (attempt.facultyFeedback ?? null);
       const scoreChanged =
@@ -1448,10 +1468,27 @@ export const uploadDocxParser = async (req: Request, res: Response, next: NextFu
           const src = $(el).attr('src');
           if (src && currentQ) {
             try {
-              const url = await uploadToObjectStorage(src);
-              if (url) currentQ.image = url;
+              if (src.startsWith('data:image/')) {
+                const match = src.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+                if (match) {
+                  const rawExt = match[1].toLowerCase();
+                  const ext = rawExt === 'jpeg' ? 'jpg' : rawExt;
+                  const mimeType = `image/${ext === 'jpg' ? 'jpeg' : ext}`;
+                  const buffer = Buffer.from(match[2], 'base64');
+                  const url = await uploadBufferToObjectStorage(buffer, mimeType);
+                  currentQ.image = url || src;
+                } else {
+                  currentQ.image = src;
+                }
+              } else if (fs.existsSync(src)) {
+                const url = await uploadToObjectStorage(src);
+                if (url) currentQ.image = url;
+              } else {
+                currentQ.image = src;
+              }
             } catch (err) {
               console.error('Image upload failed', err);
+              currentQ.image = src;
             }
           }
           continue;
@@ -1608,5 +1645,80 @@ export const uploadImageHandler = async (req: Request, res: Response, next: Next
     next(error);
   }
 };
+
+// Get Live 30-Second Rolling Access OTP for faculty proctoring
+export const getLiveQuizOtp = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const quizId = req.params.quizId as string;
+    const userId = (req as any).user?.userId;
+    const userRole = (req as any).user?.role;
+
+    const quiz = await prisma.quiz.findUnique({ where: { id: quizId } });
+    if (!quiz) throw new NotFoundError('Quiz not found', 'NOT_FOUND');
+
+    if (userRole !== 'ADMIN' && quiz.createdBy !== userId) {
+      throw new ForbiddenError('Not authorized to access live access code for this quiz', 'FORBIDDEN');
+    }
+
+    const otp = generateQuizOtp(quizId);
+    const remainingSeconds = getOtpRemainingSeconds();
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        quizId,
+        otp,
+        remainingSeconds,
+        stepSeconds: 30,
+        expiresAt: new Date(Date.now() + remainingSeconds * 1000).toISOString()
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Get Curriculum & Distinct Topics for dropdown selection
+export const getQuizTopics = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const defaultTopics = [
+      'Data Structures',
+      'Algorithms',
+      'Object-Oriented Programming',
+      'Database Management Systems',
+      'Operating Systems',
+      'Computer Networks',
+      'Software Engineering',
+      'Web Technologies',
+      'Artificial Intelligence',
+      'Machine Learning',
+      'Cybersecurity',
+      'Discrete Mathematics',
+      'Computer Architecture',
+      'Cloud Computing',
+      'Theory of Computation'
+    ];
+
+    const [dbTopics, questionTopics] = await Promise.all([
+      prisma.topic.findMany({ select: { name: true }, orderBy: { name: 'asc' } }),
+      prisma.question.findMany({
+        where: { topic: { not: null } },
+        select: { topic: true },
+        distinct: ['topic']
+      })
+    ]);
+
+    const uniqueSet = new Set<string>();
+    defaultTopics.forEach((t) => uniqueSet.add(t));
+    dbTopics.forEach((t) => t.name?.trim() && uniqueSet.add(t.name.trim()));
+    questionTopics.forEach((q) => q.topic?.trim() && uniqueSet.add(q.topic.trim()));
+
+    const topics = Array.from(uniqueSet).sort((a, b) => a.localeCompare(b));
+    res.status(200).json({ status: 'success', data: { topics } });
+  } catch (error) {
+    next(error);
+  }
+};
+
 
 

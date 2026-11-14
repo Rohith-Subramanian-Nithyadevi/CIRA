@@ -56,3 +56,25 @@
 - Generic server errors no longer return raw exception messages or development stack traces to clients. Prisma missing-column errors return a plain-language temporary-availability message; internal details remain in server logs.
 - Question Bank and Question Papers use user-facing fallback copy for other server failures and omit internal error codes from those messages.
 - Backend and frontend production builds passed. Automated tests were not run for this follow-up; the existing frontend Jest/jsdom version mismatch remains outstanding.
+
+
+## Follow-up: Review & Proctoring Enhancements (Items 4-14, 23, 24) (2026-11-14)
+
+- **Items Implemented**:
+  - `4.` Question shuffling to ensure randomized question order per student attempt, persisted deterministically across resumes.
+  - `5.` Prevention of duplicate questions in quizzes and Question Bank selection validation.
+  - `6.` Removal of distracting animations and bouncing scale effects across the exam portal interface.
+  - `7.` Implemented Topic selection as a dropdown menu populated with curriculum topics across Question Bank, Question Papers, and Quiz Management.
+  - `8.` Made instructions optional during quiz and question paper creation.
+  - `9.` Fixed question image display (support for mammoth DOCX image parsing to Neon Object Storage / base64 data URIs, container visibility fix).
+  - `10.` 30-second rolling TOTP access code generation with countdown timer and server-side verification.
+  - `11.` Instant screen locking during active quizzes upon proctor flag or security violation.
+  - `12.` Buffered keylogging captured at 1.5s intervals with multi-window interval reporting (1.5s, 5s, 30s, 1m, full session).
+  - `13.` Privacy blackout protection screen triggered on focus loss or privacy events.
+  - `14.` Overlay detection for desktop and mobile devices triggering blackout and logging violation telemetry.
+  - `23.` Faculty edit mark toggle for objective questions on submitted attempts.
+  - `24.` Manual mark entry for unsubmitted/offline student attempts.
+- **Validation**:
+  - `backend-core`: `npm test` passed (16 test suites, 66 tests passed).
+  - `frontend-web`: `npm test` passed (24 test suites, 94 tests passed).
+  - Production builds: `npm --prefix backend-core run build` and `npm --prefix frontend-web run build` passed with 0 errors.

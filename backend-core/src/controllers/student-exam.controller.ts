@@ -3,6 +3,7 @@ import { prisma } from '../config/prisma';
 import { BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError } from '../utils/errors';
 import { assertStudentOwnsAttempt } from '../utils/faculty-security';
 import { resolveQuestionImages } from '../utils/object-storage';
+import { verifyQuizOtp } from '../utils/totp';
 
 export const OBJECTIVE_TYPES = ['MCQ', 'MULTI_SELECT', 'TRUE_FALSE', 'MATCHING', 'NUMERICAL', 'FILL_BLANK'];
 
@@ -387,6 +388,45 @@ export const startExam = async (req: Request, res: Response, next: NextFunction)
         }
         return q;
       }));
+
+      // Question Shuffling: randomize question order per student attempt and persist order
+      const attemptMetrics = (attempt.metrics && typeof attempt.metrics === 'object' ? attempt.metrics : {}) as Record<string, any>;
+      let orderedQuestions = [...quiz.questions];
+
+      if (Array.isArray(attemptMetrics.questionOrder) && attemptMetrics.questionOrder.length > 0) {
+        const orderMap = new Map(attemptMetrics.questionOrder.map((id: string, idx: number) => [id, idx]));
+        orderedQuestions.sort((a: any, b: any) => {
+          const idxA = orderMap.has(a.id) ? orderMap.get(a.id)! : 9999;
+          const idxB = orderMap.has(b.id) ? orderMap.get(b.id)! : 9999;
+          return idxA - idxB;
+        });
+      } else if (orderedQuestions.length > 1) {
+        // Seeded pseudo-random shuffle based on attempt.id and userId for reproducibility
+        const seedStr = `${attempt.id}-${userId}`;
+        let hash = 0;
+        for (let i = 0; i < seedStr.length; i++) {
+          hash = (hash << 5) - hash + seedStr.charCodeAt(i);
+          hash |= 0;
+        }
+        const pseudoRandom = () => {
+          hash = Math.imul(hash ^ (hash >>> 15), 1 | hash);
+          hash = (hash + Math.imul(hash ^ (hash >>> 7), 61 | hash)) ^ hash;
+          return ((hash ^ (hash >>> 14)) >>> 0) / 4294967296;
+        };
+
+        for (let i = orderedQuestions.length - 1; i > 0; i--) {
+          const j = Math.floor(pseudoRandom() * (i + 1));
+          [orderedQuestions[i], orderedQuestions[j]] = [orderedQuestions[j], orderedQuestions[i]];
+        }
+
+        const questionOrder = orderedQuestions.map((q: any) => q.id);
+        attemptMetrics.questionOrder = questionOrder;
+        await prisma.quizAttempt.update({
+          where: { id: attempt.id },
+          data: { metrics: attemptMetrics },
+        });
+      }
+      quiz.questions = orderedQuestions;
     }
 
     res.set?.('Cache-Control', 'no-store');
@@ -940,3 +980,32 @@ export const getQuizResult = async (req: Request, res: Response, next: NextFunct
     next(error);
   }
 };
+
+// Verify 30-second live rotating OTP for quiz entrance
+export const verifyQuizAccessOtp = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const quizId = req.params.quizId as string;
+    const { otp } = req.body;
+
+    if (!otp || typeof otp !== 'string') {
+      throw new BadRequestError('6-digit OTP code is required.', 'INVALID_OTP');
+    }
+
+    const quiz = await prisma.quiz.findUnique({ where: { id: quizId } });
+    if (!quiz) throw new NotFoundError('Quiz not found', 'NOT_FOUND');
+
+    const isValid = verifyQuizOtp(quizId, otp);
+    if (!isValid) {
+      throw new BadRequestError('Invalid or expired OTP. Please use the current live OTP from your instructor.', 'OTP_VERIFICATION_FAILED');
+    }
+
+    res.status(200).json({
+      status: 'success',
+      message: 'OTP verified successfully.',
+      data: { verified: true, quizId }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

@@ -1,7 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
-import { useSecureExam, type SecurityViolationEvent } from '../../hooks/useSecureExam';
+import {
+  useSecureExam,
+  isMultiDisplayDetected,
+  isFullscreenSupported,
+  type SecurityViolationEvent,
+} from '../../hooks/useSecureExam';
 import { apiClient } from '../../lib/apiClient';
 
 type QuestionStatus = 'NOT_VISITED' | 'NOT_ANSWERED' | 'ANSWERED' | 'MARKED_FOR_REVIEW' | 'ANSWERED_AND_MARKED_FOR_REVIEW';
@@ -33,12 +38,29 @@ export default function ExamInterface() {
   const [startingExam, setStartingExam] = useState(false);
   const [hasStartedSecureExam, setHasStartedSecureExam] = useState(false);
   const [fullscreenError, setFullscreenError] = useState<string | null>(null);
+  const [backgroundAppsConfirmed, setBackgroundAppsConfirmed] = useState(false);
+  const [backgroundAppsError, setBackgroundAppsError] = useState<string | null>(null);
+  const [multiDisplayError, setMultiDisplayError] = useState<string | null>(null);
   const [lockedOutMessage, setLockedOutMessage] = useState<string | null>(null);
   const [showMobilePalette, setShowMobilePalette] = useState(false);
   const [zoomedImageUrl, setZoomedImageUrl] = useState<string | null>(null);
   const [imageStatus, setImageStatus] = useState<'loading' | 'loaded' | 'error'>('loaded');
   const submittingRef = useRef(false);
   const attemptIdRef = useRef('');
+
+  const checkDiagnostics = useCallback(() => {
+    if (isMultiDisplayDetected()) {
+      setMultiDisplayError(
+        'Multiple displays detected. HackerRank-style proctoring requires a single monitor. Please disconnect external monitors or disable display extension to continue.'
+      );
+    } else {
+      setMultiDisplayError(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    checkDiagnostics();
+  }, [checkDiagnostics]);
 
   // Zero-tolerance: any monitored violation immediately hides quiz (black screen), persists violation, and quits/submits exam
   const handleSecurityViolation = useCallback(async (event: SecurityViolationEvent) => {
@@ -80,9 +102,15 @@ export default function ExamInterface() {
     }
   }, [attemptId, navigate]);
 
-  const { isFullscreen, isBlackScreen, enterFullscreen } = useSecureExam({
+  const keystrokeLogRef = useRef<any[]>([]);
+  const handleKeystrokeBatch = useCallback((batch: any[]) => {
+    keystrokeLogRef.current = [...keystrokeLogRef.current, ...batch].slice(-500);
+  }, []);
+
+  const { isFullscreen, isBlackScreen, isLocked, enterFullscreen } = useSecureExam({
     isActive: hasStartedSecureExam,
-    onViolation: handleSecurityViolation
+    onViolation: handleSecurityViolation,
+    onKeystrokeBatch: handleKeystrokeBatch,
   });
 
   useEffect(() => {
@@ -90,8 +118,7 @@ export default function ExamInterface() {
   }, []);
 
   useEffect(() => {
-    const activeQ = questions[currentQuestionIdx];
-    setImageStatus(activeQ?.image ? 'loading' : 'loaded');
+    setImageStatus('loaded');
     setZoomedImageUrl(null);
   }, [currentQuestionIdx, questions]);
 
@@ -236,8 +263,24 @@ export default function ExamInterface() {
 
   const handleBeginQuiz = async () => {
     if (!quizId || startingExam || instructionsError) return;
+
+    if (isMultiDisplayDetected()) {
+      setMultiDisplayError(
+        'Multiple displays detected. HackerRank-style proctoring requires a single monitor. Please disconnect external monitors or disable display extension to continue.'
+      );
+      return;
+    }
+
+    if (!backgroundAppsConfirmed) {
+      setBackgroundAppsError(
+        'Please confirm that you have closed all background applications before starting the examination.'
+      );
+      return;
+    }
+
     setStartingExam(true);
     setFullscreenError(null);
+    setBackgroundAppsError(null);
     try {
       const fsResult = await enterFullscreen();
       if (!fsResult?.ok) {
@@ -414,6 +457,141 @@ export default function ExamInterface() {
             </div>
           )}
 
+          <div className="bg-white border border-border-soft rounded-2xl p-5 shadow-sm space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-ink flex items-center gap-1.5">
+                <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                System & Environment Readiness
+              </span>
+              <button
+                type="button"
+                onClick={checkDiagnostics}
+                className="text-xs text-maroon hover:underline font-semibold cursor-pointer"
+              >
+                Re-check Diagnostics
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <div className={`p-3 rounded-xl border flex items-center space-x-2.5 ${multiDisplayError ? 'bg-red-50 border-red-200 text-red-900' : 'bg-emerald-50/70 border-emerald-200/80 text-emerald-900'}`}>
+                <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${multiDisplayError ? 'bg-red-500 animate-pulse' : 'bg-emerald-500'}`} />
+                <div className="min-w-0">
+                  <div className="font-bold">{multiDisplayError ? 'Multiple Displays' : 'Single Display Verified'}</div>
+                  <div className="text-[11px] opacity-80 truncate">{multiDisplayError ? 'External display connected' : 'No external monitor'}</div>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl border bg-emerald-50/70 border-emerald-200/80 text-emerald-900 flex items-center space-x-2.5">
+                <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${isFullscreenSupported() ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                <div className="min-w-0">
+                  <div className="font-bold">Fullscreen Mode</div>
+                  <div className="text-[11px] opacity-80 truncate">
+                    {isFullscreenSupported() ? 'Secure Fullscreen Ready' : 'Fullscreen Unsupported'}
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl border bg-emerald-50/70 border-emerald-200/80 text-emerald-900 flex items-center space-x-2.5">
+                <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
+                <div className="min-w-0">
+                  <div className="font-bold">Focus Monitoring</div>
+                  <div className="text-[11px] opacity-80 truncate">Zero-Tolerance Active</div>
+                </div>
+              </div>
+            </div>
+
+            {multiDisplayError && (
+              <div role="alert" className="p-3.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-900 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-start space-x-2">
+                  <svg className="w-4 h-4 text-red-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                  <span>{multiDisplayError}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={checkDiagnostics}
+                  className="px-3 py-1.5 bg-red-700 hover:bg-red-800 text-white font-bold rounded-lg text-xs shrink-0 cursor-pointer self-start sm:self-auto"
+                >
+                  Re-check Displays
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="bg-amber-50/60 border border-amber-300/80 shadow-sm p-6 sm:p-7 rounded-2xl text-left space-y-4">
+            <div className="flex items-start space-x-3 text-amber-900">
+              <div className="p-2 bg-amber-100 rounded-xl shrink-0">
+                <svg className="w-6 h-6 text-amber-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="font-bold text-lg text-ink font-serif">Proctoring Rule: Close All Background Applications</h3>
+                <p className="text-xs sm:text-sm text-gray-body mt-0.5">
+                  Like HackerRank, this exam runs in strict lockdown. Modern browser proctoring monitors active window focus and visibility.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs sm:text-sm text-ink">
+              <div className="bg-white/80 border border-amber-200/70 rounded-xl p-3.5 space-y-1">
+                <div className="font-bold text-maroon flex items-center gap-1.5">
+                  <span>📱</span> Messaging & Social Tools
+                </div>
+                <p className="text-gray-body text-xs">
+                  Close <strong>WhatsApp, Discord, Slack, Teams, Telegram, Zoom, Skype</strong>.
+                </p>
+              </div>
+
+              <div className="bg-white/80 border border-amber-200/70 rounded-xl p-3.5 space-y-1">
+                <div className="font-bold text-maroon flex items-center gap-1.5">
+                  <span>🌐</span> Extra Tabs & Windows
+                </div>
+                <p className="text-gray-body text-xs">
+                  Close all secondary browser tabs, windows, and incognito sessions.
+                </p>
+              </div>
+
+              <div className="bg-white/80 border border-amber-200/70 rounded-xl p-3.5 space-y-1">
+                <div className="font-bold text-maroon flex items-center gap-1.5">
+                  <span>💻</span> Development & Screen Utilities
+                </div>
+                <p className="text-gray-body text-xs">
+                  Close <strong>VS Code, terminals, OBS, AnyDesk, TeamViewer</strong>, and screen recorders.
+                </p>
+              </div>
+
+              <div className="bg-white/80 border border-amber-200/70 rounded-xl p-3.5 space-y-1">
+                <div className="font-bold text-amber-800 flex items-center gap-1.5">
+                  <span>🔕</span> Enable "Do Not Disturb"
+                </div>
+                <p className="text-gray-body text-xs">
+                  Turn on OS <strong>Do Not Disturb</strong>. Any background pop-up or notification stealing focus will auto-submit your exam!
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-amber-200/80">
+              <label
+                htmlFor="confirm-close-background-apps"
+                className="flex items-start space-x-3 cursor-pointer select-none"
+              >
+                <input
+                  type="checkbox"
+                  id="confirm-close-background-apps"
+                  checked={backgroundAppsConfirmed}
+                  onChange={(e) => {
+                    setBackgroundAppsConfirmed(e.target.checked);
+                    if (e.target.checked) setBackgroundAppsError(null);
+                  }}
+                  className="mt-1 w-4 h-4 rounded border-gray-300 text-maroon focus:ring-maroon cursor-pointer shrink-0"
+                />
+                <span className="text-xs sm:text-sm font-semibold text-ink leading-snug">
+                  I confirm that I have closed all background applications, secondary browser tabs, and messaging tools, and enabled Do Not Disturb. I understand any focus loss or notification will automatically submit my examination.
+                </span>
+              </label>
+            </div>
+          </div>
+
           <div className="bg-white border border-maroon/30 shadow-sm p-6 sm:p-8 rounded-2xl text-left space-y-5">
             <div className="flex items-center space-x-3 text-maroon">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
@@ -445,6 +623,29 @@ export default function ExamInterface() {
           </div>
 
           <div className="flex flex-col items-center justify-center gap-3 pt-2">
+            {backgroundAppsError && (
+              <div
+                role="alert"
+                className="w-full bg-amber-50 border border-amber-300 text-amber-900 rounded-xl p-4 text-sm flex items-center justify-between gap-3"
+              >
+                <span className="font-medium">{backgroundAppsError}</span>
+              </div>
+            )}
+            {multiDisplayError && (
+              <div
+                role="alert"
+                className="w-full bg-red-50 border border-red-200 text-red-900 rounded-xl p-4 text-sm flex items-center justify-between gap-3"
+              >
+                <span className="font-medium">{multiDisplayError}</span>
+                <button
+                  type="button"
+                  onClick={checkDiagnostics}
+                  className="px-4 py-2 bg-red-700 hover:bg-red-800 text-white font-bold rounded-full text-xs shrink-0 cursor-pointer"
+                >
+                  Re-check Displays
+                </button>
+              </div>
+            )}
             {fullscreenError && (
               <div
                 role="alert"
@@ -464,14 +665,19 @@ export default function ExamInterface() {
             <button
               type="button"
               onClick={handleBeginQuiz}
-              disabled={startingExam || loadingInstructions}
-              className="px-10 py-4 bg-maroon hover:bg-maroon-deep disabled:opacity-50 text-white font-bold rounded-full text-lg shadow-sm transition-all hover:scale-105 active:scale-95 flex items-center justify-center space-x-2 cursor-pointer"
+              disabled={startingExam || loadingInstructions || Boolean(multiDisplayError) || !backgroundAppsConfirmed}
+              className="px-10 py-4 bg-maroon hover:bg-maroon-deep disabled:opacity-50 text-white font-bold rounded-full text-lg shadow-sm transition-colors flex items-center justify-center space-x-2 cursor-pointer disabled:cursor-not-allowed"
             >
               <span>{startingExam ? 'Starting Quiz...' : 'Begin Quiz'}</span>
               {!startingExam && (
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
               )}
             </button>
+            {!backgroundAppsConfirmed && !multiDisplayError && (
+              <p className="text-xs text-gray-body italic">
+                Please confirm the background applications checklist above to enable Begin Quiz.
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -486,6 +692,29 @@ export default function ExamInterface() {
     );
   }
 
+  if (isLocked) {
+    return (
+      <div
+        data-testid="security-locked-screen"
+        style={{ backgroundColor: '#000000' }}
+        className="fixed inset-0 z-[99999] bg-[#000000] text-white select-none flex flex-col items-center justify-center p-6 text-center space-y-4"
+      >
+        <div className="max-w-md p-6 rounded-2xl bg-zinc-900 border border-red-900/60 space-y-3">
+          <div className="w-12 h-12 rounded-full bg-red-950 border border-red-500 flex items-center justify-center mx-auto text-red-500 font-bold text-xl">
+            🔒
+          </div>
+          <h2 className="text-xl font-bold font-serif text-white">Quiz Session Locked</h2>
+          <p className="text-xs text-zinc-300 leading-relaxed">
+            Your quiz attempt has been locked due to security policy violations or an unauthorized application overlay.
+          </p>
+          <div className="pt-2 text-[11px] text-zinc-400">
+            Please contact your faculty invigilator to request an authorized restart.
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (isBlackScreen || !isFullscreen) {
     const canPromptFullscreen =
       !isFullscreen && (typeof document === 'undefined' || document.visibilityState !== 'hidden');
@@ -493,8 +722,16 @@ export default function ExamInterface() {
       <div
         data-testid="security-black-screen"
         style={{ backgroundColor: '#000000' }}
-        className="fixed inset-0 z-[9999] bg-[#000000] select-none flex items-center justify-center"
+        className="fixed inset-0 z-[9999] bg-[#000000] select-none flex flex-col items-center justify-center p-6 text-center text-white space-y-4"
       >
+        <div className="max-w-md space-y-2">
+          <p className="text-xs font-bold text-amber-400 uppercase tracking-widest">
+            Privacy Blackout Protection Active
+          </p>
+          <p className="text-xs text-zinc-400">
+            External overlay or window defocus detected. Fullscreen mode is required to access questions.
+          </p>
+        </div>
         {canPromptFullscreen && (
           <button
             type="button"
@@ -582,7 +819,7 @@ export default function ExamInterface() {
                   setCurrentQuestionIdx(idx);
                   if (closeOnSelect) setShowMobilePalette(false);
                 }}
-                className={`w-11 h-11 rounded-lg font-bold flex items-center justify-center transition-all shadow-sm hover:scale-105 active:scale-95 text-sm cursor-pointer ${getStatusColor(status)} ${currentQuestionIdx === idx ? 'ring-2 ring-maroon ring-offset-2 scale-110' : ''}`}
+                className={`w-11 h-11 rounded-lg font-bold flex items-center justify-center transition-colors shadow-sm text-sm cursor-pointer ${getStatusColor(status)} ${currentQuestionIdx === idx ? 'ring-2 ring-maroon ring-offset-2' : ''}`}
               >
                 {idx + 1}
               </button>
@@ -654,11 +891,6 @@ export default function ExamInterface() {
             </div>
             {currentQ.image && (
               <div className="mb-6 sm:mb-8 space-y-2">
-                {imageStatus === 'loading' && (
-                  <div className="h-40 w-full max-w-md rounded-xl border border-border-soft bg-cream/40 animate-pulse flex items-center justify-center text-xs font-semibold text-gray-body">
-                    Loading question image...
-                  </div>
-                )}
                 {imageStatus === 'error' ? (
                   <div className="p-4 rounded-xl border border-red-200 bg-red-50 text-xs font-semibold text-red-700">
                     Question image failed to load. Please continue answering or notify your faculty member.
@@ -667,7 +899,7 @@ export default function ExamInterface() {
                   <button
                     type="button"
                     onClick={() => setZoomedImageUrl(currentQ.image || null)}
-                    className={`group relative inline-block max-w-full rounded-xl border border-border-soft bg-cream/10 overflow-hidden cursor-zoom-in ${imageStatus === 'loading' ? 'hidden' : ''}`}
+                    className="group relative inline-block max-w-full rounded-xl border border-border-soft bg-cream/10 overflow-hidden cursor-zoom-in"
                     aria-label="Enlarge question image"
                   >
                     <img
@@ -820,14 +1052,14 @@ export default function ExamInterface() {
 
           <div className="bg-white border-t border-border-soft p-3 sm:p-4 flex flex-col-reverse sm:flex-row sm:justify-between sm:items-center gap-2.5 sm:gap-3 shadow-sm shrink-0">
             <div className="flex flex-wrap items-center gap-2">
-              <button type="button" onClick={handleMarkReview} className="flex-1 sm:flex-initial min-h-[42px] px-3.5 sm:px-5 py-2 border border-purple-600 text-purple-700 hover:bg-purple-50 font-bold text-xs sm:text-sm rounded-full transition-all cursor-pointer">Mark for Review & Next</button>
-              <button type="button" onClick={handleClear} className="min-h-[42px] px-3.5 sm:px-5 py-2 border border-border-soft text-gray-body hover:bg-cream/40 font-bold text-xs sm:text-sm rounded-full transition-all cursor-pointer">Clear</button>
+              <button type="button" onClick={handleMarkReview} className="flex-1 sm:flex-initial min-h-[42px] px-3.5 sm:px-5 py-2 border border-purple-600 text-purple-700 hover:bg-purple-50 font-bold text-xs sm:text-sm rounded-full transition-colors cursor-pointer">Mark for Review & Next</button>
+              <button type="button" onClick={handleClear} className="min-h-[42px] px-3.5 sm:px-5 py-2 border border-border-soft text-gray-body hover:bg-cream/40 font-bold text-xs sm:text-sm rounded-full transition-colors cursor-pointer">Clear</button>
             </div>
             <div className="flex items-center gap-2 sm:gap-3">
-              <button type="button" onClick={handlePrevious} disabled={currentQuestionIdx === 0} className="flex-1 sm:flex-initial min-h-[44px] px-4 sm:px-5 py-2 bg-cream border border-border-soft text-ink hover:bg-cream-edge/30 disabled:opacity-50 font-bold text-xs sm:text-sm rounded-full transition-all cursor-pointer">Previous</button>
-              <button type="button" onClick={handleNext} disabled={currentQuestionIdx === questions.length - 1} className="flex-1 sm:flex-initial min-h-[44px] px-4 sm:px-5 py-2 bg-maroon text-white hover:bg-maroon-deep disabled:opacity-50 font-bold text-xs sm:text-sm rounded-full transition-all cursor-pointer">Save & Next</button>
+              <button type="button" onClick={handlePrevious} disabled={currentQuestionIdx === 0} className="flex-1 sm:flex-initial min-h-[44px] px-4 sm:px-5 py-2 bg-cream border border-border-soft text-ink hover:bg-cream-edge/30 disabled:opacity-50 font-bold text-xs sm:text-sm rounded-full transition-colors cursor-pointer">Previous</button>
+              <button type="button" onClick={handleNext} disabled={currentQuestionIdx === questions.length - 1} className="flex-1 sm:flex-initial min-h-[44px] px-4 sm:px-5 py-2 bg-maroon text-white hover:bg-maroon-deep disabled:opacity-50 font-bold text-xs sm:text-sm rounded-full transition-colors cursor-pointer">Save & Next</button>
               {currentQuestionIdx === questions.length - 1 && (
-                <button type="button" onClick={handleSubmit} className="flex-1 sm:flex-initial min-h-[44px] px-4 sm:px-6 py-2 bg-green-700 text-white hover:bg-green-800 font-bold text-xs sm:text-sm rounded-full transition-all shadow-sm cursor-pointer">Submit Exam</button>
+                <button type="button" onClick={handleSubmit} className="flex-1 sm:flex-initial min-h-[44px] px-4 sm:px-6 py-2 bg-green-700 text-white hover:bg-green-800 font-bold text-xs sm:text-sm rounded-full transition-colors shadow-sm cursor-pointer">Submit Exam</button>
               )}
             </div>
           </div>
