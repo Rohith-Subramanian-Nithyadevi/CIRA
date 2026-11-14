@@ -3,6 +3,7 @@ import { prisma } from '../config/prisma';
 import { BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError } from '../utils/errors';
 import { assertStudentOwnsAttempt } from '../utils/faculty-security';
 import { resolveQuestionImages } from '../utils/object-storage';
+import { verifyQuizOtp } from '../utils/totp';
 
 export const OBJECTIVE_TYPES = ['MCQ', 'MULTI_SELECT', 'TRUE_FALSE', 'MATCHING', 'NUMERICAL', 'FILL_BLANK'];
 
@@ -234,6 +235,10 @@ export const getQuizInstructions = async (req: Request, res: Response, next: Nex
       ...quiz.questions.map((q) => q.id),
       ...quiz.questionUsages.map((u) => u.questionId)
     ]);
+    const poolCount = Number((quiz as any).performanceBands?.questionPoolCount);
+    const totalPoolQuestions = questionIds.size;
+    const isPoolSubset = poolCount > 0 && poolCount < totalPoolQuestions;
+    const effectiveQuestionCount = isPoolSubset ? poolCount : totalPoolQuestions;
 
     res.set?.('Cache-Control', 'no-store');
     res.status(200).json({
@@ -252,7 +257,9 @@ export const getQuizInstructions = async (req: Request, res: Response, next: Nex
           violationCount: attempt?.violationCount ?? 0,
           startDate: quiz.startDate,
           endDate: quiz.endDate,
-          questionCount: questionIds.size
+          questionCount: effectiveQuestionCount,
+          totalPoolQuestions: isPoolSubset ? totalPoolQuestions : undefined,
+          isPoolSubset
         }
       }
     });
@@ -387,6 +394,74 @@ export const startExam = async (req: Request, res: Response, next: NextFunction)
         }
         return q;
       }));
+
+      // Question Shuffling & Pool Sampling:
+      // Randomize question order per student attempt and select only a subset if questionPoolCount is configured
+      const attemptMetrics = (attempt.metrics && typeof attempt.metrics === 'object' ? attempt.metrics : {}) as Record<string, any>;
+      const poolCount = Number((quiz as any).performanceBands?.questionPoolCount);
+      let orderedQuestions: any[] = [];
+
+      if (Array.isArray(attemptMetrics.questionOrder) && attemptMetrics.questionOrder.length > 0) {
+        // Attempt already has its assigned question subset & order: restore exactly that subset & sequence
+        const orderMap = new Map(attemptMetrics.questionOrder.map((id: string, idx: number) => [id, idx]));
+        orderedQuestions = quiz.questions.filter((q: any) => orderMap.has(q.id));
+        orderedQuestions.sort((a: any, b: any) => {
+          const idxA = orderMap.get(a.id)!;
+          const idxB = orderMap.get(b.id)!;
+          return idxA - idxB;
+        });
+      } else if (quiz.questions.length > 0) {
+        // First time starting: seed deterministic PRNG for this student attempt
+        const seedStr = `${attempt.id}-${userId}-${quizId}`;
+        let hash = 0;
+        for (let i = 0; i < seedStr.length; i++) {
+          hash = (hash << 5) - hash + seedStr.charCodeAt(i);
+          hash |= 0;
+        }
+        const pseudoRandom = () => {
+          hash = Math.imul(hash ^ (hash >>> 15), 1 | hash);
+          hash = (hash + Math.imul(hash ^ (hash >>> 7), 61 | hash)) ^ hash;
+          return ((hash ^ (hash >>> 14)) >>> 0) / 4294967296;
+        };
+
+        // Clone unique pool questions
+        const pool = [...quiz.questions];
+
+        // Fisher-Yates uniform shuffle of the full question pool
+        for (let i = pool.length - 1; i > 0; i--) {
+          const j = Math.floor(pseudoRandom() * (i + 1));
+          [pool[i], pool[j]] = [pool[j], pool[i]];
+        }
+
+        // If pool subset count is configured (and less than total pool questions), take exactly that many!
+        if (poolCount > 0 && poolCount < pool.length) {
+          orderedQuestions = pool.slice(0, poolCount);
+        } else {
+          orderedQuestions = pool;
+        }
+
+        const questionOrder = orderedQuestions.map((q: any) => q.id);
+        attemptMetrics.questionOrder = questionOrder;
+        attemptMetrics.isPoolSubset = poolCount > 0 && poolCount < pool.length;
+        attemptMetrics.poolTotalQuestions = pool.length;
+        attemptMetrics.assignedQuestionCount = orderedQuestions.length;
+
+        if (typeof prisma.quizAttempt?.update === 'function') {
+          await prisma.quizAttempt.update({
+            where: { id: attempt.id },
+            data: { metrics: attemptMetrics },
+          });
+        }
+      } else {
+        orderedQuestions = [];
+      }
+
+      // If pool subset is active, recalculate quiz totalMarks for this student attempt
+      if (orderedQuestions.length > 0 && poolCount > 0 && poolCount < quiz.questions.length) {
+        const studentMarks = orderedQuestions.reduce((sum: number, q: any) => sum + (Number(q.marks) || 0), 0);
+        quiz.totalMarks = studentMarks;
+      }
+      quiz.questions = orderedQuestions;
     }
 
     res.set?.('Cache-Control', 'no-store');
@@ -940,3 +1015,32 @@ export const getQuizResult = async (req: Request, res: Response, next: NextFunct
     next(error);
   }
 };
+
+// Verify 30-second live rotating OTP for quiz entrance
+export const verifyQuizAccessOtp = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const quizId = req.params.quizId as string;
+    const { otp } = req.body;
+
+    if (!otp || typeof otp !== 'string') {
+      throw new BadRequestError('6-digit OTP code is required.', 'INVALID_OTP');
+    }
+
+    const quiz = await prisma.quiz.findUnique({ where: { id: quizId } });
+    if (!quiz) throw new NotFoundError('Quiz not found', 'NOT_FOUND');
+
+    const isValid = verifyQuizOtp(quizId, otp);
+    if (!isValid) {
+      throw new BadRequestError('Invalid or expired OTP. Please use the current live OTP from your instructor.', 'OTP_VERIFICATION_FAILED');
+    }
+
+    res.status(200).json({
+      status: 'success',
+      message: 'OTP verified successfully.',
+      data: { verified: true, quizId }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

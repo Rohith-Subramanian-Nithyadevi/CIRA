@@ -16,8 +16,13 @@ const mockSecureExamState = {
   enterFullscreen: jest.fn(async () => ({ ok: true })),
 };
 
+const mockIsMultiDisplayDetected = jest.fn(() => false);
+
 jest.mock('../../hooks/useSecureExam', () => ({
   useSecureExam: () => mockSecureExamState,
+  isMultiDisplayDetected: () => mockIsMultiDisplayDetected(),
+  isFullscreenSupported: jest.fn(() => true),
+  getFullscreenElement: jest.fn(() => null),
 }));
 
 jest.mock('@/components/DashboardLayout', () => ({
@@ -163,7 +168,12 @@ describe('Simplified Student Quiz Navigation Flow', () => {
     // Go back to Instructions and click Begin Quiz -> Actual Quiz opens
     fireEvent.click(screen.getByRole('button', { name: /Start Quiz/i }));
     expect(await screen.findByText('Attempt all questions carefully.')).toBeInTheDocument();
+    expect(screen.getByText(/Proctoring Rule: Close All Background Applications/i)).toBeInTheDocument();
     const beginBtn = screen.getByRole('button', { name: /Begin Quiz/i });
+    expect(beginBtn).toBeDisabled();
+
+    // Confirm closing background applications
+    fireEvent.click(screen.getByLabelText(/I confirm that I have closed all background applications/i));
     expect(beginBtn).not.toBeDisabled();
     fireEvent.click(beginBtn);
 
@@ -251,6 +261,7 @@ describe('Simplified Student Quiz Navigation Flow', () => {
       </MemoryRouter>
     );
 
+    fireEvent.click(await screen.findByLabelText(/I confirm that I have closed all background applications/i));
     const beginBtn = await screen.findByRole('button', { name: /Begin Quiz/i });
     fireEvent.click(beginBtn);
 
@@ -379,6 +390,7 @@ describe('Simplified Student Quiz Navigation Flow', () => {
       </MemoryRouter>
     );
 
+    fireEvent.click(await screen.findByLabelText(/I confirm that I have closed all background applications/i));
     fireEvent.click(await screen.findByRole('button', { name: /Begin Quiz/i }));
     expect(await screen.findByText('Identify the network topology shown below.')).toBeInTheDocument();
 
@@ -400,5 +412,104 @@ describe('Simplified Student Quiz Navigation Flow', () => {
     expect(await screen.findByText('Match protocol to layer.')).toBeInTheDocument();
     const selects = screen.getAllByRole('combobox');
     expect(selects).toHaveLength(2);
+  });
+
+  it('enforces HackerRank-style background applications closure and multi-display detection', async () => {
+    (apiClient.fetch as jest.Mock).mockImplementation(async (path: string) => {
+      if (path === '/api/v1/student/exam/instructions/quiz-diag-1') {
+        return {
+          ok: true,
+          json: async () => ({
+            status: 'success',
+            data: {
+              quiz: {
+                id: 'quiz-diag-1',
+                title: 'Diagnostics Security Quiz',
+                subject: 'Cloud Security',
+                durationMinutes: 30,
+                totalMarks: 10,
+                questionCount: 1,
+              },
+            },
+          }),
+        };
+      }
+      if (path === '/api/v1/student/exam/start/quiz-diag-1') {
+        return {
+          ok: true,
+          json: async () => ({
+            status: 'success',
+            data: {
+              attempt: { id: 'attempt-diag', startTime: new Date().toISOString(), responses: [] },
+              quiz: {
+                id: 'quiz-diag-1',
+                title: 'Diagnostics Security Quiz',
+                subject: 'Cloud Security',
+                questions: [{ id: 'q-d1', type: 'MCQ', text: 'Secure question', marks: 10 }],
+              },
+            },
+          }),
+        };
+      }
+      return { ok: true, json: async () => ({ status: 'success', data: {} }) };
+    });
+
+    // 1. First test multi-display detected
+    mockIsMultiDisplayDetected.mockReturnValueOnce(true);
+
+    const { unmount } = render(
+      <MemoryRouter initialEntries={['/exam-portal/take/quiz-diag-1']}>
+        <Routes>
+          <Route path="/exam-portal/take/:quizId" element={<ExamInterface />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText(/Proctoring Rule: Close All Background Applications/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Multiple Displays/i).length).toBeGreaterThan(0);
+    const beginBtn = screen.getByRole('button', { name: /Begin Quiz/i });
+    expect(beginBtn).toBeDisabled();
+
+    // Recheck displays button exists
+    expect(screen.getAllByRole('button', { name: /Re-check Displays/i }).length).toBeGreaterThan(0);
+
+    unmount();
+
+    // 2. Single display, but background apps not confirmed yet
+    mockIsMultiDisplayDetected.mockReturnValue(false);
+
+    render(
+      <MemoryRouter initialEntries={['/exam-portal/take/quiz-diag-1']}>
+        <Routes>
+          <Route path="/exam-portal/take/:quizId" element={<ExamInterface />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('Single Display Verified')).toBeInTheDocument();
+    expect(screen.getByText('Secure Fullscreen Ready')).toBeInTheDocument();
+    expect(screen.getByText('Zero-Tolerance Active')).toBeInTheDocument();
+
+    const beginBtn2 = screen.getByRole('button', { name: /Begin Quiz/i });
+    expect(beginBtn2).toBeDisabled();
+    expect(
+      screen.getByText(/Please confirm the background applications checklist above to enable Begin Quiz/i)
+    ).toBeInTheDocument();
+
+    // Confirm checkbox
+    const confirmCheckbox = screen.getByLabelText(/I confirm that I have closed all background applications/i);
+    fireEvent.click(confirmCheckbox);
+    expect(beginBtn2).not.toBeDisabled();
+
+    // Unchecking again disables the button
+    fireEvent.click(confirmCheckbox);
+    expect(beginBtn2).toBeDisabled();
+
+    // Re-check and start
+    fireEvent.click(confirmCheckbox);
+    expect(beginBtn2).not.toBeDisabled();
+    fireEvent.click(beginBtn2);
+
+    expect(await screen.findByText('Secure question')).toBeInTheDocument();
   });
 });

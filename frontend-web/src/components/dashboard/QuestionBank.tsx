@@ -22,6 +22,24 @@ const types: Array<{ value: QuestionType; label: string }> = [
   { value: 'LONG_WRITTEN', label: 'Long written' }, { value: 'MATCHING', label: 'Matching' }, { value: 'CODING', label: 'Coding' },
 ];
 
+const DEFAULT_BANK_TOPICS = [
+  'Data Structures',
+  'Algorithms',
+  'Object-Oriented Programming',
+  'Database Management Systems',
+  'Operating Systems',
+  'Computer Networks',
+  'Software Engineering',
+  'Web Technologies',
+  'Artificial Intelligence',
+  'Machine Learning',
+  'Cybersecurity',
+  'Discrete Mathematics',
+  'Computer Architecture',
+  'Cloud Computing',
+  'Theory of Computation'
+];
+
 type FormQuestion = {
   category: Category; type: QuestionType; text: string; subject: string; topic: string; subtopic: string; difficulty: string;
   tags: string; marks: string; negativeMarks: string; options: any; answerKey: any; explanation: string; image: string;
@@ -217,7 +235,7 @@ export default function QuestionBank() {
 
     {editorOpen ? <section className="rounded-2xl border border-border-soft bg-white p-5 shadow-sm"><div className="mb-4 flex items-center justify-between"><h3 className="font-serif text-xl font-bold">{editing ? 'Edit question' : 'Create question'}</h3><button onClick={() => resetEditor()} aria-label="Close editor" className="rounded-lg p-2 text-gray-body hover:bg-cream"><X className="h-4 w-4" /></button></div>
       <form onSubmit={saveQuestion} className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Field label="Question type"><select aria-label="Question type" value={form.type} onChange={(event) => handleTypeChange(event.target.value as QuestionType)} className={inputClass}>{types.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></Field><Field label="Subject"><input aria-label="Subject" value={form.subject} onChange={(event) => setField('subject', event.target.value)} className={inputClass} /></Field><Field label="Topic"><input aria-label="Topic" value={form.topic} onChange={(event) => setField('topic', event.target.value)} className={inputClass} /></Field><Field label="Subtopic"><input aria-label="Subtopic" value={form.subtopic} onChange={(event) => setField('subtopic', event.target.value)} className={inputClass} /></Field><Field label="Difficulty"><select aria-label="Difficulty" value={form.difficulty} onChange={(event) => setField('difficulty', event.target.value)} className={inputClass}><option>Easy</option><option>Medium</option><option>Hard</option></select></Field><Field label="Marks"><input aria-label="Marks" type="number" min="0.5" step="0.5" value={form.marks} onChange={(event) => setField('marks', event.target.value)} className={inputClass} /></Field><Field label="Negative marks"><input aria-label="Negative marks" type="number" min="0" step="0.25" value={form.negativeMarks} onChange={(event) => setField('negativeMarks', event.target.value)} className={inputClass} /></Field><Field label="Tags (comma separated)"><input aria-label="Tags" value={form.tags} onChange={(event) => setField('tags', event.target.value)} className={inputClass} /></Field></div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Field label="Question type"><select aria-label="Question type" value={form.type} onChange={(event) => handleTypeChange(event.target.value as QuestionType)} className={inputClass}>{types.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></Field><Field label="Subject"><input aria-label="Subject" value={form.subject} onChange={(event) => setField('subject', event.target.value)} className={inputClass} /></Field><Field label="Topic"><select aria-label="Topic" value={form.topic} onChange={(event) => setField('topic', event.target.value)} className={inputClass}><option value="">Select Topic...</option>{DEFAULT_BANK_TOPICS.map((t) => <option key={t} value={t}>{t}</option>)}{form.topic && !DEFAULT_BANK_TOPICS.includes(form.topic) && <option value={form.topic}>{form.topic}</option>}</select></Field><Field label="Subtopic"><input aria-label="Subtopic" value={form.subtopic} onChange={(event) => setField('subtopic', event.target.value)} className={inputClass} /></Field><Field label="Difficulty"><select aria-label="Difficulty" value={form.difficulty} onChange={(event) => setField('difficulty', event.target.value)} className={inputClass}><option>Easy</option><option>Medium</option><option>Hard</option></select></Field><Field label="Marks"><input aria-label="Marks" type="number" min="0.5" step="0.5" value={form.marks} onChange={(event) => setField('marks', event.target.value)} className={inputClass} /></Field><Field label="Negative marks"><input aria-label="Negative marks" type="number" min="0" step="0.25" value={form.negativeMarks} onChange={(event) => setField('negativeMarks', event.target.value)} className={inputClass} /></Field><Field label="Tags (comma separated)"><input aria-label="Tags" value={form.tags} onChange={(event) => setField('tags', event.target.value)} className={inputClass} /></Field></div>
         <Field label="Question content"><textarea aria-label="Question content" required rows={4} value={form.text} onChange={(event) => setField('text', event.target.value)} className={inputClass} /></Field>
         {renderTypeEditor()}
         <Field label="Explanation or marking guidance"><textarea aria-label="Explanation" rows={3} value={form.explanation} onChange={(event) => setField('explanation', event.target.value)} className={inputClass} /></Field>

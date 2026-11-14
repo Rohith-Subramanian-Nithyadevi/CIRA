@@ -109,8 +109,15 @@ const parseMCQs = (rawText: string): any[] => {
       startLineIdx++;
     }
 
+    let extractedTopic = '';
     for (let i = startLineIdx; i < lines.length; i++) {
       const line = lines[i];
+
+      const topicMatch = line.match(/^(?:Topic|Subject)[\s\:\-\=]+(.*)/i);
+      if (topicMatch) {
+        extractedTopic = topicMatch[1].trim();
+        continue;
+      }
 
       const answerMatch = line.match(/^(?:Answer|Correct|Ans|Correct Answer|Key)[\s\:\-\=]+(.*)/i);
       if (answerMatch) {
@@ -166,7 +173,7 @@ const parseMCQs = (rawText: string): any[] => {
       marks: 1,
       options: options,
       answerKey: correctOptionText || '',
-      topic: ''
+      topic: extractedTopic || ''
     });
   }
 
@@ -214,10 +221,16 @@ const parseShortWritten = (rawText: string): any[] => {
     }
 
     let answerKey = '';
+    let extractedTopic = '';
     let foundAnswer = false;
 
     for (let i = startLineIdx; i < lines.length; i++) {
       const line = lines[i];
+      const topicMatch = line.match(/^(?:Topic|Subject)[\s\:\-\=]+(.*)/i);
+      if (topicMatch) {
+        extractedTopic = topicMatch[1].trim();
+        continue;
+      }
       const answerMatch = line.match(/^(?:Answer|Correct|Ans|Expected Answer)[\s\:\-\=]+(.*)/i);
       if (answerMatch) {
         answerKey = answerMatch[1].trim();
@@ -237,7 +250,7 @@ const parseShortWritten = (rawText: string): any[] => {
       marks: 2,
       options: null,
       answerKey: answerKey,
-      topic: ''
+      topic: extractedTopic || ''
     });
   }
   return parsed;
@@ -284,9 +297,15 @@ const parseNumerical = (rawText: string): any[] => {
     }
 
     let answerKey = '';
+    let extractedTopic = '';
 
     for (let i = startLineIdx; i < lines.length; i++) {
       const line = lines[i];
+      const topicMatch = line.match(/^(?:Topic|Subject)[\s\:\-\=]+(.*)/i);
+      if (topicMatch) {
+        extractedTopic = topicMatch[1].trim();
+        continue;
+      }
       const answerMatch = line.match(/^(?:Answer|Correct|Ans)[\s\:\-\=]+([\d\.]+)/i);
       if (answerMatch) {
         answerKey = answerMatch[1].trim();
@@ -301,7 +320,7 @@ const parseNumerical = (rawText: string): any[] => {
       marks: 1,
       options: null,
       answerKey: answerKey ? Number(answerKey) : '',
-      topic: ''
+      topic: extractedTopic || ''
     });
   }
   return parsed;
@@ -355,10 +374,16 @@ const parseLongWritten = (rawText: string): any[] => {
     }
 
     let answerKey = '';
+    let extractedTopic = '';
     let foundAnswer = false;
 
     for (let i = startLineIdx; i < lines.length; i++) {
       const line = lines[i];
+      const topicMatch = line.match(/^(?:Topic|Subject)[\s\:\-\=]+(.*)/i);
+      if (topicMatch) {
+        extractedTopic = topicMatch[1].trim();
+        continue;
+      }
       const answerMatch = line.match(/^(?:Answer|Correct|Ans|Expected Answer)[\s\:\-\=]+(.*)/i);
       if (answerMatch) {
         answerKey = answerMatch[1].trim();
@@ -378,7 +403,7 @@ const parseLongWritten = (rawText: string): any[] => {
       marks: 5,
       options: null,
       answerKey: answerKey,
-      topic: ''
+      topic: extractedTopic || ''
     });
   }
   return parsed;
@@ -419,10 +444,16 @@ const parseMatching = (rawText: string): any[] => {
     if (/^\d+[\.\)]\s*$/.test(lines[0])) startLineIdx = 1;
 
     let questionText = '';
+    let extractedTopic = '';
     const pairs: { left: string; right: string }[] = [];
 
     for (let i = startLineIdx; i < lines.length; i++) {
       const line = lines[i];
+      const topicMatch = line.match(/^(?:Topic|Subject)[\s\:\-\=]+(.*)/i);
+      if (topicMatch) {
+        extractedTopic = topicMatch[1].trim();
+        continue;
+      }
       // Check for matching pair formats like:
       // "Term A -> Def A" or "Term A = Def A" or "1. Term -> Def"
       const pairMatch = line.match(/^(?:(?:\d+|[A-Za-z])[\.\)]\s*)?(.+?)\s*(?:->|=>|=|:)\s*(.+)$/);
@@ -445,7 +476,7 @@ const parseMatching = (rawText: string): any[] => {
         marks: Math.max(1, pairs.length),
         options: pairs,
         answerKey: pairs,
-        topic: ''
+        topic: extractedTopic || ''
       });
     }
   }
@@ -488,9 +519,15 @@ const parseFillBlanks = (rawText: string): any[] => {
 
     let questionText = '';
     let answerKey = '';
+    let extractedTopic = '';
 
     for (let i = startLineIdx; i < lines.length; i++) {
       const line = lines[i];
+      const topicMatch = line.match(/^(?:Topic|Subject)[\s\:\-\=]+(.*)/i);
+      if (topicMatch) {
+        extractedTopic = topicMatch[1].trim();
+        continue;
+      }
       const answerMatch = line.match(/^(?:Answer|Correct|Ans|Expected Answer|Key)[\s\:\-\=]+(.*)/i);
       if (answerMatch) {
         answerKey = answerMatch[1].trim();
@@ -511,7 +548,7 @@ const parseFillBlanks = (rawText: string): any[] => {
       marks: 1,
       options: null,
       answerKey: answerKey || '',
-      topic: ''
+      topic: extractedTopic || ''
     });
   }
   return parsed;
@@ -583,6 +620,7 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
     title: '', subject: initialSubject, description: '', totalMarks: '', passingMarks: '',
     durationMinutes: '60', startDate: '', endDate: '',
     targetDepartments: [] as string[], targetSections: [] as string[],
+    questionPoolCount: '',
   });
   const [wizardStep, setWizardStep] = useState<QuizWizardStep>(1);
   const [completedWizardSteps, setCompletedWizardSteps] = useState<QuizWizardStep[]>([]);
@@ -608,6 +646,8 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
 
   // Bulk Import State
   const [showBulkImport, setShowBulkImport] = useState(false);
+  const [pasteTopic, setPasteTopic] = useState<string>('');
+  const [customPasteTopic, setCustomPasteTopic] = useState<string>('');
   const [bulkConfig, setBulkConfig] = useState<Record<string, { selected: boolean; text: string }>>({
     MCQ: { selected: false, text: '' },
     SHORT_WRITTEN: { selected: false, text: '' },
@@ -618,6 +658,27 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
   });
 
   // Grading & Publication State
+  const [availableTopics, setAvailableTopics] = useState<string[]>([
+    'Data Structures',
+    'Algorithms',
+    'Object-Oriented Programming',
+    'Database Management Systems',
+    'Operating Systems',
+    'Computer Networks',
+    'Software Engineering',
+    'Web Technologies',
+    'Artificial Intelligence',
+    'Machine Learning',
+    'Cybersecurity',
+    'Discrete Mathematics',
+    'Computer Architecture',
+    'Cloud Computing',
+    'Theory of Computation'
+  ]);
+  const [liveOtp, setLiveOtp] = useState<{ otp: string; remainingSeconds: number } | null>(null);
+  const [liveOtpLoading, setLiveOtpLoading] = useState(false);
+  const [editingObjectiveIds, setEditingObjectiveIds] = useState<Record<string, boolean>>({});
+  const [keylogInterval, setKeylogInterval] = useState<'1.5s' | '5s' | '30s' | '1m' | 'all'>('1.5s');
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [assignedClasses, setAssignedClasses] = useState<{ id: string; label: string; shortLabel?: string }[]>([]);
   const [selectedClassFilter, setSelectedClassFilter] = useState<string>('ALL');
@@ -708,6 +769,58 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
       isMountedRef.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    const fetchTopics = async () => {
+      try {
+        const res = await apiClient.fetch('/api/v1/faculty/quiz/topics');
+        const data = await res.json();
+        if (isMountedRef.current && data?.status === 'success' && Array.isArray(data.data?.topics)) {
+          setAvailableTopics(data.data.topics);
+        }
+      } catch {
+        // preserve fallback topics
+      }
+    };
+    void fetchTopics();
+  }, []);
+
+  const fetchLiveOtp = useCallback(async (quizId: string) => {
+    try {
+      setLiveOtpLoading(true);
+      const res = await apiClient.fetch(`/api/v1/faculty/quiz/${quizId}/live-otp`);
+      const data = await res.json();
+      if (isMountedRef.current && data?.status === 'success' && data.data) {
+        setLiveOtp({
+          otp: data.data.otp,
+          remainingSeconds: data.data.remainingSeconds || 30
+        });
+      }
+    } catch {
+      // ignore or handle
+    } finally {
+      if (isMountedRef.current) setLiveOtpLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!activeSubmissionsQuiz?.id || activeView !== 'view_submissions') {
+      setLiveOtp(null);
+      return;
+    }
+    void fetchLiveOtp(activeSubmissionsQuiz.id);
+    const interval = setInterval(() => {
+      setLiveOtp((prev) => {
+        if (!prev) return prev;
+        if (prev.remainingSeconds <= 1) {
+          void fetchLiveOtp(activeSubmissionsQuiz.id);
+          return { ...prev, remainingSeconds: 30 };
+        }
+        return { ...prev, remainingSeconds: prev.remainingSeconds - 1 };
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [activeSubmissionsQuiz?.id, activeView, fetchLiveOtp]);
 
   const fetchBatches = async () => {
     try {
@@ -836,6 +949,7 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
           endDate: formatDateTimeLocal(quiz.endDate),
           targetDepartments: quiz.targetDepartments?.map((d: any) => d.departmentId) || [],
           targetSections: quiz.targetSections?.map((s: any) => s.sectionId) || [],
+          questionPoolCount: (quiz.questionPoolCount ?? (quiz.performanceBands as any)?.questionPoolCount ?? '')?.toString() || '',
         });
         
         let fetchedQuestions = quiz.questions;
@@ -1056,9 +1170,17 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
       return false;
     }
 
-    // Check Completeness
+    // Check Completeness & Duplicates
+    const seenQuestionTexts = new Set<string>();
     newQs.forEach((q) => {
       q.validationError = null;
+      const normalizedText = (q.text || '').trim().toLowerCase();
+      if (normalizedText && seenQuestionTexts.has(normalizedText)) {
+        q.validationError = "Duplicate question: Questions cannot be repeated within the same quiz.";
+        isValid = false;
+      }
+      if (normalizedText) seenQuestionTexts.add(normalizedText);
+
       if (!q.text && !q.hasImagePlaceholder && !q.image) {
         q.validationError = "Question must have either text or an image.";
         isValid = false;
@@ -1091,9 +1213,14 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
     setLoading(true);
     
     try {
-      const payload = { ...formData };
+      const payload: any = { ...formData };
       if (payload.startDate) payload.startDate = new Date(payload.startDate).toISOString();
       if (payload.endDate) payload.endDate = new Date(payload.endDate).toISOString();
+      if (payload.questionPoolCount) {
+        payload.questionPoolCount = Number(payload.questionPoolCount);
+      } else {
+        payload.questionPoolCount = null;
+      }
 
       const sanitizedQuestions = questions.map(q => {
         if (q.type === 'MATCHING') return { ...q, answerKey: q.options };
@@ -1267,12 +1394,21 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
       return;
     }
 
+    const resolvedTopic = pasteTopic === '__custom__'
+      ? customPasteTopic.trim()
+      : (pasteTopic.trim() || formData.subject || '');
+
+    const questionsWithTopic = parsedQuestions.map(q => ({
+      ...q,
+      topic: q.topic || resolvedTopic || ''
+    }));
+
     setQuestions(prev => {
       const isDefaultSingleEmpty = prev.length === 1 && prev[0].text === '' && (!prev[0].options || prev[0].options.every((o: string) => o === '')) && prev[0].answerKey === '';
       if (isDefaultSingleEmpty) {
-        return parsedQuestions;
+        return questionsWithTopic;
       }
-      return [...prev, ...parsedQuestions];
+      return [...prev, ...questionsWithTopic];
     });
 
     toast.success(`Successfully imported ${parsedQuestions.length} questions (${countSummary.join(', ')}).`);
@@ -1550,18 +1686,20 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
       }
 
       const manualResponses = (activeAttempt?.responses || []).filter(
-        (r: any) => !OBJECTIVE_QUESTION_TYPES.includes(r.question?.type)
+        (r: any) => !OBJECTIVE_QUESTION_TYPES.includes(r.question?.type) || evaluations[r.id] !== undefined
       );
       const evalsArray = manualResponses.map((r: any) => {
-        const raw = Number(evaluations[r.id] ?? 0);
+        const raw = Number(evaluations[r.id] ?? r.marksAwarded ?? 0);
         const maxMarks = Number(r.question?.marks ?? 0);
         const clamped = Number.isFinite(raw) ? Math.min(Math.max(0, raw), maxMarks) : 0;
-        return { responseId: r.id, marks: clamped };
+        const isObj = OBJECTIVE_QUESTION_TYPES.includes(r.question?.type);
+        return { responseId: r.id, marks: clamped, ...(isObj ? { override: true } : {}) };
       });
+      const hasObjectiveOverride = evalsArray.some((e: any) => e.override);
       const res = await apiClient.fetch(`/api/v1/faculty/quiz/attempt/${activeAttempt.id}/evaluate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ evaluations: evalsArray, facultyFeedback })
+        body: JSON.stringify({ evaluations: evalsArray, facultyFeedback, allowObjectiveOverride: hasObjectiveOverride })
       });
       const data = await res.json();
       if (data?.status === 'success') {
@@ -1787,6 +1925,7 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                 setFormData({
                   title: '', subject: facultySubject, description: '', totalMarks: '', passingMarks: '',
                   durationMinutes: '60', startDate: '', endDate: '', targetDepartments: [], targetSections: [],
+                  questionPoolCount: '',
                 });
                 setQuestions([{ type: 'MCQ', text: '', marks: 1, options: ['', '', '', ''], answerKey: '', topic: '' }]);
                 setWizardStep(1);
@@ -1851,6 +1990,18 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                     {stepErrors.durationMinutes && <p className="text-xs text-red-600 font-medium">{stepErrors.durationMinutes}</p>}
                   </div>
                 </div>
+                <div className="space-y-1 pt-2">
+                  <Label htmlFor="quiz-instructions-input" className="text-ink font-semibold text-xs">Instructions (Optional)</Label>
+                  <Textarea
+                    id="quiz-instructions-input"
+                    value={formData.description}
+                    onChange={e => setFormData({ ...formData, description: e.target.value })}
+                    placeholder="Enter optional guidelines or instructions for candidates (can be left blank)..."
+                    rows={2}
+                    className="bg-white dark:bg-[#18181B] text-ink text-sm border-border-soft focus:border-maroon focus:ring-1 focus:ring-maroon"
+                  />
+                  <p className="text-[11px] text-gray-body">Instructions are optional for faculty. If omitted, default system instructions apply.</p>
+                </div>
               </div>
             )}
 
@@ -1901,7 +2052,7 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
               <div className="bg-cream/20 dark:bg-[#242429] p-5 rounded-xl border border-border-soft space-y-4">
                 <div>
                   <h3 className="text-base font-serif font-bold text-ink">Marks Configuration</h3>
-                  <p className="text-xs text-gray-body mt-0.5">Specify total and passing marks. Total marks can be left blank to calculate automatically from questions.</p>
+                  <p className="text-xs text-gray-body mt-0.5">Specify marks and optional question pool sampling. Total marks can be left blank to calculate automatically.</p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1">
@@ -1937,6 +2088,41 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                       className={`bg-white dark:bg-[#18181B] text-ink text-xs focus:border-maroon focus:ring-1 focus:ring-maroon ${stepErrors.passingMarks ? 'border-red-500 ring-1 ring-red-500' : 'border-border-soft'}`}
                     />
                     {stepErrors.passingMarks && <p className="text-xs text-red-600 font-medium">{stepErrors.passingMarks}</p>}
+                  </div>
+                </div>
+
+                {/* Question Pool Sampling Options */}
+                <div className="border border-border-soft rounded-lg p-4 bg-white dark:bg-[#1E1E22] space-y-3 mt-4">
+                  <div>
+                    <Label htmlFor="quiz-pool-count" className="text-ink font-semibold text-xs flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-maroon" />
+                      Question Pool & Subset Sampling (Optional)
+                    </Label>
+                    <p className="text-[11px] text-gray-body mt-0.5">
+                      Add a larger pool of questions, but only deliver a random subset to each student. Every student gets a randomized, non-repeated selection.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+                    <div>
+                      <Input
+                        id="quiz-pool-count"
+                        type="number"
+                        min={1}
+                        placeholder="e.g. 10 (Leave empty to give all questions)"
+                        value={formData.questionPoolCount || ''}
+                        onChange={(e) => setFormData({ ...formData, questionPoolCount: e.target.value })}
+                        className="bg-cream/20 dark:bg-[#18181B] text-ink text-xs focus:border-maroon focus:ring-1 focus:ring-maroon border-border-soft"
+                      />
+                    </div>
+                    <div className="text-[11px] text-gray-body">
+                      {formData.questionPoolCount && Number(formData.questionPoolCount) > 0 ? (
+                        <span className="text-maroon font-semibold">
+                          Each student will receive a random subset of {formData.questionPoolCount} non-repeated questions from the pool.
+                        </span>
+                      ) : (
+                        <span>All questions added to the quiz will be given to every student (with randomized question shuffling).</span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2161,7 +2347,7 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
             {wizardStep === 5 && (
             <div className="space-y-5">
               {/* Configured Quiz Summary Strip */}
-              <div className="bg-cream/30 dark:bg-[#242429] border border-border-soft rounded-xl p-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              <div className="bg-cream/30 dark:bg-[#242429] border border-border-soft rounded-xl p-4 grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
                 <div>
                   <span className="text-[10px] font-bold uppercase tracking-wider text-gray-body block">Quiz & Subject</span>
                   <span className="font-semibold text-ink block truncate">{formData.title || 'Untitled Quiz'}</span>
@@ -2188,6 +2374,15 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                       : 'None added'}
                   </span>
                   <button type="button" onClick={() => handleJumpToWizardStep(4)} className="text-[11px] text-maroon underline font-semibold">Edit classes</button>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-gray-body block">Pool & Delivery</span>
+                  <span className="font-semibold text-ink block">{questions.length} Pool Questions</span>
+                  <span className="text-[11px] text-maroon block font-medium">
+                    {formData.questionPoolCount && Number(formData.questionPoolCount) > 0
+                      ? `${formData.questionPoolCount} per student`
+                      : 'All delivered'}
+                  </span>
                 </div>
               </div>
 
@@ -2247,6 +2442,50 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
               {/* Mode 1: Paste Textboxes */}
               {creationMode === 'paste' && (
                 <div className="p-5 bg-cream/30 dark:bg-[#242429] rounded-xl border border-border-soft space-y-5">
+                  {/* Topic selection for pasted questions */}
+                  <div className="p-4 bg-white dark:bg-[#1E1E22] rounded-xl border border-border-soft space-y-2">
+                    <Label htmlFor="paste-topic-select" className="text-xs font-bold text-ink flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-maroon" /> Select Topic for Pasted Questions
+                    </Label>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <select
+                        id="paste-topic-select"
+                        aria-label="Select topic for pasted questions"
+                        value={availableTopics.includes(pasteTopic) ? pasteTopic : (pasteTopic ? '__custom__' : '')}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '__custom__') {
+                            setPasteTopic('__custom__');
+                          } else {
+                            setPasteTopic(val);
+                          }
+                        }}
+                        className="flex-1 h-10 px-3 rounded-lg border border-border-soft bg-cream/20 dark:bg-[#18181B] text-ink text-xs font-semibold focus:border-maroon focus:ring-1 focus:ring-maroon"
+                      >
+                        <option value="">Select Topic from Dropdown (or use Quiz Subject)...</option>
+                        {availableTopics.map((topicItem) => (
+                          <option key={topicItem} value={topicItem}>
+                            {topicItem}
+                          </option>
+                        ))}
+                        <option value="__custom__">+ Custom Topic</option>
+                      </select>
+                      {(pasteTopic === '__custom__' || (!availableTopics.includes(pasteTopic) && pasteTopic !== '')) && (
+                        <Input
+                          type="text"
+                          value={customPasteTopic}
+                          onChange={(e) => setCustomPasteTopic(e.target.value)}
+                          placeholder="Type specific topic name..."
+                          className="flex-1 h-10 text-xs bg-white dark:bg-[#18181B] border-border-soft text-ink focus:border-maroon focus:ring-1 focus:ring-maroon"
+                          aria-label="Custom topic for pasted questions"
+                        />
+                      )}
+                    </div>
+                    <p className="text-[11px] text-gray-body">
+                      Questions pasted in the boxes below will automatically be assigned this topic upon conversion.
+                    </p>
+                  </div>
+
                   <div>
                     <h3 className="text-sm font-bold text-ink mb-1 flex items-center gap-2">
                       <Sparkles className="w-4 h-4 text-maroon" /> Select Question Types to Paste
@@ -2618,7 +2857,13 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
           <div className="flex justify-between items-center mb-6 pb-4 border-b border-border-soft">
             <div>
               <h2 className="text-2xl font-serif font-bold text-ink">{formData.title || 'Review & Finalize Quiz Questions'}</h2>
-              <p className="text-gray-body text-xs mt-0.5">{formData.subject || 'Subject'} | {formData.durationMinutes || 60} mins | {questions.length} Questions ({sumMarks} Total Marks)</p>
+              <p className="text-gray-body text-xs mt-0.5">
+                {formData.subject || 'Subject'} | {formData.durationMinutes || 60} mins | {questions.length} Pool Questions
+                {formData.questionPoolCount && Number(formData.questionPoolCount) > 0
+                  ? ` · (${formData.questionPoolCount} Randomly Selected per Student)`
+                  : ''}
+                {' '}({sumMarks} Total Pool Marks)
+              </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <Button
@@ -2653,6 +2898,47 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                   <Sparkles className="w-4 h-4 text-maroon" /> Quick Paste Additional Questions
                 </h3>
                 <span className="text-[10px] text-gray-body">Select question types below and paste text to append to this quiz.</span>
+              </div>
+
+              {/* Quick Paste Topic Selector */}
+              <div className="p-3 bg-white dark:bg-[#1E1E22] rounded-lg border border-border-soft space-y-1.5">
+                <Label htmlFor="quick-paste-topic-select" className="text-xs font-bold text-ink flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-maroon" /> Topic for Quick Pasted Questions:
+                </Label>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <select
+                    id="quick-paste-topic-select"
+                    aria-label="Select topic for quick pasted questions"
+                    value={availableTopics.includes(pasteTopic) ? pasteTopic : (pasteTopic ? '__custom__' : '')}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '__custom__') {
+                        setPasteTopic('__custom__');
+                      } else {
+                        setPasteTopic(val);
+                      }
+                    }}
+                    className="flex-1 h-9 px-3 rounded-lg border border-border-soft bg-cream/20 dark:bg-[#18181B] text-ink text-xs font-semibold focus:border-maroon focus:outline-none"
+                  >
+                    <option value="">Select Topic from Dropdown (or use Quiz Subject)...</option>
+                    {availableTopics.map((topicItem) => (
+                      <option key={topicItem} value={topicItem}>
+                        {topicItem}
+                      </option>
+                    ))}
+                    <option value="__custom__">+ Custom Topic</option>
+                  </select>
+                  {(pasteTopic === '__custom__' || (!availableTopics.includes(pasteTopic) && pasteTopic !== '')) && (
+                    <Input
+                      type="text"
+                      value={customPasteTopic}
+                      onChange={(e) => setCustomPasteTopic(e.target.value)}
+                      placeholder="Type specific topic name..."
+                      className="flex-1 h-9 text-xs bg-white dark:bg-[#18181B] border-border-soft text-ink focus:border-maroon focus:ring-1 focus:ring-maroon"
+                      aria-label="Custom topic for quick pasted questions"
+                    />
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 p-2 bg-white dark:bg-[#1E1E22] rounded-lg border border-border-soft">
@@ -2756,8 +3042,40 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                   </div>
 
                   <div>
-                    <Label className="text-xs text-maroon block mb-1 font-semibold">Topic *</Label>
-                    <Input type="text" value={q.topic || ''} onChange={(e) => updateQuestion(qIndex, 'topic', e.target.value)} placeholder="e.g. Graphs, Inheritance, Kinematics" className="bg-white dark:bg-[#18181B] border-border-soft text-ink focus:border-maroon focus:ring-1 focus:ring-maroon" />
+                    <Label htmlFor={`question-topic-${qIndex}`} className="text-xs text-maroon block mb-1 font-semibold">Topic *</Label>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <select
+                        id={`question-topic-${qIndex}`}
+                        aria-label={`Select topic for question ${qIndex + 1}`}
+                        value={availableTopics.includes(q.topic) ? q.topic : (q.topic ? '__custom__' : '')}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '__custom__') {
+                            updateQuestion(qIndex, 'topic', '');
+                          } else {
+                            updateQuestion(qIndex, 'topic', val);
+                          }
+                        }}
+                        className="flex-1 h-10 px-3 rounded-lg border border-border-soft bg-white dark:bg-[#18181B] text-ink text-sm focus:border-maroon focus:ring-1 focus:ring-maroon"
+                      >
+                        <option value="">Select Topic from Dropdown...</option>
+                        {availableTopics.map((topicItem) => (
+                          <option key={topicItem} value={topicItem}>
+                            {topicItem}
+                          </option>
+                        ))}
+                        <option value="__custom__">+ Custom Topic</option>
+                      </select>
+                      {(!availableTopics.includes(q.topic) || q.topic === '') && (
+                        <Input
+                          type="text"
+                          value={q.topic || ''}
+                          onChange={(e) => updateQuestion(qIndex, 'topic', e.target.value)}
+                          placeholder="Type specific topic name"
+                          className="sm:w-64 bg-white dark:bg-[#18181B] border-border-soft text-ink focus:border-maroon focus:ring-1 focus:ring-maroon text-sm"
+                        />
+                      )}
+                    </div>
                   </div>
 
                   {q.validationError && (
@@ -3177,6 +3495,62 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
             />
           ) : (
             <div className="space-y-5">
+              {/* Live 30-Second Refreshing Access OTP Card */}
+              {activeSubmissionsQuiz?.id && (
+                <div className="bg-white dark:bg-[#18181B] border border-maroon/20 rounded-xl p-4 shadow-sm flex flex-wrap items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-maroon/10 text-maroon flex items-center justify-center font-bold text-lg shrink-0">
+                      🔑
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-serif font-bold text-sm text-ink">Live Classroom Access OTP</h4>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 uppercase">
+                          Refreshes every 30s
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-body mt-0.5">
+                        Students enter this live rolling code to verify presence in the examination hall.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <div className="text-right">
+                      <div className="font-mono text-2xl font-bold tracking-widest text-maroon">
+                        {liveOtpLoading ? '••••••' : (liveOtp?.otp || '------')}
+                      </div>
+                      <div className="text-[11px] font-semibold text-gray-body">
+                        Expires in: <span className="font-mono font-bold text-ink">{liveOtp?.remainingSeconds ?? 30}s</span>
+                      </div>
+                    </div>
+                    <div className="w-12 h-12 relative flex items-center justify-center">
+                      <svg className="w-12 h-12 transform -rotate-90" viewBox="0 0 36 36">
+                        <path
+                          className="text-border-soft"
+                          strokeWidth="3"
+                          stroke="currentColor"
+                          fill="none"
+                          d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                        />
+                        <path
+                          className="text-maroon transition-all duration-1000 ease-linear"
+                          strokeDasharray={`${(((liveOtp?.remainingSeconds ?? 30) / 30) * 100).toFixed(0)}, 100`}
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                          stroke="currentColor"
+                          fill="none"
+                          d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                        />
+                      </svg>
+                      <span className="absolute text-[11px] font-bold font-mono text-ink">
+                        {liveOtp?.remainingSeconds ?? 30}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Summary Metrics */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3" aria-label="Submission summary">
                 <div className="rounded-xl border border-border-soft bg-cream/25 dark:bg-[#242429] p-3.5">
@@ -3519,9 +3893,35 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                       </div>
 
                       <div className="space-y-3">
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-maroon">
-                          Keyboard Activity / Shortcut Evidence
-                        </h4>
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-maroon">
+                            Keyboard Activity / Shortcut Evidence
+                          </h4>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs text-gray-body font-medium">Monitoring Interval:</span>
+                            <select
+                              value={keylogInterval}
+                              onChange={(e) => setKeylogInterval(e.target.value as any)}
+                              className="text-xs bg-white dark:bg-[#18181B] border border-border-soft rounded px-2 py-0.5 text-ink font-medium focus:border-maroon focus:outline-none"
+                              aria-label="Keylogging monitoring interval"
+                            >
+                              <option value="1.5s">1.5s (Live telemetry window)</option>
+                              <option value="5s">5s (Short window)</option>
+                              <option value="30s">30s (Extended monitoring)</option>
+                              <option value="1m">1m (Aggregate rollup)</option>
+                              <option value="all">Full Exam Duration</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="text-xs text-gray-body flex items-center justify-between px-1">
+                          <span>
+                            Window: <strong className="text-ink">{keylogInterval === 'all' ? 'Full Session' : keylogInterval}</strong>
+                          </span>
+                          <span>
+                            Total Keystrokes Captured: <strong className="text-ink">{keyboardEvents.length}</strong>
+                          </span>
+                        </div>
 
                         {hasKeyboardEvents ? (
                           <div className="overflow-x-auto rounded-lg border border-border-soft bg-white dark:bg-[#18181B]">
@@ -3672,7 +4072,6 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
           <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-4">
             {activeAttempt.responses?.map((r: any, idx: number) => {
               const isObjective = OBJECTIVE_QUESTION_TYPES.includes(r.question.type);
-              const allowManualInput = isUnsubmittedManual || !isObjective;
               return (
                 <div key={r.id} className="p-5 bg-cream/30 dark:bg-[#242429] rounded-xl border border-border-soft">
                   <div className="flex justify-between items-start mb-2">
@@ -3704,13 +4103,72 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                     </div>
                   </div>
 
-                  {allowManualInput && (
-                    <div className="mt-4 flex items-center justify-end space-x-4 border-t border-border-soft pt-4">
-                      <span className="text-sm text-gray-body font-medium">Assign Marks:</span>
-                      <Input type="number" value={evaluations[r.id] ?? 0} onChange={(e) => setEvaluations({...evaluations, [r.id]: Number(e.target.value)})} className="w-24 bg-white dark:bg-[#18181B] border-border-soft text-ink focus-visible:ring-maroon" max={r.question.marks} min={0} step={0.5} />
-                      <span className="text-sm text-gray-body">/ {r.question.marks}</span>
+                  <div className="mt-4 flex items-center justify-between border-t border-border-soft pt-4 flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      {!isUnsubmittedManual && isObjective && (
+                        <span className="text-xs text-gray-body font-medium">
+                          Auto-graded score: <strong className="text-ink">{r.marksAwarded ?? 0}</strong>
+                        </span>
+                      )}
                     </div>
-                  )}
+                    {isUnsubmittedManual || !isObjective || editingObjectiveIds[r.id] ? (
+                      <div className="flex items-center space-x-3">
+                        <span className="text-sm text-gray-body font-medium">
+                          {isObjective && !isUnsubmittedManual ? 'Override Mark:' : 'Assign Marks:'}
+                        </span>
+                        <Input
+                          type="number"
+                          aria-label={`Marks for question ${idx + 1}`}
+                          value={evaluations[r.id] !== undefined ? evaluations[r.id] : (r.marksAwarded ?? 0)}
+                          onChange={(e) => setEvaluations({ ...evaluations, [r.id]: Number(e.target.value) })}
+                          className="w-24 bg-white dark:bg-[#18181B] border-border-soft text-ink focus-visible:ring-maroon text-sm font-semibold"
+                          max={r.question.marks}
+                          min={0}
+                          step={0.5}
+                        />
+                        <span className="text-sm text-gray-body">/ {r.question.marks}</span>
+                        {isObjective && !isUnsubmittedManual && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingObjectiveIds((prev) => {
+                                const next = { ...prev };
+                                delete next[r.id];
+                                return next;
+                              });
+                              setEvaluations((prev) => {
+                                const next = { ...prev };
+                                delete next[r.id];
+                                return next;
+                              });
+                            }}
+                            className="text-xs text-gray-body hover:text-ink underline ml-1"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-3">
+                        <span className="text-sm text-gray-body font-medium">Marks:</span>
+                        <span className="text-sm font-bold text-ink">
+                          {evaluations[r.id] !== undefined ? evaluations[r.id] : (r.marksAwarded ?? 0)} / {r.question.marks}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingObjectiveIds((prev) => ({ ...prev, [r.id]: true }));
+                            if (evaluations[r.id] === undefined) {
+                              setEvaluations((prev) => ({ ...prev, [r.id]: r.marksAwarded ?? 0 }));
+                            }
+                          }}
+                          className="text-xs text-maroon hover:text-maroon-deep font-semibold underline ml-1"
+                        >
+                          Edit Mark
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -3889,6 +4347,7 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                 endDate: '',
                 targetDepartments: [],
                 targetSections: [],
+                questionPoolCount: '',
               });
               setQuestions([{ type: 'MCQ', text: '', marks: 1, options: ['', '', '', ''], answerKey: '', topic: '' }]);
               setParsedTotalMarks(0);
