@@ -251,7 +251,11 @@ export default function ExamInterface() {
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          void handleSubmitRef.current();
+          if (!submittingRef.current) {
+            submittingRef.current = true;
+            toast.info('Quiz time has expired. Submitting examination...');
+            void handleSubmitRef.current();
+          }
           return 0;
         }
         return prev - 1;
@@ -311,10 +315,26 @@ export default function ExamInterface() {
         setResponses(loadedResponses);
 
         const startTime = new Date(attempt.startTime).getTime();
-        const durationSec = (quiz.durationMinutes || 60) * 60;
-        const elapsedSec = Math.floor((Date.now() - startTime) / 1000);
-        setTimeLeft(Math.max(0, durationSec - elapsedSec));
-        setHasStartedSecureExam(true);
+        const durationSec = Math.max(1, (quiz.durationMinutes || 60) * 60);
+        const rawElapsedSec = Math.floor((Date.now() - startTime) / 1000);
+        const elapsedSec = Math.max(0, rawElapsedSec);
+        let remainingSec = Math.max(0, durationSec - elapsedSec);
+
+        if (quiz.endDate) {
+          const endEpoch = new Date(quiz.endDate).getTime();
+          if (!Number.isNaN(endEpoch)) {
+            const windowRemainingSec = Math.max(0, Math.floor((endEpoch - Date.now()) / 1000));
+            remainingSec = Math.min(remainingSec, windowRemainingSec);
+          }
+        }
+
+        const safeTimeLeft = Math.max(10, remainingSec);
+        setTimeLeft(safeTimeLeft);
+
+        // Allow 300ms for browser fullscreen transition and focus stabilization before turning on security proctoring
+        setTimeout(() => {
+          setHasStartedSecureExam(true);
+        }, 300);
       } else {
         if (typeof document !== 'undefined' && document.fullscreenElement && document.exitFullscreen) {
           await document.exitFullscreen().catch(() => {});
