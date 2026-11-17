@@ -8,6 +8,9 @@ import {
   type SecurityViolationEvent,
 } from '../../hooks/useSecureExam';
 import { apiClient } from '../../lib/apiClient';
+import { CanvasQuestion } from '../../components/exam/CanvasQuestion';
+import { DecoyElements } from '../../components/exam/DecoyElements';
+import { useBehavioralTelemetry } from '../../hooks/useBehavioralTelemetry';
 
 type QuestionStatus = 'NOT_VISITED' | 'NOT_ANSWERED' | 'ANSWERED' | 'MARKED_FOR_REVIEW' | 'ANSWERED_AND_MARKED_FOR_REVIEW';
 
@@ -45,8 +48,39 @@ export default function ExamInterface() {
   const [showMobilePalette, setShowMobilePalette] = useState(false);
   const [zoomedImageUrl, setZoomedImageUrl] = useState<string | null>(null);
   const [imageStatus, setImageStatus] = useState<'loading' | 'loaded' | 'error'>('loaded');
+  const [showOtpGate, setShowOtpGate] = useState(false);
+  const [isOtpVerified, setIsOtpVerified] = useState(false);
+  const [otpInput, setOtpInput] = useState('');
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+  const [, setAttemptSessionToken] = useState<string | null>(null);
+  const sessionTokenRef = useRef<string | null>(null);
+  const showOtpGateRef = useRef(false);
+  showOtpGateRef.current = showOtpGate;
   const submittingRef = useRef(false);
   const attemptIdRef = useRef('');
+
+  const currentUser = useRef<{ id?: string; email?: string; name?: string }>(
+    (() => {
+      try {
+        return JSON.parse(localStorage.getItem('cira_user') || '{}');
+      } catch {
+        return {};
+      }
+    })()
+  ).current;
+
+  const telemetry = useBehavioralTelemetry({
+    isActive: hasStartedSecureExam,
+    minTTFIMs: 1800,
+    onSuspiciousActivity: (type, detail) => {
+      console.warn(`[Anti-Automation Flag] ${type}: ${detail}`);
+    },
+  });
+
+  const perQuestionLimit =
+    Number(quizDetails?.perQuestionTimerSeconds ?? quizDetails?.performanceBands?.perQuestionTimerSeconds) || 0;
+  const [questionTimeLeft, setQuestionTimeLeft] = useState<number | null>(null);
 
   const checkDiagnostics = useCallback(() => {
     if (isMultiDisplayDetected()) {
@@ -68,30 +102,58 @@ export default function ExamInterface() {
     if (!activeAttemptId || submittingRef.current) return;
     submittingRef.current = true;
     try {
+      const token = sessionTokenRef.current || (typeof window !== 'undefined' ? sessionStorage.getItem(`cira_session_${quizId}`) : null);
+      const isOtpPromptActive = showOtpGateRef.current;
+      const violationReasonText = isOtpPromptActive
+        ? `${event.type}: Window/Tab switch during OTP verification`
+        : `${event.type}: ${event.reason}`;
+
       const res = await apiClient.fetch(`/api/v1/student/exam/attempt/${activeAttemptId}/violation`, {
         method: 'POST',
         keepalive: true,
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'x-attempt-session-token': token } : {}),
+        },
         body: JSON.stringify({
           type: event.type,
-          reason: event.reason,
+          reason: isOtpPromptActive ? 'Window/Tab switch during OTP verification' : event.reason,
           timestamp: event.timestamp,
-          metadata: event.metadata,
+          metadata: {
+            ...event.metadata,
+            duringOtpVerification: isOtpPromptActive,
+          },
+          attemptSessionToken: token,
         }),
       });
       if (!res?.ok) {
         await apiClient.fetch(`/api/v1/student/exam/attempt/${activeAttemptId}/submit`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ violationReason: `${event.type}: ${event.reason}` }),
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'x-attempt-session-token': token } : {}),
+          },
+          body: JSON.stringify({
+            violationReason: violationReasonText,
+            integrityReport: telemetry.getIntegrityReport(),
+            attemptSessionToken: token,
+          }),
         }).catch(() => {});
       }
     } catch (e) {
       console.error('Failed to record violation:', e);
+      const token = sessionTokenRef.current || (typeof window !== 'undefined' ? sessionStorage.getItem(`cira_session_${quizId}`) : null);
       await apiClient.fetch(`/api/v1/student/exam/attempt/${activeAttemptId}/submit`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ violationReason: `${event.type}: ${event.reason}` }),
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'x-attempt-session-token': token } : {}),
+        },
+        body: JSON.stringify({
+          violationReason: `${event.type}: ${event.reason}`,
+          integrityReport: telemetry.getIntegrityReport(),
+          attemptSessionToken: token,
+        }),
       }).catch(() => {});
     } finally {
       if (typeof document !== 'undefined' && document.fullscreenElement && document.exitFullscreen) {
@@ -121,6 +183,15 @@ export default function ExamInterface() {
     setImageStatus('loaded');
     setZoomedImageUrl(null);
   }, [currentQuestionIdx, questions]);
+
+  useEffect(() => {
+    if (hasStartedSecureExam && questions[currentQuestionIdx]) {
+      telemetry.notifyQuestionRendered(questions[currentQuestionIdx].id);
+      if (perQuestionLimit > 0) {
+        setQuestionTimeLeft(perQuestionLimit);
+      }
+    }
+  }, [currentQuestionIdx, questions, hasStartedSecureExam, perQuestionLimit]);
 
   const loadInstructions = useCallback(async () => {
     if (!quizId) {
@@ -164,11 +235,21 @@ export default function ExamInterface() {
     setResponses(prev => ({ ...prev, [questionId]: { data: answerData, status } }));
     setSaving(true);
     try {
-      await apiClient.fetch(`/api/v1/student/exam/attempt/${attemptId}/save-response`, {
+      const token = sessionTokenRef.current || (typeof window !== 'undefined' ? sessionStorage.getItem(`cira_session_${quizId}`) : null);
+      const res = await apiClient.fetch(`/api/v1/student/exam/attempt/${attemptId}/save-response`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ questionId, answerData, status })
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'x-attempt-session-token': token } : {})
+        },
+        body: JSON.stringify({ questionId, answerData, status, attemptSessionToken: token })
       });
+      if (res?.status === 403) {
+        const body = await res.json().catch(() => ({}));
+        if (body?.error?.code === 'INVALID_SESSION_TOKEN') {
+          toast.error('Active session belongs to another device. Multiple concurrent sessions are prohibited.');
+        }
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -192,6 +273,30 @@ export default function ExamInterface() {
       }
     }
   };
+
+  const handleNextRef = useRef(handleNext);
+  handleNextRef.current = handleNext;
+
+  useEffect(() => {
+    if (!hasStartedSecureExam || perQuestionLimit <= 0 || questionTimeLeft === null) return;
+
+    const qTimer = setInterval(() => {
+      setQuestionTimeLeft((prev) => {
+        if (prev === null) return null;
+        if (prev <= 1) {
+          clearInterval(qTimer);
+          if (currentQuestionIdx < questions.length - 1) {
+            toast.info(`Time limit reached for Question ${currentQuestionIdx + 1}. Auto-advancing.`);
+            handleNextRef.current();
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(qTimer);
+  }, [hasStartedSecureExam, perQuestionLimit, currentQuestionIdx, questions.length, questionTimeLeft]);
 
   const handlePrevious = () => {
     if (currentQuestionIdx > 0) {
@@ -219,10 +324,15 @@ export default function ExamInterface() {
 
     submittingRef.current = true;
     try {
+      const token = sessionTokenRef.current || (typeof window !== 'undefined' ? sessionStorage.getItem(`cira_session_${quizId}`) : null);
+      const integrityReport = telemetry.getIntegrityReport();
       const res = await apiClient.fetch(`/api/v1/student/exam/attempt/${currentAttemptId}/submit`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'x-attempt-session-token': token } : {})
+        },
+        body: JSON.stringify({ integrityReport, attemptSessionToken: token })
       });
       const data = await res.json();
       if (res?.ok !== false && data?.status === 'success') {
@@ -245,7 +355,7 @@ export default function ExamInterface() {
   handleSubmitRef.current = handleSubmit;
 
   useEffect(() => {
-    if (!hasStartedSecureExam || !attemptId) return;
+    if (!hasStartedSecureExam || !attemptId || !isOtpVerified) return;
 
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
@@ -263,7 +373,88 @@ export default function ExamInterface() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [hasStartedSecureExam, attemptId]);
+  }, [hasStartedSecureExam, attemptId, isOtpVerified]);
+
+  const handleVerifyOtp = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const cleanOtp = otpInput.replace(/\s+/g, '').trim();
+    if (!cleanOtp || cleanOtp.length !== 6) {
+      setOtpError('Please enter a valid 6-digit OTP code.');
+      return;
+    }
+
+    setVerifyingOtp(true);
+    setOtpError(null);
+
+    try {
+      const res = await apiClient.fetch(`/api/v1/student/exam/verify-otp/${quizId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          otp: cleanOtp,
+          attemptId: attemptIdRef.current || attemptId,
+        }),
+      });
+
+      const data = await res.json();
+      if (res?.ok !== false && data?.status === 'success' && data?.data) {
+        const { attemptSessionToken: token, quiz, attempt } = data.data;
+
+        if (token && typeof window !== 'undefined') {
+          sessionStorage.setItem(`cira_session_${quizId}`, token);
+          sessionTokenRef.current = token;
+          setAttemptSessionToken(token);
+        }
+
+        if (attempt?.id) {
+          setAttemptId(attempt.id);
+          attemptIdRef.current = attempt.id;
+        }
+
+        if (quiz) {
+          setQuizDetails((prev: any) => ({ ...prev, ...quiz }));
+          setQuestions(quiz.questions || []);
+
+          const loadedResponses: Record<string, { data: any; status: QuestionStatus }> = {};
+          if (attempt?.responses) {
+            attempt.responses.forEach((r: any) => {
+              loadedResponses[r.questionId] = { data: r.answerData, status: r.status };
+            });
+          }
+          setResponses(loadedResponses);
+
+          const startTime = new Date(attempt?.startTime || Date.now()).getTime();
+          const durationSec = Math.max(1, (quiz.durationMinutes || 60) * 60);
+          const rawElapsedSec = Math.floor((Date.now() - startTime) / 1000);
+          const elapsedSec = Math.max(0, rawElapsedSec);
+          let remainingSec = Math.max(0, durationSec - elapsedSec);
+
+          if (quiz.endDate) {
+            const endEpoch = new Date(quiz.endDate).getTime();
+            if (!Number.isNaN(endEpoch)) {
+              const windowRemainingSec = Math.max(0, Math.floor((endEpoch - Date.now()) / 1000));
+              remainingSec = Math.min(remainingSec, windowRemainingSec);
+            }
+          }
+
+          const safeTimeLeft = Math.max(10, remainingSec);
+          setTimeLeft(safeTimeLeft);
+        }
+
+        setIsOtpVerified(true);
+        setShowOtpGate(false);
+        toast.success('Classroom OTP verified. Examination unlocked!');
+      } else {
+        const errMsg = data?.error?.message || data?.message || 'Invalid or expired OTP. Please check the screen.';
+        setOtpError(errMsg);
+      }
+    } catch (err: any) {
+      console.error('OTP verification error:', err);
+      setOtpError('Failed to verify OTP. Please try again.');
+    } finally {
+      setVerifyingOtp(false);
+    }
+  };
 
   const handleBeginQuiz = async () => {
     if (!quizId || startingExam || instructionsError) return;
@@ -294,51 +485,79 @@ export default function ExamInterface() {
         return;
       }
 
+      // Immediately activate secure proctoring before OTP verification
+      setHasStartedSecureExam(true);
+
+      const cachedToken = typeof window !== 'undefined' ? sessionStorage.getItem(`cira_session_${quizId}`) : null;
+      if (cachedToken) {
+        sessionTokenRef.current = cachedToken;
+        setAttemptSessionToken(cachedToken);
+      }
+
       const res = await apiClient.fetch(`/api/v1/student/exam/start/${quizId}`, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-require-otp': 'true',
+          ...(cachedToken ? { 'x-attempt-session-token': cachedToken } : {})
+        },
+        body: JSON.stringify({
+          requireOtp: true,
+          attemptSessionToken: cachedToken
+        })
       });
       const data = await res.json();
 
-      if (res?.ok !== false && data?.status === 'success' && data?.data?.attempt && data?.data?.quiz) {
-        const { attempt, quiz } = data.data;
-        setQuizDetails((prev: any) => ({ ...prev, ...quiz }));
-        setQuestions(quiz.questions || []);
-        setAttemptId(attempt.id);
-        attemptIdRef.current = attempt.id;
-
-        const loadedResponses: Record<string, { data: any; status: QuestionStatus }> = {};
-        if (attempt.responses) {
-          attempt.responses.forEach((r: any) => {
-            loadedResponses[r.questionId] = { data: r.answerData, status: r.status };
-          });
+      if (res?.ok !== false && data?.status === 'success' && data?.data) {
+        const { attempt, quiz, otpRequired } = data.data;
+        if (attempt?.id) {
+          setAttemptId(attempt.id);
+          attemptIdRef.current = attempt.id;
         }
-        setResponses(loadedResponses);
 
-        const startTime = new Date(attempt.startTime).getTime();
-        const durationSec = Math.max(1, (quiz.durationMinutes || 60) * 60);
-        const rawElapsedSec = Math.floor((Date.now() - startTime) / 1000);
-        const elapsedSec = Math.max(0, rawElapsedSec);
-        let remainingSec = Math.max(0, durationSec - elapsedSec);
+        const isOtpNeeded = Boolean(otpRequired) || (!quiz?.questions?.length && !attempt?.metrics?.otpVerified);
 
-        if (quiz.endDate) {
-          const endEpoch = new Date(quiz.endDate).getTime();
-          if (!Number.isNaN(endEpoch)) {
-            const windowRemainingSec = Math.max(0, Math.floor((endEpoch - Date.now()) / 1000));
-            remainingSec = Math.min(remainingSec, windowRemainingSec);
+        if (isOtpNeeded) {
+          // Gate student behind the 30-second Classroom OTP
+          setShowOtpGate(true);
+          setIsOtpVerified(false);
+          setQuestions([]);
+        } else {
+          setShowOtpGate(false);
+          setIsOtpVerified(true);
+          setQuizDetails((prev: any) => ({ ...prev, ...quiz }));
+          setQuestions(quiz.questions || []);
+
+          const loadedResponses: Record<string, { data: any; status: QuestionStatus }> = {};
+          if (attempt?.responses) {
+            attempt.responses.forEach((r: any) => {
+              loadedResponses[r.questionId] = { data: r.answerData, status: r.status };
+            });
           }
+          setResponses(loadedResponses);
+
+          const startTime = new Date(attempt.startTime).getTime();
+          const durationSec = Math.max(1, (quiz.durationMinutes || 60) * 60);
+          const rawElapsedSec = Math.floor((Date.now() - startTime) / 1000);
+          const elapsedSec = Math.max(0, rawElapsedSec);
+          let remainingSec = Math.max(0, durationSec - elapsedSec);
+
+          if (quiz.endDate) {
+            const endEpoch = new Date(quiz.endDate).getTime();
+            if (!Number.isNaN(endEpoch)) {
+              const windowRemainingSec = Math.max(0, Math.floor((endEpoch - Date.now()) / 1000));
+              remainingSec = Math.min(remainingSec, windowRemainingSec);
+            }
+          }
+
+          const safeTimeLeft = Math.max(10, remainingSec);
+          setTimeLeft(safeTimeLeft);
         }
-
-        const safeTimeLeft = Math.max(10, remainingSec);
-        setTimeLeft(safeTimeLeft);
-
-        // Allow 300ms for browser fullscreen transition and focus stabilization before turning on security proctoring
-        setTimeout(() => {
-          setHasStartedSecureExam(true);
-        }, 300);
       } else {
         if (typeof document !== 'undefined' && document.fullscreenElement && document.exitFullscreen) {
           await document.exitFullscreen().catch(() => {});
         }
+        setHasStartedSecureExam(false);
         const msg = data?.error?.message || data?.message || 'Unable to start this quiz.';
         const code = data?.error?.code;
         if (code === 'ATTEMPT_LOCKED') {
@@ -353,6 +572,7 @@ export default function ExamInterface() {
       if (typeof document !== 'undefined' && document.fullscreenElement && document.exitFullscreen) {
         await document.exitFullscreen().catch(() => {});
       }
+      setHasStartedSecureExam(false);
       toast.error('Unable to start quiz. Please try again.');
     } finally {
       setStartingExam(false);
@@ -704,14 +924,6 @@ export default function ExamInterface() {
     );
   }
 
-  if (questions.length === 0) {
-    return (
-      <div className="min-h-screen bg-[#FDFBF7] flex items-center justify-center">
-        <div className="animate-spin h-8 w-8 border-4 border-maroon border-t-transparent rounded-full" />
-      </div>
-    );
-  }
-
   if (isLocked) {
     return (
       <div
@@ -763,6 +975,115 @@ export default function ExamInterface() {
             Enter Fullscreen
           </button>
         )}
+      </div>
+    );
+  }
+
+  // Live 30-Second Classroom OTP Gate
+  if (showOtpGate || !isOtpVerified) {
+    return (
+      <div
+        data-testid="classroom-otp-gate"
+        className="min-h-screen bg-[#FDFBF7] text-ink flex items-center justify-center p-4 sm:p-6 font-sans select-none"
+      >
+        <div className="max-w-md w-full bg-white border border-border-soft rounded-2xl p-6 sm:p-8 shadow-md space-y-6 text-center">
+          <div className="w-16 h-16 rounded-full bg-maroon/10 text-maroon flex items-center justify-center mx-auto text-2xl font-bold shadow-inner">
+            🔑
+          </div>
+
+          <div className="space-y-1.5">
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 uppercase tracking-wide">
+              Live Presence Verification
+            </span>
+            <h1 className="text-2xl font-serif font-bold text-ink">Classroom Access Code</h1>
+            <p className="text-xs text-gray-body leading-relaxed max-w-sm mx-auto">
+              Look at the classroom projector screen and enter the live 6-digit rolling OTP to unlock your assessment.
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-left flex items-start gap-2.5">
+            <span className="text-amber-600 text-sm mt-0.5 font-bold">⚠️</span>
+            <p className="text-[11px] text-amber-900 leading-snug">
+              <strong>Strict Proctoring Active:</strong> Do not leave fullscreen, switch tabs, or minimize this window. Any focus loss will be permanently logged and terminate your quiz attempt.
+            </p>
+          </div>
+
+          <form onSubmit={handleVerifyOtp} className="space-y-4">
+            <div className="space-y-2">
+              <label htmlFor="otp-input" className="block text-xs font-bold text-ink uppercase tracking-wider text-left">
+                6-Digit Access Code
+              </label>
+              <input
+                id="otp-input"
+                data-testid="classroom-otp-input"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={7}
+                autoFocus
+                disabled={verifyingOtp}
+                value={otpInput}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/[^0-9]/g, '');
+                  if (raw.length <= 6) {
+                    if (raw.length > 3) {
+                      setOtpInput(`${raw.slice(0, 3)} ${raw.slice(3)}`);
+                    } else {
+                      setOtpInput(raw);
+                    }
+                  }
+                  if (otpError) setOtpError(null);
+                }}
+                placeholder="000 000"
+                className="w-full text-center font-mono text-3xl font-bold tracking-widest px-4 py-3 border-2 border-maroon/30 rounded-xl focus:border-maroon focus:ring-2 focus:ring-maroon/20 focus:outline-none transition-all placeholder:text-gray-300 bg-[#FCFBF9]"
+              />
+            </div>
+
+            {otpError && (
+              <div
+                data-testid="classroom-otp-error"
+                className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs font-semibold text-red-700 text-left flex items-center gap-2"
+              >
+                <span>✕</span>
+                <span>{otpError}</span>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              onClick={handleVerifyOtp}
+              data-testid="verify-otp-btn"
+              disabled={verifyingOtp || otpInput.replace(/\s+/g, '').length !== 6}
+              className="w-full py-3.5 bg-maroon text-white font-bold rounded-xl text-sm shadow hover:bg-maroon-dark active:scale-[0.99] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
+            >
+              {verifyingOtp ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Verifying Code...</span>
+                </>
+              ) : (
+                <>
+                  <span>Unlock Examination</span>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                  </svg>
+                </>
+              )}
+            </button>
+          </form>
+
+          <div className="pt-1 text-[11px] text-gray-400">
+            Codes rotate every 30 seconds. Codes received from outside the room will be rejected.
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (questions.length === 0) {
+    return (
+      <div className="min-h-screen bg-[#FDFBF7] flex items-center justify-center">
+        <div className="animate-spin h-8 w-8 border-4 border-maroon border-t-transparent rounded-full" />
       </div>
     );
   }
@@ -900,14 +1221,29 @@ export default function ExamInterface() {
         <div className="flex-1 min-w-0 flex flex-col lg:border-r border-border-soft bg-white">
           <div className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
             <div className="flex justify-between items-center gap-2 border-b border-border-soft pb-3 sm:pb-4 mb-4 sm:mb-6">
-              <h2 className="text-base sm:text-xl font-serif font-bold text-ink">Question {currentQuestionIdx + 1} of {questions.length}</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base sm:text-xl font-serif font-bold text-ink">Question {currentQuestionIdx + 1} of {questions.length}</h2>
+                {perQuestionLimit > 0 && questionTimeLeft !== null && (
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-mono font-bold border flex items-center gap-1 ${
+                    questionTimeLeft <= 5 ? 'bg-red-50 text-red-600 border-red-200 animate-pulse' : 'bg-cream text-maroon border-border-soft'
+                  }`}>
+                    ⏱ {questionTimeLeft}s
+                  </span>
+                )}
+              </div>
               <span className="bg-maroon/10 text-maroon border border-maroon/20 px-2.5 py-1 rounded-full text-xs font-bold shrink-0">
                 {currentQ.marks} Marks
               </span>
             </div>
             
-            <div className="prose max-w-none mb-5 sm:mb-8 text-ink font-semibold text-base sm:text-lg leading-relaxed break-words">
-              {currentQ.text}
+            {/* Anti-Scraping Canvas Question with Drifting Watermark & OCR Noise */}
+            <div className="mb-5 sm:mb-8 select-none relative">
+              <CanvasQuestion
+                text={currentQ.text}
+                studentId={currentUser?.id}
+                studentEmail={currentUser?.email || currentUser?.name}
+              />
+              <DecoyElements questionId={currentQ.id} />
             </div>
             {currentQ.image && (
               <div className="mb-6 sm:mb-8 space-y-2">
@@ -937,9 +1273,13 @@ export default function ExamInterface() {
               </div>
             )}
 
-            <div className="space-y-3 sm:space-y-4">
+            <div className="space-y-3 sm:space-y-4 select-none">
               {currentQ.type === 'MCQ' && currentQ.options?.map((opt: string, idx: number) => (
-                <label key={idx} className={`block p-3.5 sm:p-4 min-h-[48px] border rounded-xl cursor-pointer transition-colors ${currentResp?.data === opt ? 'bg-maroon/5 border-maroon' : 'bg-white border-border-soft hover:bg-cream/20'}`}>
+                <label
+                  key={idx}
+                  onClick={(e) => telemetry.verifyClick(e, currentQ.id)}
+                  className={`block p-3.5 sm:p-4 min-h-[48px] border rounded-xl cursor-pointer select-none transition-colors ${currentResp?.data === opt ? 'bg-maroon/5 border-maroon' : 'bg-white border-border-soft hover:bg-cream/20'}`}
+                >
                   <div className="flex items-start sm:items-center gap-3 min-w-0">
                     <input 
                       type="radio" 
@@ -956,7 +1296,11 @@ export default function ExamInterface() {
               {currentQ.type === 'MULTI_SELECT' && currentQ.options?.map((opt: string, idx: number) => {
                 const isSelected = Array.isArray(currentResp?.data) && currentResp.data.includes(opt);
                 return (
-                  <label key={idx} className={`block p-3.5 sm:p-4 min-h-[48px] border rounded-xl cursor-pointer transition-colors ${isSelected ? 'bg-maroon/5 border-maroon' : 'bg-white border-border-soft hover:bg-cream/20'}`}>
+                  <label
+                    key={idx}
+                    onClick={(e) => telemetry.verifyClick(e, currentQ.id)}
+                    className={`block p-3.5 sm:p-4 min-h-[48px] border rounded-xl cursor-pointer select-none transition-colors ${isSelected ? 'bg-maroon/5 border-maroon' : 'bg-white border-border-soft hover:bg-cream/20'}`}
+                  >
                     <div className="flex items-start sm:items-center gap-3 min-w-0">
                       <input 
                         type="checkbox" 

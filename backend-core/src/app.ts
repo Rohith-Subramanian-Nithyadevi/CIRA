@@ -16,6 +16,9 @@ import facultyDashboardRoutes from './routes/faculty-dashboard.routes';
 import facultyReportsRoutes from './routes/faculty-reports.routes';
 import assignmentRoutes from './routes/assignment.routes';
 import studentImprovementRoutes from './routes/student-improvement.routes';
+import { getLiveQuizOtp, toggleQuizEntryLock } from './controllers/quiz.controller';
+import { verifyQuizAccessOtp } from './controllers/student-exam.controller';
+import { authenticate, authorize } from './middlewares/auth.middleware';
 import { errorHandler } from './middlewares/error.middleware';
 
 const app: Application = express();
@@ -60,6 +63,11 @@ app.use('/api/v1/student/exam', studentExamRoutes);
 app.use('/api/v1/student', studentDashboardRoutes);
 app.use('/api/v1/student', studentFeaturesRoutes);
 app.use('/api/v1/student/improvement', studentImprovementRoutes);
+
+// Live 30s Classroom OTP Aliases
+app.get('/api/quizzes/:quizId/live-otp', authenticate, authorize(['FACULTY', 'ADMIN']), getLiveQuizOtp);
+app.post('/api/quizzes/:quizId/toggle-entry-lock', authenticate, authorize(['FACULTY', 'ADMIN']), toggleQuizEntryLock);
+app.post('/api/quizzes/:quizId/verify-otp', authenticate, verifyQuizAccessOtp);
 
 // Health check route for the root
 app.get('/', (req, res) => {

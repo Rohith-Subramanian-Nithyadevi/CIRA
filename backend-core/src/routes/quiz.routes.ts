@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { createQuiz, updateQuiz, addQuestions, getSubmissions, evaluateAttempt, evaluateStudentForQuiz, getQuizzes, getQuizById, deleteQuiz, uploadDocxParser, uploadImageHandler, publishQuizAnswers, getLiveQuizOtp, getQuizTopics } from '../controllers/quiz.controller';
+import { createQuiz, updateQuiz, addQuestions, getSubmissions, evaluateAttempt, evaluateStudentForQuiz, getQuizzes, getQuizById, deleteQuiz, uploadDocxParser, uploadImageHandler, publishQuizAnswers, getLiveQuizOtp, toggleQuizEntryLock, getQuizTopics } from '../controllers/quiz.controller';
 import { allowRestart } from '../controllers/student-exam.controller';
 import { downloadTemplate } from '../controllers/template.controller';
 import { authenticate, authorize } from '../middlewares/auth.middleware';
@@ -64,6 +64,7 @@ router.post('/create', createQuiz);
 router.post('/upload-docx', upload.single('file'), uploadDocxParser);
 router.post('/upload-image', upload.single('file'), uploadImageHandler);
 router.get('/:quizId/live-otp', getLiveQuizOtp);
+router.post('/:quizId/toggle-entry-lock', toggleQuizEntryLock);
 router.get('/:quizId', getQuizById);
 router.put('/:quizId', updateQuiz);
 router.delete('/:quizId', deleteQuiz);
