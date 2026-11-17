@@ -21,6 +21,7 @@
 - At 375px, the first screenshot showed horizontal overflow from the calendar heading and month controls. The heading now wraps, the calendar card uses mobile padding, and the date grid reduces its gaps on narrow screens. A follow-up screenshot showed no horizontal scrollbar.
 - Source and fixture-test review covered report filters and chart containers, horizontally scrollable student/assessment tables, question editor/image previews, paper list/editor/print preview, poll editor/results, student profile tabs/charts, notification popover/page, and password reset/profile actions. The browser run used API error states because backend services were not running; populated charts, data rows and open dialogs were not visually exercised in Chrome.
 - Added a `prefers-reduced-motion` rule that shortens transitions and animation timing while keeping loading indicator elements and their visible spinner shapes in place. Removed nonessential view fades, card lifts, and a decorative report-card blur; softened modal shadows.
+- Student Reports now uses the shared full-page accessible loader until the initial authorized-filter request settles, rather than rendering empty report content. The focused StudentReports Jest suite (2 tests) and frontend build passed.
 ## Phase 0 files
 
 - `BASELINE_AUDIT.md`
