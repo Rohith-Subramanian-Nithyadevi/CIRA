@@ -195,7 +195,8 @@ describe('Student Answer Publication Visibility (ExamResults & StudentDashboard)
     expect(screen.getByText(/Blank 1: Primary Key/)).toBeInTheDocument();
     expect(screen.getByText(/2 \/ 2 Marks/i)).toBeInTheDocument();
     expect(screen.getAllByText(/4 \/ 4 Marks/i).length).toBe(2);
-    expect(screen.getAllByText('10').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText('10 / 10')).toBeInTheDocument();
+    expect(screen.getByText('10')).toBeInTheDocument();
   });
 
   it('StudentDashboard hides unpublished scores and reveals published scores', async () => {

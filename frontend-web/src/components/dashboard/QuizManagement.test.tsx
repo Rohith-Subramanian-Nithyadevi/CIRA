@@ -316,7 +316,7 @@ describe('QuizManagement simplified actions and answer publication workflow', ()
     expect(putBody.questions).toHaveLength(1);
   });
 
-  it('opens View Submissions, hides student scores before publication, allows grading review, and updates UI on Publish Answers', async () => {
+  it('opens View Submissions, displays student scores immediately before publication, allows grading review, and updates UI on Publish Answers', async () => {
     let published = false;
 
     (apiClient.fetch as jest.Mock).mockImplementation((path: string, opts?: any) => {
@@ -367,8 +367,7 @@ describe('QuizManagement simplified actions and answer publication workflow', ()
     expect(screen.getByText('24CS001')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Print$/i })).not.toBeInTheDocument();
     expect(screen.getByText('Answers Not Published')).toBeInTheDocument();
-    expect(screen.getByText('Hidden until published')).toBeInTheDocument();
-    expect(screen.queryByText('Auto: 10 | Written: 6')).not.toBeInTheDocument();
+    expect(screen.getByText('Auto: 10 | Written: 6')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /^Edit$/i }));
     expect(await screen.findByText(/Review Attempt: Aarav Patel/i)).toBeInTheDocument();
@@ -382,8 +381,9 @@ describe('QuizManagement simplified actions and answer publication workflow', ()
 
     fireEvent.click(screen.getByRole('button', { name: /Confirm & Publish/i }));
 
-    expect(await screen.findByText('Auto: 10 | Written: 6')).toBeInTheDocument();
-    expect(screen.getAllByText('Answers Published').length).toBeGreaterThanOrEqual(1);
+    await waitFor(() => {
+      expect(screen.getAllByText('Answers Published').length).toBeGreaterThanOrEqual(1);
+    });
     const disabledPublishedBtn = screen.getByRole('button', { name: /Answers Published/i });
     expect(disabledPublishedBtn).toBeDisabled();
   });
@@ -1204,6 +1204,7 @@ describe('QuizManagement View Submissions class-wise roster & filters', () => {
     render(<QuizManagement />, ['/faculty/dashboard?tab=quizzes&view=submissions&quizId=quiz-viol-1']);
 
     expect(await screen.findByText('Riya Shortcut')).toBeInTheDocument();
+    expect(screen.getByText('⚠ Violated (2)')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Violation Details/i }));
 
     expect(await screen.findByRole('dialog')).toBeInTheDocument();

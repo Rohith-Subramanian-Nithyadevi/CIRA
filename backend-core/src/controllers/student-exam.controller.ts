@@ -7,6 +7,25 @@ import { verifyQuizOtp } from '../utils/totp';
 
 export const OBJECTIVE_TYPES = ['MCQ', 'MULTI_SELECT', 'TRUE_FALSE', 'MATCHING', 'NUMERICAL', 'FILL_BLANK'];
 
+export function deterministicShuffle<T>(array: T[], seedStr: string): T[] {
+  let hash = 0;
+  for (let i = 0; i < seedStr.length; i++) {
+    hash = (hash << 5) - hash + seedStr.charCodeAt(i);
+    hash |= 0;
+  }
+  const pseudoRandom = () => {
+    hash = Math.imul(hash ^ (hash >>> 15), 1 | hash);
+    hash = (hash + Math.imul(hash ^ (hash >>> 7), 61 | hash)) ^ hash;
+    return ((hash ^ (hash >>> 14)) >>> 0) / 4294967296;
+  };
+  const result = [...array];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(pseudoRandom() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
 export function gradeObjectiveResponse(
   question: any,
   response: { status?: string | null; answerData?: any }
@@ -69,6 +88,20 @@ export function isObjectiveAnswerCorrect(question: any, answerData: any): boolea
     const studentVal = normalize(answerData);
     const expectedList = String(key).split(',').map(s => normalize(s));
     return expectedList.includes(studentVal);
+  }
+
+  if (question.type === 'MCQ') {
+    if (answerData === question.answerKey) return true;
+    if (String(answerData).trim() === String(question.answerKey).trim()) return true;
+    if (Array.isArray(question.options) && !question.options.includes(question.answerKey)) {
+      const letterMap: Record<string, number> = { A: 0, B: 1, C: 2, D: 3, E: 4, F: 5, 'OPTION A': 0, 'OPTION B': 1, 'OPTION C': 2, 'OPTION D': 3 };
+      const keyStr = String(question.answerKey).trim().toUpperCase();
+      const mappedIdx = letterMap[keyStr] ?? (Number.isInteger(Number(keyStr)) ? Number(keyStr) : -1);
+      if (mappedIdx >= 0 && mappedIdx < question.options.length) {
+        return answerData === question.options[mappedIdx];
+      }
+    }
+    return false;
   }
 
   return answerData === question.answerKey;
@@ -382,14 +415,7 @@ export const startExam = async (req: Request, res: Response, next: NextFunction)
       delete (quiz as any).questionUsages;
     }
     if (quiz && quiz.questions) {
-      quiz.questions = await resolveQuestionImages(quiz.questions.map((q: any) => {
-        if (q.type === 'MATCHING' && Array.isArray(q.options)) {
-          const lefts = q.options.map((o: any) => o.left);
-          const rights = q.options.map((o: any) => o.right).sort(() => Math.random() - 0.5);
-          q.options = { lefts, rights };
-        }
-        return q;
-      }));
+      quiz.questions = await resolveQuestionImages(quiz.questions);
 
       // Question Shuffling & Pool Sampling:
       // Randomize question order per student attempt and select only a subset if questionPoolCount is configured
@@ -457,6 +483,34 @@ export const startExam = async (req: Request, res: Response, next: NextFunction)
         const studentMarks = orderedQuestions.reduce((sum: number, q: any) => sum + (Number(q.marks) || 0), 0);
         quiz.totalMarks = studentMarks;
       }
+
+      // True Per-Student Deterministic Option Shuffling:
+      // Eliminates pattern-based answer guessing and peeking between students
+      // Deterministically seeded by studentId + quizId + questionId so reload keeps exact order
+      orderedQuestions = orderedQuestions.map((q: any) => {
+        const clonedQ = { ...q };
+        const optionSeed = `${userId}-${quizId}-${clonedQ.id}`;
+
+        if (clonedQ.type === 'MATCHING') {
+          if (Array.isArray(clonedQ.options)) {
+            const lefts = clonedQ.options.map((o: any) => o.left);
+            const rights = deterministicShuffle(
+              clonedQ.options.map((o: any) => o.right),
+              `${optionSeed}-matching-rights`
+            );
+            clonedQ.options = { lefts, rights };
+          } else if (clonedQ.options && Array.isArray(clonedQ.options.rights)) {
+            clonedQ.options = {
+              lefts: clonedQ.options.lefts,
+              rights: deterministicShuffle(clonedQ.options.rights, `${optionSeed}-matching-rights`)
+            };
+          }
+        } else if (Array.isArray(clonedQ.options) && clonedQ.options.length > 1 && (clonedQ.type === 'MCQ' || clonedQ.type === 'MULTI_SELECT')) {
+          clonedQ.options = deterministicShuffle(clonedQ.options, `${optionSeed}-options`);
+        }
+        return clonedQ;
+      });
+
       quiz.questions = orderedQuestions;
     }
 
@@ -1040,8 +1094,14 @@ export const getQuizResult = async (req: Request, res: Response, next: NextFunct
     });
 
     const resolvedQuestions = await resolveQuestionImages(mergedQuestions);
+    const calculatedTotalMarks = Number(attempt.quiz.totalMarks) > 0
+      ? Number(attempt.quiz.totalMarks)
+      : mergedQuestions.reduce((sum: number, q: any) => sum + (Number(q.marks) || 0), 0);
+    const obtainedScore = attempt.totalScore ?? attempt.score ?? 0;
+
     const sanitizedQuiz = {
       ...attempt.quiz,
+      totalMarks: calculatedTotalMarks,
       questions: resolvedQuestions
     };
     delete (sanitizedQuiz as any).questionUsages;
@@ -1051,6 +1111,9 @@ export const getQuizResult = async (req: Request, res: Response, next: NextFunct
       status: 'success',
       data: {
         ...attempt,
+        obtainedScore,
+        totalMarks: calculatedTotalMarks,
+        scoreFormatted: `${obtainedScore} / ${calculatedTotalMarks}`,
         responses: normalizedResponses,
         quiz: sanitizedQuiz
       }

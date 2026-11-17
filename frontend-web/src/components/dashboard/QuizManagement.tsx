@@ -3474,7 +3474,7 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                   class: sub.classShortLabel || sub.classLabel || '',
                   submittedAt: isRowSubmitted(sub) || sub.id ? formatSubmissionDateTime(sub) : '—',
                   status: sub.status === 'IN_PROGRESS' ? 'ABANDONED' : sub.status === 'NOT_SUBMITTED' ? 'NOT SUBMITTED' : sub.status,
-                  totalScore: !isRowSubmitted(sub) ? '—' : answersPublished ? (sub.totalScore ?? 0) : 'Not Published',
+                  totalScore: !isRowSubmitted(sub) ? '—' : (sub.totalScore ?? 0),
                   violation: sub.violationReason || '',
                 })), ['student', 'rollNumber', 'class', 'submittedAt', 'status', 'totalScore', 'violation'], `quiz_attempts_${activeQuizId || 'all'}_${new Date().toISOString().slice(0, 10)}`)}
                 disabled={filteredSubmissions.length === 0}
@@ -3738,7 +3738,7 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                                 </div>
                               ) : !rowSubmitted ? (
                                 <span className="text-xs text-gray-body/60">—</span>
-                              ) : answersPublished ? (
+                              ) : (
                                 <div>
                                   <div className="font-bold text-maroon">{sub.totalScore ?? 0}</div>
                                   <div className="text-[11px] text-gray-body">Auto: {sub.objectiveScore ?? 0} | Written: {sub.writtenScore ?? 0}</div>
@@ -3746,45 +3746,70 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                                     <div className="text-[10px] font-semibold text-amber-700 dark:text-amber-300">Needs Review</div>
                                   )}
                                 </div>
-                              ) : (
-                                <div>
-                                  <span className="text-xs text-gray-body italic">Hidden until published</span>
-                                  {sub.needsReview && (
-                                    <div className="text-[10px] font-semibold text-amber-700 dark:text-amber-300">Needs Review</div>
-                                  )}
-                                </div>
                               )}
                             </TableCell>
-                            <TableCell className="max-w-[400px]">
-                              {sub.violationReason || (Array.isArray(sub.violations) && sub.violations.length > 0) ? (
-                                <div className="px-3 py-2 text-sm font-semibold rounded-lg bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-900/50 space-y-1.5">
-                                  <div>
-                                    <span className="font-bold">⚠ Violation:</span> {sub.violationReason || sub.violations?.[0]?.reason || sub.violations?.[0]?.type}
-                                  </div>
-                                  {sub.riskScore && sub.riskScore !== 'LOW' && (
-                                    <div className="text-[11px] font-bold text-amber-700 dark:text-amber-400">
-                                      🛡 Integrity Risk: {sub.riskScore}
+                            <TableCell className="max-w-[220px]">
+                              {(() => {
+                                const hasViolations = Boolean(
+                                  sub.violationReason ||
+                                  (Array.isArray(sub.violations) && sub.violations.length > 0) ||
+                                  sub.status === 'VIOLATED'
+                                );
+                                const violationCount = Array.isArray(sub.violations) && sub.violations.length > 0
+                                  ? sub.violations.length
+                                  : (sub.violationCount && sub.violationCount > 0)
+                                  ? sub.violationCount
+                                  : hasViolations
+                                  ? 1
+                                  : 0;
+
+                                if (hasViolations) {
+                                  return (
+                                    <div className="flex flex-col items-start gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => setSelectedViolationRow(sub)}
+                                        aria-label="Violation Details"
+                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-50 hover:bg-red-100 text-red-700 dark:bg-red-950/40 dark:hover:bg-red-900/50 dark:text-red-300 border border-red-200 dark:border-red-900/60 transition-colors cursor-pointer"
+                                        title="Click to view full violation history and keystroke evidence"
+                                      >
+                                        <span>⚠ Violated{violationCount > 1 ? ` (${violationCount})` : ''}</span>
+                                      </button>
+                                      {sub.riskScore && sub.riskScore !== 'LOW' && (
+                                        <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400">
+                                          🛡 Risk: {sub.riskScore}
+                                        </span>
+                                      )}
                                     </div>
-                                  )}
-                                  <button
-                                    type="button"
-                                    onClick={() => setSelectedViolationRow(sub)}
-                                    className="inline-flex items-center text-xs font-semibold underline underline-offset-2 text-maroon dark:text-red-200 hover:text-maroon-deep cursor-pointer"
-                                  >
-                                    Violation Details
-                                  </button>
-                                </div>
-                              ) : sub.riskScore && sub.riskScore !== 'LOW' ? (
-                                <div className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-900/50">
-                                  🛡 Integrity Risk: {sub.riskScore}
-                                </div>
-                              ) : sub.status === 'IN_PROGRESS' ? (
-                                <div className="px-3 py-2 text-sm font-semibold rounded-lg bg-orange-50 dark:bg-orange-950/30 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-900/50">
-                                  Student left the exam without submitting
-                                </div>
-                              ) : (
-                                <span className="text-xs text-gray-body/50">—</span>
-                              )}
+                                  );
+                                }
+
+                                if (sub.riskScore && sub.riskScore !== 'LOW') {
+                                  return (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300 border border-amber-200 dark:border-amber-900/50">
+                                      🛡 Risk: {sub.riskScore}
+                                    </span>
+                                  );
+                                }
+
+                                if (sub.status === 'IN_PROGRESS') {
+                                  return (
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300 border border-amber-200 dark:border-amber-900/40">
+                                      In Progress
+                                    </span>
+                                  );
+                                }
+
+                                if (rowSubmitted || sub.status === 'SUBMITTED' || sub.status === 'EVALUATED') {
+                                  return (
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900/40">
+                                      Clean
+                                    </span>
+                                  );
+                                }
+
+                                return <span className="text-xs text-gray-body/50">—</span>;
+                              })()}
                             </TableCell>
                             <TableCell>
                               <div className="flex items-center justify-center flex-wrap gap-2">

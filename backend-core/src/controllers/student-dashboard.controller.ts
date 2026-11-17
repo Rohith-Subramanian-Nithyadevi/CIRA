@@ -97,6 +97,7 @@ export const getDashboardData = async (req: Request, res: Response) => {
           submittedAt: (a.endTime || a.startTime).toISOString(),
           status: isPublished ? a.status : 'Submitted Successfully',
           totalScore: isPublished ? a.totalScore : null,
+          scoreFormatted: isPublished ? `${a.totalScore ?? 0} / ${a.quiz.totalMarks ?? 0}` : null,
           objectiveScore: isPublished ? a.objectiveScore : null,
           writtenScore: isPublished ? a.writtenScore : null,
           grade: isPublished ? (a.finalGrade || null) : null,
