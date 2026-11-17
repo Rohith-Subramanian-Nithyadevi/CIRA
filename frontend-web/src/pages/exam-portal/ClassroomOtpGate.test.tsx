@@ -16,16 +16,6 @@ jest.mock('../../hooks/useSecureExam', () => ({
   isFullscreenSupported: jest.fn(() => true),
 }));
 
-jest.mock('../../hooks/useBehavioralTelemetry', () => ({
-  useBehavioralTelemetry: () => ({
-    notifyQuestionRendered: jest.fn(),
-    recordOptionSelect: jest.fn(),
-    recordTextChange: jest.fn(),
-    recordNavigation: jest.fn(),
-    getIntegrityReport: jest.fn(() => ({})),
-  }),
-}));
-
 jest.mock('../../components/exam/CanvasQuestion', () => ({
   CanvasQuestion: ({ text }: { text: string }) => <div data-testid="canvas-question">{text}</div>,
 }));
