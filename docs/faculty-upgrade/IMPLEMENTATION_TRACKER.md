@@ -29,6 +29,10 @@
 - `API_AND_DATA_DEPENDENCIES.md`
 - `SECURITY_AND_REGRESSION_REPORT.md`
 
+## Additional source-based reports
+
+- `../QUESTION_GENERATION_PIPELINE_REPORT.md` documents the current assignment/test question workflows and notes the unavailable AI-service source. Documentation-only; no tests were run.
+
 ## Phase 0 validation
 
 - Ran `git status --short --branch`: branch is `santhosh_branch`, ahead 1; pre-existing changes are listed in `BASELINE_AUDIT.md`.
