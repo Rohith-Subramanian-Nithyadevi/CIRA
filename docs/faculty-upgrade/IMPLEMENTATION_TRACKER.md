@@ -126,3 +126,26 @@
   - `frontend-web`: All 27 test suites passed (100 tests, 0 failures).
   - Production builds (`npm run build` in both `backend-core` and `frontend-web`) completed with 0 errors.
 
+## Follow-up: Removal of Behavioral Proctoring Thresholds, Heuristic Flags, and Risk Categorization (2026-11-17)
+
+- **Objective**:
+  - Remove all behavioral proctoring thresholds, heuristic violation flags, and risk-score categorizations (`LOW` / `MEDIUM` / `HIGH`) to return to a clean baseline before future research.
+- **Removed**:
+  - **Behavioral Thresholds & Telemetry**:
+    - Deleted `frontend-web/src/hooks/useBehavioralTelemetry.ts` and `frontend-web/src/hooks/useBehavioralTelemetry.test.tsx` (TTFI `< 1800ms`, `fastAnswers`, `zeroEntropyClicks`, `syntheticClicks`, click coordinate tracking).
+    - Removed per-question auto-advance throttling timer (`perQuestionLimit`, `questionTimeLeft`) from `ExamInterface.tsx`.
+    - Removed `onClick` telemetry verification from question option labels in `ExamInterface.tsx`.
+    - Removed `integrityReport` from `submitExam` and `handleSecurityViolation` payloads.
+  - **Risk Categorization & Scoring Logic**:
+    - Removed `calculateRiskScore` and `integrityReport` processing in `backend-core/src/controllers/student-exam.controller.ts`.
+    - Removed `riskScore` and `integrityReport` projection from `backend-core/src/controllers/quiz.controller.ts`.
+    - Removed risk-level badges (`LOW`, `MEDIUM`, `HIGH`) and synthetic click counts from Faculty Submissions table in `frontend-web/src/components/dashboard/QuizManagement.tsx`.
+    - Removed obsolete `backend-core/tests/integrity-risk-score.test.cjs`.
+- **Preserved Core Security**:
+  - Preserved standard core quiz violation logs (`TAB_SWITCH`, `WINDOW_BLUR`, `FULLSCREEN_EXIT`, `BLOCKED_KEY`, `CLIPBOARD`, and keyboard shortcut sequence recording in `useSecureExam.ts` & `recordViolation`).
+  - Preserved 30-second rotating classroom OTP gate, single-session device lock, question rendering, deterministic option shuffling, grading, and submission flow.
+- **Validation**:
+  - `backend-core`: `npm run build` passed (`tsc` 0 errors); all 11 test suites passed (39 tests, 0 failures).
+  - `frontend-web`: `npm run build` passed (`tsc -b && vite build` 0 errors); all 26 test suites passed (98 tests, 0 failures).
+
+

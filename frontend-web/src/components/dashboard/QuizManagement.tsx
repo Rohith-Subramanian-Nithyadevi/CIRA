@@ -3857,20 +3857,7 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                                       >
                                         <span>⚠ Violated{violationCount > 1 ? ` (${violationCount})` : ''}</span>
                                       </button>
-                                      {sub.riskScore && sub.riskScore !== 'LOW' && (
-                                        <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400">
-                                          🛡 Risk: {sub.riskScore}
-                                        </span>
-                                      )}
                                     </div>
-                                  );
-                                }
-
-                                if (sub.riskScore && sub.riskScore !== 'LOW') {
-                                  return (
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300 border border-amber-200 dark:border-amber-900/50">
-                                      🛡 Risk: {sub.riskScore}
-                                    </span>
                                   );
                                 }
 
