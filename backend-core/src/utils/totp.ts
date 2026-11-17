@@ -33,15 +33,28 @@ export const getOtpRemainingSeconds = (): number => {
 };
 
 /**
- * Verifies a 6-digit OTP against the current, previous, or next 30-second window (clock drift tolerance).
+ * Verifies a 6-digit OTP strictly against the active 30-second window.
+ * Allows at most a 3-second overlap at window boundaries for network latency / clock drift.
  */
 export const verifyQuizOtp = (quizId: string, userOtp: string): boolean => {
   if (!userOtp || typeof userOtp !== 'string') return false;
-  const cleanOtp = userOtp.trim();
+  const cleanOtp = userOtp.replace(/\s+/g, '').trim();
   if (cleanOtp.length !== 6) return false;
 
-  const currentStep = Math.floor(Date.now() / (STEP_SECONDS * 1000));
-  const validSteps = [currentStep, currentStep - 1, currentStep + 1];
+  const now = Date.now();
+  const currentStep = Math.floor(now / (STEP_SECONDS * 1000));
+  const elapsedInStep = (now / 1000) % STEP_SECONDS;
+
+  // Strict 30-second validity:
+  // Always allow the current time step.
+  // Only allow step - 1 if within the first 3 seconds of the new step (boundary tolerance).
+  // Only allow step + 1 if within the last 3 seconds of the current step.
+  const validSteps = [currentStep];
+  if (elapsedInStep <= 3) {
+    validSteps.push(currentStep - 1);
+  } else if (elapsedInStep >= STEP_SECONDS - 3) {
+    validSteps.push(currentStep + 1);
+  }
 
   return validSteps.some((step) => {
     const expected = generateQuizOtp(quizId, step);

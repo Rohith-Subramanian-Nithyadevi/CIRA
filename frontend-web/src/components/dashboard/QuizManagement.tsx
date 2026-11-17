@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Card, CardContent } from '@/components/ui/card';
-import { Sparkles, Clipboard, Check, AlertCircle, Pencil, FileText, ChevronLeft, ChevronRight, Printer } from 'lucide-react';
+import { Sparkles, Clipboard, Check, AlertCircle, Pencil, FileText, ChevronLeft, ChevronRight, Printer, Maximize2, X, Lock, Unlock } from 'lucide-react';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingState, ErrorState, ConfirmationDialog } from '@/components/ui/facultyPrimitives';
 import { DeleteConfirmationDialog } from '@/components/ui/DeleteConfirmationDialog';
@@ -675,8 +675,10 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
     'Cloud Computing',
     'Theory of Computation'
   ]);
-  const [liveOtp, setLiveOtp] = useState<{ otp: string; remainingSeconds: number } | null>(null);
+  const [liveOtp, setLiveOtp] = useState<{ otp: string; remainingSeconds: number; entryLocked?: boolean } | null>(null);
   const [liveOtpLoading, setLiveOtpLoading] = useState(false);
+  const [isProjectorModalOpen, setIsProjectorModalOpen] = useState(false);
+  const [togglingEntryLock, setTogglingEntryLock] = useState(false);
   const [editingObjectiveIds, setEditingObjectiveIds] = useState<Record<string, boolean>>({});
   const [keylogInterval, setKeylogInterval] = useState<'1.5s' | '5s' | '30s' | '1m' | 'all'>('1.5s');
   const [submissions, setSubmissions] = useState<any[]>([]);
@@ -793,7 +795,8 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
       if (isMountedRef.current && data?.status === 'success' && data.data) {
         setLiveOtp({
           otp: data.data.otp,
-          remainingSeconds: data.data.remainingSeconds || 30
+          remainingSeconds: data.data.remainingSeconds || 30,
+          entryLocked: Boolean(data.data.entryLocked),
         });
       }
     } catch {
@@ -802,6 +805,42 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
       if (isMountedRef.current) setLiveOtpLoading(false);
     }
   }, []);
+
+  const handleToggleEntryLock = async () => {
+    if (!activeSubmissionsQuiz?.id || togglingEntryLock) return;
+    try {
+      setTogglingEntryLock(true);
+      const newLockedState = !Boolean(liveOtp?.entryLocked);
+      const res = await apiClient.fetch(`/api/v1/faculty/quiz/${activeSubmissionsQuiz.id}/toggle-entry-lock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ locked: newLockedState }),
+      });
+      const data = await res.json();
+      if (res?.ok !== false && data?.status === 'success') {
+        setLiveOtp((prev) => prev ? { ...prev, entryLocked: newLockedState } : prev);
+        toast.success(newLockedState ? 'Classroom entry locked. New arrivals cannot verify OTP.' : 'Classroom entry unlocked.');
+      } else {
+        toast.error(data?.message || 'Failed to toggle entry lock');
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error('Error toggling entry lock');
+    } finally {
+      setTogglingEntryLock(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isProjectorModalOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsProjectorModalOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isProjectorModalOpen]);
 
   useEffect(() => {
     if (!activeSubmissionsQuiz?.id || activeView !== 'view_submissions') {
@@ -3508,6 +3547,11 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 uppercase">
                           Refreshes every 30s
                         </span>
+                        {liveOtp?.entryLocked && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 dark:bg-red-950/40 text-red-800 dark:text-red-200 uppercase">
+                            Entry Locked
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-gray-body mt-0.5">
                         Students enter this live rolling code to verify presence in the examination hall.
@@ -3518,7 +3562,7 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                   <div className="flex items-center gap-4">
                     <div className="text-right">
                       <div className="font-mono text-2xl font-bold tracking-widest text-maroon">
-                        {liveOtpLoading ? '••••••' : (liveOtp?.otp || '------')}
+                        {liveOtpLoading ? '••••••' : (liveOtp?.otp ? `${liveOtp.otp.slice(0, 3)} ${liveOtp.otp.slice(3)}` : '------')}
                       </div>
                       <div className="text-[11px] font-semibold text-gray-body">
                         Expires in: <span className="font-mono font-bold text-ink">{liveOtp?.remainingSeconds ?? 30}s</span>
@@ -3546,6 +3590,44 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                       <span className="absolute text-[11px] font-bold font-mono text-ink">
                         {liveOtp?.remainingSeconds ?? 30}
                       </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 pl-2 border-l border-border-soft">
+                      {/* Lock Entry Toggle */}
+                      <button
+                        type="button"
+                        onClick={handleToggleEntryLock}
+                        disabled={togglingEntryLock}
+                        title={liveOtp?.entryLocked ? 'Unlock classroom entry' : 'Lock classroom entry'}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                          liveOtp?.entryLocked
+                            ? 'bg-red-600 text-white hover:bg-red-700'
+                            : 'bg-cream dark:bg-zinc-800 text-ink border border-border-soft hover:bg-cream-dark'
+                        }`}
+                      >
+                        {liveOtp?.entryLocked ? (
+                          <>
+                            <Lock className="w-3.5 h-3.5 text-white" />
+                            <span>Entry Locked</span>
+                          </>
+                        ) : (
+                          <>
+                            <Unlock className="w-3.5 h-3.5 text-gray-body" />
+                            <span>Lock Entry</span>
+                          </>
+                        )}
+                      </button>
+
+                      {/* Projector Mode Button */}
+                      <button
+                        type="button"
+                        onClick={() => setIsProjectorModalOpen(true)}
+                        className="px-3 py-1.5 rounded-lg text-xs font-bold bg-maroon text-white hover:bg-maroon-dark transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                        title="Open high-contrast full-screen projector view"
+                      >
+                        <Maximize2 className="w-3.5 h-3.5" />
+                        <span>Projector View</span>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -4055,6 +4137,148 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
               <Button type="button" onClick={handleConfirmPublishAnswers} disabled={publishingAnswers} className="bg-maroon hover:bg-maroon-deep text-white font-bold text-xs rounded-full px-5">
                 {publishingAnswers ? 'Publishing...' : 'Confirm & Publish'}
               </Button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* High-Contrast Classroom Projector Modal */}
+      {isProjectorModalOpen && activeSubmissionsQuiz && typeof document !== 'undefined' && createPortal(
+        <div
+          data-testid="projector-modal"
+          className="fixed inset-0 z-[99999] bg-[#0A0A0C] text-white flex flex-col justify-between p-6 sm:p-12 select-none animate-in fade-in duration-200"
+        >
+          {/* Top Bar */}
+          <div className="flex items-center justify-between border-b border-zinc-800 pb-6">
+            <div className="space-y-1">
+              <div className="flex items-center gap-3">
+                <span className="px-3 py-1 rounded-full text-xs font-bold tracking-wider uppercase bg-maroon/40 text-rose-300 border border-maroon/60">
+                  Classroom Proctoring Gate
+                </span>
+                {liveOtp?.entryLocked && (
+                  <span className="px-3 py-1 rounded-full text-xs font-bold tracking-wider uppercase bg-red-900/60 text-red-300 border border-red-700 animate-pulse">
+                    Entry Locked
+                  </span>
+                )}
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-serif font-black tracking-tight text-white">
+                {activeSubmissionsQuiz.title}
+              </h2>
+              <p className="text-sm text-zinc-400">
+                Subject: <span className="text-zinc-200 font-semibold">{activeSubmissionsQuiz.subject}</span> • Code refreshes automatically every 30 seconds
+              </p>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                onClick={handleToggleEntryLock}
+                disabled={togglingEntryLock}
+                className={`px-4 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 cursor-pointer ${
+                  liveOtp?.entryLocked
+                    ? 'bg-red-600 text-white hover:bg-red-700'
+                    : 'bg-zinc-800 text-zinc-200 border border-zinc-700 hover:bg-zinc-700'
+                }`}
+              >
+                {liveOtp?.entryLocked ? (
+                  <>
+                    <Lock className="w-4 h-4" />
+                    <span>Unlock Classroom Entry</span>
+                  </>
+                ) : (
+                  <>
+                    <Unlock className="w-4 h-4" />
+                    <span>Lock Classroom Entry</span>
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsProjectorModalOpen(false)}
+                className="w-11 h-11 rounded-xl bg-zinc-800 border border-zinc-700 hover:bg-zinc-700 text-zinc-300 flex items-center justify-center transition-all cursor-pointer"
+                title="Close Projector View"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Center: Giant High-Contrast OTP & Circular Countdown */}
+          <div className="my-auto flex flex-col items-center justify-center text-center py-8">
+            <div className="text-xs sm:text-sm font-bold tracking-widest uppercase text-amber-400 mb-4 flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+              Active Examination Entrance Code
+            </div>
+
+            {liveOtp?.entryLocked ? (
+              <div className="p-8 rounded-3xl bg-red-950/40 border-2 border-red-800/80 max-w-lg mx-auto space-y-4">
+                <div className="text-5xl">🔒</div>
+                <h3 className="text-3xl font-serif font-bold text-red-200">Classroom Entry Closed</h3>
+                <p className="text-sm text-zinc-300">
+                  The faculty invigilator has locked entry for this exam. Students cannot verify OTP or begin new attempts.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-8">
+                {/* Giant 6-digit spaced code */}
+                <div
+                  data-testid="projector-otp-display"
+                  className="font-mono font-black text-6xl sm:text-8xl md:text-9xl tracking-[0.25em] text-white bg-zinc-900/90 border-2 border-zinc-700 px-8 sm:px-12 py-6 rounded-3xl shadow-2xl drop-shadow-lg"
+                >
+                  {liveOtpLoading ? (
+                    <span className="text-zinc-600 animate-pulse">••••••</span>
+                  ) : liveOtp?.otp ? (
+                    <span>
+                      {liveOtp.otp.slice(0, 3)} {liveOtp.otp.slice(3)}
+                    </span>
+                  ) : (
+                    <span className="text-zinc-600">------</span>
+                  )}
+                </div>
+
+                {/* Large 30s Countdown Ring */}
+                <div className="flex items-center gap-6">
+                  <div className="w-20 h-20 relative flex items-center justify-center">
+                    <svg className="w-20 h-20 transform -rotate-90" viewBox="0 0 36 36">
+                      <path
+                        className="text-zinc-800"
+                        strokeWidth="3"
+                        stroke="currentColor"
+                        fill="none"
+                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                      />
+                      <path
+                        className="text-amber-400 transition-all duration-1000 ease-linear"
+                        strokeDasharray={`${(((liveOtp?.remainingSeconds ?? 30) / 30) * 100).toFixed(0)}, 100`}
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        stroke="currentColor"
+                        fill="none"
+                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                      />
+                    </svg>
+                    <span className="absolute text-xl font-black font-mono text-amber-400">
+                      {liveOtp?.remainingSeconds ?? 30}
+                    </span>
+                  </div>
+                  <div className="text-left space-y-0.5">
+                    <div className="text-base font-bold text-white">Seconds Remaining</div>
+                    <div className="text-xs text-zinc-400">Code regenerates automatically at 0s</div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Bottom Security Instructions */}
+          <div className="border-t border-zinc-800 pt-6 flex flex-wrap items-center justify-between text-xs text-zinc-400 gap-4">
+            <div className="flex items-center gap-3">
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span>Anti-Leak Security: Codes expire in 30s. Remote sharing is actively blocked.</span>
+            </div>
+            <div className="text-zinc-500 font-mono">
+              Press [ESC] or click close to return to faculty dashboard
             </div>
           </div>
         </div>,

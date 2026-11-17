@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import crypto from 'crypto';
 import { prisma } from '../config/prisma';
 import { BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError } from '../utils/errors';
 import { assertStudentOwnsAttempt } from '../utils/faculty-security';
@@ -397,6 +398,40 @@ export const startExam = async (req: Request, res: Response, next: NextFunction)
       });
     }
 
+    const attemptMetrics = (attempt.metrics && typeof attempt.metrics === 'object' ? attempt.metrics : {}) as Record<string, any>;
+    const clientSessionToken = (req.headers?.['x-attempt-session-token'] as string) || req.body?.attemptSessionToken || (req.query?.sessionToken as string);
+
+    // Single-Session Device Lock:
+    // If this attempt is already bound to an active session, verify matching token
+    if (attemptMetrics.attemptSessionToken && clientSessionToken && clientSessionToken !== attemptMetrics.attemptSessionToken) {
+      throw new ForbiddenError('Active session belongs to another device. Multiple concurrent sessions are prohibited.', 'INVALID_SESSION_TOKEN');
+    }
+
+    // Classroom OTP Gate Check:
+    // If student has not verified OTP yet and OTP is required, do not leak questions before verification
+    const requireClassroomOtp = (quizMetadata as any)?.performanceBands?.requireClassroomOtp === true ||
+      req.headers?.['x-require-otp'] === 'true' ||
+      req.body?.requireOtp === true;
+
+    if (requireClassroomOtp && !attemptMetrics.otpVerified) {
+      res.set?.('Cache-Control', 'no-store');
+      return res.status(200).json({
+        status: 'success',
+        data: {
+          attempt,
+          otpRequired: true,
+          quiz: {
+            id: quizMetadata.id,
+            title: quizMetadata.title,
+            subject: quizMetadata.subject,
+            durationMinutes: quizMetadata.durationMinutes,
+            totalMarks: quizMetadata.totalMarks,
+            questions: []
+          }
+        }
+      });
+    }
+
     // Fetch quiz questions (without answers if we want to be secure, but we'll fetch full for simplicity in this MVP)
     const quiz = await prisma.quiz.findUnique({
       where: { id: quizId },
@@ -540,6 +575,13 @@ export const saveResponse = async (req: Request, res: Response, next: NextFuncti
 
     const currentUser = (req as any).user;
     assertStudentOwnsAttempt(currentUser, attempt);
+
+    // Single-Session Device Lock: verify session token
+    const sessionToken = (req.headers?.['x-attempt-session-token'] as string) || req.body?.attemptSessionToken;
+    const attemptMetrics = (attempt.metrics && typeof attempt.metrics === 'object' ? attempt.metrics : {}) as Record<string, any>;
+    if (attemptMetrics.attemptSessionToken && sessionToken && sessionToken !== attemptMetrics.attemptSessionToken) {
+      throw new ForbiddenError('Active session belongs to another device. Multiple concurrent sessions are prohibited.', 'INVALID_SESSION_TOKEN');
+    }
 
     // Cross-quiz validation: verify questionId strictly belongs to the quiz of this attempt
     const question = await prisma.question.findFirst({
@@ -831,6 +873,13 @@ export const recordViolation = async (req: Request, res: Response, next: NextFun
     if (!attempt) throw new BadRequestError('Attempt not found', 'NOT_FOUND');
     assertStudentOwnsAttempt((req as any).user, attempt);
 
+    // Single-Session Device Lock: verify session token
+    const sessionToken = (req.headers?.['x-attempt-session-token'] as string) || req.body?.attemptSessionToken;
+    const attemptMetrics = (attempt.metrics && typeof attempt.metrics === 'object' ? attempt.metrics : {}) as Record<string, any>;
+    if (attemptMetrics.attemptSessionToken && sessionToken && sessionToken !== attemptMetrics.attemptSessionToken) {
+      throw new ForbiddenError('Active session belongs to another device. Multiple concurrent sessions are prohibited.', 'INVALID_SESSION_TOKEN');
+    }
+
     const maxViolations = 1;
     if (attempt.status !== 'IN_PROGRESS') {
       res.set?.('Cache-Control', 'no-store');
@@ -973,6 +1022,13 @@ export const submitExam = async (req: Request, res: Response, next: NextFunction
     }
 
     assertStudentOwnsAttempt((req as any).user, attempt);
+
+    // Single-Session Device Lock: verify session token
+    const sessionToken = (req.headers?.['x-attempt-session-token'] as string) || req.body?.attemptSessionToken;
+    const attemptMetrics = (attempt.metrics && typeof attempt.metrics === 'object' ? attempt.metrics : {}) as Record<string, any>;
+    if (attemptMetrics.attemptSessionToken && sessionToken && sessionToken !== attemptMetrics.attemptSessionToken) {
+      throw new ForbiddenError('Active session belongs to another device. Multiple concurrent sessions are prohibited.', 'INVALID_SESSION_TOKEN');
+    }
 
     const updated = await finalizeAttemptSubmission(
       attempt,
@@ -1123,28 +1179,195 @@ export const getQuizResult = async (req: Request, res: Response, next: NextFunct
   }
 };
 
-// Verify 30-second live rotating OTP for quiz entrance
+// Verify 30-second live rotating OTP for quiz entrance, activate single-session lock, and release quiz questions
 export const verifyQuizAccessOtp = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const quizId = req.params.quizId as string;
-    const { otp } = req.body;
+    const userId = (req as any).user?.userId;
+    const { otp } = req.body ?? {};
 
+    if (!userId) throw new UnauthorizedError('User not authenticated', 'UNAUTHORIZED');
     if (!otp || typeof otp !== 'string') {
       throw new BadRequestError('6-digit OTP code is required.', 'INVALID_OTP');
     }
 
-    const quiz = await prisma.quiz.findUnique({ where: { id: quizId } });
+    const quiz = await prisma.quiz.findUnique({
+      where: { id: quizId },
+      include: {
+        questions: {
+          select: { id: true, type: true, text: true, marks: true, negativeMarks: true, options: true, quizId: true, image: true }
+        },
+        questionUsages: {
+          where: { isFinalized: true },
+          include: { question: { select: { id: true, type: true, text: true, marks: true, negativeMarks: true, options: true, image: true } } },
+          orderBy: { sortOrder: 'asc' }
+        }
+      }
+    });
+
     if (!quiz) throw new NotFoundError('Quiz not found', 'NOT_FOUND');
 
-    const isValid = verifyQuizOtp(quizId, otp);
-    if (!isValid) {
-      throw new BadRequestError('Invalid or expired OTP. Please use the current live OTP from your instructor.', 'OTP_VERIFICATION_FAILED');
+    // Check if faculty has locked classroom entry
+    const entryLocked = Boolean((quiz.performanceBands as any)?.entryLocked);
+    if (entryLocked) {
+      throw new ForbiddenError(
+        'Classroom entry is currently locked by the instructor. Please contact your faculty member.',
+        'ENTRY_LOCKED'
+      );
     }
 
+    // Strict 30-second window validation with boundary drift tolerance
+    const isValid = verifyQuizOtp(quizId, otp);
+    if (!isValid) {
+      throw new BadRequestError(
+        'Invalid or expired OTP. Please check the classroom screen and enter the current live code.',
+        'OTP_VERIFICATION_FAILED'
+      );
+    }
+
+    // Find or initialize attempt for student
+    let attempt = await prisma.quizAttempt.findFirst({
+      where: { quizId, userId },
+      orderBy: { createdAt: 'desc' },
+      include: { responses: true }
+    });
+
+    if (attempt) {
+      if (attempt.status === 'VIOLATED' && !attempt.restartAuthorized) {
+        throw new ForbiddenError(
+          'You have violated the quiz rules. Your quiz attempt has been locked. Please contact your faculty member if you require permission to restart.',
+          'ATTEMPT_LOCKED'
+        );
+      }
+      if (attempt.status !== 'IN_PROGRESS' && !attempt.restartAuthorized) {
+        throw new BadRequestError('You have already submitted this quiz.', 'ALREADY_SUBMITTED');
+      }
+    } else {
+      attempt = await prisma.quizAttempt.create({
+        data: {
+          quizId,
+          userId,
+          status: 'IN_PROGRESS',
+          startTime: new Date(),
+        },
+        include: { responses: true }
+      });
+    }
+
+    // Generate single-session device lock token
+    const attemptSessionToken = crypto.randomUUID();
+    const currentMetrics = (attempt.metrics && typeof attempt.metrics === 'object' ? attempt.metrics : {}) as Record<string, any>;
+    const updatedMetrics: Record<string, any> = {
+      ...currentMetrics,
+      otpVerified: true,
+      otpVerifiedAt: new Date().toISOString(),
+      attemptSessionToken,
+    };
+
+    // Prepare questions with deterministic per-student option shuffling
+    const usedIds = new Set(quiz.questions.map((question: any) => question.id));
+    const paperQuestions = quiz.questionUsages
+      .filter((usage: any) => !usedIds.has(usage.questionId))
+      .map((usage: any) => ({ ...usage.question, marks: usage.marks, quizId }));
+    const combinedQuestions = [...quiz.questions, ...paperQuestions] as any;
+    delete (quiz as any).questionUsages;
+
+    const resolvedQuestions = await resolveQuestionImages(combinedQuestions);
+
+    // Question Shuffling & Pool Sampling
+    const poolCount = Number((quiz as any).performanceBands?.questionPoolCount);
+    let orderedQuestions: any[] = [];
+
+    if (Array.isArray(updatedMetrics.questionOrder) && updatedMetrics.questionOrder.length > 0) {
+      const orderMap = new Map(updatedMetrics.questionOrder.map((id: string, idx: number) => [id, idx]));
+      orderedQuestions = resolvedQuestions.filter((q: any) => orderMap.has(q.id));
+      orderedQuestions.sort((a: any, b: any) => Number(orderMap.get(a.id)) - Number(orderMap.get(b.id)));
+    } else if (resolvedQuestions.length > 0) {
+      const seedStr = `${attempt.id}-${userId}-${quizId}`;
+      let hash = 0;
+      for (let i = 0; i < seedStr.length; i++) {
+        hash = (hash << 5) - hash + seedStr.charCodeAt(i);
+        hash |= 0;
+      }
+      const pseudoRandom = () => {
+        hash = Math.imul(hash ^ (hash >>> 15), 1 | hash);
+        hash = (hash + Math.imul(hash ^ (hash >>> 7), 61 | hash)) ^ hash;
+        return ((hash ^ (hash >>> 14)) >>> 0) / 4294967296;
+      };
+
+      const pool = [...resolvedQuestions];
+      for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(pseudoRandom() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+      }
+
+      if (poolCount > 0 && poolCount < pool.length) {
+        orderedQuestions = pool.slice(0, poolCount);
+      } else {
+        orderedQuestions = pool;
+      }
+
+      updatedMetrics.questionOrder = orderedQuestions.map((q: any) => q.id);
+      updatedMetrics.isPoolSubset = poolCount > 0 && poolCount < pool.length;
+      updatedMetrics.poolTotalQuestions = pool.length;
+      updatedMetrics.assignedQuestionCount = orderedQuestions.length;
+    }
+
+    if (orderedQuestions.length > 0 && poolCount > 0 && poolCount < resolvedQuestions.length) {
+      quiz.totalMarks = orderedQuestions.reduce((sum: number, q: any) => sum + (Number(q.marks) || 0), 0);
+    }
+
+    // Deterministic Option Shuffling
+    orderedQuestions = orderedQuestions.map((q: any) => {
+      const clonedQ = { ...q };
+      const optionSeed = `${userId}-${quizId}-${clonedQ.id}`;
+
+      if (clonedQ.type === 'MATCHING') {
+        if (Array.isArray(clonedQ.options)) {
+          const lefts = clonedQ.options.map((o: any) => o.left);
+          const rights = deterministicShuffle(
+            clonedQ.options.map((o: any) => o.right),
+            `${optionSeed}-matching-rights`
+          );
+          clonedQ.options = { lefts, rights };
+        } else if (clonedQ.options && Array.isArray(clonedQ.options.rights)) {
+          clonedQ.options = {
+            lefts: clonedQ.options.lefts,
+            rights: deterministicShuffle(clonedQ.options.rights, `${optionSeed}-matching-rights`)
+          };
+        }
+      } else if (Array.isArray(clonedQ.options) && clonedQ.options.length > 1 && (clonedQ.type === 'MCQ' || clonedQ.type === 'MULTI_SELECT')) {
+        clonedQ.options = deterministicShuffle(clonedQ.options, `${optionSeed}-options`);
+      }
+      return clonedQ;
+    });
+
+    if (typeof prisma.quizAttempt?.update === 'function') {
+      await prisma.quizAttempt.update({
+        where: { id: attempt.id },
+        data: { metrics: updatedMetrics }
+      });
+    }
+
+    const sanitizedQuiz = {
+      ...quiz,
+      questions: orderedQuestions
+    };
+
+    res.set?.('Cache-Control', 'no-store');
     res.status(200).json({
       status: 'success',
       message: 'OTP verified successfully.',
-      data: { verified: true, quizId }
+      data: {
+        otpVerified: true,
+        attemptSessionToken,
+        attemptId: attempt.id,
+        attempt: {
+          ...attempt,
+          metrics: updatedMetrics
+        },
+        quiz: sanitizedQuiz
+      }
     });
   } catch (error) {
     next(error);

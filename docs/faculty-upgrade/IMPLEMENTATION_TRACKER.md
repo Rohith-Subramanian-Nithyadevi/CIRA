@@ -108,3 +108,21 @@
   - `frontend-web run build`: `tsc -b && vite build` passed with 0 errors.
   - `backend-core`: 17 test suites, 67 tests passed, 0 failures.
 
+## Follow-up: 30-Second Rotating Classroom OTP & Single-Session Device Lock (2026-11-17)
+
+- **Feature**:
+  - **Strict 30-Second Rotating OTP**: Updated `totp.ts` to enforce strict 30-second window validity with a maximum 3-second boundary drift tolerance. Accepts cleanly formatted inputs with or without spaces (`739 204` or `739204`).
+  - **Single-Session Device Lock**: On OTP verification (`verifyQuizAccessOtp`), generates a cryptographically random UUID `attemptSessionToken` saved on the attempt metrics and stored in client `sessionStorage`. Validates session tokens across `startExam`, `saveResponse`, and `submitExam`, completely preventing concurrent logins or session sharing from secondary devices.
+  - **Pre-Exam Security Arming**: In `ExamInterface.tsx`, as soon as student clicks "Begin Quiz", Fullscreen mode is entered and zero-tolerance cheat monitoring (`useSecureExam`, tab switches, window blurs, fullscreen change, copy/paste guards) is armed immediately before the OTP modal appears. Any tab or window switch during the OTP verification phase is permanently logged as a violation (`Window/Tab switch during OTP verification`) and terminates the attempt.
+  - **Faculty Classroom Screen & Projector Mode**:
+    - High-visibility "Classroom Entry OTP" card in View Submissions with spaced 6-digit display (`739 204`) and 30-second circular countdown ring.
+    - Fullscreen "Projector View" modal designed for lecture hall projection with giant 6-digit typography, 30s countdown ring, and ESC key dismissal.
+    - "Lock Entry" toggle button to instantly freeze new student verifications once the exam commences.
+- **Validation**:
+  - Added `backend-core/tests/classroom-otp.test.cjs` covering TOTP validity, 30s boundary tolerance, entry lock toggle, OTP verification, question shuffling, and single-session device lock rejection.
+  - Added `frontend-web/src/pages/exam-portal/ClassroomOtpGate.test.tsx` verifying fullscreen entry, proctoring activation, inline error handling, and OTP verification flow.
+  - Added tests in `QuizManagement.test.tsx` verifying Live OTP card, Projector modal, and Lock Entry toggle.
+  - `backend-core`: All 12 test suites passed (46 tests, 0 failures).
+  - `frontend-web`: All 27 test suites passed (100 tests, 0 failures).
+  - Production builds (`npm run build` in both `backend-core` and `frontend-web`) completed with 0 errors.
+

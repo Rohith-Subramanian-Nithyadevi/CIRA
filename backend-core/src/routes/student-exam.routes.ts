@@ -10,6 +10,7 @@ router.use(authenticate, authorize(['STUDENT']));
 router.get('/eligible', getEligibleQuizzes);
 router.get('/instructions/:quizId', getQuizInstructions);
 router.post('/verify-otp/:quizId', verifyQuizAccessOtp);
+router.post('/:quizId/verify-otp', verifyQuizAccessOtp);
 router.post('/start/:quizId', startExam);
 router.post('/attempt/:attemptId/save-response', saveResponse);
 router.post('/attempt/:attemptId/violation', recordViolation);

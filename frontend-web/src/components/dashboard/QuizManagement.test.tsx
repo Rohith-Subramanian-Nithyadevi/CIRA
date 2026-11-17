@@ -1218,5 +1218,105 @@ describe('QuizManagement View Submissions class-wise roster & filters', () => {
       screen.getByText(/No keyboard shortcut sequence was captured for this violation\. Focus\/visibility evidence is available separately\./i)
     ).toBeInTheDocument();
   });
+
+  it('renders Live Classroom Access OTP, opens high-contrast Projector view, and toggles Entry Lock', async () => {
+    let entryLocked = false;
+    (apiClient.fetch as jest.Mock).mockImplementation((path: string, opts?: any) => {
+      if (path.includes('/api/v1/auth/me')) {
+        return Promise.resolve({
+          json: async () => ({
+            data: { user: { id: 'faculty-1', subject: 'Data Structures & Algorithms' } },
+          }),
+        });
+      }
+      if (path.includes('/api/v1/batches')) {
+        return Promise.resolve({ json: async () => ({ data: { batches: mockBatches } }) });
+      }
+      if (path.includes('/api/v1/departments')) {
+        return Promise.resolve({ json: async () => ({ data: { departments: mockDepartments } }) });
+      }
+      if (path.includes('/api/v1/faculty/quizzes')) {
+        return Promise.resolve({
+          json: async () => ({
+            data: [
+              {
+                id: 'quiz-otp-demo',
+                title: 'Algorithm Design Quiz',
+                subject: 'Algorithms',
+                totalMarks: 30,
+                durationMinutes: 45,
+                paperStatus: 'PUBLISHED',
+                questions: [],
+              },
+            ],
+            pagination: { page: 1, totalPages: 1 },
+          }),
+        });
+      }
+      if (path.includes('/api/v1/faculty/quiz/quiz-otp-demo/live-otp')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            status: 'success',
+            data: {
+              otp: '739204',
+              remainingSeconds: 24,
+              stepSeconds: 30,
+              entryLocked,
+            },
+          }),
+        });
+      }
+      if (path.includes('/api/v1/faculty/quiz/quiz-otp-demo/submissions')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            status: 'success',
+            quiz: {
+              id: 'quiz-otp-demo',
+              title: 'Algorithm Design Quiz',
+              subject: 'Algorithms',
+              totalMarks: 30,
+            },
+            data: [],
+          }),
+        });
+      }
+      if (path.includes('/api/v1/faculty/quiz/quiz-otp-demo/toggle-entry-lock') && opts?.method === 'POST') {
+        const body = JSON.parse(opts.body);
+        entryLocked = body.locked;
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            status: 'success',
+            data: { quizId: 'quiz-otp-demo', entryLocked },
+          }),
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) });
+    });
+
+    render(<QuizManagement />, ['/faculty/dashboard?tab=quizzes&view=submissions&quizId=quiz-otp-demo']);
+
+    // 1. Live OTP Card displays formatted code with middle space
+    expect(await screen.findByText('Live Classroom Access OTP')).toBeInTheDocument();
+    expect(await screen.findByText('739 204')).toBeInTheDocument();
+    expect(screen.getByText('24s')).toBeInTheDocument();
+
+    // 2. Open Projector Mode
+    const projectorBtn = screen.getByRole('button', { name: /Projector View/i });
+    fireEvent.click(projectorBtn);
+
+    expect(await screen.findByTestId('projector-modal')).toBeInTheDocument();
+    expect(screen.getByTestId('projector-otp-display')).toHaveTextContent('739 204');
+    expect(screen.getByText(/Classroom Proctoring Gate/i)).toBeInTheDocument();
+
+    // 3. Toggle Lock Entry
+    const lockBtn = screen.getAllByRole('button', { name: /Lock Entry/i })[0];
+    fireEvent.click(lockBtn);
+
+    // Verify entry is locked
+    expect((await screen.findAllByText(/Entry Locked/i)).length).toBeGreaterThan(0);
+  });
 });
 
