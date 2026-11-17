@@ -233,7 +233,7 @@ export default function StudentDashboard() {
                           <div className="bg-white dark:bg-[#1A1A1E] px-4 py-2 rounded-lg border border-border-soft dark:border-neutral-700 shadow-sm text-center min-w-[100px]">
                             <div className="text-xs font-semibold text-gray-body dark:text-neutral-400 uppercase tracking-wider mb-1">Score</div>
                             <div className="text-2xl font-bold text-maroon dark:text-rose-400">
-                              {quiz.totalScore}{typeof quiz.totalMarks === 'number' && quiz.totalMarks > 0 ? ` / ${quiz.totalMarks}` : ''}
+                              {quiz.scoreFormatted || `${quiz.totalScore ?? 0}${typeof quiz.totalMarks === 'number' && quiz.totalMarks > 0 ? ` / ${quiz.totalMarks}` : ''}`}
                             </div>
                           </div>
                         ) : (

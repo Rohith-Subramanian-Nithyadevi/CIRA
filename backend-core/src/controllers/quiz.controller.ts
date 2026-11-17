@@ -945,6 +945,9 @@ export const getSubmissions = async (req: Request, res: Response, next: NextFunc
         violationReason: attempt?.violationReason || null,
         violationCount: attempt?.violationCount ?? 0,
         violations: attempt?.violations || [],
+        riskScore: (attempt?.metrics as any)?.riskScore || 'LOW',
+        integrityReport: (attempt?.metrics as any)?.integrityReport || null,
+        metrics: attempt?.metrics || null,
         restartAuthorized: Boolean(attempt?.restartAuthorized),
         restartAuthorizedAt: attempt?.restartAuthorizedAt || null,
         responses: attempt?.responses || [],
@@ -1699,6 +1702,8 @@ export const getLiveQuizOtp = async (req: Request, res: Response, next: NextFunc
 
     const otp = generateQuizOtp(quizId);
     const remainingSeconds = getOtpRemainingSeconds();
+    const entryLocked = Boolean((quiz.performanceBands as any)?.entryLocked);
+    const serverTime = new Date().toISOString();
 
     res.status(200).json({
       status: 'success',
@@ -1707,8 +1712,44 @@ export const getLiveQuizOtp = async (req: Request, res: Response, next: NextFunc
         otp,
         remainingSeconds,
         stepSeconds: 30,
+        serverTime,
+        entryLocked,
         expiresAt: new Date(Date.now() + remainingSeconds * 1000).toISOString()
       }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Toggle Classroom Entry Lock so faculty can freeze new OTP arrivals
+export const toggleQuizEntryLock = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const quizId = req.params.quizId as string;
+    const userId = (req as any).user?.userId;
+    const userRole = (req as any).user?.role;
+    const { locked } = req.body ?? {};
+
+    const quiz = await prisma.quiz.findUnique({ where: { id: quizId } });
+    if (!quiz) throw new NotFoundError('Quiz not found', 'NOT_FOUND');
+
+    if (userRole !== 'ADMIN' && quiz.createdBy !== userId) {
+      throw new ForbiddenError('Not authorized to modify entry lock for this quiz', 'FORBIDDEN');
+    }
+
+    const currentBands = (quiz.performanceBands && typeof quiz.performanceBands === 'object' ? quiz.performanceBands : {}) as Record<string, any>;
+    const newLocked = typeof locked === 'boolean' ? locked : !Boolean(currentBands.entryLocked);
+    const updatedBands = { ...currentBands, entryLocked: newLocked };
+
+    await prisma.quiz.update({
+      where: { id: quizId },
+      data: { performanceBands: updatedBands }
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: newLocked ? 'Classroom entry locked.' : 'Classroom entry unlocked.',
+      data: { quizId, entryLocked: newLocked }
     });
   } catch (error) {
     next(error);

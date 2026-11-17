@@ -130,6 +130,7 @@ export default function ExamResults() {
   }
 
   const quiz = attempt.quiz;
+  const maxMarks = attempt.totalMarks || quiz?.totalMarks || (Array.isArray(quiz?.questions) ? quiz.questions.reduce((sum: number, q: any) => sum + (Number(q.marks) || 0), 0) : 0);
 
   return (
     <div className="min-h-screen bg-[#FDFBF7] text-ink p-4 sm:p-8 font-sans">
@@ -172,7 +173,9 @@ export default function ExamResults() {
             </div>
             <div className="pl-3 md:pl-6 border-l border-border-soft">
               <div className="text-xs text-gray-body font-bold">Total Score</div>
-              <div className="text-xl sm:text-2xl font-bold text-green-700">{attempt.totalScore}</div>
+              <div className="text-xl sm:text-2xl font-bold text-green-700">
+                {attempt.scoreFormatted || `${attempt.totalScore ?? 0} / ${maxMarks}`}
+              </div>
             </div>
           </div>
         </div>
