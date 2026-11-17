@@ -531,11 +531,33 @@ const VALID_VIOLATION_TYPES = new Set([
   'CLIPBOARD',
 ]);
 
+export function calculateRiskScore(report: any): 'LOW' | 'MEDIUM' | 'HIGH' {
+  if (!report || typeof report !== 'object') return 'LOW';
+  const counts = report.violationCounts || report;
+  const syntheticClicks = Number(counts.syntheticClicks) || 0;
+  const zeroEntropyClicks = Number(counts.zeroEntropyClicks) || 0;
+  const fastAnswers = Number(counts.fastAnswers) || 0;
+  const copyAttempts = Number(counts.copyAttempts) || 0;
+  const tabSwitches = Number(counts.tabSwitches) || 0;
+
+  let riskPoints = 0;
+  if (syntheticClicks > 0) riskPoints += syntheticClicks * 35; // Severe: programmatic/untrusted click
+  if (zeroEntropyClicks > 0) riskPoints += zeroEntropyClicks * 15; // Robotic/zero-entropy movement
+  if (fastAnswers > 1) riskPoints += fastAnswers * 10; // Rapid answering
+  if (copyAttempts > 0) riskPoints += copyAttempts * 10; // Clipboard attempt
+  if (tabSwitches > 0) riskPoints += tabSwitches * 20; // Window blur/tab switch
+
+  if (riskPoints >= 50) return 'HIGH';
+  if (riskPoints >= 20) return 'MEDIUM';
+  return 'LOW';
+}
+
 async function finalizeAttemptSubmission(
   attempt: any,
   violationReason?: string | null,
   violationCount?: number,
-  targetStatus: 'SUBMITTED' | 'VIOLATED' = 'SUBMITTED'
+  targetStatus: 'SUBMITTED' | 'VIOLATED' = 'SUBMITTED',
+  integrityReport?: any
 ) {
   const usedQuestionIds = new Set(attempt.quiz.questions.map((question: any) => question.id));
   const gradingQuestions = [
@@ -560,6 +582,16 @@ async function finalizeAttemptSubmission(
     }
   }
 
+  const currentMetrics =
+    typeof attempt.metrics === 'object' && attempt.metrics !== null ? attempt.metrics : {};
+  const riskScore = integrityReport
+    ? calculateRiskScore(integrityReport)
+    : (currentMetrics as any)?.riskScore || 'LOW';
+  const updatedMetrics = {
+    ...currentMetrics,
+    ...(integrityReport ? { integrityReport, riskScore } : {}),
+  };
+
   return prisma.$transaction(async (tx) => {
     for (const upd of responseUpdates) {
       await tx.quizResponse.update({
@@ -577,6 +609,7 @@ async function finalizeAttemptSubmission(
         totalScore: objectiveScore, // Written score is 0 until graded
         violationReason: violationReason || attempt.violationReason || null,
         restartAuthorized: false,
+        metrics: updatedMetrics,
         ...(typeof violationCount === 'number' ? { violationCount } : {})
       }
     });
@@ -855,7 +888,7 @@ export const recordViolation = async (req: Request, res: Response, next: NextFun
 export const submitExam = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const attemptId = req.params.attemptId as string;
-    const { violationReason } = req.body ?? {}; // Optional: if submitted due to violation
+    const { violationReason, integrityReport } = req.body ?? {}; // Optional: if submitted due to violation or with telemetry report
     
     const attempt = await prisma.quizAttempt.findUnique({
       where: { id: attemptId },
@@ -891,7 +924,8 @@ export const submitExam = async (req: Request, res: Response, next: NextFunction
       attempt,
       violationReason,
       violationReason ? (attempt.violationCount ?? 0) + 1 : undefined,
-      violationReason ? 'VIOLATED' : 'SUBMITTED'
+      violationReason ? 'VIOLATED' : 'SUBMITTED',
+      integrityReport
     );
 
     res.set?.('Cache-Control', 'no-store');

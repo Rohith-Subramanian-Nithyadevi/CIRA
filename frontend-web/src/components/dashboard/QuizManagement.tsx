@@ -3761,6 +3761,11 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                                   <div>
                                     <span className="font-bold">⚠ Violation:</span> {sub.violationReason || sub.violations?.[0]?.reason || sub.violations?.[0]?.type}
                                   </div>
+                                  {sub.riskScore && sub.riskScore !== 'LOW' && (
+                                    <div className="text-[11px] font-bold text-amber-700 dark:text-amber-400">
+                                      🛡 Integrity Risk: {sub.riskScore}
+                                    </div>
+                                  )}
                                   <button
                                     type="button"
                                     onClick={() => setSelectedViolationRow(sub)}
@@ -3768,6 +3773,10 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
                                   >
                                     Violation Details
                                   </button>
+                                </div>
+                              ) : sub.riskScore && sub.riskScore !== 'LOW' ? (
+                                <div className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-900/50">
+                                  🛡 Integrity Risk: {sub.riskScore}
                                 </div>
                               ) : sub.status === 'IN_PROGRESS' ? (
                                 <div className="px-3 py-2 text-sm font-semibold rounded-lg bg-orange-50 dark:bg-orange-950/30 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-900/50">
