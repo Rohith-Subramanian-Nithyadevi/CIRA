@@ -1,0 +1,515 @@
+import { fireEvent, render, screen } from '@testing-library/react';
+import { MemoryRouter, Route, Routes, Navigate } from 'react-router-dom';
+import StudentDashboard from '../StudentDashboard';
+import ExamInterface from './ExamInterface';
+import { apiClient } from '@/lib/apiClient';
+
+jest.mock('@/lib/apiClient', () => ({
+  apiClient: { fetch: jest.fn() },
+}));
+
+const mockSecureExamState = {
+  isFullscreen: true,
+  isBlackScreen: false,
+  fullscreenSupported: true,
+  violationCount: 0,
+  enterFullscreen: jest.fn(async () => ({ ok: true })),
+};
+
+const mockIsMultiDisplayDetected = jest.fn(() => false);
+
+jest.mock('../../hooks/useSecureExam', () => ({
+  useSecureExam: () => mockSecureExamState,
+  isMultiDisplayDetected: () => mockIsMultiDisplayDetected(),
+  isFullscreenSupported: jest.fn(() => true),
+  getFullscreenElement: jest.fn(() => null),
+}));
+
+jest.mock('@/components/DashboardLayout', () => ({
+  __esModule: true,
+  default: ({ children, activeTab, onTabChange }: { children: React.ReactNode; activeTab: string; onTabChange: (tab: string) => void }) => (
+    <div>
+      <span data-testid="active-tab">{activeTab}</span>
+      <button type="button" onClick={() => onTabChange('quizzes')}>
+        Quizzes
+      </button>
+      {children}
+    </div>
+  ),
+}));
+
+jest.mock('@/components/dashboard/UserProfile', () => ({ __esModule: true, default: () => <div>Profile</div> }));
+jest.mock('@/components/dashboard/StudentSpace', () => ({ __esModule: true, default: () => <div>Home Space</div> }));
+jest.mock('@/components/student/StudentAnnouncements', () => ({ __esModule: true, default: () => <div>Announcements</div> }));
+jest.mock('@/components/student/ResourceHub', () => ({ __esModule: true, default: () => <div>Resources</div> }));
+jest.mock('@/components/student/StudentAnalytics', () => ({ __esModule: true, default: () => <div>Analytics</div> }));
+jest.mock('@/components/student/TopicPerformance', () => ({ __esModule: true, default: () => <div>Topics</div> }));
+jest.mock('@/components/student/GoalTracker', () => ({ __esModule: true, default: () => <div>Goals</div> }));
+
+describe('Simplified Student Quiz Navigation Flow', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    localStorage.clear();
+    localStorage.setItem('cira_user', JSON.stringify({ id: 'student-1', name: 'Asha', role: 'STUDENT' }));
+    mockSecureExamState.isFullscreen = true;
+    mockSecureExamState.isBlackScreen = false;
+    mockSecureExamState.enterFullscreen = jest.fn(async () => ({ ok: true }));
+  });
+
+  it('navigates directly from Quizzes -> Start Quiz -> Instructions -> Begin Quiz -> Actual Quiz and supports Back', async () => {
+    (apiClient.fetch as jest.Mock).mockImplementation(async (path: string, opts?: any) => {
+      if (path === '/api/v1/student/exam/eligible') {
+        return {
+          ok: true,
+          json: async () => ({
+            status: 'success',
+            data: [
+              {
+                id: 'quiz-os-1',
+                title: 'OS Processes Quiz',
+                subject: 'Operating Systems',
+                durationMinutes: 45,
+                totalMarks: 20,
+                startDate: new Date(Date.now() - 60_000).toISOString(),
+                endDate: new Date(Date.now() + 3_600_000).toISOString(),
+                attempts: [],
+              },
+            ],
+          }),
+        };
+      }
+      if (path === '/api/v1/student/dashboard') {
+        return {
+          ok: true,
+          json: async () => ({
+            success: true,
+            data: {
+              pastQuizzes: [
+                { id: 'att-0', quizId: 'quiz-prev', title: 'Previous DBMS Quiz', answersPublished: false, submittedAt: new Date().toISOString() },
+              ],
+            },
+          }),
+        };
+      }
+      if (path === '/api/v1/student/exam/instructions/quiz-os-1') {
+        return {
+          ok: true,
+          json: async () => ({
+            status: 'success',
+            data: {
+              quiz: {
+                id: 'quiz-os-1',
+                title: 'OS Processes Quiz',
+                subject: 'Operating Systems',
+                durationMinutes: 45,
+                totalMarks: 20,
+                passingMarks: 8,
+                questionCount: 1,
+                description: 'Attempt all questions carefully.',
+              },
+            },
+          }),
+        };
+      }
+      if (path === '/api/v1/student/exam/start/quiz-os-1' && opts?.method === 'POST') {
+        return {
+          ok: true,
+          json: async () => ({
+            status: 'success',
+            data: {
+              attempt: { id: 'attempt-1', startTime: new Date().toISOString(), responses: [] },
+              quiz: {
+                id: 'quiz-os-1',
+                title: 'OS Processes Quiz',
+                subject: 'Operating Systems',
+                durationMinutes: 45,
+                questions: [
+                  { id: 'q-1', type: 'MCQ', text: 'What is a process?', marks: 5, options: ['Program in execution', 'Disk file'] },
+                ],
+              },
+            },
+          }),
+        };
+      }
+      return { ok: true, json: async () => ({ status: 'success', data: {} }) };
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/student/dashboard']}>
+        <Routes>
+          <Route path="/student/dashboard" element={<StudentDashboard />} />
+          <Route path="/exam-portal" element={<Navigate to="/student/dashboard?tab=quizzes" replace />} />
+          <Route path="/exam-portal/take/:quizId" element={<ExamInterface />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    // Step 1 & 2: Enter Quizzes tab and see Active + Attended quizzes (no intermediate portal button)
+    fireEvent.click(screen.getByRole('button', { name: 'Quizzes' }));
+    expect(await screen.findByText('OS Processes Quiz')).toBeInTheDocument();
+    expect(screen.getByText('Previous DBMS Quiz')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Go to Exam Portal/i })).not.toBeInTheDocument();
+
+    // Step 3: Click Start Quiz -> goes directly to Instructions (not a second quiz list)
+    fireEvent.click(screen.getByRole('button', { name: /Start Quiz/i }));
+
+    expect(await screen.findByText('Attempt all questions carefully.')).toBeInTheDocument();
+    expect(screen.getByText(/Important Instructions/i)).toBeInTheDocument();
+    expect(screen.queryByText('Active Examinations')).not.toBeInTheDocument();
+
+    // Ensure /start was NOT prematurely triggered before clicking Begin Quiz
+    expect(apiClient.fetch).not.toHaveBeenCalledWith('/api/v1/student/exam/start/quiz-os-1', expect.anything());
+
+    // Step 4 (Back Navigation): Clicking Back to Quizzes returns directly to Quizzes listing tab
+    fireEvent.click(screen.getByRole('button', { name: /Back to Quizzes/i }));
+    expect(await screen.findByTestId('active-tab')).toHaveTextContent('quizzes');
+    expect(await screen.findByText('OS Processes Quiz')).toBeInTheDocument();
+
+    // Go back to Instructions and click Begin Quiz -> Actual Quiz opens
+    fireEvent.click(screen.getByRole('button', { name: /Start Quiz/i }));
+    expect(await screen.findByText('Attempt all questions carefully.')).toBeInTheDocument();
+    expect(screen.getByText(/Proctoring Rule: Close All Background Applications/i)).toBeInTheDocument();
+    const beginBtn = screen.getByRole('button', { name: /Begin Quiz/i });
+    expect(beginBtn).toBeDisabled();
+
+    // Confirm closing background applications
+    fireEvent.click(screen.getByLabelText(/I confirm that I have closed all background applications/i));
+    expect(beginBtn).not.toBeDisabled();
+    fireEvent.click(beginBtn);
+
+    expect(await screen.findByText('What is a process?')).toBeInTheDocument();
+    expect(screen.getByText('Question Palette')).toBeInTheDocument();
+  });
+
+  it('supports direct URL refresh on Instructions page and blocks unavailable or submitted quizzes', async () => {
+    (apiClient.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      json: async () => ({
+        status: 'error',
+        error: { code: 'ALREADY_SUBMITTED', message: 'You have already submitted this quiz.' },
+      }),
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/exam-portal/take/quiz-submitted']}>
+        <Routes>
+          <Route path="/student/dashboard" element={<StudentDashboard />} />
+          <Route path="/exam-portal/take/:quizId" element={<ExamInterface />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('Quiz Unavailable')).toBeInTheDocument();
+    expect(screen.getByText('You have already submitted this quiz.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Begin Quiz/i })).not.toBeInTheDocument();
+  });
+
+  it('blocks quiz start with retry option when fullscreen is denied, and hides all quiz content under pure black screen on violation', async () => {
+    mockSecureExamState.enterFullscreen = jest
+      .fn()
+      .mockResolvedValueOnce({ ok: false, error: 'Fullscreen permission was denied.' })
+      .mockResolvedValueOnce({ ok: true });
+
+    (apiClient.fetch as jest.Mock).mockImplementation(async (path: string) => {
+      if (path === '/api/v1/student/exam/instructions/quiz-os-1') {
+        return {
+          ok: true,
+          json: async () => ({
+            status: 'success',
+            data: {
+              quiz: {
+                id: 'quiz-os-1',
+                title: 'OS Processes Quiz',
+                subject: 'Operating Systems',
+                durationMinutes: 45,
+                totalMarks: 20,
+                questionCount: 1,
+              },
+            },
+          }),
+        };
+      }
+      if (path === '/api/v1/student/exam/start/quiz-os-1') {
+        return {
+          ok: true,
+          json: async () => ({
+            status: 'success',
+            data: {
+              attempt: { id: 'attempt-1', startTime: new Date().toISOString(), responses: [] },
+              quiz: {
+                id: 'quiz-os-1',
+                title: 'OS Processes Quiz',
+                subject: 'Operating Systems',
+                durationMinutes: 45,
+                questions: [
+                  { id: 'q-1', type: 'MCQ', text: 'What is a process?', marks: 5, options: ['Program in execution', 'Disk file'] },
+                ],
+              },
+            },
+          }),
+        };
+      }
+      return { ok: true, json: async () => ({ status: 'success', data: {} }) };
+    });
+
+    const { rerender } = render(
+      <MemoryRouter initialEntries={['/exam-portal/take/quiz-os-1']}>
+        <Routes>
+          <Route path="/exam-portal/take/:quizId" element={<ExamInterface />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    fireEvent.click(await screen.findByLabelText(/I confirm that I have closed all background applications/i));
+    const beginBtn = await screen.findByRole('button', { name: /Begin Quiz/i });
+    fireEvent.click(beginBtn);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Fullscreen permission was denied.');
+    expect(screen.getByRole('button', { name: /Retry Fullscreen/i })).toBeInTheDocument();
+    expect(apiClient.fetch).not.toHaveBeenCalledWith('/api/v1/student/exam/start/quiz-os-1', expect.anything());
+
+    // Retry succeeds -> enters quiz
+    fireEvent.click(screen.getByRole('button', { name: /Retry Fullscreen/i }));
+    expect(await screen.findByText('What is a process?')).toBeInTheDocument();
+
+    // Simulate violation -> black screen hides all quiz content with #000000
+    mockSecureExamState.isBlackScreen = true;
+    mockSecureExamState.isFullscreen = false;
+    rerender(
+      <MemoryRouter initialEntries={['/exam-portal/take/quiz-os-1']}>
+        <Routes>
+          <Route path="/exam-portal/take/:quizId" element={<ExamInterface />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    const blackScreen = await screen.findByTestId('security-black-screen');
+    expect(blackScreen).toHaveStyle({ backgroundColor: '#000000' });
+    expect(screen.queryByText('What is a process?')).not.toBeInTheDocument();
+    expect(screen.queryByText('Question Palette')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Enter Fullscreen/i })).toBeInTheDocument();
+  });
+
+  it('shows Quiz Attempt Locked screen with no Begin Quiz button when attempt is locked after a violation', async () => {
+    (apiClient.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: false,
+      status: 403,
+      json: async () => ({
+        status: 'error',
+        error: {
+          code: 'ATTEMPT_LOCKED',
+          message:
+            'You have violated the quiz rules. Your quiz attempt has been locked. Please contact your faculty member if you require permission to restart.',
+        },
+      }),
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/exam-portal/take/quiz-locked-1']}>
+        <Routes>
+          <Route path="/student/dashboard" element={<StudentDashboard />} />
+          <Route path="/exam-portal/take/:quizId" element={<ExamInterface />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('Quiz Attempt Locked')).toBeInTheDocument();
+    expect(
+      screen.getByText(/You have violated the quiz rules\. Your quiz attempt has been locked\./i)
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Begin Quiz/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Reattempt/i })).not.toBeInTheDocument();
+  });
+
+  it('supports mobile question palette drawer, image zoom lightbox, and all answer types cleanly', async () => {
+    (apiClient.fetch as jest.Mock).mockImplementation(async (path: string) => {
+      if (path === '/api/v1/student/exam/instructions/quiz-img-1') {
+        return {
+          ok: true,
+          json: async () => ({
+            status: 'success',
+            data: {
+              quiz: {
+                id: 'quiz-img-1',
+                title: 'Visual Architecture Quiz',
+                subject: 'CN',
+                durationMinutes: 30,
+                totalMarks: 10,
+                questionCount: 2,
+              },
+            },
+          }),
+        };
+      }
+      if (path === '/api/v1/student/exam/start/quiz-img-1') {
+        return {
+          ok: true,
+          json: async () => ({
+            status: 'success',
+            data: {
+              attempt: { id: 'attempt-img-1', startTime: new Date().toISOString(), responses: [] },
+              quiz: {
+                id: 'quiz-img-1',
+                title: 'Visual Architecture Quiz',
+                subject: 'CN',
+                durationMinutes: 30,
+                questions: [
+                  {
+                    id: 'q-img',
+                    type: 'MCQ',
+                    text: 'Identify the network topology shown below.',
+                    marks: 5,
+                    image: 'https://example.com/topology.png',
+                    options: ['Star Topology', 'Mesh Topology'],
+                  },
+                  {
+                    id: 'q-match',
+                    type: 'MATCHING',
+                    text: 'Match protocol to layer.',
+                    marks: 5,
+                    options: {
+                      lefts: ['HTTP', 'TCP'],
+                      rights: ['Application', 'Transport'],
+                    },
+                  },
+                ],
+              },
+            },
+          }),
+        };
+      }
+      return { ok: true, json: async () => ({ status: 'success', data: {} }) };
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/exam-portal/take/quiz-img-1']}>
+        <Routes>
+          <Route path="/exam-portal/take/:quizId" element={<ExamInterface />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    fireEvent.click(await screen.findByLabelText(/I confirm that I have closed all background applications/i));
+    fireEvent.click(await screen.findByRole('button', { name: /Begin Quiz/i }));
+    expect(await screen.findByText('Identify the network topology shown below.')).toBeInTheDocument();
+
+    // Open mobile question palette drawer
+    const paletteBtn = screen.getByRole('button', { name: /Open question palette/i });
+    fireEvent.click(paletteBtn);
+    expect(screen.getByRole('button', { name: /Close question palette/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Close question palette/i }));
+
+    // Image loads and supports tap-to-zoom lightbox
+    const qImg = screen.getByAltText('Question illustration');
+    fireEvent.load(qImg);
+    fireEvent.click(screen.getByRole('button', { name: /Enlarge question image/i }));
+    expect(await screen.findByRole('dialog', { name: /Zoomed question image/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+
+    // Navigate to Matching question and verify responsive select works
+    fireEvent.click(screen.getByRole('button', { name: /Save & Next/i }));
+    expect(await screen.findByText('Match protocol to layer.')).toBeInTheDocument();
+    const selects = screen.getAllByRole('combobox');
+    expect(selects).toHaveLength(2);
+  });
+
+  it('enforces HackerRank-style background applications closure and multi-display detection', async () => {
+    (apiClient.fetch as jest.Mock).mockImplementation(async (path: string) => {
+      if (path === '/api/v1/student/exam/instructions/quiz-diag-1') {
+        return {
+          ok: true,
+          json: async () => ({
+            status: 'success',
+            data: {
+              quiz: {
+                id: 'quiz-diag-1',
+                title: 'Diagnostics Security Quiz',
+                subject: 'Cloud Security',
+                durationMinutes: 30,
+                totalMarks: 10,
+                questionCount: 1,
+              },
+            },
+          }),
+        };
+      }
+      if (path === '/api/v1/student/exam/start/quiz-diag-1') {
+        return {
+          ok: true,
+          json: async () => ({
+            status: 'success',
+            data: {
+              attempt: { id: 'attempt-diag', startTime: new Date().toISOString(), responses: [] },
+              quiz: {
+                id: 'quiz-diag-1',
+                title: 'Diagnostics Security Quiz',
+                subject: 'Cloud Security',
+                questions: [{ id: 'q-d1', type: 'MCQ', text: 'Secure question', marks: 10 }],
+              },
+            },
+          }),
+        };
+      }
+      return { ok: true, json: async () => ({ status: 'success', data: {} }) };
+    });
+
+    // 1. First test multi-display detected
+    mockIsMultiDisplayDetected.mockReturnValueOnce(true);
+
+    const { unmount } = render(
+      <MemoryRouter initialEntries={['/exam-portal/take/quiz-diag-1']}>
+        <Routes>
+          <Route path="/exam-portal/take/:quizId" element={<ExamInterface />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText(/Proctoring Rule: Close All Background Applications/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Multiple Displays/i).length).toBeGreaterThan(0);
+    const beginBtn = screen.getByRole('button', { name: /Begin Quiz/i });
+    expect(beginBtn).toBeDisabled();
+
+    // Recheck displays button exists
+    expect(screen.getAllByRole('button', { name: /Re-check Displays/i }).length).toBeGreaterThan(0);
+
+    unmount();
+
+    // 2. Single display, but background apps not confirmed yet
+    mockIsMultiDisplayDetected.mockReturnValue(false);
+
+    render(
+      <MemoryRouter initialEntries={['/exam-portal/take/quiz-diag-1']}>
+        <Routes>
+          <Route path="/exam-portal/take/:quizId" element={<ExamInterface />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('Single Display Verified')).toBeInTheDocument();
+    expect(screen.getByText('Secure Fullscreen Ready')).toBeInTheDocument();
+    expect(screen.getByText('Zero-Tolerance Active')).toBeInTheDocument();
+
+    const beginBtn2 = screen.getByRole('button', { name: /Begin Quiz/i });
+    expect(beginBtn2).toBeDisabled();
+    expect(
+      screen.getByText(/Please confirm the background applications checklist above to enable Begin Quiz/i)
+    ).toBeInTheDocument();
+
+    // Confirm checkbox
+    const confirmCheckbox = screen.getByLabelText(/I confirm that I have closed all background applications/i);
+    fireEvent.click(confirmCheckbox);
+    expect(beginBtn2).not.toBeDisabled();
+
+    // Unchecking again disables the button
+    fireEvent.click(confirmCheckbox);
+    expect(beginBtn2).toBeDisabled();
+
+    // Re-check and start
+    fireEvent.click(confirmCheckbox);
+    expect(beginBtn2).not.toBeDisabled();
+    fireEvent.click(beginBtn2);
+
+    expect(await screen.findByText('Secure question')).toBeInTheDocument();
+  });
+});

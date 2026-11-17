@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { AlertTriangle, ImagePlus, Loader2, Plus, RotateCw, Search, Trash2, Upload, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { apiClient, getApiErrorMessage } from '@/lib/apiClient';
+import { DeleteConfirmationDialog } from '@/components/ui/DeleteConfirmationDialog';
 import { useFacultyDemo } from '@/context/FacultyDemoContext';
 import { facultyDemoQuestionBank } from '@/lib/facultyDemoData';
 
@@ -18,6 +20,24 @@ const types: Array<{ value: QuestionType; label: string }> = [
   { value: 'TRUE_FALSE', label: 'True / False' }, { value: 'FILL_BLANK', label: 'Fill in the blank' },
   { value: 'NUMERICAL', label: 'Numerical' }, { value: 'SHORT_WRITTEN', label: 'Short written' },
   { value: 'LONG_WRITTEN', label: 'Long written' }, { value: 'MATCHING', label: 'Matching' }, { value: 'CODING', label: 'Coding' },
+];
+
+const DEFAULT_BANK_TOPICS = [
+  'Data Structures',
+  'Algorithms',
+  'Object-Oriented Programming',
+  'Database Management Systems',
+  'Operating Systems',
+  'Computer Networks',
+  'Software Engineering',
+  'Web Technologies',
+  'Artificial Intelligence',
+  'Machine Learning',
+  'Cybersecurity',
+  'Discrete Mathematics',
+  'Computer Architecture',
+  'Cloud Computing',
+  'Theory of Computation'
 ];
 
 type FormQuestion = {
@@ -68,6 +88,7 @@ export default function QuestionBank() {
   const [uploading, setUploading] = useState(false);
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [preview, setPreview] = useState(false);
+  const [questionToDelete, setQuestionToDelete] = useState<Question | null>(null);
 
   const filterQuery = useMemo(() => paramsFromFilters({ category, search, subject, topic, difficulty, type, tag, includeReused: String(includeReused), page: String(page), limit: '12' }).toString(), [category, search, subject, topic, difficulty, type, tag, includeReused, page]);
 
@@ -148,14 +169,27 @@ export default function QuestionBank() {
     finally { setUploading(false); }
   };
 
-  const removeQuestion = async (question: Question) => {
-    if (saving || !window.confirm('Remove this question from your bank? Existing assessments will keep their question.')) return;
-    setSaving(true); setMutationError(null);
+  const confirmRemoveQuestion = async () => {
+    if (!questionToDelete) return;
+    const question = questionToDelete;
+    setMutationError(null);
     try {
-      await apiClient.fetch(`/api/v1/faculty/quiz/question-bank/${question.id}`, { method: 'DELETE' });
-      if (editing?.id === question.id) resetEditor(); setRetry((value) => value + 1);
-    } catch (error) { setMutationError(getApiErrorMessage(error, 'We could not remove this question. Please try again, or contact your administrator if the problem continues.')); }
-    finally { setSaving(false); }
+      const response = await apiClient.fetch(`/api/v1/faculty/quiz/question-bank/${question.id}`, { method: 'DELETE' });
+      const json = await response.json?.().catch(() => null);
+      if (response?.ok === false || json?.status === 'error') {
+        const message = json?.error?.message || json?.message || 'We could not remove this question. Please try again.';
+        toast.error(message);
+        throw new Error(message);
+      }
+      toast.success('Question removed from your bank.');
+      if (editing?.id === question.id) resetEditor();
+      setQuestionToDelete(null);
+      setRetry((value) => value + 1);
+    } catch (error) {
+      const msg = getApiErrorMessage(error, 'We could not remove this question. Please try again, or contact your administrator if the problem continues.');
+      setMutationError(msg);
+      throw new Error(msg);
+    }
   };
 
   const updateOption = (index: number, value: string) => setField('options', (form.options || []).map((option: string, currentIndex: number) => currentIndex === index ? value : option));
@@ -178,7 +212,7 @@ export default function QuestionBank() {
 
   return <div className="space-y-6 text-ink">
     <header className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-gray-body">Assessments</p><h2 className="font-serif text-2xl font-bold">Question Bank</h2><p className="mt-1 text-sm text-gray-body">Create and manage reusable questions with saved usage history.</p></div><button disabled={isDemo} title={isDemo ? 'Turn off Demo Data to create saved questions.' : undefined} onClick={startCreate} className="inline-flex items-center gap-2 rounded-lg bg-maroon px-4 py-2.5 text-sm font-semibold text-white hover:bg-maroon-deep disabled:cursor-not-allowed disabled:opacity-60"><Plus className="h-4 w-4" />New question</button></header>
-    {isDemo && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Showing sample questions. They are read-only; turn off Demo Data to use the saved Question Bank.</p>}
+    {isDemo && <p role="status" className="rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/30 p-3 text-sm text-amber-900 dark:text-amber-200">Showing sample questions. They are read-only; turn off Demo Data to use the saved Question Bank.</p>}
 
     <div className="flex flex-wrap gap-2 border-b border-border-soft" role="tablist" aria-label="Question divisions">
       <button role="tab" aria-selected={category === 'ASSIGNMENT'} onClick={() => changeCategory('ASSIGNMENT')} className={`rounded-t-lg px-4 py-2 text-sm font-semibold ${category === 'ASSIGNMENT' ? 'border-b-2 border-maroon text-maroon' : 'text-gray-body'}`}>Assignments</button>
@@ -196,25 +230,34 @@ export default function QuestionBank() {
       <span className="self-center text-xs text-gray-body">{total} question{total === 1 ? '' : 's'}</span>
     </section>
 
-    {includeReused && <p role="status" className="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />Included questions used in the opposite assessment category are marked with a reuse warning. Confirm reuse when selecting them for an assessment.</p>}
-    {mutationError && !editorOpen && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{mutationError}</p>}
+    {includeReused && <p role="status" className="flex items-start gap-2 rounded-xl border border-amber-300 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/30 p-3 text-sm text-amber-900 dark:text-amber-200"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />Included questions used in the opposite assessment category are marked with a reuse warning. Confirm reuse when selecting them for an assessment.</p>}
+    {mutationError && !editorOpen && <p role="alert" className="rounded-lg border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 p-3 text-sm text-red-800 dark:text-red-300">{mutationError}</p>}
 
     {editorOpen ? <section className="rounded-2xl border border-border-soft bg-white p-5 shadow-sm"><div className="mb-4 flex items-center justify-between"><h3 className="font-serif text-xl font-bold">{editing ? 'Edit question' : 'Create question'}</h3><button onClick={() => resetEditor()} aria-label="Close editor" className="rounded-lg p-2 text-gray-body hover:bg-cream"><X className="h-4 w-4" /></button></div>
       <form onSubmit={saveQuestion} className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Field label="Question type"><select aria-label="Question type" value={form.type} onChange={(event) => handleTypeChange(event.target.value as QuestionType)} className={inputClass}>{types.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></Field><Field label="Subject"><input aria-label="Subject" value={form.subject} onChange={(event) => setField('subject', event.target.value)} className={inputClass} /></Field><Field label="Topic"><input aria-label="Topic" value={form.topic} onChange={(event) => setField('topic', event.target.value)} className={inputClass} /></Field><Field label="Subtopic"><input aria-label="Subtopic" value={form.subtopic} onChange={(event) => setField('subtopic', event.target.value)} className={inputClass} /></Field><Field label="Difficulty"><select aria-label="Difficulty" value={form.difficulty} onChange={(event) => setField('difficulty', event.target.value)} className={inputClass}><option>Easy</option><option>Medium</option><option>Hard</option></select></Field><Field label="Marks"><input aria-label="Marks" type="number" min="0.5" step="0.5" value={form.marks} onChange={(event) => setField('marks', event.target.value)} className={inputClass} /></Field><Field label="Negative marks"><input aria-label="Negative marks" type="number" min="0" step="0.25" value={form.negativeMarks} onChange={(event) => setField('negativeMarks', event.target.value)} className={inputClass} /></Field><Field label="Tags (comma separated)"><input aria-label="Tags" value={form.tags} onChange={(event) => setField('tags', event.target.value)} className={inputClass} /></Field></div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Field label="Question type"><select aria-label="Question type" value={form.type} onChange={(event) => handleTypeChange(event.target.value as QuestionType)} className={inputClass}>{types.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></Field><Field label="Subject"><input aria-label="Subject" value={form.subject} onChange={(event) => setField('subject', event.target.value)} className={inputClass} /></Field><Field label="Topic"><select aria-label="Topic" value={form.topic} onChange={(event) => setField('topic', event.target.value)} className={inputClass}><option value="">Select Topic...</option>{DEFAULT_BANK_TOPICS.map((t) => <option key={t} value={t}>{t}</option>)}{form.topic && !DEFAULT_BANK_TOPICS.includes(form.topic) && <option value={form.topic}>{form.topic}</option>}</select></Field><Field label="Subtopic"><input aria-label="Subtopic" value={form.subtopic} onChange={(event) => setField('subtopic', event.target.value)} className={inputClass} /></Field><Field label="Difficulty"><select aria-label="Difficulty" value={form.difficulty} onChange={(event) => setField('difficulty', event.target.value)} className={inputClass}><option>Easy</option><option>Medium</option><option>Hard</option></select></Field><Field label="Marks"><input aria-label="Marks" type="number" min="0.5" step="0.5" value={form.marks} onChange={(event) => setField('marks', event.target.value)} className={inputClass} /></Field><Field label="Negative marks"><input aria-label="Negative marks" type="number" min="0" step="0.25" value={form.negativeMarks} onChange={(event) => setField('negativeMarks', event.target.value)} className={inputClass} /></Field><Field label="Tags (comma separated)"><input aria-label="Tags" value={form.tags} onChange={(event) => setField('tags', event.target.value)} className={inputClass} /></Field></div>
         <Field label="Question content"><textarea aria-label="Question content" required rows={4} value={form.text} onChange={(event) => setField('text', event.target.value)} className={inputClass} /></Field>
         {renderTypeEditor()}
         <Field label="Explanation or marking guidance"><textarea aria-label="Explanation" rows={3} value={form.explanation} onChange={(event) => setField('explanation', event.target.value)} className={inputClass} /></Field>
         <div className="space-y-2"><label className="block text-xs font-semibold text-gray-body">Question image</label><div className="flex flex-wrap items-center gap-3"><label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border-soft px-3 py-2 text-sm font-semibold hover:bg-cream"><Upload className="h-4 w-4" />{uploading ? 'Uploading…' : form.image ? 'Replace image' : 'Upload image'}<input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" disabled={uploading} onChange={(event) => { void handleImage(event.target.files?.[0]); event.currentTarget.value = ''; }} /></label>{uploading && <Loader2 className="h-4 w-4 animate-spin text-maroon" />}{form.image && <button type="button" onClick={() => setField('image', '')} className="inline-flex items-center gap-1 text-sm font-semibold text-red-700"><Trash2 className="h-4 w-4" />Remove image</button>}</div>{form.image && <img src={form.image} alt="Question attachment preview" className="max-h-56 max-w-full rounded-lg object-contain border border-border-soft object-contain" />}</div>
-        {mutationError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{mutationError}</p>}
+        {mutationError && <p role="alert" className="rounded-lg border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 p-3 text-sm text-red-800 dark:text-red-300">{mutationError}</p>}
         <div className="flex flex-wrap justify-end gap-2"><button type="button" onClick={() => setPreview((value) => !value)} className="rounded-lg border border-border-soft px-4 py-2 text-sm font-semibold hover:bg-cream">{preview ? 'Hide preview' : 'Preview'}</button><button type="submit" disabled={saving || uploading} className="inline-flex items-center gap-2 rounded-lg bg-maroon px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">{saving && <Loader2 className="h-4 w-4 animate-spin" />}{saving ? 'Saving…' : 'Save question'}</button></div>
         {preview && <div className="rounded-xl border border-maroon/20 bg-cream/50 p-4"><p className="mb-2 text-xs font-bold uppercase tracking-wide text-maroon">Preview · {types.find((item) => item.value === form.type)?.label}</p><p className="whitespace-pre-wrap font-medium">{form.text || 'Question content appears here.'}</p>{form.image && <img src={form.image} alt="Question preview" className="mt-3 max-h-56 max-w-full rounded-lg object-contain" />}{Array.isArray(form.options) && <ul className="mt-3 space-y-1 text-sm">{form.options.map((option: any, index: number) => <li key={index}>{form.type === 'MATCHING' ? `${option.left || 'Left'} → ${option.right || 'Right'}` : option || `Option ${index + 1}`}</li>)}</ul>}<p className="mt-3 text-xs text-gray-body">{form.marks || 0} marks · {form.difficulty} · {form.tags || 'No tags'}</p></div>}
       </form></section> : null}
 
     <section aria-label="Question bank results" className="overflow-hidden rounded-2xl border border-border-soft bg-white shadow-sm">
-      {loading ? <div className="flex min-h-48 items-center justify-center gap-3 text-sm text-gray-body"><Loader2 className="h-5 w-5 animate-spin text-maroon" />Loading question bank…</div> : listError ? <div className="flex min-h-48 flex-col items-center justify-center gap-3 p-6 text-center"><p role="alert" className="text-sm text-red-800">{listError}</p><button onClick={() => setRetry((value) => value + 1)} className="inline-flex items-center gap-2 rounded-lg border border-border-soft px-3 py-2 text-sm font-semibold"><RotateCw className="h-4 w-4" />Retry</button></div> : !questions.length ? <div className="flex min-h-48 flex-col items-center justify-center gap-2 p-6 text-center"><ImagePlus className="h-8 w-8 text-maroon" /><p className="font-semibold">No questions found</p><p className="text-sm text-gray-body">Create a question or adjust your filters.</p>{!isDemo && <button onClick={startCreate} className="mt-2 rounded-lg bg-maroon px-3 py-2 text-sm font-semibold text-white">Create question</button>}</div> : <div className="divide-y divide-border-soft">{questions.map((question) => <article key={question.id} className="p-4 sm:p-5"><div className="flex flex-col justify-between gap-3 sm:flex-row"><div className="min-w-0"><div className="mb-2 flex flex-wrap items-center gap-2"><span className="rounded-full bg-cream px-2.5 py-1 text-[11px] font-bold text-maroon">{types.find((item) => item.value === question.type)?.label || question.type}</span><span className="text-xs text-gray-body">{question.subject || 'No subject'} · {question.topic || 'No topic'} · {question.difficulty || 'Unrated'} · {question.marks} marks</span>{question.ownership === 'shared' && <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-700">Shared · read only</span>}</div><p className="whitespace-pre-wrap font-semibold">{question.text}</p>{question.image && <img src={question.image} alt="Question attachment" className="mt-3 max-h-36 rounded-lg object-contain" />}{question.tags.length > 0 && <p className="mt-2 text-xs text-gray-body">Tags: {question.tags.join(', ')}</p>}{question.reuse.usedInOppositeCategory && <p role="status" className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-amber-800"><AlertTriangle className="h-3.5 w-3.5" />{question.reuse.warning} Usage: {question.usages.filter((usage) => usage.category !== category).map((usage) => usage.assessmentTitle).join(', ')}</p>}<p className="mt-2 text-[11px] text-gray-body">Used in {question.usages.length} assessment{question.usages.length === 1 ? '' : 's'} · {question.usages.map((usage) => usage.assessmentTitle).join(', ') || 'Not used yet'}</p></div>{!isDemo && question.ownership === 'owned' && <div className="flex shrink-0 gap-2"><button onClick={() => startEdit(question)} className="h-fit rounded-lg border border-border-soft px-3 py-2 text-xs font-semibold hover:bg-cream">Edit</button><button aria-label={`Remove question ${question.id}`} onClick={() => void removeQuestion(question)} className="h-fit rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50"><Trash2 className="h-4 w-4" /></button></div>}</div></article>)}</div>}
+      {loading ? <div className="flex min-h-48 items-center justify-center gap-3 text-sm text-gray-body"><Loader2 className="h-5 w-5 animate-spin text-maroon" />Loading question bank…</div> : listError ? <div className="flex min-h-48 flex-col items-center justify-center gap-3 p-6 text-center"><p role="alert" className="text-sm text-red-800 dark:text-red-300">{listError}</p><button onClick={() => setRetry((value) => value + 1)} className="inline-flex items-center gap-2 rounded-lg border border-border-soft px-3 py-2 text-sm font-semibold"><RotateCw className="h-4 w-4" />Retry</button></div> : !questions.length ? <div className="flex min-h-48 flex-col items-center justify-center gap-2 p-6 text-center"><ImagePlus className="h-8 w-8 text-maroon" /><p className="font-semibold">No questions found</p><p className="text-sm text-gray-body">Create a question or adjust your filters.</p>{!isDemo && <button onClick={startCreate} className="mt-2 rounded-lg bg-maroon px-3 py-2 text-sm font-semibold text-white">Create question</button>}</div> : <div className="divide-y divide-border-soft">{questions.map((question) => <article key={question.id} className="p-4 sm:p-5"><div className="flex flex-col justify-between gap-3 sm:flex-row"><div className="min-w-0"><div className="mb-2 flex flex-wrap items-center gap-2"><span className="rounded-full bg-cream px-2.5 py-1 text-[11px] font-bold text-maroon">{types.find((item) => item.value === question.type)?.label || question.type}</span><span className="text-xs text-gray-body">{question.subject || 'No subject'} · {question.topic || 'No topic'} · {question.difficulty || 'Unrated'} · {question.marks} marks</span>{question.ownership === 'shared' && <span className="rounded-full bg-slate-100 dark:bg-neutral-800 px-2 py-1 text-[10px] font-semibold text-slate-700 dark:text-neutral-300">Shared · read only</span>}</div><p className="whitespace-pre-wrap font-semibold">{question.text}</p>{question.image && <img src={question.image} alt="Question attachment" className="mt-3 max-h-36 rounded-lg object-contain" />}{question.tags.length > 0 && <p className="mt-2 text-xs text-gray-body">Tags: {question.tags.join(', ')}</p>}{question.reuse.usedInOppositeCategory && <p role="status" className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-amber-800 dark:text-amber-300"><AlertTriangle className="h-3.5 w-3.5" />{question.reuse.warning} Usage: {question.usages.filter((usage) => usage.category !== category).map((usage) => usage.assessmentTitle).join(', ')}</p>}<p className="mt-2 text-[11px] text-gray-body">Used in {question.usages.length} assessment{question.usages.length === 1 ? '' : 's'} · {question.usages.map((usage) => usage.assessmentTitle).join(', ') || 'Not used yet'}</p></div>{!isDemo && question.ownership === 'owned' && <div className="flex shrink-0 gap-2"><button onClick={() => startEdit(question)} className="h-fit rounded-lg border border-border-soft px-3 py-2 text-xs font-semibold hover:bg-cream">Edit</button><button aria-label={`Remove question ${question.id}`} onClick={() => setQuestionToDelete(question)} className="h-fit rounded-lg border border-red-200 dark:border-red-900/50 px-3 py-2 text-xs font-semibold text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30"><Trash2 className="h-4 w-4" /></button></div>}</div></article>)}</div>}
       {!loading && !listError && questions.length > 0 && <footer className="flex items-center justify-between border-t border-border-soft p-3"><span className="text-xs text-gray-body">Page {page} of {pages}</span><div className="flex gap-2"><button onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={page <= 1} className="rounded-lg border border-border-soft px-3 py-1.5 text-xs font-semibold disabled:opacity-50">Previous</button><button onClick={() => setPage((value) => Math.min(pages, value + 1))} disabled={page >= pages} className="rounded-lg border border-border-soft px-3 py-1.5 text-xs font-semibold disabled:opacity-50">Next</button></div></footer>}
     </section>
+    <DeleteConfirmationDialog
+      open={Boolean(questionToDelete)}
+      itemName={questionToDelete?.text ? (questionToDelete.text.length > 60 ? `${questionToDelete.text.slice(0, 60)}...` : questionToDelete.text) : 'this question'}
+      title="Confirm Deletion"
+      description="This will remove the question from your Question Bank. Existing published assessments will retain their copy, but it cannot be undone in the bank."
+      confirmLabel="Delete"
+      onCancel={() => setQuestionToDelete(null)}
+      onConfirm={confirmRemoveQuestion}
+    />
   </div>;
 }
 

@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import FacultyDashboard from './FacultyDashboard';
 
 jest.mock('../components/DashboardLayout', () => ({ __esModule: true, default: ({ children, facultyNavigation, onTabChange }: any) => <div>
@@ -28,15 +29,42 @@ describe('faculty dashboard navigation', () => {
     ['Student Directory', 'Students directory page'],
     ['Notifications', 'Notifications page'],
   ])('%s opens its real dashboard page', (label, page) => {
-    render(<FacultyDashboard />);
+    render(
+      <MemoryRouter>
+        <FacultyDashboard />
+      </MemoryRouter>
+    );
     fireEvent.click(screen.getByRole('button', { name: label }));
     expect(screen.getByText(page)).toBeInTheDocument();
   });
 
   it('redirects stale enrollment tab navigation to Overview', () => {
-    render(<FacultyDashboard />);
+    render(
+      <MemoryRouter>
+        <FacultyDashboard />
+      </MemoryRouter>
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Try stale enrollment link' }));
     expect(screen.getByText('Overview page')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Department Enrollment/i })).not.toBeInTheDocument();
+  });
+
+  it('preserves the active tab from the URL on refresh (e.g. ?tab=quizzes)', () => {
+    render(
+      <MemoryRouter initialEntries={['/faculty/dashboard?tab=quizzes']}>
+        <FacultyDashboard />
+      </MemoryRouter>
+    );
+    expect(screen.getByText('Quizzes page')).toBeInTheDocument();
+    expect(screen.queryByText('Overview page')).not.toBeInTheDocument();
+  });
+
+  it('falls back to Overview when an invalid tab query param is in the URL', () => {
+    render(
+      <MemoryRouter initialEntries={['/faculty/dashboard?tab=nonexistent-tab']}>
+        <FacultyDashboard />
+      </MemoryRouter>
+    );
+    expect(screen.getByText('Overview page')).toBeInTheDocument();
   });
 });

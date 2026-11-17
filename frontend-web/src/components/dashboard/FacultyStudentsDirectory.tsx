@@ -180,8 +180,8 @@ export default function FacultyStudentsDirectory() {
         </div>
       </section>
 
-      {optionsError && <div role="alert" className="flex items-center justify-between rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"><span>{optionsError}</span><button onClick={() => setRetry((value) => value + 1)} className="inline-flex items-center gap-2 font-semibold"><RefreshCw className="h-4 w-4" />Retry</button></div>}
-      {error && <div role="alert" className="flex items-center justify-between rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"><span>{error}</span><button onClick={() => setRetry((value) => value + 1)} className="inline-flex items-center gap-2 font-semibold"><RefreshCw className="h-4 w-4" />Retry</button></div>}
+      {optionsError && <div role="alert" className="flex items-center justify-between rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 p-4 text-sm text-red-800 dark:text-red-300"><span>{optionsError}</span><button onClick={() => setRetry((value) => value + 1)} className="inline-flex items-center gap-2 font-semibold"><RefreshCw className="h-4 w-4" />Retry</button></div>}
+      {error && <div role="alert" className="flex items-center justify-between rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 p-4 text-sm text-red-800 dark:text-red-300"><span>{error}</span><button onClick={() => setRetry((value) => value + 1)} className="inline-flex items-center gap-2 font-semibold"><RefreshCw className="h-4 w-4" />Retry</button></div>}
 
       <section className="overflow-hidden rounded-2xl border border-border-soft bg-white shadow-sm" aria-label="Assigned students">
         {loading || optionsLoading ? <div className="flex min-h-48 items-center justify-center gap-3 text-sm text-gray-body"><Loader2 className="h-5 w-5 animate-spin text-maroon" />Loading students…</div> : error || optionsError ? null : visibleRows.length === 0 ? <EmptyState icon={<UserRound className="h-8 w-8 text-maroon" />} title="No students found" description="No students match these filters in your assigned classes." /> : (

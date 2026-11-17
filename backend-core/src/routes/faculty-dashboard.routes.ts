@@ -12,25 +12,25 @@ import { createPoll, getPollResults, getPollTargets, listPolls } from '../contro
 const router = Router();
 
 // Tasks
-router.get('/tasks', authenticate, getTasks);
-router.post('/tasks', authenticate, createTask);
-router.put('/tasks/:id', authenticate, updateTask);
-router.delete('/tasks/:id', authenticate, deleteTask);
+router.get('/tasks', authenticate, authorize(['FACULTY', 'ADMIN']), getTasks);
+router.post('/tasks', authenticate, authorize(['FACULTY', 'ADMIN']), createTask);
+router.put('/tasks/:id', authenticate, authorize(['FACULTY', 'ADMIN']), updateTask);
+router.delete('/tasks/:id', authenticate, authorize(['FACULTY', 'ADMIN']), deleteTask);
 
 // Calendar Events
-router.get('/calendar', authenticate, getCalendarEvents);
-router.post('/calendar', authenticate, createCalendarEvent);
-router.delete('/calendar/:id', authenticate, deleteCalendarEvent);
+router.get('/calendar', authenticate, authorize(['FACULTY', 'ADMIN']), getCalendarEvents);
+router.post('/calendar', authenticate, authorize(['FACULTY', 'ADMIN']), createCalendarEvent);
+router.delete('/calendar/:id', authenticate, authorize(['FACULTY', 'ADMIN']), deleteCalendarEvent);
 
 // Announcements
 router.get('/announcements/polls/targets', authenticate, authorize(['FACULTY', 'ADMIN']), attachFacultyScope, getPollTargets);
 router.get('/announcements/polls', authenticate, authorize(['FACULTY', 'ADMIN']), attachFacultyScope, listPolls);
 router.post('/announcements/polls', authenticate, authorize(['FACULTY', 'ADMIN']), attachFacultyScope, createPoll);
 router.get('/announcements/polls/:id/results', authenticate, authorize(['FACULTY', 'ADMIN']), attachFacultyScope, getPollResults);
-router.get('/announcements', authenticate, getAnnouncements);
-router.post('/announcements', authenticate, createAnnouncement);
-router.delete('/announcements/:id', authenticate, deleteAnnouncement);
-router.get('/announcements/:id/responses', authenticate, getAnnouncementResponses);
+router.get('/announcements', authenticate, authorize(['FACULTY', 'ADMIN']), getAnnouncements);
+router.post('/announcements', authenticate, authorize(['FACULTY', 'ADMIN']), createAnnouncement);
+router.delete('/announcements/:id', authenticate, authorize(['FACULTY', 'ADMIN']), deleteAnnouncement);
+router.get('/announcements/:id/responses', authenticate, authorize(['FACULTY', 'ADMIN']), getAnnouncementResponses);
 
 // Notifications
 router.get('/notifications', authenticate, authorize(['FACULTY', 'ADMIN']), getNotifications);

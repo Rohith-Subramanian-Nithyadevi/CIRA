@@ -41,7 +41,7 @@ export default {
    			'chart-blue': 'var(--chart-blue)',
    			'chart-teal': 'var(--chart-teal)',
    			'chart-plum': 'var(--chart-plum)',
-   			white: 'var(--white)',
+   			surface: 'var(--surface)',
    			background: 'var(--background)',
    			foreground: 'var(--foreground)',
    			card: {

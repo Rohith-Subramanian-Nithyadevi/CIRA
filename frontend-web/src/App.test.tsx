@@ -6,7 +6,6 @@ jest.mock('./pages/Login', () => ({ __esModule: true, default: () => <div>Login 
 jest.mock('./pages/AdminDashboard', () => ({ __esModule: true, default: () => <div>Admin dashboard</div> }));
 jest.mock('./pages/FacultyDashboard', () => ({ __esModule: true, default: () => <div>Faculty dashboard</div> }));
 jest.mock('./pages/StudentDashboard', () => ({ __esModule: true, default: () => <div>Student dashboard</div> }));
-jest.mock('./pages/exam-portal/ExamDashboard', () => ({ __esModule: true, default: () => <div>Exam dashboard</div> }));
 jest.mock('./pages/exam-portal/ExamInterface', () => ({ __esModule: true, default: () => <div>Exam interface</div> }));
 jest.mock('./pages/exam-portal/ExamResults', () => ({ __esModule: true, default: () => <div>Exam results</div> }));
 

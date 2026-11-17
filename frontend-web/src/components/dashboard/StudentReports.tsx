@@ -723,9 +723,9 @@ export const StudentReports = () => {
             <div className="grid grid-cols-2 gap-px bg-maroon/10 md:grid-cols-4">
               {[
                 { label: 'Average score', value: reportHasData ? `${reportSummary.averageScore}%` : '--', icon: Target, tone: 'text-maroon' },
-                { label: 'Learners evaluated', value: reportHasData ? reportSummary.evaluatedStudents : '--', icon: Users, tone: 'text-emerald-700' },
-                { label: 'Completed attempts', value: reportHasData ? reportSummary.totalAttempts : '--', icon: BookOpen, tone: 'text-amber-700' },
-                { label: 'Need support', value: reportHasData ? `${summaryPercentages.poor}%` : '--', icon: AlertTriangle, tone: 'text-red-700' }
+                { label: 'Learners evaluated', value: reportHasData ? reportSummary.evaluatedStudents : '--', icon: Users, tone: 'text-emerald-700 dark:text-emerald-400' },
+                { label: 'Completed attempts', value: reportHasData ? reportSummary.totalAttempts : '--', icon: BookOpen, tone: 'text-amber-700 dark:text-amber-400' },
+                { label: 'Need support', value: reportHasData ? `${summaryPercentages.poor}%` : '--', icon: AlertTriangle, tone: 'text-red-700 dark:text-red-400' }
               ].map(({ label, value, icon: Icon, tone }) => (
                 <div key={label} className="bg-white/75 dark:bg-[#1E1E22] px-4 py-4 md:px-6">
                   <Icon className={`mb-3 h-5 w-5 ${tone}`} />

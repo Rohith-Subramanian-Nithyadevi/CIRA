@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { createQuiz, updateQuiz, addQuestions, getSubmissions, evaluateAttempt, getQuizzes, getQuizById, deleteQuiz, uploadDocxParser, uploadImageHandler, togglePublishAnswers } from '../controllers/quiz.controller';
+import { createQuiz, updateQuiz, addQuestions, getSubmissions, evaluateAttempt, evaluateStudentForQuiz, getQuizzes, getQuizById, deleteQuiz, uploadDocxParser, uploadImageHandler, publishQuizAnswers, getLiveQuizOtp, getQuizTopics } from '../controllers/quiz.controller';
 import { allowRestart } from '../controllers/student-exam.controller';
 import { downloadTemplate } from '../controllers/template.controller';
 import { authenticate, authorize } from '../middlewares/auth.middleware';
@@ -58,17 +58,20 @@ router.put('/question-papers/:paperId', attachFacultyScope, updateQuestionPaper)
 router.post('/question-papers/:paperId/generate', attachFacultyScope, generateQuestionPaper);
 router.post('/question-papers/:paperId/publish', attachFacultyScope, publishQuestionPaper);
 router.post('/question-papers/:paperId/close', attachFacultyScope, closeQuestionPaper);
+router.get('/topics', getQuizTopics);
 router.get('/', getQuizzes);
 router.post('/create', createQuiz);
 router.post('/upload-docx', upload.single('file'), uploadDocxParser);
 router.post('/upload-image', upload.single('file'), uploadImageHandler);
+router.get('/:quizId/live-otp', getLiveQuizOtp);
 router.get('/:quizId', getQuizById);
 router.put('/:quizId', updateQuiz);
 router.delete('/:quizId', deleteQuiz);
 router.post('/:quizId/questions', addQuestions);
 router.get('/:quizId/submissions', getSubmissions);
 router.post('/attempt/:attemptId/evaluate', evaluateAttempt);
+router.post('/:quizId/student/:studentId/evaluate', evaluateStudentForQuiz);
 router.post('/attempt/:attemptId/allow-restart', allowRestart);
-router.post('/:quizId/publish', togglePublishAnswers);
+router.post('/:quizId/publish', publishQuizAnswers);
 
 export default router;

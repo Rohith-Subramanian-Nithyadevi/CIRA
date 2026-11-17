@@ -258,16 +258,26 @@ export const getFacultyAssignments = async (req: Request, res: Response) => {
 export const deleteAssignment = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
-    const facultyId = (req as any).user.userId;
-    
+    const facultyId = (req as any).user?.userId;
+    const userRole = (req as any).user?.role;
+    if (!facultyId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
     const existing = await prisma.assignment.findUnique({ where: { id } });
-    if (!existing || existing.createdBy !== facultyId) {
+    if (!existing) {
+      return res.status(404).json({ success: false, message: 'Assignment not found' });
+    }
+    if (userRole !== 'ADMIN' && existing.createdBy !== facultyId) {
       return res.status(403).json({ success: false, message: 'Unauthorized' });
     }
 
     await prisma.assignment.delete({ where: { id } });
     res.json({ success: true, message: 'Deleted successfully' });
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.code === 'P2003') {
+      return res.status(409).json({ success: false, message: 'Cannot delete assignment because submissions depend on it' });
+    }
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };

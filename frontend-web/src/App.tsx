@@ -7,7 +7,6 @@ import AdminDashboard from './pages/AdminDashboard';
 import FacultyDashboard from './pages/FacultyDashboard';
 import StudentDashboard from './pages/StudentDashboard';
 import ProtectedRoute from './components/ProtectedRoute';
-import ExamDashboard from './pages/exam-portal/ExamDashboard';
 import ExamInterface from './pages/exam-portal/ExamInterface';
 import ExamResults from './pages/exam-portal/ExamResults';
 import { ThemeProvider } from './context/ThemeContext';
@@ -35,7 +34,7 @@ function App() {
         {/* Exam Portal Routes (Locked down UI for Web Client) */}
         <Route path="/exam-portal" element={
           <ProtectedRoute allowedRoles={['STUDENT']}>
-            <ExamDashboard />
+            <Navigate to="/student/dashboard?tab=quizzes" replace />
           </ProtectedRoute>
         } />
         <Route path="/exam-portal/take/:quizId" element={
@@ -82,6 +81,7 @@ function App() {
         
         {/* Fallback routing is handled inside ProtectedRoute if someone tries to navigate to root dashboard */}
         <Route path="/dashboard" element={<ProtectedRoute allowedRoles={[]}><div /></ProtectedRoute>} />
+        <Route path="*" element={<ProtectedRoute allowedRoles={[]}><div /></ProtectedRoute>} />
       </Routes>
     </BrowserRouter>
   </QueryClientProvider>

@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Trash2, CheckCircle2, Circle, GripVertical, TrendingUp, Calendar as CalendarIcon, ChevronLeft, ChevronRight, X, Clock, Play, Pause, RotateCcw, Target } from 'lucide-react';
+import { toast } from 'sonner';
+import { DeleteConfirmationDialog } from '@/components/ui/DeleteConfirmationDialog';
 import { apiClient } from '../../lib/apiClient';
 
 interface Task {
@@ -71,6 +73,7 @@ export default function StudyPlanner() {
     }
     return savedTime ? parseInt(savedTime, 10) : 25 * 60;
   });
+  const [pendingDelete, setPendingDelete] = useState<{ type: 'task' | 'habit' | 'event'; id: string; name: string } | null>(null);
   
   const todayStr = getLocalDateString(new Date());
 
@@ -231,14 +234,36 @@ export default function StudyPlanner() {
     }
   };
 
-  const deleteTask = async (id: string) => {
-    try {
-      await apiClient.fetch(`/api/v1/student/tasks/${id}`, { method: 'DELETE' });
-      setTasks(tasks.filter(t => t.id !== id));
-      if (pomodoroTask?.id === id) setPomodoroTask(null);
-    } catch (error) {
-      console.error('Failed to delete task', error);
+  const handleConfirmDelete = async () => {
+    if (!pendingDelete) return;
+    const { type, id } = pendingDelete;
+    const endpoint =
+      type === 'task'
+        ? `/api/v1/student/tasks/${id}`
+        : type === 'habit'
+          ? `/api/v1/student/habits/${id}`
+          : `/api/v1/student/calendar/${id}`;
+
+    const res = await apiClient.fetch(endpoint, { method: 'DELETE' });
+    const data = await res.json?.().catch(() => null);
+    if (res?.ok === false || data?.success === false) {
+      const msg = data?.error || data?.message || `Failed to delete ${type}.`;
+      toast.error(msg);
+      throw new Error(msg);
     }
+
+    if (type === 'task') {
+      setTasks(prev => prev.filter(t => t.id !== id));
+      if (pomodoroTask?.id === id) setPomodoroTask(null);
+      toast.success('Task deleted successfully.');
+    } else if (type === 'habit') {
+      setHabits(prev => prev.filter(h => h.id !== id));
+      toast.success('Habit deleted successfully.');
+    } else {
+      setCalendarEvents(prev => prev.filter(ev => ev.id !== id));
+      toast.success('Calendar event deleted successfully.');
+    }
+    setPendingDelete(null);
   };
 
   // --- HABITS ---
@@ -277,13 +302,6 @@ export default function StudyPlanner() {
     }
   };
 
-  const deleteHabit = async (id: string) => {
-    try {
-      await apiClient.fetch(`/api/v1/student/habits/${id}`, { method: 'DELETE' });
-      setHabits(habits.filter(h => h.id !== id));
-    } catch (error) {}
-  };
-
   // --- CALENDAR ---
   const handleAddEvent = async () => {
     if (!selectedDate || !newEventTitle.trim()) return;
@@ -298,13 +316,6 @@ export default function StudyPlanner() {
       });
       const data = await res.json();
       if (data?.success) setCalendarEvents([...calendarEvents, { ...data.data, date: getLocalDateString(data.data.date) }]);
-    } catch (err) {}
-  };
-
-  const deleteCalendarEvent = async (id: string) => {
-    setCalendarEvents(calendarEvents.filter(e => e.id !== id));
-    try {
-      await apiClient.fetch(`/api/v1/student/calendar/${id}`, { method: 'DELETE' });
     } catch (err) {}
   };
 
@@ -461,7 +472,8 @@ export default function StudyPlanner() {
                     </button>
                   )}
                   <button 
-                    onClick={() => deleteTask(task.id)} 
+                    aria-label={`Delete task ${task.title}`}
+                    onClick={() => setPendingDelete({ type: 'task', id: task.id, name: task.title })} 
                     className="text-gray-400 hover:text-red-500 transition-colors p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-950/40"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -591,7 +603,7 @@ export default function StudyPlanner() {
                 {calendarEvents.filter(e => e.date === getLocalDateString(selectedDate)).map(ev => (
                   <div key={ev.id} className="text-[11px] bg-cream/30 dark:bg-neutral-900/40 p-2 rounded border border-border-soft dark:border-neutral-800 flex items-center justify-between group">
                     <div className="flex items-center text-ink dark:text-neutral-200"><div className="w-1 h-1 rounded-full bg-maroon dark:bg-red-400 mr-2 shrink-0" />{ev.title}</div>
-                    <button onClick={(e) => { e.stopPropagation(); deleteCalendarEvent(ev.id); }} className="text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="w-3 h-3"/></button>
+                    <button aria-label={`Delete event ${ev.title}`} onClick={(e) => { e.stopPropagation(); setPendingDelete({ type: 'event', id: ev.id, name: ev.title }); }} className="text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="w-3 h-3"/></button>
                   </div>
                 ))}
               </div>
@@ -625,7 +637,7 @@ export default function StudyPlanner() {
                     </div>
                     <span className={`text-xs font-semibold ${isCompleted ? 'line-through text-gray-body/70 dark:text-neutral-500' : 'text-ink dark:text-neutral-100'}`}>{habit.title}</span>
                   </button>
-                  <button onClick={() => deleteHabit(habit.id)} className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-all rounded hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
+                  <button aria-label={`Delete habit ${habit.title}`} onClick={() => setPendingDelete({ type: 'habit', id: habit.id, name: habit.title })} className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-all rounded hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
                 </div>
               )
             })}
@@ -644,6 +656,15 @@ export default function StudyPlanner() {
         </div>
 
       </div>
+      <DeleteConfirmationDialog
+        open={Boolean(pendingDelete)}
+        itemName={pendingDelete?.name || 'this item'}
+        title="Confirm Deletion"
+        description="This action cannot be undone."
+        confirmLabel="Delete"
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={handleConfirmDelete}
+      />
     </div>
   );
 }

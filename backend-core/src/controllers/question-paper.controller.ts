@@ -4,6 +4,7 @@ import { PaperStatus, QuestionCategory } from '@prisma/client';
 import { prisma } from '../config/prisma';
 import { BadRequestError, ForbiddenError, NotFoundError } from '../utils/errors';
 import { buildPaperQuestionPoolWhere, hasOppositeCategoryReuse, MAX_PAPER_QUESTIONS, parsePaperQuestions, shuffleQuestions } from '../utils/question-paper-policy';
+import { resolveQuestionImages } from '../utils/object-storage';
 
 const paperInclude = {
   questions: true,
@@ -31,18 +32,19 @@ const getAccessiblePaper = async (req: Request) => {
   return paper;
 };
 
-const toPaperResponse = (paper: any) => {
+const toPaperResponse = async (paper: any) => {
   const selected = [
     ...paper.questionUsages.map((usage: any) => ({ ...usage.question, marks: usage.marks, sortOrder: usage.sortOrder, wasReused: usage.wasReused })),
     ...paper.questions.map((question: any, index: number) => ({ ...question, sortOrder: paper.questionUsages.length + index, wasReused: false })),
   ].sort((a: any, b: any) => a.sortOrder - b.sortOrder);
+  const resolvedQuestions = await resolveQuestionImages(selected);
   const department = paper.targetDepartments[0]?.department;
   const section = paper.targetSections[0]?.section;
   const classLabel = section
     ? `${section.department.name} · ${section.department.batch.name} · Section ${section.name}`
     : department ? `${department.name} · ${department.batch.name}` : null;
-  const totalMarks = selected.reduce((sum: number, question: any) => sum + Number(question.marks || 0), 0);
-  return { ...paper, questions: selected, totalMarks, classLabel, ...currentClassSelection(paper) };
+  const totalMarks = resolvedQuestions.reduce((sum: number, question: any) => sum + Number(question.marks || 0), 0);
+  return { ...paper, questions: resolvedQuestions, totalMarks, classLabel, ...currentClassSelection(paper) };
 };
 
 const validateTitle = (title: unknown) => {
@@ -149,7 +151,7 @@ export const listQuestionPapers = async (req: Request, res: Response, next: Next
       include: paperInclude,
       orderBy: { createdAt: 'desc' },
     });
-    res.status(200).json({ status: 'success', data: papers.map(toPaperResponse) });
+    res.status(200).json({ status: 'success', data: await Promise.all(papers.map(toPaperResponse)) });
   } catch (error) { next(error); }
 };
 
@@ -172,14 +174,14 @@ export const createQuestionPaper = async (req: Request, res: Response, next: Nex
       paperStatus: 'DRAFT',
       totalMarks: 0,
     } });
-    res.status(201).json({ status: 'success', data: toPaperResponse(await prisma.quiz.findUniqueOrThrow({ where: { id: paper.id }, include: paperInclude })) });
+    res.status(201).json({ status: 'success', data: await toPaperResponse(await prisma.quiz.findUniqueOrThrow({ where: { id: paper.id }, include: paperInclude })) });
   } catch (error) { next(error); }
 };
 
 export const getQuestionPaper = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const paper = await getAccessiblePaper(req);
-    res.status(200).json({ status: 'success', data: toPaperResponse(paper) });
+    res.status(200).json({ status: 'success', data: await toPaperResponse(paper) });
   } catch (error) { next(error); }
 };
 
@@ -235,7 +237,7 @@ export const updateQuestionPaper = async (req: Request, res: Response, next: Nex
       else if (title !== paper.title) await tx.questionUsage.updateMany({ where: { quizId: paper.id, isFinalized: false }, data: { assessmentTitle: title } });
     });
     const result = await prisma.quiz.findUniqueOrThrow({ where: { id: paper.id }, include: paperInclude });
-    res.status(200).json({ status: 'success', data: toPaperResponse(result) });
+    res.status(200).json({ status: 'success', data: await toPaperResponse(result) });
   } catch (error) { next(error); }
 };
 
@@ -273,14 +275,14 @@ export const generateQuestionPaper = async (req: Request, res: Response, next: N
       await tx.quiz.update({ where: { id: paper.id }, data: { totalMarks, paperStatus } });
     });
     const result = await prisma.quiz.findUniqueOrThrow({ where: { id: paper.id }, include: paperInclude });
-    res.status(200).json({ status: 'success', data: toPaperResponse(result) });
+    res.status(200).json({ status: 'success', data: await toPaperResponse(result) });
   } catch (error) { next(error); }
 };
 
 export const publishQuestionPaper = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const paper = await getAccessiblePaper(req);
-    if (paper.paperStatus === 'PUBLISHED') return res.status(200).json({ status: 'success', data: toPaperResponse(paper), message: 'Paper is already published.' });
+    if (paper.paperStatus === 'PUBLISHED') return res.status(200).json({ status: 'success', data: await toPaperResponse(paper), message: 'Paper is already published.' });
     if (paper.paperStatus !== 'READY') throw new BadRequestError('Paper must have questions and an authorized class before publishing.', 'ERR_PAPER_NOT_READY');
     if (paper.questionUsages.length === 0 && paper.questions.length === 0) throw new BadRequestError('Paper has no selected questions.', 'ERR_PAPER_QUESTIONS_REQUIRED');
     const classSelection = currentClassSelection(paper);
@@ -291,17 +293,17 @@ export const publishQuestionPaper = async (req: Request, res: Response, next: Ne
       await tx.questionUsage.updateMany({ where: { quizId: paper.id, isFinalized: false }, data: { isFinalized: true } });
     });
     const published = await prisma.quiz.findUniqueOrThrow({ where: { id: paper.id }, include: paperInclude });
-    res.status(200).json({ status: 'success', data: toPaperResponse(published) });
+    res.status(200).json({ status: 'success', data: await toPaperResponse(published) });
   } catch (error) { next(error); }
 };
 
 export const closeQuestionPaper = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const paper = await getAccessiblePaper(req);
-    if (paper.paperStatus === 'CLOSED') return res.status(200).json({ status: 'success', data: toPaperResponse(paper), message: 'Paper is already closed.' });
+    if (paper.paperStatus === 'CLOSED') return res.status(200).json({ status: 'success', data: await toPaperResponse(paper), message: 'Paper is already closed.' });
     if (paper.paperStatus !== 'PUBLISHED') throw new BadRequestError('Only published papers can be closed.', 'ERR_PAPER_NOT_PUBLISHED');
     await prisma.quiz.update({ where: { id: paper.id }, data: { paperStatus: 'CLOSED' } });
     const closed = await prisma.quiz.findUniqueOrThrow({ where: { id: paper.id }, include: paperInclude });
-    res.status(200).json({ status: 'success', data: toPaperResponse(closed) });
+    res.status(200).json({ status: 'success', data: await toPaperResponse(closed) });
   } catch (error) { next(error); }
 };

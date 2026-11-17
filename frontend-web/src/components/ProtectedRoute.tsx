@@ -1,4 +1,4 @@
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -6,11 +6,16 @@ interface ProtectedRouteProps {
 }
 
 export default function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
+  const location = useLocation();
   const token = localStorage.getItem('cira_token');
   const userStr = localStorage.getItem('cira_user');
+  const redirectTo = `${location.pathname}${location.search}${location.hash}`;
+  const loginPath = redirectTo && redirectTo !== '/login'
+    ? `/login?redirect=${encodeURIComponent(redirectTo)}`
+    : '/login';
 
   if (!token || !userStr) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to={loginPath} replace state={{ from: redirectTo }} />;
   }
 
   try {
@@ -38,6 +43,6 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
     return <>{children}</>;
   } catch (error) {
     localStorage.clear();
-    return <Navigate to="/login" replace />;
+    return <Navigate to={loginPath} replace state={{ from: redirectTo }} />;
   }
 }

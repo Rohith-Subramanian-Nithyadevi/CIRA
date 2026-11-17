@@ -27,21 +27,23 @@ export const getDashboardData = async (req: Request, res: Response) => {
       },
     });
 
-    const performanceTrajectory = attempts.map(attempt => {
-      const maxScore = attempt.quiz.totalMarks;
-      const percentage = maxScore > 0 ? (attempt.totalScore / maxScore) * 100 : attempt.totalScore;
-      
-      return {
-        name: attempt.quiz.title,
-        score: Math.round(percentage),
-        date: attempt.startTime.toISOString().split('T')[0],
-      };
-    });
+    const performanceTrajectory = attempts
+      .filter(attempt => attempt.quiz.answersPublished && (attempt.status === 'SUBMITTED' || attempt.status === 'EVALUATED'))
+      .map(attempt => {
+        const maxScore = attempt.quiz.totalMarks;
+        const percentage = maxScore > 0 ? (attempt.totalScore / maxScore) * 100 : attempt.totalScore;
+        
+        return {
+          name: attempt.quiz.title,
+          score: Math.round(percentage),
+          date: attempt.startTime.toISOString().split('T')[0],
+        };
+      });
 
-    // 2. Knowledge Deficits — dynamically calculated from recent responses
+    // 2. Knowledge Deficits — dynamically calculated from recent responses (only for published quizzes)
     const recentResponses = await prisma.quizResponse.findMany({
       where: { 
-        attempt: { userId: user.id },
+        attempt: { userId: user.id, quiz: { answersPublished: true } },
         marksAwarded: { not: null }
       },
       include: { question: { select: { topic: true, marks: true } } },
@@ -82,22 +84,27 @@ export const getDashboardData = async (req: Request, res: Response) => {
       status: sub.rating === 'POOR' ? 'Generated' : 'Completed',
     }));
 
-    // 4. Past quiz results — submitted/evaluated attempts with scores
+    // 4. Past quiz results — hide scores, grades, and evaluation details until answers are published
     const pastQuizzes = attempts
       .filter(a => a.status === 'SUBMITTED' || a.status === 'EVALUATED')
-      .map(a => ({
-        id: a.id,
-        quizId: a.quiz.id,
-        title: a.quiz.title,
-        submittedAt: a.endTime?.toISOString().split('T')[0] || a.startTime.toISOString().split('T')[0],
-        totalScore: a.totalScore,
-        objectiveScore: a.objectiveScore,
-        writtenScore: a.writtenScore,
-        grade: a.finalGrade || null,
-        facultyFeedback: a.facultyFeedback || null,
-        performanceCategory: a.performanceCategory || null,
-        answersPublished: a.quiz.answersPublished,
-      }));
+      .map(a => {
+        const isPublished = Boolean(a.quiz.answersPublished);
+        return {
+          id: a.id,
+          quizId: a.quiz.id,
+          title: a.quiz.title,
+          totalMarks: a.quiz.totalMarks,
+          submittedAt: (a.endTime || a.startTime).toISOString(),
+          status: isPublished ? a.status : 'Submitted Successfully',
+          totalScore: isPublished ? a.totalScore : null,
+          objectiveScore: isPublished ? a.objectiveScore : null,
+          writtenScore: isPublished ? a.writtenScore : null,
+          grade: isPublished ? (a.finalGrade || null) : null,
+          facultyFeedback: isPublished ? (a.facultyFeedback || null) : null,
+          performanceCategory: isPublished ? (a.performanceCategory || null) : null,
+          answersPublished: isPublished,
+        };
+      });
 
     res.status(200).json({
       success: true,

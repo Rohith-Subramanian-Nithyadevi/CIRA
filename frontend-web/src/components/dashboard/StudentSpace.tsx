@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { TrendingUp, Bell, Loader2, ArrowRight, Trash2, X, MessageSquare, CheckCircle2, Send, Calendar } from 'lucide-react';
 import DOMPurify from 'dompurify';
+import { toast } from 'sonner';
+import { DeleteConfirmationDialog } from '@/components/ui/DeleteConfirmationDialog';
 import { apiClient } from '@/lib/apiClient';
 import StudyPlanner from '../student/StudyPlanner';
 
@@ -81,6 +83,7 @@ export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProp
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
   const [responseText, setResponseText] = useState('');
   const [submittingSurvey, setSubmittingSurvey] = useState(false);
+  const [noticeToDelete, setNoticeToDelete] = useState<{ id: string; title: string } | null>(null);
 
   const user = JSON.parse(localStorage.getItem('cira_user') || '{}');
   const userStorageKey = `cira_dismissed_announcements_${user.id || 'default'}`;
@@ -93,9 +96,9 @@ export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProp
     }
   };
 
-  const handleDismiss = (id: string, e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    if (!window.confirm('Delete this announcement from your notices?')) return;
+  const confirmDismissNotice = async () => {
+    if (!noticeToDelete) return;
+    const { id } = noticeToDelete;
     const current = getDismissedIds();
     if (!current.includes(id)) {
       const updated = [...current, id];
@@ -106,6 +109,8 @@ export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProp
       setSelectedAnnouncement(null);
     }
     window.dispatchEvent(new Event('cira_announcements_updated'));
+    setNoticeToDelete(null);
+    toast.success('Announcement removed from your notices.');
   };
 
   const handleSurveySubmit = async (announcementId: string) => {
@@ -343,7 +348,7 @@ export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProp
                     </button>
                     <button
                       type="button"
-                      onClick={(e) => handleDismiss(ann.id, e)}
+                      onClick={(e) => { e.stopPropagation(); setNoticeToDelete({ id: ann.id, title: ann.title }); }}
                       className="p-1.5 text-gray-body/60 dark:text-neutral-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg border border-transparent hover:border-red-100 transition-colors cursor-pointer"
                       title="Delete notice"
                     >
@@ -486,7 +491,7 @@ export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProp
             <div className="p-4 border-t border-border-soft dark:border-neutral-800 bg-cream/10 dark:bg-neutral-900/40 flex items-center justify-between">
               <button
                 type="button"
-                onClick={() => handleDismiss(selectedAnnouncement.id)}
+                onClick={() => setNoticeToDelete({ id: selectedAnnouncement.id, title: selectedAnnouncement.title })}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 dark:text-red-400 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 border border-red-200/60 dark:border-red-900/40 rounded-lg transition-colors cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -516,6 +521,15 @@ export default function StudentSpace({ isDemo, onNavigateTab }: StudentSpaceProp
         </div>,
         document.body
       )}
+      <DeleteConfirmationDialog
+        open={Boolean(noticeToDelete)}
+        itemName={noticeToDelete?.title || 'this notice'}
+        title="Confirm Deletion"
+        description="This announcement will be removed from your My Notices list. You can restore it later from Announcements if needed."
+        confirmLabel="Delete"
+        onCancel={() => setNoticeToDelete(null)}
+        onConfirm={confirmDismissNotice}
+      />
     </div>
   );
 }

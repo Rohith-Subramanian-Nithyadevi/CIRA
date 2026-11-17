@@ -56,3 +56,55 @@
 - Generic server errors no longer return raw exception messages or development stack traces to clients. Prisma missing-column errors return a plain-language temporary-availability message; internal details remain in server logs.
 - Question Bank and Question Papers use user-facing fallback copy for other server failures and omit internal error codes from those messages.
 - Backend and frontend production builds passed. Automated tests were not run for this follow-up; the existing frontend Jest/jsdom version mismatch remains outstanding.
+
+
+## Follow-up: Review & Proctoring Enhancements (Items 4-14, 23, 24) (2026-11-14)
+
+- **Items Implemented**:
+  - `4.` Question shuffling to ensure randomized question order per student attempt, persisted deterministically across resumes.
+  - `5.` Prevention of duplicate questions in quizzes and Question Bank selection validation.
+  - `6.` Removal of distracting animations and bouncing scale effects across the exam portal interface.
+  - `7.` Implemented Topic selection as a dropdown menu populated with curriculum topics across Question Bank, Question Papers, and Quiz Management.
+  - `8.` Made instructions optional during quiz and question paper creation.
+  - `9.` Fixed question image display (support for mammoth DOCX image parsing to Neon Object Storage / base64 data URIs, container visibility fix).
+  - `10.` 30-second rolling TOTP access code generation with countdown timer and server-side verification.
+  - `11.` Instant screen locking during active quizzes upon proctor flag or security violation.
+  - `12.` Buffered keylogging captured at 1.5s intervals with multi-window interval reporting (1.5s, 5s, 30s, 1m, full session).
+  - `13.` Privacy blackout protection screen triggered on focus loss or privacy events.
+  - `14.` Overlay detection for desktop and mobile devices triggering blackout and logging violation telemetry.
+  - `23.` Faculty edit mark toggle for objective questions on submitted attempts.
+  - `24.` Manual mark entry for unsubmitted/offline student attempts.
+- **Validation**:
+  - `backend-core`: `npm test` passed (16 test suites, 66 tests passed).
+  - `frontend-web`: `npm test` passed (24 test suites, 94 tests passed).
+  - Production builds: `npm --prefix backend-core run build` and `npm --prefix frontend-web run build` passed with 0 errors.
+
+
+## Follow-up: Question Pool Subset Sampling & Randomized Delivery (2026-11-14)
+
+- **Feature**:
+  - Added option in Quiz creation / editing for faculty to configure a question pool with subset sampling (`questionPoolCount`).
+  - Added "Question Pool & Subset Sampling" input in Step 3 (Marks Configuration) and pool metrics across Step 5 and the questions review view.
+  - When a student initiates the exam (`startExam`), if `questionPoolCount` is set, a non-repeated subset of $K$ questions is randomly sampled from the total pool ($N$) using Fisher-Yates shuffle with a deterministic per-student attempt seed (`${attempt.id}-${userId}-${quizId}`).
+  - Each student receives a unique, non-repeated, randomly shuffled question set.
+  - The sampled subset and shuffle sequence are stored in `attempt.metrics.questionOrder`, ensuring that page refreshes or session resumes deterministically preserve the exact same subset and question order for that student.
+  - Quiz total marks for the attempt automatically adjust to match the assigned subset.
+- **Validation**:
+  - Added `backend-core/tests/student-exam-pool-shuffle.test.cjs` verifying subset selection, absence of repeated questions, unique per-student permutations, resume preservation, and marks calculation.
+  - `backend-core`: 17 suites, 67 tests passed, 0 failures.
+  - `frontend-web`: 24 suites, 94 tests passed, 0 failures.
+  - Production builds (`npm run build` in both backend-core and frontend-web) completed with 0 errors.
+
+
+## Follow-up: Topic Selection When Pasting Bulk Questions (2026-11-14)
+
+- **Feature**:
+  - Added a Topic selection dropdown menu directly in **Mode 1: Paste Textboxes** (Step 5 of Quiz Creation) and in the **Quick Paste Additional Questions** modal during quiz question review/editing.
+  - Faculty can select any predefined curriculum topic or specify a custom topic from the dropdown while pasting questions into the textboxes.
+  - Updated all bulk text parsers (`parseMCQs`, `parseShortWritten`, `parseNumerical`, `parseLongWritten`, `parseMatching`, `parseFillBlanks`) to check for per-question `Topic: <value>` or `Subject: <value>` lines in the pasted text.
+  - When questions are converted and added to the quiz via `handleImportBulkQuestions`, any question without an explicit in-text topic automatically inherits the topic chosen from the dropdown.
+- **Validation**:
+  - `frontend-web`: 24 test suites, 94 tests passed, 0 failures.
+  - `frontend-web run build`: `tsc -b && vite build` passed with 0 errors.
+  - `backend-core`: 17 test suites, 67 tests passed, 0 failures.
+

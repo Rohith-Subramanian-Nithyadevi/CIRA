@@ -91,7 +91,14 @@ export const toggleTask = async (req: Request, res: Response) => {
 
 export const deleteTask = async (req: Request, res: Response) => {
   try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
     const id = req.params.id as string;
+    const existing = await prisma.studentTask.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ error: 'Task not found' });
+    if (existing.userId !== userId) return res.status(403).json({ error: 'Forbidden' });
+
     await prisma.studentTask.delete({ where: { id } });
     res.json({ success: true });
   } catch (error) {
@@ -156,7 +163,14 @@ export const toggleHabit = async (req: Request, res: Response) => {
 
 export const deleteHabit = async (req: Request, res: Response) => {
   try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
     const { id } = req.params;
+    const existing = await (prisma.studentHabit as any).findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ error: 'Habit not found' });
+    if (existing.userId !== userId) return res.status(403).json({ error: 'Forbidden' });
+
     await (prisma.studentHabit as any).delete({ where: { id } });
     res.json({ success: true });
   } catch (error) {
@@ -202,7 +216,14 @@ export const createCalendarEvent = async (req: Request, res: Response) => {
 
 export const deleteCalendarEvent = async (req: Request, res: Response) => {
   try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
     const { id } = req.params;
+    const existing = await (prisma.studentCalendarEvent as any).findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ success: false, error: 'Calendar event not found' });
+    if (existing.userId !== userId) return res.status(403).json({ success: false, error: 'Forbidden' });
+
     await (prisma.studentCalendarEvent as any).delete({ where: { id } });
     res.json({ success: true });
   } catch (error) {

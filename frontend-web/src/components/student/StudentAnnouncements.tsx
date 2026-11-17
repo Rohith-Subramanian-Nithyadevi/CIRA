@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Bell, Search, Calendar, MessageSquare, CheckCircle2, Send, Loader2, RefreshCw, Trash2, RotateCcw } from 'lucide-react';
 import DOMPurify from 'dompurify';
+import { toast } from 'sonner';
+import { DeleteConfirmationDialog } from '@/components/ui/DeleteConfirmationDialog';
 import { apiClient } from '@/lib/apiClient';
 
 interface AnnouncementResponse {
@@ -46,10 +48,11 @@ export default function StudentAnnouncements({ isDemo }: { isDemo?: boolean }) {
   };
 
   const [dismissedIds, setDismissedIds] = useState<string[]>(getDismissedIds);
+  const [noticeToDelete, setNoticeToDelete] = useState<{ id: string; title: string } | null>(null);
 
-  const handleDismiss = (id: string, e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    if (!window.confirm('Delete this announcement from your notices?')) return;
+  const confirmDismissNotice = async () => {
+    if (!noticeToDelete) return;
+    const { id } = noticeToDelete;
     const current = getDismissedIds();
     if (!current.includes(id)) {
       const updated = [...current, id];
@@ -57,6 +60,8 @@ export default function StudentAnnouncements({ isDemo }: { isDemo?: boolean }) {
       localStorage.setItem(userStorageKey, JSON.stringify(updated));
       window.dispatchEvent(new Event('cira_announcements_updated'));
     }
+    setNoticeToDelete(null);
+    toast.success('Announcement removed from your notices.');
   };
 
   const handleRestore = (id: string, e?: React.MouseEvent) => {
@@ -375,7 +380,8 @@ export default function StudentAnnouncements({ isDemo }: { isDemo?: boolean }) {
                       </button>
                     ) : (
                       <button
-                        onClick={(e) => handleDismiss(ann.id, e)}
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setNoticeToDelete({ id: ann.id, title: ann.title }); }}
                         className="p-1.5 text-gray-body/60 dark:text-neutral-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg border border-transparent hover:border-red-100 transition-colors cursor-pointer"
                         title="Delete notice"
                       >
@@ -466,6 +472,15 @@ export default function StudentAnnouncements({ isDemo }: { isDemo?: boolean }) {
           })}
         </div>
       )}
+      <DeleteConfirmationDialog
+        open={Boolean(noticeToDelete)}
+        itemName={noticeToDelete?.title || 'this notice'}
+        title="Confirm Deletion"
+        description="This announcement will be removed from your active notices view. You can restore it anytime from Dismissed."
+        confirmLabel="Delete"
+        onCancel={() => setNoticeToDelete(null)}
+        onConfirm={confirmDismissNotice}
+      />
     </div>
   );
 }

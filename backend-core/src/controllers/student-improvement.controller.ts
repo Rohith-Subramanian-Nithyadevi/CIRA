@@ -122,9 +122,9 @@ export const getMistakes = async (req: Request, res: Response) => {
     const userId = uid(req);
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-    // Get all quiz responses where marks awarded < 50% of question marks
+    // Get all quiz responses where marks awarded < 50% of question marks (only for published quizzes)
     const attempts = await prisma.quizAttempt.findMany({
-      where: { userId, status: { in: ['SUBMITTED', 'EVALUATED'] } },
+      where: { userId, status: { in: ['SUBMITTED', 'EVALUATED'] }, quiz: { answersPublished: true } },
       include: {
         quiz: { select: { id: true, title: true, answersPublished: true } },
         responses: {

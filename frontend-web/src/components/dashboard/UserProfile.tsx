@@ -66,8 +66,8 @@ function FacultyReadOnlyProfile({ initialUser }: { initialUser: Record<string, a
 
   return <section className="w-full max-w-2xl rounded-xl border border-border-soft bg-white p-4 shadow-sm sm:p-8 dark:border-gray-800 dark:bg-[#1A1A1A]">
     <h2 className="mb-6 font-serif text-2xl font-bold text-ink dark:text-cream">My Profile</h2>
-    {success && <p role="status" className="mb-4 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">{success}</p>}
-    {error && <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+    {success && <p role="status" className="mb-4 rounded-lg border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/40 p-3 text-sm text-green-700 dark:text-green-300">{success}</p>}
+    {error && <p role="alert" className="mb-4 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 p-3 text-sm text-red-700 dark:text-red-300">{error}</p>}
     <dl className="space-y-4">{fields.map(([label, value]) => <div key={label}>
       <dt className="text-sm font-semibold text-gray-body dark:text-gray-400">{label}</dt>
       <dd className="mt-1 rounded-lg border border-border-soft bg-cream/40 px-4 py-2.5 text-ink dark:border-gray-700 dark:bg-gray-800 dark:text-cream">{String(value)}</dd>
