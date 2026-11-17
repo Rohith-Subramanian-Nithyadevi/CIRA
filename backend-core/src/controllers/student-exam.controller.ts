@@ -107,12 +107,6 @@ export const getEligibleQuizzes = async (req: Request, res: Response, next: Next
               { endDate: null },
               { endDate: { gte: now } }
             ]
-          },
-          {
-            OR: [
-              { startDate: null },
-              { startDate: { lte: now } }
-            ]
           }
         ]
       },
@@ -210,7 +204,8 @@ export const getQuizInstructions = async (req: Request, res: Response, next: Nex
       if (attempt.status === 'IN_PROGRESS') {
         const durationSeconds = (quiz.durationMinutes || 60) * 60;
         const elapsedSeconds = (Date.now() - new Date(attempt.startTime).getTime()) / 1000;
-        if (elapsedSeconds >= durationSeconds) {
+        const GRACE_PERIOD_SECONDS = 60;
+        if (elapsedSeconds >= durationSeconds + GRACE_PERIOD_SECONDS) {
           await prisma.quizAttempt.update({
             where: { id: attempt.id },
             data: { status: 'SUBMITTED', endTime: new Date(), violationReason: 'Quiz time expired' }
@@ -337,7 +332,8 @@ export const startExam = async (req: Request, res: Response, next: NextFunction)
       } else {
         const durationSeconds = (quizMetadata.durationMinutes || 60) * 60;
         const elapsedSeconds = (Date.now() - new Date(attempt.startTime).getTime()) / 1000;
-        if (elapsedSeconds >= durationSeconds) {
+        const GRACE_PERIOD_SECONDS = 60;
+        if (elapsedSeconds >= durationSeconds + GRACE_PERIOD_SECONDS) {
           await prisma.quizAttempt.update({
             where: { id: attempt.id },
             data: { status: 'SUBMITTED', endTime: new Date(), violationReason: 'Quiz time expired' }
@@ -873,7 +869,21 @@ export const submitExam = async (req: Request, res: Response, next: NextFunction
     if (attempt.status === 'VIOLATED') {
       throw new ForbiddenError('Your quiz attempt has been locked due to a security violation.', 'ATTEMPT_LOCKED');
     }
-    if (attempt.status !== 'IN_PROGRESS') throw new BadRequestError('Exam already submitted', 'FORBIDDEN');
+    if (attempt.status !== 'IN_PROGRESS') {
+      if (attempt.status === 'SUBMITTED' || attempt.status === 'EVALUATED') {
+        res.set?.('Cache-Control', 'no-store');
+        return res.status(200).json({
+          status: 'success',
+          message: 'Exam already submitted',
+          data: {
+            attemptId: attempt.id,
+            totalMarks: attempt.quiz.totalMarks,
+            answersPublished: Boolean(attempt.quiz.answersPublished),
+          },
+        });
+      }
+      throw new BadRequestError('Exam already submitted', 'FORBIDDEN');
+    }
 
     assertStudentOwnsAttempt((req as any).user, attempt);
 

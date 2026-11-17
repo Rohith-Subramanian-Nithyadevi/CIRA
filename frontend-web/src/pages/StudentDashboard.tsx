@@ -113,36 +113,59 @@ export default function StudentDashboard() {
             ) : activeQuizzes.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {activeQuizzes.map(quiz => {
-                  const now = new Date();
+                  const nowEpoch = Date.now();
                   const startDate = quiz.startDate ? new Date(quiz.startDate) : null;
-                  const endDate = quiz.endDate ? new Date(quiz.endDate) : null;
-                  const isLive = !startDate || startDate <= now;
-                  const isExpired = Boolean(endDate && endDate < now);
+                  const rawEndDate = quiz.endDate ? new Date(quiz.endDate) : null;
+                  const durationMs = Number(quiz.durationMinutes || 0) * 60 * 1000;
+                  const effectiveEndDate = rawEndDate || (startDate && durationMs > 0 ? new Date(startDate.getTime() + durationMs) : null);
+
+                  const isLive = !startDate || startDate.getTime() <= nowEpoch;
+                  const isExpired = Boolean(effectiveEndDate && effectiveEndDate.getTime() < nowEpoch);
                   const attempt = quiz.attempts?.[0] || null;
                   const isRestartAuthorized = Boolean(attempt?.restartAuthorized);
                   const isViolatedLocked = attempt?.status === 'VIOLATED' && !isRestartAuthorized;
                   const isCompleted = !isRestartAuthorized && (attempt?.status === 'SUBMITTED' || attempt?.status === 'EVALUATED');
                   const canStartQuiz = isLive && !isExpired && !isViolatedLocked && !isCompleted;
+
+                  const badgeClass = isViolatedLocked
+                    ? 'bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800'
+                    : isCompleted
+                    ? 'bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800'
+                    : isRestartAuthorized
+                    ? 'bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                    : isExpired
+                    ? 'bg-gray-100 dark:bg-neutral-800 text-gray-600 dark:text-neutral-400 border-gray-200 dark:border-neutral-700'
+                    : isLive
+                    ? 'bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800'
+                    : 'bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800';
+
+                  const badgeText = isViolatedLocked
+                    ? 'Attempt Locked'
+                    : isCompleted
+                    ? 'Submitted Successfully'
+                    : isRestartAuthorized
+                    ? 'Restart Authorized'
+                    : isExpired
+                    ? 'Expired'
+                    : isLive
+                    ? 'Live'
+                    : 'Upcoming';
+
                   return (
                     <div key={quiz.id} className="bg-white dark:bg-[#222227] border border-border-soft dark:border-neutral-800 rounded-xl p-5 shadow-sm hover:border-maroon/30 dark:hover:border-rose-400/40 transition-colors">
                       <div className="flex justify-between items-start mb-3">
                         <h3 className="font-bold text-ink dark:text-neutral-100 text-lg">{quiz.title}</h3>
-                        <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${
-                          isViolatedLocked
-                            ? 'bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800'
-                            : isCompleted
-                            ? 'bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800'
-                            : isLive
-                            ? 'bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800'
-                            : 'bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800'
-                        }`}>
-                          {isViolatedLocked ? 'Attempt Locked' : isCompleted ? 'Submitted Successfully' : isRestartAuthorized ? 'Restart Authorized' : isLive ? 'Live' : 'Upcoming'}
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${badgeClass}`}>
+                          {badgeText}
                         </span>
                       </div>
                       <div className="text-sm text-gray-body dark:text-neutral-400 space-y-1 mb-4">
                         <p>Subject: <span className="font-semibold text-ink dark:text-neutral-200">{quiz.subject}</span></p>
                         {!isLive && startDate && (
                           <p>Opens: <span className="font-semibold text-ink dark:text-neutral-200">{startDate.toLocaleString()}</span></p>
+                        )}
+                        {effectiveEndDate && (
+                          <p>Closes: <span className="font-semibold text-ink dark:text-neutral-200">{effectiveEndDate.toLocaleString()}</span></p>
                         )}
                         <p>Duration: <span className="font-semibold text-ink dark:text-neutral-200">{quiz.durationMinutes} mins</span></p>
                       </div>
