@@ -131,3 +131,13 @@
   - `frontend-web`: All 27 test suites passed (100 tests, 0 failures).
   - Production builds (`npm run build` in both `backend-core` and `frontend-web`) completed with 0 errors.
 
+## Follow-up: Faculty Notification Popover Overlay (2026-11-17)
+
+- **Feature**:
+  - Rendered the notification popover in a body portal with fixed, viewport-aware positioning so it is not clipped or hidden by the dashboard header or scrolling content.
+  - Constrained the panel to available viewport space and added outside-click and Escape-key dismissal.
+- **Validation**:
+  - `FacultyNotifications.test.tsx`: 4 tests passed, including portal layering, anchoring, and dismissal.
+  - `npx tsc --project tsconfig.app.json --noEmit --noUnusedLocals false` passed. `oxlint` exited 0 with existing fast-refresh warnings.
+  - `npx vite build` passed with existing CSS/config/bundle warnings. `npm run build` remains blocked at TypeScript checking by an unused `waitFor` import in `frontend-web/src/pages/exam-portal/ClassroomOtpGate.test.tsx` from the recent `main` merge; that unrelated file was left unchanged.
+

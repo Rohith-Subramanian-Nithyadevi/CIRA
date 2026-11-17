@@ -36,6 +36,36 @@ describe('Faculty notification centre', () => {
     expect(navigate).toHaveBeenCalledWith('assignments');
   });
 
+  it('layers the popover above the page, keeps it within the viewport, and dismisses it accessibly', async () => {
+    render(<FacultyNotificationsProvider isDemo={false} onNavigate={jest.fn()}><FacultyNotificationBell onNavigate={jest.fn()} /></FacultyNotificationsProvider>);
+    const trigger = await screen.findByRole('button', { name: 'Notifications, 1 unread' });
+    let triggerBounds = {
+      x: 976, y: 40, top: 40, right: 1008, bottom: 72, left: 976, width: 32, height: 32,
+      toJSON: () => ({}),
+    } as DOMRect;
+    jest.spyOn(trigger, 'getBoundingClientRect').mockImplementation(() => triggerBounds);
+
+    fireEvent.click(trigger);
+    const popover = await screen.findByRole('region', { name: 'Recent notifications' });
+    expect(popover.parentElement).toBe(document.body);
+    expect(popover).toHaveStyle({ position: 'fixed', right: '16px', top: '80px', width: '352px' });
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('region', { name: 'Recent notifications' })).not.toBeInTheDocument();
+
+    triggerBounds = { ...triggerBounds, top: window.innerHeight - 72, bottom: window.innerHeight - 40 };
+    fireEvent.click(trigger);
+    const abovePopover = await screen.findByRole('region', { name: 'Recent notifications' });
+    expect(abovePopover).toHaveStyle({
+      position: 'fixed',
+      right: '16px',
+      bottom: '80px',
+      maxHeight: `${window.innerHeight - 96}px`,
+    });
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole('region', { name: 'Recent notifications' })).not.toBeInTheDocument();
+  });
+
   it('filters read and unread items', async () => {
     render(<FacultyNotificationsProvider isDemo={false} onNavigate={jest.fn()}><FacultyNotificationsPage /></FacultyNotificationsProvider>);
     expect(await screen.findByText('A student submitted an assignment.')).toBeInTheDocument();
