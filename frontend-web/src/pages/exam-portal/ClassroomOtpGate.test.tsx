@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import ExamInterface from './ExamInterface';
 import { apiClient } from '@/lib/apiClient';
@@ -14,16 +14,6 @@ jest.mock('../../hooks/useSecureExam', () => ({
   useSecureExam: () => mockSecureExamState,
   isMultiDisplayDetected: jest.fn(() => false),
   isFullscreenSupported: jest.fn(() => true),
-}));
-
-jest.mock('../../hooks/useBehavioralTelemetry', () => ({
-  useBehavioralTelemetry: () => ({
-    notifyQuestionRendered: jest.fn(),
-    recordOptionSelect: jest.fn(),
-    recordTextChange: jest.fn(),
-    recordNavigation: jest.fn(),
-    getIntegrityReport: jest.fn(() => ({})),
-  }),
 }));
 
 jest.mock('../../components/exam/CanvasQuestion', () => ({

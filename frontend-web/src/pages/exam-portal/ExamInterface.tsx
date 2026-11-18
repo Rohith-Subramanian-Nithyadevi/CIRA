@@ -10,7 +10,6 @@ import {
 import { apiClient } from '../../lib/apiClient';
 import { CanvasQuestion } from '../../components/exam/CanvasQuestion';
 import { DecoyElements } from '../../components/exam/DecoyElements';
-import { useBehavioralTelemetry } from '../../hooks/useBehavioralTelemetry';
 
 type QuestionStatus = 'NOT_VISITED' | 'NOT_ANSWERED' | 'ANSWERED' | 'MARKED_FOR_REVIEW' | 'ANSWERED_AND_MARKED_FOR_REVIEW';
 
@@ -70,17 +69,6 @@ export default function ExamInterface() {
     })()
   ).current;
 
-  const telemetry = useBehavioralTelemetry({
-    isActive: hasStartedSecureExam,
-    minTTFIMs: 1800,
-    onSuspiciousActivity: (type, detail) => {
-      console.warn(`[Anti-Automation Flag] ${type}: ${detail}`);
-    },
-  });
-
-  const perQuestionLimit =
-    Number(quizDetails?.perQuestionTimerSeconds ?? quizDetails?.performanceBands?.perQuestionTimerSeconds) || 0;
-  const [questionTimeLeft, setQuestionTimeLeft] = useState<number | null>(null);
 
   const checkDiagnostics = useCallback(() => {
     if (isMultiDisplayDetected()) {
@@ -135,7 +123,6 @@ export default function ExamInterface() {
           },
           body: JSON.stringify({
             violationReason: violationReasonText,
-            integrityReport: telemetry.getIntegrityReport(),
             attemptSessionToken: token,
           }),
         }).catch(() => {});
@@ -151,7 +138,6 @@ export default function ExamInterface() {
         },
         body: JSON.stringify({
           violationReason: `${event.type}: ${event.reason}`,
-          integrityReport: telemetry.getIntegrityReport(),
           attemptSessionToken: token,
         }),
       }).catch(() => {});
@@ -184,14 +170,6 @@ export default function ExamInterface() {
     setZoomedImageUrl(null);
   }, [currentQuestionIdx, questions]);
 
-  useEffect(() => {
-    if (hasStartedSecureExam && questions[currentQuestionIdx]) {
-      telemetry.notifyQuestionRendered(questions[currentQuestionIdx].id);
-      if (perQuestionLimit > 0) {
-        setQuestionTimeLeft(perQuestionLimit);
-      }
-    }
-  }, [currentQuestionIdx, questions, hasStartedSecureExam, perQuestionLimit]);
 
   const loadInstructions = useCallback(async () => {
     if (!quizId) {
@@ -274,29 +252,6 @@ export default function ExamInterface() {
     }
   };
 
-  const handleNextRef = useRef(handleNext);
-  handleNextRef.current = handleNext;
-
-  useEffect(() => {
-    if (!hasStartedSecureExam || perQuestionLimit <= 0 || questionTimeLeft === null) return;
-
-    const qTimer = setInterval(() => {
-      setQuestionTimeLeft((prev) => {
-        if (prev === null) return null;
-        if (prev <= 1) {
-          clearInterval(qTimer);
-          if (currentQuestionIdx < questions.length - 1) {
-            toast.info(`Time limit reached for Question ${currentQuestionIdx + 1}. Auto-advancing.`);
-            handleNextRef.current();
-          }
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(qTimer);
-  }, [hasStartedSecureExam, perQuestionLimit, currentQuestionIdx, questions.length, questionTimeLeft]);
 
   const handlePrevious = () => {
     if (currentQuestionIdx > 0) {
@@ -325,14 +280,13 @@ export default function ExamInterface() {
     submittingRef.current = true;
     try {
       const token = sessionTokenRef.current || (typeof window !== 'undefined' ? sessionStorage.getItem(`cira_session_${quizId}`) : null);
-      const integrityReport = telemetry.getIntegrityReport();
       const res = await apiClient.fetch(`/api/v1/student/exam/attempt/${currentAttemptId}/submit`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { 'x-attempt-session-token': token } : {})
         },
-        body: JSON.stringify({ integrityReport, attemptSessionToken: token })
+        body: JSON.stringify({ attemptSessionToken: token })
       });
       const data = await res.json();
       if (res?.ok !== false && data?.status === 'success') {
@@ -1223,13 +1177,6 @@ export default function ExamInterface() {
             <div className="flex justify-between items-center gap-2 border-b border-border-soft pb-3 sm:pb-4 mb-4 sm:mb-6">
               <div className="flex items-center gap-2">
                 <h2 className="text-base sm:text-xl font-serif font-bold text-ink">Question {currentQuestionIdx + 1} of {questions.length}</h2>
-                {perQuestionLimit > 0 && questionTimeLeft !== null && (
-                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-mono font-bold border flex items-center gap-1 ${
-                    questionTimeLeft <= 5 ? 'bg-red-50 text-red-600 border-red-200 animate-pulse' : 'bg-cream text-maroon border-border-soft'
-                  }`}>
-                    ⏱ {questionTimeLeft}s
-                  </span>
-                )}
               </div>
               <span className="bg-maroon/10 text-maroon border border-maroon/20 px-2.5 py-1 rounded-full text-xs font-bold shrink-0">
                 {currentQ.marks} Marks
@@ -1277,7 +1224,6 @@ export default function ExamInterface() {
               {currentQ.type === 'MCQ' && currentQ.options?.map((opt: string, idx: number) => (
                 <label
                   key={idx}
-                  onClick={(e) => telemetry.verifyClick(e, currentQ.id)}
                   className={`block p-3.5 sm:p-4 min-h-[48px] border rounded-xl cursor-pointer select-none transition-colors ${currentResp?.data === opt ? 'bg-maroon/5 border-maroon' : 'bg-white border-border-soft hover:bg-cream/20'}`}
                 >
                   <div className="flex items-start sm:items-center gap-3 min-w-0">
@@ -1298,7 +1244,6 @@ export default function ExamInterface() {
                 return (
                   <label
                     key={idx}
-                    onClick={(e) => telemetry.verifyClick(e, currentQ.id)}
                     className={`block p-3.5 sm:p-4 min-h-[48px] border rounded-xl cursor-pointer select-none transition-colors ${isSelected ? 'bg-maroon/5 border-maroon' : 'bg-white border-border-soft hover:bg-cream/20'}`}
                   >
                     <div className="flex items-start sm:items-center gap-3 min-w-0">
