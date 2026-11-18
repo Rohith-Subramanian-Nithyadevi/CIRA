@@ -4,13 +4,17 @@ import {
   FileSpreadsheet,
   CheckCircle2,
   AlertTriangle,
+  AlertCircle,
   X,
   Plus,
   Trash2,
   Download,
-  Sparkles,
-  Info,
-  Loader2
+  Copy,
+  Check,
+  ArrowRight,
+  ArrowLeft,
+  Loader2,
+  Sparkles
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -38,13 +42,27 @@ export interface MarksheetRow {
   errors?: string[];
 }
 
+export interface ClassOption {
+  id: string;
+  label: string;
+  departmentId?: string;
+  sectionId?: string;
+}
+
 interface OfflineMarksheetModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: (newQuizId: string) => void;
-  availableClasses?: Array<{ id: string; label: string; departmentId?: string; sectionId?: string }>;
+  availableClasses?: ClassOption[];
   suggestedTopics?: string[];
 }
+
+const AI_PROMPT_TEMPLATE = `Extract all questions, their core topic tags, and maximum marks from the question paper below. Format the output strictly as one question per line using this exact format (no extra text, markdown, or numbering explanations):
+Q1, <Topic Name>, <Max Marks>
+Q2, <Topic Name>, <Max Marks>
+
+Question Paper:
+[Paste your question paper here]`;
 
 export const OfflineMarksheetModal: React.FC<OfflineMarksheetModalProps> = ({
   open,
@@ -53,54 +71,98 @@ export const OfflineMarksheetModal: React.FC<OfflineMarksheetModalProps> = ({
   availableClasses = [],
   suggestedTopics = []
 }) => {
+  // Wizard state: Step 1 (Blueprint & Settings) -> Step 2 (Upload & Verify Marks)
+  const [step, setStep] = useState<1 | 2>(1);
+
+  // Core quiz metadata
   const [mode, setMode] = useState<'QUESTION_WISE' | 'TOTAL_ONLY'>('QUESTION_WISE');
   const [title, setTitle] = useState('');
   const [subject, setSubject] = useState('');
   const [totalMarksB, setTotalMarksB] = useState<number>(50);
   const [answersPublished, setAnswersPublished] = useState(true);
-  const [selectedClassId, setSelectedClassId] = useState<string>('ALL');
+  const [selectedClassId, setSelectedClassId] = useState<string>('');
+  const [classError, setClassError] = useState<string | null>(null);
+  const [titleError, setTitleError] = useState<string | null>(null);
 
-  // Mode A: Questions
+  // Classes fallback loading
+  const [loadedClasses, setLoadedClasses] = useState<ClassOption[]>(availableClasses);
+
+  // Step 1: Mode A Questions
   const [questions, setQuestions] = useState<QuestionDef[]>([
     { questionNumber: 1, topic: 'Core Concepts', maxMarks: 5 },
     { questionNumber: 2, topic: 'Problem Solving', maxMarks: 10 }
   ]);
   const [rawBlueprintText, setRawBlueprintText] = useState('');
   const [showBlueprintParser, setShowBlueprintParser] = useState(false);
+  const [copiedPrompt, setCopiedPrompt] = useState(false);
 
-  // Mode B: Overall Topic Tags
+  // Step 1: Mode B Topics
   const [overallTopics, setOverallTopics] = useState<string[]>(['General']);
   const [topicInput, setTopicInput] = useState('');
 
-  // Marksheet rows
+  // Step 2: Marksheet rows & validation
   const [rows, setRows] = useState<MarksheetRow[]>([
     { id: '1', identifier: '', studentName: '', questionScores: { '1': '', '2': '' }, totalScore: '' }
   ]);
-
+  const [rowStatusFilter, setRowStatusFilter] = useState<'ALL' | 'VALID' | 'ISSUES'>('ALL');
   const [validating, setValidating] = useState(false);
   const [importing, setImporting] = useState(false);
   const [validationSummary, setValidationSummary] = useState<{
     validRowsCount: number;
     invalidRowsCount: number;
     totalRows: number;
+    readyToImport: boolean;
   } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Calculate Mode A total marks
+  // Mode A computed total marks
   const computedTotalMarksA = useMemo(() => {
     return questions.reduce((sum, q) => sum + (Number(q.maxMarks) || 0), 0);
   }, [questions]);
 
   const activeTotalMarks = mode === 'QUESTION_WISE' ? computedTotalMarksA : (Number(totalMarksB) || 50);
 
-  // Reset state on open
+  // Fetch classes if none passed via props
+  useEffect(() => {
+    if (availableClasses && availableClasses.length > 0) {
+      setLoadedClasses(availableClasses);
+      return;
+    }
+    const fetchClasses = async () => {
+      try {
+        const res = await apiClient.fetch('/api/v1/faculty/quiz/question-papers/classes');
+        const data = await res.json();
+        if (data.status === 'success' && Array.isArray(data.data?.classes)) {
+          const mapped: ClassOption[] = data.data.classes.map((c: any) => ({
+            id: c.type === 'SECTION' ? `section:${c.id}` : `dept:${c.id}`,
+            label: `${c.batch ? `${c.batch} • ` : ''}${c.name}`,
+            departmentId: c.type === 'DEPARTMENT' ? c.id : undefined,
+            sectionId: c.type === 'SECTION' ? c.id : undefined
+          }));
+          setLoadedClasses(mapped);
+        }
+      } catch (err) {
+        console.warn('Failed to load classes for offline marksheet:', err);
+      }
+    };
+    if (open) {
+      void fetchClasses();
+    }
+  }, [open, availableClasses]);
+
+  // Reset state on modal open
   useEffect(() => {
     if (open) {
+      setStep(1);
       setTitle('');
       setSubject('');
+      setSelectedClassId('');
+      setClassError(null);
+      setTitleError(null);
       setRows([{ id: '1', identifier: '', studentName: '', questionScores: { '1': '', '2': '' }, totalScore: '' }]);
       setValidationSummary(null);
+      setRowStatusFilter('ALL');
     }
   }, [open]);
 
@@ -122,7 +184,7 @@ export const OfflineMarksheetModal: React.FC<OfflineMarksheetModalProps> = ({
 
   if (!open) return null;
 
-  // Add a question in Mode A
+  // Question editing handlers
   const handleAddQuestion = () => {
     const nextNum = questions.length > 0 ? Math.max(...questions.map(q => q.questionNumber)) + 1 : 1;
     setQuestions([...questions, { questionNumber: nextNum, topic: 'Topic ' + nextNum, maxMarks: 5 }]);
@@ -133,14 +195,34 @@ export const OfflineMarksheetModal: React.FC<OfflineMarksheetModalProps> = ({
       toast.error('At least one question is required.');
       return;
     }
-    const filtered = questions.filter((_, i) => i !== idx);
-    setQuestions(filtered);
+    setQuestions(questions.filter((_, i) => i !== idx));
   };
 
   const handleUpdateQuestion = (idx: number, field: keyof QuestionDef, val: any) => {
     const updated = [...questions];
     updated[idx] = { ...updated[idx], [field]: val };
     setQuestions(updated);
+  };
+
+  // Copy AI Prompt handler
+  const handleCopyAiPrompt = async () => {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(AI_PROMPT_TEMPLATE);
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = AI_PROMPT_TEMPLATE;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
+      setCopiedPrompt(true);
+      toast.success('AI Prompt copied! Paste into ChatGPT, Gemini, or Claude along with your question paper.');
+      setTimeout(() => setCopiedPrompt(false), 3000);
+    } catch {
+      toast.error('Failed to copy prompt to clipboard. Please copy manually.');
+    }
   };
 
   // Quick Parse Blueprint from pasted text
@@ -150,10 +232,6 @@ export const OfflineMarksheetModal: React.FC<OfflineMarksheetModalProps> = ({
     const parsedQuestions: QuestionDef[] = [];
 
     lines.forEach((line, index) => {
-      // Parse formats like:
-      // Q1, Topic, 5
-      // 1. Topic (10 marks)
-      // Q1 - 5 marks - Topic
       const commaParts = line.split(/[,;\t]/).map(p => p.trim());
       if (commaParts.length >= 3) {
         const qNum = parseInt(commaParts[0].replace(/\D/g, ''), 10) || (index + 1);
@@ -176,13 +254,42 @@ export const OfflineMarksheetModal: React.FC<OfflineMarksheetModalProps> = ({
       setQuestions(parsedQuestions);
       setShowBlueprintParser(false);
       setRawBlueprintText('');
-      toast.success(`Parsed ${parsedQuestions.length} questions successfully!`);
+      toast.success(`Successfully parsed ${parsedQuestions.length} questions into blueprint!`);
     } else {
       toast.error('Could not parse question structure. Please use format: Q1, Topic, Marks');
     }
   };
 
-  // Add Overall Topic in Mode B
+  // Step 1 -> Step 2 validation & transition
+  const handleProceedToStep2 = () => {
+    let hasError = false;
+    if (!title.trim()) {
+      setTitleError('Quiz title is required.');
+      hasError = true;
+    } else {
+      setTitleError(null);
+    }
+
+    if (!selectedClassId || selectedClassId === 'ALL') {
+      setClassError('Please select a target class before importing marks.');
+      hasError = true;
+    } else {
+      setClassError(null);
+    }
+
+    if (mode === 'QUESTION_WISE') {
+      const invalidQ = questions.find(q => !q.maxMarks || q.maxMarks <= 0);
+      if (invalidQ) {
+        toast.error(`Question ${invalidQ.questionNumber} must have max marks greater than 0.`);
+        hasError = true;
+      }
+    }
+
+    if (hasError) return;
+    setStep(2);
+  };
+
+  // Add / Remove Topic in Mode B
   const handleAddTopic = () => {
     const clean = topicInput.trim();
     if (!clean) return;
@@ -198,6 +305,11 @@ export const OfflineMarksheetModal: React.FC<OfflineMarksheetModalProps> = ({
 
   // Download sample CSV template
   const handleDownloadTemplate = () => {
+    if (!selectedClassId) {
+      toast.error('Please select a target class in Step 1 first.');
+      return;
+    }
+
     if (mode === 'QUESTION_WISE') {
       const headers = ['Roll Number / Email', 'Student Name'];
       questions.forEach(q => headers.push(`Q${q.questionNumber} (${q.topic} - ${q.maxMarks}m)`));
@@ -226,7 +338,7 @@ export const OfflineMarksheetModal: React.FC<OfflineMarksheetModalProps> = ({
     toast.success('Sample template downloaded.');
   };
 
-  // Add / Remove mark row
+  // Row manipulations
   const handleAddRow = () => {
     setRows([
       ...rows,
@@ -243,6 +355,7 @@ export const OfflineMarksheetModal: React.FC<OfflineMarksheetModalProps> = ({
   const handleRemoveRow = (id: string) => {
     if (rows.length <= 1) {
       setRows([{ id: '1', identifier: '', studentName: '', questionScores: {}, totalScore: '' }]);
+      setValidationSummary(null);
       return;
     }
     setRows(rows.filter(r => r.id !== id));
@@ -260,7 +373,7 @@ export const OfflineMarksheetModal: React.FC<OfflineMarksheetModalProps> = ({
     );
   };
 
-  // Handle file upload (CSV or XLSX)
+  // File upload parser (CSV or XLSX)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -308,7 +421,6 @@ export const OfflineMarksheetModal: React.FC<OfflineMarksheetModalProps> = ({
         toast.success(`Loaded ${newRows.length} rows from CSV.`);
         void runValidation(newRows);
       } else {
-        // XLSX/XLS: send to parse-file endpoint
         const formData = new FormData();
         formData.append('file', file);
         formData.append('mode', mode);
@@ -344,8 +456,14 @@ export const OfflineMarksheetModal: React.FC<OfflineMarksheetModalProps> = ({
     }
   };
 
-  // Run server validation on current rows
+  // Run server validation
   const runValidation = async (rowsToValidate: MarksheetRow[] = rows) => {
+    if (!selectedClassId || selectedClassId === 'ALL') {
+      setClassError('Please select a target class before validating.');
+      toast.error('Target class is required. Please choose a class in Step 1.');
+      return;
+    }
+
     const cleanRows = rowsToValidate.filter(r => r.identifier.trim().length > 0);
     if (cleanRows.length === 0) {
       toast.error('Please enter at least one student roll number or email.');
@@ -354,13 +472,14 @@ export const OfflineMarksheetModal: React.FC<OfflineMarksheetModalProps> = ({
 
     setValidating(true);
     try {
-      const selectedClass = availableClasses.find(c => c.id === selectedClassId);
+      const selectedClass = loadedClasses.find(c => c.id === selectedClassId);
       const res = await apiClient.fetch('/api/v1/faculty/quiz/offline-marksheet/validate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           mode,
           totalMarks: activeTotalMarks,
+          targetClassId: selectedClassId,
           targetDepartmentIds: selectedClass?.departmentId ? [selectedClass.departmentId] : undefined,
           targetSectionIds: selectedClass?.sectionId ? [selectedClass.sectionId] : undefined,
           questions: mode === 'QUESTION_WISE' ? questions : undefined,
@@ -378,7 +497,6 @@ export const OfflineMarksheetModal: React.FC<OfflineMarksheetModalProps> = ({
       if (data.status === 'success' && data.data) {
         setValidationSummary(data.data.summary);
 
-        // Update rows with student match info and errors
         const validatedMap = new Map<string, any>();
         data.data.rows.forEach((vr: any) => {
           validatedMap.set(vr.identifier.toLowerCase(), vr);
@@ -402,9 +520,9 @@ export const OfflineMarksheetModal: React.FC<OfflineMarksheetModalProps> = ({
         );
 
         if (data.data.summary.invalidRowsCount === 0) {
-          toast.success(`Validated: All ${data.data.summary.validRowsCount} students verified!`);
+          toast.success(`All ${data.data.summary.validRowsCount} students verified and matched!`);
         } else {
-          toast.warning(`Validated: ${data.data.summary.validRowsCount} verified, ${data.data.summary.invalidRowsCount} issues need attention.`);
+          toast.warning(`${data.data.summary.validRowsCount} verified, ${data.data.summary.invalidRowsCount} issues need attention.`);
         }
       } else {
         toast.error(data.message || 'Validation failed');
@@ -421,6 +539,13 @@ export const OfflineMarksheetModal: React.FC<OfflineMarksheetModalProps> = ({
   const handleImportSubmit = async () => {
     if (!title.trim()) {
       toast.error('Please enter a Quiz Title.');
+      setStep(1);
+      return;
+    }
+
+    if (!selectedClassId || selectedClassId === 'ALL') {
+      toast.error('Please select a target class.');
+      setStep(1);
       return;
     }
 
@@ -430,9 +555,16 @@ export const OfflineMarksheetModal: React.FC<OfflineMarksheetModalProps> = ({
       return;
     }
 
+    // Check if there are unverified or errored rows
+    const erroredRows = cleanRows.filter(r => r.matched === false || (r.errors && r.errors.length > 0));
+    if (erroredRows.length > 0) {
+      toast.error(`Cannot import: ${erroredRows.length} student row(s) have unresolved errors. Please fix or remove them.`);
+      return;
+    }
+
     setImporting(true);
     try {
-      const selectedClass = availableClasses.find(c => c.id === selectedClassId);
+      const selectedClass = loadedClasses.find(c => c.id === selectedClassId);
       const res = await apiClient.fetch('/api/v1/faculty/quiz/offline-marksheet/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -442,6 +574,7 @@ export const OfflineMarksheetModal: React.FC<OfflineMarksheetModalProps> = ({
           mode,
           totalMarks: activeTotalMarks,
           answersPublished,
+          targetClassId: selectedClassId,
           targetDepartmentIds: selectedClass?.departmentId ? [selectedClass.departmentId] : undefined,
           targetSectionIds: selectedClass?.sectionId ? [selectedClass.sectionId] : undefined,
           questions: mode === 'QUESTION_WISE' ? questions : undefined,
@@ -460,7 +593,8 @@ export const OfflineMarksheetModal: React.FC<OfflineMarksheetModalProps> = ({
         onSuccess(data.data.quizId);
         onClose();
       } else {
-        toast.error(data.message || 'Failed to import offline marksheet.');
+        const errorMsg = data?.error?.message || data?.message || 'Failed to import offline marksheet.';
+        toast.error(errorMsg);
       }
     } catch (err: any) {
       console.error(err);
@@ -470,629 +604,875 @@ export const OfflineMarksheetModal: React.FC<OfflineMarksheetModalProps> = ({
     }
   };
 
+  // Filtered rows for Step 2 table
+  const displayedRows = useMemo(() => {
+    if (rowStatusFilter === 'VALID') {
+      return rows.filter(r => r.matched && (!r.errors || r.errors.length === 0));
+    }
+    if (rowStatusFilter === 'ISSUES') {
+      return rows.filter(r => r.matched === false || (r.errors && r.errors.length > 0));
+    }
+    return rows;
+  }, [rows, rowStatusFilter]);
+
+  const selectedClassLabel = loadedClasses.find(c => c.id === selectedClassId)?.label || 'No class selected';
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
-      <div className="bg-white dark:bg-[#18181B] rounded-2xl border border-border-soft shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+      <div className="bg-white dark:bg-[#18181B] rounded-2xl border border-border-soft dark:border-neutral-800 shadow-2xl w-full max-w-6xl max-h-[92vh] flex flex-col overflow-hidden">
         
-        {/* Header */}
-        <div className="p-4 sm:p-6 border-b border-border-soft flex items-start justify-between gap-4 bg-cream/30 dark:bg-white/[0.02]">
-          <div>
-            <div className="flex items-center gap-2.5">
-              <span className="w-8 h-8 rounded-lg bg-maroon/10 text-maroon flex items-center justify-center font-bold text-sm">
-                📝
-              </span>
-              <h2 className="text-xl font-serif font-bold text-ink">Import External Marksheet</h2>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 uppercase tracking-wide">
-                Offline Quiz
-              </span>
+        {/* Wizard Header */}
+        <div className="p-4 sm:p-5 border-b border-border-soft dark:border-neutral-800 flex items-center justify-between gap-4 bg-slate-50/70 dark:bg-neutral-900/40">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-maroon/10 text-maroon flex items-center justify-center font-bold text-base shrink-0">
+              📝
             </div>
-            <p className="text-xs text-gray-body mt-1">
-              Add marks for offline classroom tests or paper exams. Preserves topic-wise performance reports.
-            </p>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-lg font-serif font-bold text-ink dark:text-neutral-100">
+                  Import External Marksheet
+                </h2>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 uppercase tracking-wide">
+                  Offline Assessment
+                </span>
+              </div>
+              <p className="text-xs text-gray-body dark:text-neutral-400">
+                Upload offline classroom test scores and connect them directly to student topic performance reports.
+              </p>
+            </div>
           </div>
+
+          {/* Step Pill Navigation */}
+          <div className="hidden sm:flex items-center gap-2 bg-cream/50 dark:bg-neutral-800 p-1 rounded-xl border border-border-soft dark:border-neutral-700">
+            <button
+              type="button"
+              onClick={() => setStep(1)}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors ${
+                step === 1
+                  ? 'bg-maroon text-white shadow-xs'
+                  : 'text-gray-body dark:text-neutral-400 hover:text-ink'
+              }`}
+            >
+              1. Quiz & Blueprint
+            </button>
+            <button
+              type="button"
+              onClick={handleProceedToStep2}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors ${
+                step === 2
+                  ? 'bg-maroon text-white shadow-xs'
+                  : 'text-gray-body dark:text-neutral-400 hover:text-ink'
+              }`}
+            >
+              2. Upload & Verify Marks
+            </button>
+          </div>
+
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-gray-body hover:text-ink hover:bg-cream/60 transition-colors"
+            className="p-1.5 rounded-lg text-gray-body hover:text-ink hover:bg-cream/60 dark:hover:bg-neutral-800 transition-colors shrink-0"
             aria-label="Close"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Modal Body */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
-          
-          {/* Mode Switcher */}
-          <div className="space-y-1.5">
-            <Label className="text-xs font-bold text-ink">Select Import Mode</Label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setMode('QUESTION_WISE')}
-                className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
-                  mode === 'QUESTION_WISE'
-                    ? 'border-maroon bg-maroon/5 ring-1 ring-maroon'
-                    : 'border-border-soft hover:bg-cream/30 bg-white dark:bg-[#1E1E22]'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span className="font-bold text-sm text-ink flex items-center gap-1.5">
-                    Mode A: Question-Wise
-                    {mode === 'QUESTION_WISE' && <CheckCircle2 className="w-4 h-4 text-maroon" />}
-                  </span>
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
-                    Full Topic Analytics
-                  </span>
-                </div>
-                <p className="text-xs text-gray-body">
-                  Define questions & map each to a topic. Feeds directly into student topic accuracy & mastery trends.
-                </p>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setMode('TOTAL_ONLY')}
-                className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
-                  mode === 'TOTAL_ONLY'
-                    ? 'border-maroon bg-maroon/5 ring-1 ring-maroon'
-                    : 'border-border-soft hover:bg-cream/30 bg-white dark:bg-[#1E1E22]'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span className="font-bold text-sm text-ink flex items-center gap-1.5">
-                    Mode B: Total Score Only
-                    {mode === 'TOTAL_ONLY' && <CheckCircle2 className="w-4 h-4 text-maroon" />}
-                  </span>
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-800">
-                    Quick Fallback
-                  </span>
-                </div>
-                <p className="text-xs text-gray-body">
-                  Quickly upload final marks without question breakdowns. Feeds subject & overall student averages.
-                </p>
-              </button>
-            </div>
-          </div>
-
-          {/* Assessment Metadata */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="space-y-1">
-              <Label htmlFor="quiz-title" className="text-xs font-semibold text-ink">Quiz Title *</Label>
-              <Input
-                id="quiz-title"
-                placeholder="e.g. Unit Test 2 - Dynamic Programming"
-                value={title}
-                onChange={e => setTitle(e.target.value)}
-                className="text-xs bg-white dark:bg-[#1E1E22] border-border-soft"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="quiz-subject" className="text-xs font-semibold text-ink">Subject / Course</Label>
-              <Input
-                id="quiz-subject"
-                placeholder="e.g. Data Structures & Algorithms"
-                value={subject}
-                onChange={e => setSubject(e.target.value)}
-                className="text-xs bg-white dark:bg-[#1E1E22] border-border-soft"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold text-ink">Target Class</Label>
-              <select
-                value={selectedClassId}
-                onChange={e => setSelectedClassId(e.target.value)}
-                className="w-full h-9 px-3 rounded-md border border-border-soft text-xs bg-white dark:bg-[#1E1E22] text-ink focus:outline-none focus:ring-1 focus:ring-maroon"
-              >
-                <option value="ALL">All Assigned Classes</option>
-                {availableClasses.map(c => (
-                  <option key={c.id} value={c.id}>{c.label}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Mode A: Question-to-Topic Blueprint Setup */}
-          {mode === 'QUESTION_WISE' && (
-            <div className="space-y-3 p-4 rounded-xl border border-border-soft bg-cream/20 dark:bg-white/[0.01]">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <h3 className="font-serif font-bold text-sm text-ink flex items-center gap-2">
-                    Question-to-Topic Blueprint
-                    <span className="text-xs font-normal text-maroon font-mono font-bold">
-                      (Total: {computedTotalMarksA} Marks)
-                    </span>
+        {/* Modal Body: Wizard Step 1 vs Step 2 */}
+        <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6">
+          {step === 1 ? (
+            /* STEP 1: Quiz & Topic Blueprint */
+            <div className="space-y-6">
+              {/* Form Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {/* Left Card: Basic Info & Mandatory Class Selection */}
+                <div className="space-y-4 p-4 rounded-xl border border-border-soft dark:border-neutral-800 bg-cream/10 dark:bg-neutral-900/20">
+                  <h3 className="font-serif font-bold text-sm text-ink dark:text-neutral-200 uppercase tracking-wider text-xs">
+                    Assessment Details
                   </h3>
-                  <p className="text-[11px] text-gray-body">
-                    Specify max marks and topic tag for each question.
-                  </p>
+
+                  <div>
+                    <Label className="text-xs font-bold text-ink dark:text-neutral-200">
+                      Quiz Title <span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      placeholder="e.g. Midterm 1 - Data Structures (Offline)"
+                      value={title}
+                      onChange={e => {
+                        setTitle(e.target.value);
+                        if (titleError) setTitleError(null);
+                      }}
+                      className={`mt-1 h-9 text-sm ${titleError ? 'border-red-500 ring-1 ring-red-500' : ''}`}
+                    />
+                    {titleError && (
+                      <p className="text-xs text-red-500 font-medium mt-1 flex items-center gap-1">
+                        <AlertCircle className="w-3.5 h-3.5" /> {titleError}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <Label className="text-xs font-bold text-ink dark:text-neutral-200">Subject / Course</Label>
+                    <Input
+                      placeholder="e.g. Computer Science & Engineering"
+                      value={subject}
+                      onChange={e => setSubject(e.target.value)}
+                      className="mt-1 h-9 text-sm"
+                    />
+                  </div>
+
+                  {/* Mandatory Class Selection */}
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-bold text-ink dark:text-neutral-200">
+                        Target Class / Section <span className="text-red-500">* (Required)</span>
+                      </Label>
+                      <span className="text-[11px] text-gray-body dark:text-neutral-400">Class-level scoping</span>
+                    </div>
+                    <select
+                      value={selectedClassId}
+                      onChange={e => {
+                        setSelectedClassId(e.target.value);
+                        if (classError) setClassError(null);
+                      }}
+                      className={`mt-1 w-full h-9 px-3 rounded-lg border text-sm bg-white dark:bg-[#222227] text-ink dark:text-neutral-100 font-medium focus:outline-none focus:ring-1 focus:ring-maroon ${
+                        classError
+                          ? 'border-red-500 ring-1 ring-red-500'
+                          : 'border-border-soft dark:border-neutral-700'
+                      }`}
+                    >
+                      <option value="">-- Select Target Class / Section (Required) --</option>
+                      {loadedClasses.map(cls => (
+                        <option key={cls.id} value={cls.id}>
+                          {cls.label}
+                        </option>
+                      ))}
+                    </select>
+                    {classError ? (
+                      <p className="text-xs text-red-500 font-medium mt-1 flex items-center gap-1">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {classError}
+                      </p>
+                    ) : (
+                      <p className="text-[11px] text-gray-body dark:text-neutral-400 mt-1">
+                        Select the exact class or section whose marks you are importing.
+                      </p>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowBlueprintParser(!showBlueprintParser)}
-                    className="text-xs h-7 border-border-soft text-gray-body hover:text-ink"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 mr-1 text-maroon" />
-                    {showBlueprintParser ? 'Close Quick Parser' : 'Paste Blueprint'}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleAddQuestion}
-                    className="text-xs h-7 border-maroon text-maroon hover:bg-maroon hover:text-white"
-                  >
-                    <Plus className="w-3.5 h-3.5 mr-1" /> Add Question
-                  </Button>
+
+                {/* Right Card: Assessment Mode & Publishing */}
+                <div className="space-y-4 p-4 rounded-xl border border-border-soft dark:border-neutral-800 bg-cream/10 dark:bg-neutral-900/20">
+                  <h3 className="font-serif font-bold text-sm text-ink dark:text-neutral-200 uppercase tracking-wider text-xs">
+                    Import Mode & Visibility
+                  </h3>
+
+                  {/* Mode Buttons */}
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setMode('QUESTION_WISE')}
+                      className={`p-3 rounded-xl border text-left transition-all ${
+                        mode === 'QUESTION_WISE'
+                          ? 'border-maroon bg-maroon/5 ring-1 ring-maroon'
+                          : 'border-border-soft dark:border-neutral-700 hover:border-gray-300 dark:hover:border-neutral-600 bg-white dark:bg-[#222227]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-bold text-ink dark:text-neutral-100">
+                          Question-to-Topic Mapping
+                        </span>
+                        {mode === 'QUESTION_WISE' && <CheckCircle2 className="w-4 h-4 text-maroon" />}
+                      </div>
+                      <p className="text-[11px] text-gray-body dark:text-neutral-400 leading-snug">
+                        Full question-wise breakdown mapping each question to a topic tag.
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setMode('TOTAL_ONLY')}
+                      className={`p-3 rounded-xl border text-left transition-all ${
+                        mode === 'TOTAL_ONLY'
+                          ? 'border-maroon bg-maroon/5 ring-1 ring-maroon'
+                          : 'border-border-soft dark:border-neutral-700 hover:border-gray-300 dark:hover:border-neutral-600 bg-white dark:bg-[#222227]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-bold text-ink dark:text-neutral-100">
+                          Total Score Only
+                        </span>
+                        {mode === 'TOTAL_ONLY' && <CheckCircle2 className="w-4 h-4 text-maroon" />}
+                      </div>
+                      <p className="text-[11px] text-gray-body dark:text-neutral-400 leading-snug">
+                        Rapid marks entry with overall topic tags.
+                      </p>
+                    </button>
+                  </div>
+
+                  {/* Mode-specific settings */}
+                  {mode === 'QUESTION_WISE' ? (
+                    <div className="p-3 rounded-lg bg-white dark:bg-[#222227] border border-border-soft dark:border-neutral-700 text-xs text-gray-body dark:text-neutral-300 flex items-center justify-between">
+                      <span>Total Calculated Marks:</span>
+                      <span className="text-base font-bold text-maroon dark:text-rose-400">
+                        {computedTotalMarksA} Marks
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div>
+                        <Label className="text-xs font-bold text-ink dark:text-neutral-200">
+                          Total Quiz Maximum Marks
+                        </Label>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={totalMarksB}
+                          onChange={e => setTotalMarksB(Math.max(1, Number(e.target.value) || 0))}
+                          className="mt-1 h-9 text-sm w-36"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs font-bold text-ink dark:text-neutral-200">
+                          Curriculum Topic Tags
+                        </Label>
+                        <div className="flex gap-2 mt-1">
+                          <Input
+                            placeholder="Add topic (e.g. Dynamic Programming)..."
+                            value={topicInput}
+                            list="suggested-topics-list"
+                            onChange={e => setTopicInput(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleAddTopic();
+                              }
+                            }}
+                            className="h-8 text-xs"
+                          />
+                          <Button type="button" size="sm" onClick={handleAddTopic} variant="outline" className="h-8 text-xs shrink-0">
+                            Add
+                          </Button>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {overallTopics.map(t => (
+                            <span
+                              key={t}
+                              className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs bg-cream dark:bg-neutral-800 text-ink dark:text-neutral-200 border border-border-soft"
+                            >
+                              {t}
+                              <button type="button" onClick={() => handleRemoveTopic(t)} className="text-gray-400 hover:text-red-500">
+                                ×
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Publish Answers Toggle */}
+                  <div className="pt-2 border-t border-border-soft dark:border-neutral-800 flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-ink dark:text-neutral-200 block">
+                        Publish Marks to Students
+                      </span>
+                      <span className="text-[11px] text-gray-body dark:text-neutral-400">
+                        Make scores visible in student profiles immediately
+                      </span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={answersPublished}
+                      onChange={e => setAnswersPublished(e.target.checked)}
+                      className="w-4 h-4 accent-maroon rounded cursor-pointer"
+                    />
+                  </div>
                 </div>
               </div>
 
-              {/* Quick Parser Drawer */}
-              {showBlueprintParser && (
-                <div className="p-3 bg-white dark:bg-[#18181B] border border-maroon/20 rounded-xl space-y-2 animate-in fade-in duration-100">
-                  <Label className="text-[11px] font-semibold text-ink">
-                    Paste lines like: <code className="text-maroon">Q1, Trees, 5</code> or <code className="text-maroon">1. Recursion (10 marks)</code>
-                  </Label>
-                  <textarea
-                    rows={3}
-                    value={rawBlueprintText}
-                    onChange={e => setRawBlueprintText(e.target.value)}
-                    placeholder="Q1, Arrays, 5&#10;Q2, Trees, 10&#10;Q3, Graph Algorithms, 15"
-                    className="w-full text-xs font-mono p-2.5 border border-border-soft rounded-lg bg-cream/20 dark:bg-[#1E1E22] focus:outline-none focus:ring-1 focus:ring-maroon resize-none text-ink"
-                  />
-                  <div className="flex justify-end gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={handleParseBlueprintText}
-                      className="text-xs h-7 bg-maroon hover:bg-maroon-deep text-white"
-                    >
-                      Apply Parsed Questions
-                    </Button>
+              {/* Mode A: Question Blueprint Editor */}
+              {mode === 'QUESTION_WISE' && (
+                <div className="border border-border-soft dark:border-neutral-800 rounded-xl p-4 sm:p-5 bg-white dark:bg-[#1E1E24] space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-bold text-ink dark:text-neutral-100 uppercase tracking-wider">
+                        Question-to-Topic Blueprint
+                      </h3>
+                      <p className="text-xs text-gray-body dark:text-neutral-400">
+                        Define each question, its curriculum topic tag, and max marks.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {/* Copy AI Prompt Button */}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={handleCopyAiPrompt}
+                        className="h-8 text-xs bg-amber-50/60 dark:bg-amber-950/20 border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 hover:bg-amber-100"
+                        title="Copy ready-to-use prompt for ChatGPT, Gemini, or Claude to parse your question paper"
+                      >
+                        {copiedPrompt ? <Check className="w-3.5 h-3.5 mr-1 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 mr-1 text-amber-700" />}
+                        {copiedPrompt ? 'Prompt Copied!' : 'Copy AI Prompt'}
+                      </Button>
+
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setShowBlueprintParser(!showBlueprintParser)}
+                        className="h-8 text-xs bg-cream/40 border-border-soft"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 mr-1 text-maroon" />
+                        {showBlueprintParser ? 'Hide Quick Paste' : 'Paste Blueprint'}
+                      </Button>
+
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={handleAddQuestion}
+                        className="h-8 text-xs bg-maroon hover:bg-maroon-deep text-white"
+                      >
+                        <Plus className="w-3.5 h-3.5 mr-1" />
+                        Add Question
+                      </Button>
+                    </div>
                   </div>
+
+                  {/* Quick Blueprint Textarea Parser */}
+                  {showBlueprintParser && (
+                    <div className="p-4 rounded-xl bg-amber-50/40 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-900/40 space-y-3">
+                      <div className="flex justify-between items-center">
+                        <Label className="text-xs font-bold text-amber-900 dark:text-amber-300">
+                          Paste Questions & Topics (Format: Q#, Topic, Max Marks)
+                        </Label>
+                        <span className="text-[11px] text-amber-800/80 dark:text-amber-400">One question per line</span>
+                      </div>
+                      <textarea
+                        rows={4}
+                        placeholder={`Q1, Sorting Algorithms, 5\nQ2, Binary Search Trees, 10\nQ3, Dynamic Programming, 15`}
+                        value={rawBlueprintText}
+                        onChange={e => setRawBlueprintText(e.target.value)}
+                        className="w-full p-2.5 text-xs font-mono rounded-lg border border-amber-300/80 dark:border-amber-800/60 bg-white dark:bg-[#1A1A1E] text-ink dark:text-neutral-200 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                      />
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setShowBlueprintParser(false)}
+                          className="h-7 text-xs"
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={handleParseBlueprintText}
+                          className="h-7 text-xs bg-amber-700 hover:bg-amber-800 text-white"
+                        >
+                          Apply Blueprint
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Blueprint Dynamic Questions Table */}
+                  <div className="border border-border-soft dark:border-neutral-800 rounded-xl overflow-hidden">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-100 dark:bg-neutral-800 text-gray-700 dark:text-neutral-300 font-bold uppercase tracking-wider border-b border-border-soft">
+                        <tr>
+                          <th className="py-2.5 px-3 w-16 text-center">#</th>
+                          <th className="py-2.5 px-3">Curriculum Topic Tag</th>
+                          <th className="py-2.5 px-3 w-32">Max Marks</th>
+                          <th className="py-2.5 px-3 w-16 text-center">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border-soft dark:divide-neutral-800">
+                        {questions.map((q, idx) => (
+                          <tr key={idx} className="hover:bg-cream/20 dark:hover:bg-neutral-800/40">
+                            <td className="py-2 px-3 text-center font-bold text-gray-500">
+                              Q{q.questionNumber}
+                            </td>
+                            <td className="py-2 px-3">
+                              <Input
+                                value={q.topic}
+                                list="suggested-topics-list"
+                                placeholder="Topic name (e.g. Recursion, SQL)..."
+                                onChange={e => handleUpdateQuestion(idx, 'topic', e.target.value)}
+                                className="h-8 text-xs font-medium"
+                              />
+                            </td>
+                            <td className="py-2 px-3">
+                              <div className="flex items-center gap-1.5">
+                                <Input
+                                  type="number"
+                                  min={1}
+                                  value={q.maxMarks}
+                                  onChange={e => handleUpdateQuestion(idx, 'maxMarks', Math.max(1, Number(e.target.value) || 0))}
+                                  className="h-8 text-xs font-bold w-20 text-center"
+                                />
+                                <span className="text-gray-400 text-xs">marks</span>
+                              </div>
+                            </td>
+                            <td className="py-2 px-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveQuestion(idx)}
+                                className="text-gray-400 hover:text-red-600 transition-colors p-1"
+                                title="Remove question"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {suggestedTopics && suggestedTopics.length > 0 && (
+                    <datalist id="suggested-topics-list">
+                      {suggestedTopics.map(t => (
+                        <option key={t} value={t} />
+                      ))}
+                    </datalist>
+                  )}
                 </div>
               )}
+            </div>
+          ) : (
+            /* STEP 2: Upload / Verify Student Marks */
+            <div className="space-y-4">
+              {/* Context Strip */}
+              <div className="p-3.5 rounded-xl border border-border-soft dark:border-neutral-800 bg-cream/20 dark:bg-neutral-900/30 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3 flex-wrap text-xs">
+                  <div>
+                    <span className="text-gray-body dark:text-neutral-400">Quiz: </span>
+                    <strong className="text-ink dark:text-neutral-100">{title}</strong>
+                  </div>
+                  <span className="text-gray-300 dark:text-neutral-700">•</span>
+                  <div>
+                    <span className="text-gray-body dark:text-neutral-400">Class: </span>
+                    <strong className="text-ink dark:text-neutral-100">{selectedClassLabel}</strong>
+                  </div>
+                  <span className="text-gray-300 dark:text-neutral-700">•</span>
+                  <div>
+                    <span className="text-gray-body dark:text-neutral-400">Total Marks: </span>
+                    <strong className="text-maroon dark:text-rose-400">{activeTotalMarks} Marks</strong>
+                  </div>
+                  <span className="text-gray-300 dark:text-neutral-700">•</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cream-edge/30 text-ink dark:text-neutral-200">
+                    {mode === 'QUESTION_WISE' ? `${questions.length} Questions Mapped` : 'Total Score Mode'}
+                  </span>
+                </div>
 
-              {/* Dynamic Questions Table */}
-              <div className="overflow-x-auto max-h-52 border border-border-soft rounded-lg bg-white dark:bg-[#1E1E22]">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-cream/40 dark:bg-white/[0.03] border-b border-border-soft text-gray-body uppercase text-[10px] tracking-wider sticky top-0">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setStep(1)}
+                  className="h-7 text-xs border-border-soft"
+                >
+                  <ArrowLeft className="w-3 h-3 mr-1" />
+                  Edit Blueprint
+                </Button>
+              </div>
+
+              {/* Action Toolbar */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={handleDownloadTemplate}
+                    className="h-8 text-xs bg-white dark:bg-[#1E1E24] border-border-soft"
+                  >
+                    <Download className="w-3.5 h-3.5 mr-1 text-gray-500" />
+                    Download Sample Template
+                  </Button>
+
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".csv,.xlsx,.xls"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="h-8 text-xs bg-white dark:bg-[#1E1E24] border-border-soft text-maroon hover:bg-maroon hover:text-white"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5 mr-1" />
+                    Upload CSV / Excel
+                  </Button>
+
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => void runValidation()}
+                    disabled={validating}
+                    className="h-8 text-xs bg-emerald-700 hover:bg-emerald-800 text-white"
+                  >
+                    {validating ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5 mr-1" />}
+                    Verify Students
+                  </Button>
+
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleAddRow}
+                    className="h-8 text-xs text-gray-body hover:text-ink"
+                  >
+                    <Plus className="w-3.5 h-3.5 mr-1" />
+                    Add Row
+                  </Button>
+                </div>
+
+                {/* Filter Pills */}
+                <div className="flex items-center gap-1 bg-cream/40 dark:bg-neutral-900/50 p-0.5 rounded-lg border border-border-soft dark:border-neutral-700 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setRowStatusFilter('ALL')}
+                    className={`px-2.5 py-1 rounded-md font-bold transition-colors ${
+                      rowStatusFilter === 'ALL'
+                        ? 'bg-white dark:bg-[#1E1E24] text-ink dark:text-neutral-100 shadow-xs'
+                        : 'text-gray-body dark:text-neutral-400'
+                    }`}
+                  >
+                    All ({rows.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRowStatusFilter('VALID')}
+                    className={`px-2.5 py-1 rounded-md font-bold transition-colors ${
+                      rowStatusFilter === 'VALID'
+                        ? 'bg-white dark:bg-[#1E1E24] text-emerald-700 shadow-xs'
+                        : 'text-gray-body dark:text-neutral-400'
+                    }`}
+                  >
+                    Valid ({rows.filter(r => r.matched && (!r.errors || r.errors.length === 0)).length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRowStatusFilter('ISSUES')}
+                    className={`px-2.5 py-1 rounded-md font-bold transition-colors ${
+                      rowStatusFilter === 'ISSUES'
+                        ? 'bg-white dark:bg-[#1E1E24] text-red-600 shadow-xs'
+                        : 'text-gray-body dark:text-neutral-400'
+                    }`}
+                  >
+                    Issues ({rows.filter(r => r.matched === false || (r.errors && r.errors.length > 0)).length})
+                  </button>
+                </div>
+              </div>
+
+              {/* Student Marks Table with Solid Sticky Header */}
+              <div className="border border-border-soft dark:border-neutral-800 rounded-xl overflow-x-auto overflow-y-auto max-h-[50vh] bg-white dark:bg-[#1A1A1E]">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-neutral-800 border-b border-border-soft dark:border-neutral-700 shadow-xs">
                     <tr>
-                      <th className="p-2.5 w-16 text-center">Q#</th>
-                      <th className="p-2.5">Topic Tag *</th>
-                      <th className="p-2.5 w-28">Max Marks *</th>
-                      <th className="p-2.5">Description (Optional)</th>
-                      <th className="p-2.5 w-12 text-center">Action</th>
+                      <th className="py-3 px-3 w-12 text-center text-gray-body dark:text-neutral-400 font-bold bg-slate-100 dark:bg-neutral-800">
+                        #
+                      </th>
+                      <th className="py-3 px-3 min-w-[170px] text-ink dark:text-neutral-200 font-bold bg-slate-100 dark:bg-neutral-800">
+                        Roll No / Student Email
+                      </th>
+                      <th className="py-3 px-3 min-w-[150px] text-ink dark:text-neutral-200 font-bold bg-slate-100 dark:bg-neutral-800">
+                        Matched Student
+                      </th>
+                      {mode === 'QUESTION_WISE' ? (
+                        questions.map(q => (
+                          <th
+                            key={q.questionNumber}
+                            className="py-3 px-2 w-24 text-center font-bold text-ink dark:text-neutral-200 bg-slate-100 dark:bg-neutral-800 whitespace-nowrap"
+                          >
+                            <div>Q{q.questionNumber}</div>
+                            <div className="text-[10px] text-gray-500 font-normal">Max {q.maxMarks}m</div>
+                          </th>
+                        ))
+                      ) : (
+                        <th className="py-3 px-3 w-36 text-center font-bold text-ink dark:text-neutral-200 bg-slate-100 dark:bg-neutral-800">
+                          Total Marks (Max {activeTotalMarks})
+                        </th>
+                      )}
+                      <th className="py-3 px-3 w-20 text-center font-bold text-ink dark:text-neutral-200 bg-slate-100 dark:bg-neutral-800">
+                        TOTAL
+                      </th>
+                      <th className="py-3 px-3 w-24 text-center font-bold text-ink dark:text-neutral-200 bg-slate-100 dark:bg-neutral-800">
+                        BAND
+                      </th>
+                      <th className="py-3 px-3 w-28 text-center font-bold text-ink dark:text-neutral-200 bg-slate-100 dark:bg-neutral-800">
+                        STATUS
+                      </th>
+                      <th className="py-3 px-2 w-12 text-center text-gray-body dark:text-neutral-400 bg-slate-100 dark:bg-neutral-800"></th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-border-soft">
-                    {questions.map((q, idx) => (
-                      <tr key={idx} className="hover:bg-cream/10">
-                        <td className="p-2 text-center font-bold font-mono text-ink">
-                          Q{q.questionNumber}
-                        </td>
-                        <td className="p-2">
-                          <input
-                            type="text"
-                            value={q.topic}
-                            list="suggested-topics-list"
-                            onChange={e => handleUpdateQuestion(idx, 'topic', e.target.value)}
-                            placeholder="e.g. Arrays, Trees, OOP"
-                            className="w-full px-2 py-1 text-xs border border-border-soft rounded bg-white dark:bg-[#18181B] text-ink focus:outline-none focus:border-maroon"
-                          />
-                        </td>
-                        <td className="p-2">
-                          <input
-                            type="number"
-                            min="1"
-                            step="0.5"
-                            value={q.maxMarks}
-                            onChange={e => handleUpdateQuestion(idx, 'maxMarks', parseFloat(e.target.value) || 0)}
-                            className="w-full px-2 py-1 text-xs font-mono font-bold border border-border-soft rounded bg-white dark:bg-[#18181B] text-ink focus:outline-none focus:border-maroon"
-                          />
-                        </td>
-                        <td className="p-2">
-                          <input
-                            type="text"
-                            value={q.questionText || ''}
-                            onChange={e => handleUpdateQuestion(idx, 'questionText', e.target.value)}
-                            placeholder="Optional brief question label"
-                            className="w-full px-2 py-1 text-xs border border-border-soft rounded bg-white dark:bg-[#18181B] text-ink focus:outline-none focus:border-maroon"
-                          />
-                        </td>
-                        <td className="p-2 text-center">
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveQuestion(idx)}
-                            className="text-gray-body hover:text-red-600 transition-colors p-1"
-                            title="Remove Question"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                  <tbody className="divide-y divide-border-soft dark:divide-neutral-800">
+                    {displayedRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={mode === 'QUESTION_WISE' ? questions.length + 6 : 7} className="py-12 text-center text-gray-400 text-xs">
+                          No student rows match the selected filter.
                         </td>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <datalist id="suggested-topics-list">
-                {suggestedTopics.map((topic, i) => (
-                  <option key={i} value={topic} />
-                ))}
-              </datalist>
-            </div>
-          )}
-
-          {/* Mode B: Total Marks & Overall Topics */}
-          {mode === 'TOTAL_ONLY' && (
-            <div className="space-y-3 p-4 rounded-xl border border-border-soft bg-cream/20 dark:bg-white/[0.01]">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <Label htmlFor="max-marks-b" className="text-xs font-semibold text-ink">
-                    Maximum Quiz Marks *
-                  </Label>
-                  <Input
-                    id="max-marks-b"
-                    type="number"
-                    min="1"
-                    value={totalMarksB}
-                    onChange={e => setTotalMarksB(Math.max(1, parseFloat(e.target.value) || 0))}
-                    className="text-xs font-mono font-bold bg-white dark:bg-[#1E1E22] border-border-soft"
-                  />
-                  <p className="text-[11px] text-gray-body">Student obtained marks will be scored out of this total.</p>
-                </div>
-
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold text-ink">Overall Topics Covered</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="e.g. Data Structures"
-                      value={topicInput}
-                      onChange={e => setTopicInput(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handleAddTopic();
-                        }
-                      }}
-                      className="text-xs bg-white dark:bg-[#1E1E22] border-border-soft"
-                    />
-                    <Button type="button" size="sm" onClick={handleAddTopic} variant="outline" className="text-xs border-border-soft">
-                      Add
-                    </Button>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5 mt-2">
-                    {overallTopics.map((t, idx) => (
-                      <span
-                        key={idx}
-                        className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-maroon/10 text-maroon border border-maroon/20"
-                      >
-                        {t}
-                        <button type="button" onClick={() => handleRemoveTopic(t)} className="hover:text-red-700">
-                          <X className="w-3 h-3" />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Marksheet Upload / Entry Section */}
-          <div className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h3 className="font-serif font-bold text-sm text-ink flex items-center gap-2">
-                  Student Marks Entry
-                  <span className="text-xs font-normal text-gray-body">
-                    ({rows.filter(r => r.identifier.trim().length > 0).length} student rows)
-                  </span>
-                </h3>
-                <p className="text-[11px] text-gray-body">
-                  Upload a spreadsheet, download our pre-filled template, or edit entries directly below.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleDownloadTemplate}
-                  className="text-xs h-8 border-border-soft text-gray-body hover:text-maroon hover:border-maroon/40"
-                  title="Download pre-filled CSV sample template"
-                >
-                  <Download className="w-3.5 h-3.5 mr-1" />
-                  Download Sample CSV
-                </Button>
-
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  accept=".csv,.xlsx,.xls"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                />
-
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="text-xs h-8 bg-cream/40 border-maroon/30 text-maroon hover:bg-maroon hover:text-white"
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5 mr-1" />
-                  Upload CSV / Excel
-                </Button>
-
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => void runValidation()}
-                  disabled={validating}
-                  className="text-xs h-8 bg-emerald-700 hover:bg-emerald-800 text-white"
-                >
-                  {validating ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5 mr-1" />}
-                  Verify Students
-                </Button>
-              </div>
-            </div>
-
-            {/* Validation Banner if validated */}
-            {validationSummary && (
-              <div
-                className={`p-3 rounded-xl border flex flex-wrap items-center justify-between gap-3 text-xs ${
-                  validationSummary.invalidRowsCount === 0
-                    ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 text-emerald-800 dark:text-emerald-300'
-                    : 'bg-amber-50 dark:bg-amber-950/20 border-amber-200 text-amber-800 dark:text-amber-300'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  {validationSummary.invalidRowsCount === 0 ? (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  ) : (
-                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                  )}
-                  <span>
-                    <strong>{validationSummary.validRowsCount}</strong> matched students ready to import.
-                    {validationSummary.invalidRowsCount > 0 && (
-                      <span className="ml-1 text-red-600 dark:text-red-400 font-bold">
-                        ({validationSummary.invalidRowsCount} unmatched or invalid rows flagged below)
-                      </span>
-                    )}
-                  </span>
-                </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleAddRow}
-                  className="text-xs h-6 px-2 text-ink"
-                >
-                  + Add Row Manually
-                </Button>
-              </div>
-            )}
-
-            {/* Editable Interactive Table */}
-            <div className="overflow-x-auto max-h-64 border border-border-soft rounded-xl bg-white dark:bg-[#1E1E22]">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-cream/40 dark:bg-white/[0.03] border-b border-border-soft text-gray-body uppercase text-[10px] tracking-wider sticky top-0 z-10">
-                  <tr>
-                    <th className="p-2.5 w-10 text-center">#</th>
-                    <th className="p-2.5 w-40">Roll No / Email *</th>
-                    <th className="p-2.5 w-36">Student Name</th>
-                    {mode === 'QUESTION_WISE' ? (
-                      questions.map(q => (
-                        <th key={q.questionNumber} className="p-2 text-center min-w-[70px]">
-                          Q{q.questionNumber} <span className="text-[9px] text-gray-body font-normal">({q.maxMarks}m)</span>
-                        </th>
-                      ))
                     ) : (
-                      <th className="p-2 text-center w-28">Obtained Marks *</th>
-                    )}
-                    <th className="p-2 text-center w-24">Total / Band</th>
-                    <th className="p-2.5 w-44">Status / Match</th>
-                    <th className="p-2 w-10 text-center"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border-soft">
-                  {rows.map((row, index) => {
-                    const rowScores = row.questionScores || {};
-                    let calculatedSum = 0;
-                    if (mode === 'QUESTION_WISE') {
-                      questions.forEach(q => {
-                        calculatedSum += parseFloat(String(rowScores[String(q.questionNumber)] || 0)) || 0;
-                      });
-                    } else {
-                      calculatedSum = parseFloat(String(row.totalScore || 0)) || 0;
-                    }
-                    const pct = activeTotalMarks > 0 ? Math.round((calculatedSum / activeTotalMarks) * 100) : 0;
-                    const band = pct >= 80 ? 'EXCELLENT' : pct >= 60 ? 'AVERAGE' : 'POOR';
+                      displayedRows.map((row, idx) => {
+                        // Calculate row total score
+                        let calculatedRowScore = 0;
+                        if (mode === 'QUESTION_WISE') {
+                          questions.forEach(q => {
+                            const val = Number(row.questionScores?.[String(q.questionNumber)] ?? 0);
+                            if (!isNaN(val)) calculatedRowScore += val;
+                          });
+                        } else {
+                          calculatedRowScore = Number(row.totalScore) || 0;
+                        }
 
-                    return (
-                      <tr
-                        key={row.id}
-                        className={`hover:bg-cream/10 transition-colors ${
-                          row.errors && row.errors.length > 0 ? 'bg-red-50/40 dark:bg-red-950/10' : ''
-                        }`}
-                      >
-                        <td className="p-2 text-center text-gray-body font-mono text-[11px]">{index + 1}</td>
-                        <td className="p-1.5">
-                          <input
-                            type="text"
-                            value={row.identifier}
-                            onChange={e => {
-                              const val = e.target.value;
-                              setRows(rows.map(r => (r.id === row.id ? { ...r, identifier: val, errors: undefined } : r)));
-                            }}
-                            placeholder="e.g. 21CS042"
-                            className="w-full px-2 py-1 text-xs border border-border-soft rounded bg-white dark:bg-[#18181B] text-ink focus:outline-none focus:border-maroon font-mono"
-                          />
-                        </td>
-                        <td className="p-1.5">
-                          <span className="text-ink font-semibold truncate block max-w-[140px]" title={row.matchedStudentName || row.studentName}>
-                            {row.matchedStudentName || row.studentName || '—'}
-                          </span>
-                        </td>
+                        const percentage = activeTotalMarks > 0 ? Math.round((calculatedRowScore / activeTotalMarks) * 100) : 0;
+                        const band = percentage >= 80 ? 'EXCELLENT' : percentage >= 60 ? 'AVERAGE' : 'POOR';
+                        const hasErrors = Boolean(row.errors && row.errors.length > 0);
+                        const isMatched = row.matched === true;
 
-                        {mode === 'QUESTION_WISE' ? (
-                          questions.map(q => (
-                            <td key={q.questionNumber} className="p-1.5 text-center">
-                              <input
-                                type="number"
-                                min="0"
-                                max={q.maxMarks}
-                                step="0.5"
-                                value={rowScores[String(q.questionNumber)] ?? ''}
-                                onChange={e => handleUpdateRowScore(row.id, q.questionNumber, e.target.value)}
-                                className={`w-14 text-center px-1.5 py-1 text-xs font-mono font-bold border rounded bg-white dark:bg-[#18181B] focus:outline-none ${
-                                  parseFloat(String(rowScores[String(q.questionNumber)])) > q.maxMarks
-                                    ? 'border-red-500 text-red-600 bg-red-50'
-                                    : 'border-border-soft text-ink focus:border-maroon'
+                        return (
+                          <tr
+                            key={row.id}
+                            className={`transition-colors ${
+                              hasErrors
+                                ? 'bg-red-50/40 dark:bg-red-950/20'
+                                : isMatched
+                                ? 'bg-emerald-50/20 dark:bg-emerald-950/10'
+                                : 'hover:bg-cream/20 dark:hover:bg-neutral-800/30'
+                            }`}
+                          >
+                            <td className="py-2.5 px-3 text-center text-gray-400 font-mono text-xs">
+                              {idx + 1}
+                            </td>
+
+                            {/* Identifier Input */}
+                            <td className="py-2.5 px-3">
+                              <Input
+                                placeholder="Roll No or Email"
+                                value={row.identifier}
+                                onChange={e => {
+                                  const val = e.target.value;
+                                  setRows(prev =>
+                                    prev.map(r => (r.id === row.id ? { ...r, identifier: val, matched: undefined, errors: undefined } : r))
+                                  );
+                                }}
+                                className={`h-8 text-xs font-mono ${
+                                  hasErrors
+                                    ? 'border-red-400 focus:border-red-500'
+                                    : isMatched
+                                    ? 'border-emerald-400'
+                                    : ''
                                 }`}
                               />
                             </td>
-                          ))
-                        ) : (
-                          <td className="p-1.5 text-center">
-                            <input
-                              type="number"
-                              min="0"
-                              max={activeTotalMarks}
-                              step="0.5"
-                              value={row.totalScore ?? ''}
-                              onChange={e => {
-                                const val = e.target.value;
-                                setRows(rows.map(r => (r.id === row.id ? { ...r, totalScore: val, errors: undefined } : r)));
-                              }}
-                              className={`w-20 text-center px-2 py-1 text-xs font-mono font-bold border rounded bg-white dark:bg-[#18181B] focus:outline-none ${
-                                parseFloat(String(row.totalScore)) > activeTotalMarks
-                                  ? 'border-red-500 text-red-600 bg-red-50'
-                                  : 'border-border-soft text-ink focus:border-maroon'
-                              }`}
-                            />
-                          </td>
-                        )}
 
-                        <td className="p-1.5 text-center font-mono">
-                          <div className="font-bold text-ink">{calculatedSum} <span className="text-[10px] text-gray-body font-normal">({pct}%)</span></div>
-                          <span
-                            className={`inline-block px-1.5 py-0.2 rounded text-[9px] font-bold ${
-                              band === 'EXCELLENT'
-                                ? 'bg-green-100 text-green-800'
-                                : band === 'AVERAGE'
-                                ? 'bg-amber-100 text-amber-800'
-                                : 'bg-red-100 text-red-800'
-                            }`}
-                          >
-                            {band}
-                          </span>
-                        </td>
+                            {/* Matched Student verification */}
+                            <td className="py-2.5 px-3">
+                              {row.matchedStudentName ? (
+                                <div className="text-xs">
+                                  <div className="font-bold text-ink dark:text-neutral-200">{row.matchedStudentName}</div>
+                                  <div className="text-[10px] text-gray-400 font-mono">{row.matchedRollNumber}</div>
+                                </div>
+                              ) : row.matched === false ? (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-600 dark:text-red-400">
+                                  <AlertTriangle className="w-3 h-3" /> Not Found
+                                </span>
+                              ) : (
+                                <span className="text-[11px] text-gray-400 italic">Unverified</span>
+                              )}
+                            </td>
 
-                        <td className="p-1.5 text-xs">
-                          {row.matched ? (
-                            <div className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-semibold text-[11px]">
-                              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                              <span className="truncate">{row.matchedStudentName}</span>
-                            </div>
-                          ) : row.errors && row.errors.length > 0 ? (
-                            <div className="flex items-center gap-1 text-red-600 dark:text-red-400 text-[11px]" title={row.errors.join('; ')}>
-                              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                              <span className="truncate">{row.errors[0]}</span>
-                            </div>
-                          ) : (
-                            <span className="text-gray-body text-[11px] italic">Not verified yet</span>
-                          )}
-                        </td>
+                            {/* Scores */}
+                            {mode === 'QUESTION_WISE' ? (
+                              questions.map(q => {
+                                const scoreVal = row.questionScores?.[String(q.questionNumber)] ?? '';
+                                const numVal = Number(scoreVal);
+                                const isOverMax = !isNaN(numVal) && numVal > q.maxMarks;
 
-                        <td className="p-1.5 text-center">
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveRow(row.id)}
-                            className="text-gray-body hover:text-red-600 transition-colors p-1"
-                            title="Remove Row"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                                return (
+                                  <td key={q.questionNumber} className="py-2.5 px-2 text-center">
+                                    <Input
+                                      type="number"
+                                      min={0}
+                                      max={q.maxMarks}
+                                      step="any"
+                                      value={scoreVal}
+                                      onChange={e => handleUpdateRowScore(row.id, q.questionNumber, e.target.value)}
+                                      className={`h-8 text-xs text-center font-bold w-18 mx-auto ${
+                                        isOverMax ? 'border-red-500 text-red-600 ring-1 ring-red-500' : ''
+                                      }`}
+                                    />
+                                  </td>
+                                );
+                              })
+                            ) : (
+                              <td className="py-2.5 px-3 text-center">
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  max={activeTotalMarks}
+                                  step="any"
+                                  value={row.totalScore ?? ''}
+                                  onChange={e => {
+                                    const val = e.target.value;
+                                    setRows(prev => prev.map(r => (r.id === row.id ? { ...r, totalScore: val } : r)));
+                                  }}
+                                  className="h-8 text-xs text-center font-bold w-24 mx-auto"
+                                />
+                              </td>
+                            )}
+
+                            {/* Auto Total Score */}
+                            <td className="py-2.5 px-3 text-center font-bold text-xs font-mono text-ink dark:text-neutral-200">
+                              {calculatedRowScore}
+                            </td>
+
+                            {/* Performance Band */}
+                            <td className="py-2.5 px-3 text-center">
+                              <span
+                                className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                  band === 'EXCELLENT'
+                                    ? 'bg-emerald-100 text-emerald-800'
+                                    : band === 'AVERAGE'
+                                    ? 'bg-blue-100 text-blue-800'
+                                    : 'bg-rose-100 text-rose-800'
+                                }`}
+                              >
+                                {band}
+                              </span>
+                            </td>
+
+                            {/* Validation Status Badge */}
+                            <td className="py-2.5 px-3 text-center">
+                              {hasErrors ? (
+                                <span
+                                  className="inline-flex items-center gap-1 text-[10px] font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded-full cursor-help"
+                                  title={row.errors?.join('\n')}
+                                >
+                                  <AlertCircle className="w-3 h-3" /> Error
+                                </span>
+                              ) : isMatched ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                                  <Check className="w-3 h-3" /> Matched
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-gray-400">Ready</span>
+                              )}
+                            </td>
+
+                            {/* Action: Delete Row */}
+                            <td className="py-2.5 px-2 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveRow(row.id)}
+                                className="text-gray-300 hover:text-red-500 transition-colors p-1"
+                                title="Remove row"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
+          )}
+        </div>
 
-            <div className="flex items-center justify-between pt-1">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={handleAddRow}
-                className="text-xs h-7 text-maroon hover:bg-maroon/5 font-semibold"
-              >
-                <Plus className="w-3.5 h-3.5 mr-1" />
-                Add Student Row
+        {/* Wizard Footer */}
+        <div className="p-4 sm:p-5 border-t border-border-soft dark:border-neutral-800 flex items-center justify-between gap-4 bg-slate-50/70 dark:bg-neutral-900/40">
+          {step === 1 ? (
+            <>
+              <Button type="button" variant="outline" size="sm" onClick={onClose} className="text-xs h-9">
+                Cancel
               </Button>
 
-              <label className="flex items-center gap-2 cursor-pointer text-xs select-none">
-                <input
-                  type="checkbox"
-                  checked={answersPublished}
-                  onChange={e => setAnswersPublished(e.target.checked)}
-                  className="rounded border-border-soft text-maroon focus:ring-maroon accent-maroon w-4 h-4"
-                />
-                <span className="text-ink font-medium">Publish marks immediately to student dashboards</span>
-              </label>
-            </div>
-          </div>
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleProceedToStep2}
+                className="text-xs h-9 bg-maroon hover:bg-maroon-deep text-white font-bold px-4"
+              >
+                Continue to Step 2: Upload Marks
+                <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
+              </Button>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setStep(1)}
+                  className="text-xs h-9"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5 mr-1" />
+                  Back to Blueprint
+                </Button>
+
+                {validationSummary && (
+                  <span
+                    className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+                      validationSummary.readyToImport
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : 'bg-amber-100 text-amber-900'
+                    }`}
+                  >
+                    {validationSummary.readyToImport
+                      ? `✓ All ${validationSummary.validRowsCount} students verified`
+                      : `${validationSummary.validRowsCount} verified, ${validationSummary.invalidRowsCount} with issues`}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={onClose} className="text-xs h-9">
+                  Cancel
+                </Button>
+
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleImportSubmit}
+                  disabled={
+                    importing ||
+                    validating ||
+                    rows.filter(r => r.identifier.trim().length > 0).length === 0 ||
+                    (validationSummary !== null && validationSummary.invalidRowsCount > 0)
+                  }
+                  className="text-xs h-9 bg-maroon hover:bg-maroon-deep text-white font-bold px-5 shadow-sm"
+                >
+                  {importing ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                      Importing Marks...
+                    </>
+                  ) : (
+                    <>
+                      <UploadCloud className="w-3.5 h-3.5 mr-1.5" />
+                      Import Marksheet
+                    </>
+                  )}
+                </Button>
+              </div>
+            </>
+          )}
         </div>
-
-        {/* Modal Footer */}
-        <div className="p-4 sm:p-5 border-t border-border-soft flex items-center justify-between gap-3 bg-cream/20 dark:bg-white/[0.02]">
-          <div className="flex items-center gap-1.5 text-xs text-gray-body">
-            <Info className="w-4 h-4 text-maroon shrink-0" />
-            <span>External offline marks will be aggregated into student topic mastery and overall performance.</span>
-          </div>
-
-          <div className="flex items-center gap-2.5">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onClose}
-              disabled={importing}
-              className="text-xs font-semibold border-border-soft"
-            >
-              Cancel
-            </Button>
-
-            <Button
-              type="button"
-              onClick={handleImportSubmit}
-              disabled={importing || rows.filter(r => r.identifier.trim()).length === 0}
-              className="text-xs font-bold bg-maroon hover:bg-maroon-deep text-white px-5 shadow-sm"
-            >
-              {importing ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                  Importing Marksheet...
-                </>
-              ) : (
-                <>
-                  <UploadCloud className="w-3.5 h-3.5 mr-1.5" />
-                  Import Marksheet ({rows.filter(r => r.identifier.trim()).length} Students)
-                </>
-              )}
-            </Button>
-          </div>
-        </div>
-
       </div>
     </div>
   );
 };
+
 export default OfflineMarksheetModal;

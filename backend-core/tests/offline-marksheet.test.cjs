@@ -131,11 +131,18 @@ test('Offline Marksheet Import & Topic-Wise Analytics Integration', async (t) =>
             return createdQuiz;
           }
         },
+        quizStudent: {
+          createMany: async ({ data }) => ({ count: data.length })
+        },
         question: {
           create: async ({ data }) => {
             const q = { id: `q-${createdQuestions.length + 1}`, ...data };
             createdQuestions.push(q);
             return q;
+          },
+          createMany: async ({ data }) => {
+            data.forEach(item => createdQuestions.push(item));
+            return { count: data.length };
           }
         },
         quizAttempt: {
@@ -143,6 +150,10 @@ test('Offline Marksheet Import & Topic-Wise Analytics Integration', async (t) =>
             const a = { id: `att-${createdAttempts.length + 1}`, ...data };
             createdAttempts.push(a);
             return a;
+          },
+          createMany: async ({ data }) => {
+            data.forEach(item => createdAttempts.push(item));
+            return { count: data.length };
           }
         },
         quizResponse: {
@@ -150,6 +161,10 @@ test('Offline Marksheet Import & Topic-Wise Analytics Integration', async (t) =>
             const r = { id: `resp-${createdResponses.length + 1}`, ...data };
             createdResponses.push(r);
             return r;
+          },
+          createMany: async ({ data }) => {
+            data.forEach(item => createdResponses.push(item));
+            return { count: data.length };
           }
         }
       };
@@ -171,6 +186,7 @@ test('Offline Marksheet Import & Topic-Wise Analytics Integration', async (t) =>
           title: 'Midterm Exam (Paper)',
           subject: 'Data Structures',
           mode: 'QUESTION_WISE',
+          targetClassId: 'sec-a',
           totalMarks: 20,
           questions: [
             { questionNumber: 1, topic: 'Binary Trees', maxMarks: 10 },
@@ -213,6 +229,57 @@ test('Offline Marksheet Import & Topic-Wise Analytics Integration', async (t) =>
     } finally {
       prisma.user.findMany = origFindMany;
       prisma.$transaction = origTransaction;
+    }
+  });
+
+  await t.test('importOfflineMarksheet rejects import when targetClassId is missing', async () => {
+    let capturedError = null;
+    const req = {
+      user: { userId: 'fac-1', role: 'FACULTY' },
+      facultyScope: null,
+      body: {
+        title: 'Midterm Exam',
+        mode: 'TOTAL_ONLY',
+        totalMarks: 50,
+        // targetClassId missing
+        rows: [{ identifier: '21CS042', totalScore: 40 }]
+      }
+    };
+    const res = {};
+    await importOfflineMarksheet(req, res, (err) => { capturedError = err; });
+
+    assert.ok(capturedError);
+    assert.equal(capturedError.statusCode, 400);
+    assert.equal(capturedError.errorCode, 'ERR_MISSING_TARGET_CLASS');
+  });
+
+  await t.test('importOfflineMarksheet returns 400 Bad Request when unmatched students exist', async () => {
+    const origFindMany = prisma.user.findMany;
+    prisma.user.findMany = async () => []; // No matching students
+
+    let capturedError = null;
+    const req = {
+      user: { userId: 'fac-1', role: 'FACULTY' },
+      facultyScope: null,
+      body: {
+        title: 'Midterm Exam',
+        mode: 'TOTAL_ONLY',
+        targetClassId: 'sec-a',
+        totalMarks: 50,
+        rows: [{ identifier: 'NONEXISTENT_ROLL', totalScore: 40 }]
+      }
+    };
+    const res = {};
+
+    try {
+      await importOfflineMarksheet(req, res, (err) => { capturedError = err; });
+      assert.ok(capturedError);
+      assert.equal(capturedError.statusCode, 400);
+      assert.equal(capturedError.errorCode, 'ERR_VALIDATION_FAILED');
+      assert.equal(capturedError.details.unmatchedCount, 1);
+      assert.deepEqual(capturedError.details.unmatchedIdentifiers, ['NONEXISTENT_ROLL']);
+    } finally {
+      prisma.user.findMany = origFindMany;
     }
   });
 

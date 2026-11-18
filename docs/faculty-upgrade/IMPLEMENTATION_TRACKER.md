@@ -173,4 +173,32 @@
   - `frontend-web`: All 26 test suites passed (100 tests, 0 failures).
   - Production builds (`npm run build` in both `backend-core` and `frontend-web`) completed with 0 errors.
 
+## Follow-up: Offline Marksheet Import Reliability & Wizard UI Overhaul (2026-11-18)
+
+- **Objective**:
+  - Resolve backend 500 errors (`ERR_FEATURE_UNAVAILABLE` & `ERR_INTERNAL_SERVER`), enforce mandatory class scoping, redesign modal layout into a spacious 2-step wizard, fix sticky header CSS overlap, and provide a prompt copy tool for faculty.
+- **Issues Resolved & Features Added**:
+  - **Prisma Schema Sync & 500 Error Resolution**:
+    - Ran non-destructive `npx prisma db push` to synchronize `QuizSourceType`, `Quiz.sourceType`, `Quiz.hasQuestionBreakdown`, and `QuizAttempt.sourceType` with the PostgreSQL database.
+    - Resolved `P2022` column missing error that was being intercepted and mapped to `ERR_FEATURE_UNAVAILABLE` (HTTP 500) by the error middleware.
+  - **Transaction Performance & Structured Validation (`offline-quiz.controller.ts`)**:
+    - Replaced slow sequential `for` loop database writes with batched `createMany` queries for questions, quiz attempts, and quiz responses with `skipDuplicates: true`. Reduces transaction time from >30s (causing P2028 transaction timeout / `ERR_INTERNAL_SERVER`) to <100ms for 50+ students.
+    - Added structured detection and clean HTTP 400 `ERR_VALIDATION_FAILED` responses with detailed lists of unmatched or duplicate student identifiers rather than crashing the database transaction with 500.
+  - **Mandatory Target Class Selection**:
+    - Removed `"All Assigned Classes"` default; required faculty to explicitly choose a target class or section before proceeding to mark entry or import.
+    - Added inline validation error styling and frontend disable states, backed by strict backend validation (`ERR_MISSING_TARGET_CLASS`).
+    - Added fallback class fetching from `/api/v1/faculty/quiz/question-papers/classes` when props are unpopulated.
+  - **Spacious 2-Step Wizard UI (`OfflineMarksheetModal.tsx`)**:
+    - Replaced congested stacked layout with a clean, spacious 2-step wizard (`max-w-6xl w-[95vw]`):
+      - **Step 1: Quiz & Topic Blueprint**: Side-by-side cards for quiz settings, mandatory class selector, marks configuration, and blueprint setup.
+      - **Step 2: Upload / Verify Student Marks**: Clean action toolbar, download template, spreadsheet upload, filter tabs (`All`, `Valid`, `Issues`), and summary verification strip.
+    - Fixed sticky table header CSS (`bg-slate-100 dark:bg-neutral-800 z-10 sticky top-0`) to eliminate header text overlapping with table rows during scroll.
+    - Integrated `<datalist id="suggested-topics-list">` for smooth autocomplete of topic tags.
+  - **"Copy AI Prompt" Button**:
+    - Added a 1-click "Copy AI Prompt" button in Step 1 next to "Paste Blueprint" that copies the exact formatting prompt to clipboard with visual "Copied!" feedback and toast notification.
+- **Validation**:
+  - `backend-core`: Added tests in `backend-core/tests/offline-marksheet.test.cjs` for mandatory class selection and unmatched student 400 rejection; all 12 test suites passed (47 tests, 0 failures).
+  - `frontend-web`: `tsc -b && vite build` completed with 0 errors; all 26 Jest test suites passed (100 tests, 0 failures).
+
+
 
