@@ -129,6 +129,7 @@ export const getEligibleQuizzes = async (req: Request, res: Response, next: Next
       where: {
         AND: [
           { paperStatus: 'PUBLISHED' },
+          { sourceType: { not: 'OFFLINE' } },
           {
             OR: [
               { targetDepartments: { some: { departmentId: user.departmentId || '' } } },
@@ -197,6 +198,9 @@ export const getQuizInstructions = async (req: Request, res: Response, next: Nex
     });
 
     if (!quiz) throw new NotFoundError('Quiz not found', 'NOT_FOUND');
+    if ((quiz as any).sourceType === 'OFFLINE') {
+      throw new BadRequestError('This assessment was conducted offline. Submissions and evaluation are managed by faculty.', 'ERR_OFFLINE_QUIZ');
+    }
 
     const student = await prisma.user.findUnique({
       where: { id: userId },
@@ -318,6 +322,9 @@ export const startExam = async (req: Request, res: Response, next: NextFunction)
     const student = await prisma.user.findUnique({ where: { id: userId }, select: { departmentId: true, sectionId: true } });
     const targeted = quizMetadata.targetDepartments.some((target) => target.departmentId === student?.departmentId) || quizMetadata.targetSections.some((target) => target.sectionId === student?.sectionId) || quizMetadata.targetStudents.some((target) => target.userId === userId);
     if (quizMetadata.paperStatus !== 'PUBLISHED' || !targeted) throw new ForbiddenError('This assessment is not available to your class.', 'FORBIDDEN');
+    if ((quizMetadata as any).sourceType === 'OFFLINE') {
+      throw new BadRequestError('This assessment was conducted offline. Submissions are managed by faculty.', 'ERR_OFFLINE_QUIZ');
+    }
     
     if (attempt) {
       if (attempt.status === 'VIOLATED' && !attempt.restartAuthorized) {
@@ -1176,6 +1183,9 @@ export const verifyQuizAccessOtp = async (req: Request, res: Response, next: Nex
     });
 
     if (!quiz) throw new NotFoundError('Quiz not found', 'NOT_FOUND');
+    if ((quiz as any).sourceType === 'OFFLINE') {
+      throw new BadRequestError('This assessment was conducted offline. Submissions and evaluation are managed by faculty.', 'ERR_OFFLINE_QUIZ');
+    }
 
     // Check if faculty has locked classroom entry
     const entryLocked = Boolean((quiz.performanceBands as any)?.entryLocked);

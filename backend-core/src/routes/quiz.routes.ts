@@ -4,6 +4,12 @@ import { allowRestart } from '../controllers/student-exam.controller';
 import { downloadTemplate } from '../controllers/template.controller';
 import { authenticate, authorize } from '../middlewares/auth.middleware';
 import { archiveBankQuestion, createBankQuestion, listQuestionBank, updateBankQuestion, uploadQuestionImage } from '../controllers/question-bank.controller';
+import {
+  validateOfflineMarksheet,
+  importOfflineMarksheet,
+  parseUploadedMarksheet,
+  downloadMarksheetTemplate
+} from '../controllers/offline-quiz.controller';
 import { BadRequestError } from '../utils/errors';
 import { isAllowedQuestionImage, QUESTION_IMAGE_MAX_BYTES } from '../utils/question-bank-policy';
 import { attachFacultyScope } from '../middlewares/faculty-scope.middleware';
@@ -41,6 +47,17 @@ const uploadQuestionImageFile = (req: Request, res: Response, next: NextFunction
   next(error);
 });
 
+const marksheetFileUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024, files: 1 },
+  fileFilter: (_req, file, cb) => {
+    if (!file.originalname.match(/\.(xlsx|xls|csv)$/i)) {
+      return cb(new BadRequestError('Only CSV and Excel (.xlsx, .xls) files are supported.', 'ERR_INVALID_FILE_TYPE'));
+    }
+    cb(null, true);
+  }
+});
+
 // Only FACULTY and ADMIN can manage quizzes
 router.use(authenticate, authorize(['FACULTY', 'ADMIN']));
 
@@ -59,6 +76,10 @@ router.post('/question-papers/:paperId/generate', attachFacultyScope, generateQu
 router.post('/question-papers/:paperId/publish', attachFacultyScope, publishQuestionPaper);
 router.post('/question-papers/:paperId/close', attachFacultyScope, closeQuestionPaper);
 router.get('/topics', getQuizTopics);
+router.get('/offline-marksheet/template', attachFacultyScope, downloadMarksheetTemplate);
+router.post('/offline-marksheet/parse-file', marksheetFileUpload.single('file'), parseUploadedMarksheet);
+router.post('/offline-marksheet/validate', attachFacultyScope, validateOfflineMarksheet);
+router.post('/offline-marksheet/import', attachFacultyScope, importOfflineMarksheet);
 router.get('/', getQuizzes);
 router.post('/create', createQuiz);
 router.post('/upload-docx', upload.single('file'), uploadDocxParser);

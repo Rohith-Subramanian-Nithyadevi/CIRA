@@ -65,6 +65,11 @@ enum QuizAttemptStatus {
   VIOLATED
 }
 
+enum QuizSourceType {
+  ONLINE
+  OFFLINE
+}
+
 model Batch {
   id          String       @id @default(uuid())
   name        String       @unique
@@ -197,6 +202,8 @@ model Quiz {
   createdAt        DateTime      @default(now())
   paperCategory    QuestionCategory?
   paperStatus      PaperStatus   @default(PUBLISHED)
+  sourceType       QuizSourceType @default(ONLINE)
+  hasQuestionBreakdown Boolean    @default(true)
   
   questions        Question[]
   questionUsages   QuestionUsage[]
@@ -313,6 +320,7 @@ model QuizAttempt {
   isManualWithoutSubmission Boolean            @default(false)
   needsReview               Boolean            @default(false)
   resultUpdatedAt           DateTime?
+  sourceType                QuizSourceType     @default(ONLINE)
   
   metrics             Json?
   createdAt           DateTime           @default(now())

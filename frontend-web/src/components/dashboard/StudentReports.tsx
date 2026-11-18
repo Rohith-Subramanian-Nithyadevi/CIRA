@@ -423,7 +423,9 @@ export const StudentReports = () => {
       leaderboard: analytics?.leaderboard || [],
       topicAverages: analytics?.topicAverages || [],
       summary: analytics?.summary,
-      title: quizMetadata?.title
+      title: quizMetadata?.title || analytics?.quiz?.title,
+      sourceType: quizMetadata?.sourceType || analytics?.quiz?.sourceType || 'ONLINE',
+      hasQuestionBreakdown: quizMetadata?.hasQuestionBreakdown ?? analytics?.quiz?.hasQuestionBreakdown ?? true
     };
   }, [selectedDept, selectedSection, selectedQuiz, quizzes, quizAnalytics]);
 
@@ -1000,7 +1002,14 @@ export const StudentReports = () => {
                   onClick={() => setSelectedQuiz(quiz.id)}
                   className="w-full text-left bg-white dark:bg-[#1E1E22] border border-border-soft rounded-xl p-6 hover:border-maroon/40 transition-all shadow-sm group relative overflow-hidden"
                 >
-                  <h3 className="text-lg font-bold text-ink mb-1 relative z-10">{quiz.title}</h3>
+                  <div className="flex flex-col gap-1 mb-1 relative z-10">
+                    <h3 className="text-lg font-bold text-ink">{quiz.title}</h3>
+                    {quiz.sourceType === 'OFFLINE' && (
+                      <span className="w-fit px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-900/50">
+                        Offline / External Quiz
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-gray-body mb-4 relative z-10">Conducted on {new Date(quiz.createdAt).toLocaleDateString()}</p>
                   <div className="flex items-center text-maroon text-xs font-bold relative z-10">
                     View detailed analytics <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
@@ -1024,7 +1033,14 @@ export const StudentReports = () => {
         <div className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
             <div>
-              <h2 className="text-xl font-serif font-bold text-ink">{quizDetails.title}</h2>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-xl font-serif font-bold text-ink">{quizDetails.title}</h2>
+                {quizDetails.sourceType === 'OFFLINE' && (
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-900/50">
+                    Offline / External Quiz
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-gray-body mt-0.5">
                 Detailed assessment analytics, topic strengths & leaderboard
               </p>
@@ -1103,7 +1119,16 @@ export const StudentReports = () => {
                 {quizAnalyticsLoading ? (
                   <div className="flex h-full items-center justify-center text-xs font-semibold text-gray-body"><Loader2 className="mr-2 h-4 w-4 animate-spin text-maroon" />Loading topic analysis...</div>
                 ) : quizDetails.topicAverages.length === 0 ? (
-                  <div className="flex h-full items-center justify-center px-8 text-center text-xs text-gray-body">Topic averages will appear after responses have been marked and the questions include topic labels.</div>
+                  <div className="flex flex-col h-full items-center justify-center px-8 text-center text-xs text-gray-body gap-1.5 py-6">
+                    {quizDetails.hasQuestionBreakdown === false || (quizDetails.sourceType === 'OFFLINE' && !quizDetails.hasQuestionBreakdown) ? (
+                      <>
+                        <span className="font-semibold text-ink text-sm">Overall score imported (no per-question topic breakdown)</span>
+                        <span className="max-w-md">This assessment was imported as overall total marks. Subject and batch averages are updated.</span>
+                      </>
+                    ) : (
+                      <span>Topic averages will appear after responses have been marked and the questions include topic labels.</span>
+                    )}
+                  </div>
                 ) : <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={quizDetails.topicAverages} layout="vertical" margin={{ top: 10, right: 30, left: 40, bottom: 0 }} barSize={24}>
                     <defs>

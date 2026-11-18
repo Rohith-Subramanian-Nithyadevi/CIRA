@@ -148,6 +148,11 @@ export default function ExamResults() {
               <h1 className="text-xl sm:text-3xl font-serif font-bold text-ink break-words">{quiz?.title} - Results</h1>
               <div className="text-sm font-semibold text-gray-body mt-1 flex flex-wrap items-center gap-2">
                 <span>{quiz?.subject}</span>
+                {quiz?.sourceType === 'OFFLINE' && (
+                  <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-stone-100 text-stone-700 border border-stone-200">
+                    Offline / External Quiz
+                  </span>
+                )}
                 {attempt.isManualWithoutSubmission && (
                   <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-amber-50 text-amber-800 border border-amber-200">
                     Manual Faculty Evaluation
@@ -181,7 +186,20 @@ export default function ExamResults() {
         </div>
         
         <div className="space-y-4 sm:space-y-6">
-          {quiz.questions?.map((q: any, idx: number) => {
+          {(!quiz.questions || quiz.questions.length === 0 || quiz.hasQuestionBreakdown === false) ? (
+            <div className="bg-white p-6 sm:p-8 rounded-xl border border-border-soft shadow-sm text-center">
+              <div className="inline-flex p-3 rounded-full bg-cream text-maroon mb-3">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-bold text-ink mb-1">Overall Marks Recorded</h3>
+              <p className="text-sm text-gray-body max-w-md mx-auto">
+                Overall score imported (no per-question topic breakdown). Your final score for this external assessment has been recorded in your academic profile.
+              </p>
+            </div>
+          ) : (
+            quiz.questions?.map((q: any, idx: number) => {
             const response = attempt.responses?.find((r: any) => r.questionId === q.id);
             const isObjective = ['MCQ', 'MULTI_SELECT', 'TRUE_FALSE', 'MATCHING', 'NUMERICAL', 'FILL_BLANK'].includes(q.type);
             const answered = response && response.answerData !== null && response.answerData !== undefined && response.answerData !== '';
@@ -242,7 +260,7 @@ export default function ExamResults() {
                 )}
               </div>
             );
-          })}
+          }))}
         </div>
       </div>
     </div>

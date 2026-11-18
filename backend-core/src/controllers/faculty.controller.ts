@@ -290,6 +290,8 @@ export const searchStudent = async (req: Request, res: Response, next: NextFunct
                 title: true,
                 subject: true,
                 totalMarks: true,
+                sourceType: true,
+                hasQuestionBreakdown: true,
                 createdAt: true
               }
             },
@@ -352,6 +354,8 @@ export const searchStudent = async (req: Request, res: Response, next: NextFunct
       return {
         quizId: attempt.quizId,
         title: attempt.quiz.title,
+        sourceType: (attempt.quiz as any).sourceType || 'ONLINE',
+        hasQuestionBreakdown: (attempt.quiz as any).hasQuestionBreakdown ?? true,
         score: percentage,
         totalScore,
         maxScore,
@@ -399,7 +403,7 @@ export const getStudentProfile = async (req: Request, res: Response, next: NextF
         quizAttempts: {
           where: { status: { in: ['SUBMITTED', 'EVALUATED'] } },
           include: {
-            quiz: { select: { id: true, title: true, subject: true, totalMarks: true, createdAt: true } },
+            quiz: { select: { id: true, title: true, subject: true, totalMarks: true, sourceType: true, hasQuestionBreakdown: true, createdAt: true } },
             responses: { include: { question: { select: { topic: true, marks: true } } } }
           },
           orderBy: { createdAt: 'desc' }
@@ -443,6 +447,8 @@ export const getStudentProfile = async (req: Request, res: Response, next: NextF
       return {
         quizId: attempt.quizId,
         title: attempt.quiz.title,
+        sourceType: (attempt.quiz as any).sourceType || 'ONLINE',
+        hasQuestionBreakdown: (attempt.quiz as any).hasQuestionBreakdown ?? true,
         score: percentage,
         band,
         date: attempt.createdAt.toISOString(),

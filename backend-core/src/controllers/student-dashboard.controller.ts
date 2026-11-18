@@ -22,7 +22,7 @@ export const getDashboardData = async (req: Request, res: Response) => {
       orderBy: { startTime: 'asc' },
       include: {
         quiz: {
-          select: { id: true, title: true, answersPublished: true, totalMarks: true },
+          select: { id: true, title: true, answersPublished: true, totalMarks: true, sourceType: true, hasQuestionBreakdown: true },
         },
       },
     });
@@ -104,6 +104,8 @@ export const getDashboardData = async (req: Request, res: Response) => {
           facultyFeedback: isPublished ? (a.facultyFeedback || null) : null,
           performanceCategory: isPublished ? (a.performanceCategory || null) : null,
           answersPublished: isPublished,
+          sourceType: a.quiz.sourceType || a.sourceType || 'ONLINE',
+          hasQuestionBreakdown: a.quiz.hasQuestionBreakdown ?? true,
         };
       });
 

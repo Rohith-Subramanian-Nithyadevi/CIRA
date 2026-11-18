@@ -148,4 +148,29 @@
   - `backend-core`: `npm run build` passed (`tsc` 0 errors); all 11 test suites passed (39 tests, 0 failures).
   - `frontend-web`: `npm run build` passed (`tsc -b && vite build` 0 errors); all 26 test suites passed (98 tests, 0 failures).
 
+## Follow-up: Offline / External Quiz Marksheet Import & Topic-Wise Analytics (2026-11-18)
+
+- **Objective**:
+  - Implement a full-featured marksheet import system for offline/external quizzes conducted outside the platform while preserving topic-wise student performance reports.
+- **Features Implemented**:
+  - **Two-Mode Offline Marksheet Import Flow (Faculty Quizzes Dashboard)**:
+    - Added "Import External Marksheet" modal with two modes:
+      - **Mode A (Question-Wise / Topic-Mapped Import)**: Lightweight question blueprint (`Q# | Topic Tag | Max Marks`) with dynamic table + quick paste question paper text parser; downloadable custom CSV/XLSX template; spreadsheet upload (.xlsx/.csv) or live interactive table with real-time scoring, validation status badges, and publish toggle. Creates lightweight question stubs (`NUMERICAL`, topic, marks) and responses feeding directly into the existing topic analytics engine.
+      - **Mode B (Total-Score-Only Import)**: Rapid marks entry with title, max marks, and overall topic tags. Uploads/enters student roll number/email and total score. Automatically sets `hasQuestionBreakdown: false`.
+  - **Backend Schema & Analytics Compatibility**:
+    - Extended Prisma schema with `enum QuizSourceType { ONLINE OFFLINE }`, added `sourceType` and `hasQuestionBreakdown` to `Quiz`, and `sourceType` to `QuizAttempt`.
+    - Added atomic transaction `importOfflineMarksheet` and `validateOfflineMarksheet` with server-side roster verification and scope enforcement.
+    - Zero proctoring violation overhead or behavioral tracking for offline attempts; attempts marked `EVALUATED`.
+    - Enforced guards in `startExam` and `getQuizInstructions` to prevent students from starting offline quizzes as online exams.
+  - **Student & Faculty Analytics & Report UI Integration**:
+    - Quizzes table and Submissions view badge external quizzes as "Offline / External Quiz" and replace live OTP card with informational offline assessment banner.
+    - In Student Reports, Mode A scores feed directly into student's topic-wise accuracy/strength calculation alongside online quizzes; Mode B quizzes display clean notice (`"Overall score imported (no per-question topic breakdown)"`) instead of blank charts.
+    - Student dashboard and exam results view clearly display "Offline / External Quiz" badge, total score, and graceful Mode B fallback.
+- **Validation**:
+  - Added `backend-core/tests/offline-marksheet.test.cjs` covering column header aliases, student matching, validation, atomic database transaction, analytics projection, and online-attempt prevention.
+  - Added `frontend-web/src/lib/csv.test.ts` for CSV parsing and download tests.
+  - `backend-core`: All 12 test suites passed (45 tests, 0 failures).
+  - `frontend-web`: All 26 test suites passed (100 tests, 0 failures).
+  - Production builds (`npm run build` in both `backend-core` and `frontend-web`) completed with 0 errors.
+
 

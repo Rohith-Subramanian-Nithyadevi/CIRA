@@ -154,7 +154,14 @@ export default function StudentDashboard() {
                   return (
                     <div key={quiz.id} className="bg-white dark:bg-[#222227] border border-border-soft dark:border-neutral-800 rounded-xl p-5 shadow-sm hover:border-maroon/30 dark:hover:border-rose-400/40 transition-colors">
                       <div className="flex justify-between items-start mb-3">
-                        <h3 className="font-bold text-ink dark:text-neutral-100 text-lg">{quiz.title}</h3>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-bold text-ink dark:text-neutral-100 text-lg">{quiz.title}</h3>
+                          {quiz.sourceType === 'OFFLINE' && (
+                            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border border-stone-200 dark:border-stone-700">
+                              Offline / External Quiz
+                            </span>
+                          )}
+                        </div>
                         <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${badgeClass}`}>
                           {badgeText}
                         </span>
@@ -224,7 +231,14 @@ export default function StudentDashboard() {
                     <div className="p-6 bg-cream/20 dark:bg-neutral-900/30">
                       <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4 mb-4">
                         <div>
-                          <h3 className="font-bold text-ink dark:text-neutral-100 text-lg">{quiz.title}</h3>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="font-bold text-ink dark:text-neutral-100 text-lg">{quiz.title}</h3>
+                            {quiz.sourceType === 'OFFLINE' && (
+                              <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border border-stone-200 dark:border-stone-700">
+                                Offline / External Quiz
+                              </span>
+                            )}
+                          </div>
                           <p className="text-xs text-gray-body dark:text-neutral-400 mt-1">
                             Submitted: {quiz.submittedAt ? new Date(quiz.submittedAt).toLocaleString() : 'Recorded'}
                           </p>
