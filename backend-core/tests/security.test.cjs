@@ -509,11 +509,17 @@ describe('faculty reports and student management scope', () => {
     const originalQuizFind = prisma.quiz.findUnique;
     const originalAttemptFind = prisma.quizAttempt.findMany;
     const userWheres = [];
+    let studentOrderBy;
     let attemptWhere;
     try {
-      prisma.user.findMany = async (args) => { userWheres.push(args.where); return []; };
+      prisma.user.findMany = async (args) => {
+        userWheres.push(args.where);
+        if (studentOrderBy === undefined) studentOrderBy = args.orderBy;
+        return [];
+      };
       prisma.user.count = async () => 0;
       await facultyController.getStudents({ user: { userId: 'faculty-1', role: 'FACULTY' }, facultyScope: scope, query: { year: '2024', departmentId: 'dept-1', sectionId: 'section-1', search: 'Alex' } }, { status() { return this; }, json() { return this; } }, (error) => { throw error; });
+      assert.deepEqual(studentOrderBy, [{ rollNumber: { sort: 'asc', nulls: 'last' } }, { name: 'asc' }]);
       await facultyController.getStudentFilterOptions({ user: { userId: 'faculty-1', role: 'FACULTY' }, facultyScope: scope, query: { year: '2024', departmentId: 'dept-1' } }, { status() { return this; }, json() { return this; } }, (error) => { throw error; });
       await facultyReportsController.getPerformanceBands({ user: { userId: 'faculty-1', role: 'FACULTY' }, facultyScope: scope, query: { year: '2024', departmentId: 'dept-1', sectionId: 'section-1' } }, { status() { return this; }, json() { return this; } }, (error) => { throw error; });
       prisma.quiz.findUnique = async () => ({ id: 'quiz-1', title: 'Quiz', totalMarks: 10, createdBy: 'faculty-2', targetDepartments: [], targetSections: [], targetStudents: [] });

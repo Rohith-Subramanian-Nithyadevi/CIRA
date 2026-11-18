@@ -27,6 +27,26 @@ describe('StudentReports authorized filters', () => {
     });
   });
 
+  it('shows a page loader until authorized filters finish loading', async () => {
+    let releaseFilterOptions!: () => void;
+    const filterOptionsPromise = new Promise((resolve) => {
+      releaseFilterOptions = () => resolve({ json: async () => ({ data: options }) });
+    });
+    (apiClient.fetch as jest.Mock).mockImplementation((path: string) => {
+      if (path.includes('/filter-options')) return filterOptionsPromise;
+      if (path.includes('/faculty/quiz')) return Promise.resolve({ json: async () => ({ data: [] }) });
+      return Promise.resolve({ ok: true, json: async () => ({ data: {} }) });
+    });
+
+    render(<StudentReports />);
+
+    expect(screen.getByRole('status')).toHaveTextContent('Loading student reports...');
+    expect(screen.queryByText('What is happening in your assigned classes?')).not.toBeInTheDocument();
+
+    releaseFilterOptions();
+    expect(await screen.findByLabelText('Year')).toBeInTheDocument();
+  });
+
   it('shows only server-returned assigned filters and sends cascading selections to scoped reports', async () => {
     render(<StudentReports />);
     expect(await screen.findByRole('option', { name: '2024' })).toBeInTheDocument();
