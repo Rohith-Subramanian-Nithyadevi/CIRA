@@ -182,8 +182,6 @@ export const OfflineMarksheetModal: React.FC<OfflineMarksheetModalProps> = ({
     }
   }, [questions, mode]);
 
-  if (!open) return null;
-
   // Question editing handlers
   const handleAddQuestion = () => {
     const nextNum = questions.length > 0 ? Math.max(...questions.map(q => q.questionNumber)) + 1 : 1;
@@ -616,6 +614,8 @@ export const OfflineMarksheetModal: React.FC<OfflineMarksheetModalProps> = ({
   }, [rows, rowStatusFilter]);
 
   const selectedClassLabel = loadedClasses.find(c => c.id === selectedClassId)?.label || 'No class selected';
+
+  if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
