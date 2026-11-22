@@ -12,9 +12,9 @@ router.use(attachFacultyScope);
 router.put('/profile', updateFacultyProfile);
 router.put('/evaluate', evaluateStudent);
 
-router.post('/enroll', enrollDepartment);
-router.delete('/enroll/:departmentId', unenrollDepartment);
-router.delete('/enroll/section/:sectionId', unenrollSection);
+router.post('/enroll', authorize(['ADMIN']), enrollDepartment);
+router.delete('/enroll/:departmentId', authorize(['ADMIN']), unenrollDepartment);
+router.delete('/enroll/section/:sectionId', authorize(['ADMIN']), unenrollSection);
 router.get('/departments', getEnrolledDepartments);
 router.get('/students/filter-options', getStudentFilterOptions);
 router.post('/students/:studentId/reset-password', authorize(['FACULTY']), resetStudentPassword);

@@ -186,6 +186,35 @@ export const getAllFaculty = async (req: Request, res: Response, next: NextFunct
           }
         },
         section: { select: { id: true, name: true } },
+        mappedDepartments: {
+          select: {
+            department: {
+              select: {
+                id: true,
+                name: true,
+                batchId: true,
+                batch: { select: { id: true, name: true, startYear: true } }
+              }
+            }
+          }
+        },
+        mappedSections: {
+          select: {
+            section: {
+              select: {
+                id: true,
+                name: true,
+                department: {
+                  select: {
+                    id: true,
+                    name: true,
+                    batch: { select: { id: true, name: true, startYear: true } }
+                  }
+                }
+              }
+            }
+          }
+        },
         approvalStatus: true,
         createdAt: true
       },
@@ -195,6 +224,115 @@ export const getAllFaculty = async (req: Request, res: Response, next: NextFunct
     res.status(200).json({
       status: 'success',
       data: { faculty }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const assignFacultyClasses = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { facultyId } = req.params;
+    const { departmentIds = [], sectionIds = [] } = req.body;
+
+    const faculty = await prisma.user.findUnique({
+      where: { id: facultyId as string }
+    });
+
+    if (!faculty || faculty.role !== 'FACULTY') {
+      throw new NotFoundError('Faculty member not found');
+    }
+
+    const cleanDeptIds: string[] = Array.isArray(departmentIds) ? departmentIds.filter(Boolean) : [];
+    const cleanSectionIds: string[] = Array.isArray(sectionIds) ? sectionIds.filter(Boolean) : [];
+
+    await prisma.$transaction(async (tx) => {
+      // 1. Clear existing assignments
+      await tx.facultyDepartment.deleteMany({
+        where: { userId: facultyId as string }
+      });
+      await tx.facultySection.deleteMany({
+        where: { userId: facultyId as string }
+      });
+
+      // 2. Add department-level assignments
+      if (cleanDeptIds.length > 0) {
+        await tx.facultyDepartment.createMany({
+          data: cleanDeptIds.map(dId => ({
+            userId: facultyId as string,
+            departmentId: dId
+          })),
+          skipDuplicates: true
+        });
+      }
+
+      // 3. Add section-level assignments
+      if (cleanSectionIds.length > 0) {
+        await tx.facultySection.createMany({
+          data: cleanSectionIds.map(sId => ({
+            userId: facultyId as string,
+            sectionId: sId
+          })),
+          skipDuplicates: true
+        });
+      }
+    });
+
+    // Return the fresh faculty record
+    const updatedFaculty = await prisma.user.findUnique({
+      where: { id: facultyId as string },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        employeeId: true,
+        department: {
+          select: {
+            id: true,
+            name: true,
+            batchId: true,
+            batch: { select: { id: true, name: true, startYear: true } }
+          }
+        },
+        section: { select: { id: true, name: true } },
+        mappedDepartments: {
+          select: {
+            department: {
+              select: {
+                id: true,
+                name: true,
+                batchId: true,
+                batch: { select: { id: true, name: true, startYear: true } }
+              }
+            }
+          }
+        },
+        mappedSections: {
+          select: {
+            section: {
+              select: {
+                id: true,
+                name: true,
+                department: {
+                  select: {
+                    id: true,
+                    name: true,
+                    batch: { select: { id: true, name: true, startYear: true } }
+                  }
+                }
+              }
+            }
+          }
+        },
+        approvalStatus: true,
+        createdAt: true
+      }
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Classes assigned successfully',
+      data: { faculty: updatedFaculty }
     });
   } catch (error) {
     next(error);
