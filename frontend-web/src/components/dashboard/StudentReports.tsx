@@ -683,7 +683,19 @@ export const StudentReports = () => {
         </div>
       </div>
 
-      {!selectedDept && availableDepartments.length > 0 && (
+      {!selectedDept && filterOptionsLoading && !isDemo && (
+        <div className="rounded-2xl border border-border-soft dark:border-neutral-800 bg-white/70 dark:bg-[#1E1E22] p-12 text-center shadow-xs">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-maroon/10 text-maroon">
+            <Loader2 className="h-7 w-7 animate-spin" />
+          </div>
+          <h2 className="font-serif text-lg font-bold text-ink dark:text-neutral-100">Loading student reports & filters…</h2>
+          <p className="mx-auto mt-1 max-w-sm text-xs text-gray-body dark:text-neutral-400">
+            Fetching your authorized classes and academic departments.
+          </p>
+        </div>
+      )}
+
+      {!filterOptionsLoading && !selectedDept && availableDepartments.length > 0 && (
         <div className="rounded-2xl border border-maroon/20 bg-white/90 dark:bg-[#1E1E22] p-8 text-center shadow-sm animate-in fade-in duration-300">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-maroon/10 text-maroon">
             <Users className="h-7 w-7" />
@@ -695,14 +707,14 @@ export const StudentReports = () => {
           <button
             type="button"
             onClick={() => setIsBranchDropdownOpen(true)}
-            className="mt-5 rounded-lg bg-maroon px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-maroon-deep"
+            className="mt-5 rounded-lg bg-maroon px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-maroon-deep cursor-pointer"
           >
             Choose Branch
           </button>
         </div>
       )}
 
-      {!selectedDept && availableDepartments.length === 0 && (
+      {!filterOptionsLoading && !selectedDept && availableDepartments.length === 0 && (
         <div className="space-y-6 animate-in fade-in duration-500">
           <section className="overflow-hidden rounded-2xl border border-maroon/20 bg-[linear-gradient(120deg,#fffaf2_0%,#ffffff_55%,#f8eee7_100%)] dark:bg-none dark:bg-[#1E1E22] shadow-sm">
             <div className="border-b border-maroon/10 px-6 py-5 md:px-8">

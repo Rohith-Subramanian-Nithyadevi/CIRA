@@ -28,7 +28,7 @@ const facultyNavigation: DashboardNavGroup[] = [
     label: 'Students',
     items: [
       { id: 'students', label: 'Student Directory', icon: UserRound },
-      { id: 'reports', label: 'Student Reports', icon: Users, badge: 'Analytics' },
+      { id: 'reports', label: 'Student Reports', icon: Users },
     ],
   },
   {

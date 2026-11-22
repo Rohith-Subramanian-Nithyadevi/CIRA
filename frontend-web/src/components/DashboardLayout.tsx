@@ -187,8 +187,7 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
           </button>
           <button title={!showLabels ? 'Student Reports' : undefined} aria-current={activeTab === 'reports' ? 'page' : undefined} onClick={() => handleNavClick('reports', closeOnSelect)} className={navClass('reports')}>
             <Users className={`w-5 h-5 shrink-0 ${iconMargin}`} />
-            {showLabels && <span className="flex-1 text-left truncate">Student Reports</span>}
-            {showLabels && <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-maroon/10 text-maroon dark:bg-maroon/30 dark:text-red-300 border border-maroon/20">Analytics</span>}
+            {showLabels && <span className="truncate">Student Reports</span>}
           </button>
           <button title={!showLabels ? 'My Profile' : undefined} aria-current={activeTab === 'profile' ? 'page' : undefined} onClick={() => handleNavClick('profile', closeOnSelect)} className={navClass('profile')}>
             <User className={`w-5 h-5 shrink-0 ${iconMargin}`} />
@@ -211,8 +210,7 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
           </button>
           <button title={!showLabels ? 'Student Reports' : undefined} aria-current={activeTab === 'reports' ? 'page' : undefined} onClick={() => handleNavClick('reports', closeOnSelect)} className={navClass('reports')}>
             <Users className={`w-5 h-5 shrink-0 ${iconMargin}`} />
-            {showLabels && <span className="flex-1 text-left truncate">Student Reports</span>}
-            {showLabels && <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-maroon/10 text-maroon dark:bg-maroon/30 dark:text-red-300 border border-maroon/20">Analytics</span>}
+            {showLabels && <span className="truncate">Student Reports</span>}
           </button>
           <button title={!showLabels ? 'Quizzes' : undefined} aria-current={activeTab === 'quizzes' ? 'page' : undefined} onClick={() => handleNavClick('quizzes', closeOnSelect)} className={navClass('quizzes')}>
             <BookOpen className={`w-5 h-5 shrink-0 ${iconMargin}`} />
