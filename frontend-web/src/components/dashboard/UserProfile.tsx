@@ -18,6 +18,11 @@ function FacultyReadOnlyProfile({ initialUser }: { initialUser: Record<string, a
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
+  const [assignedClasses, setAssignedClasses] = useState<{
+    departments: Array<{ id: string; name: string; batch?: { name: string } }>;
+    sections: Array<{ id: string; name: string; department?: { name: string; batch?: { name: string } } }>;
+  }>({ departments: [], sections: [] });
+  const [loadingClasses, setLoadingClasses] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -28,8 +33,26 @@ function FacultyReadOnlyProfile({ initialUser }: { initialUser: Record<string, a
     }).catch((cause) => {
       if (active) setError(getApiErrorMessage(cause, 'Profile details could not be loaded.'));
     });
+
+    if (user.role === 'FACULTY') {
+      setLoadingClasses(true);
+      apiClient.fetch('/api/v1/faculty/departments')
+        .then((res) => res.json())
+        .then((body) => {
+          if (!active || !body?.data) return;
+          setAssignedClasses({
+            departments: body.data.departments || [],
+            sections: body.data.sections || []
+          });
+        })
+        .catch(console.error)
+        .finally(() => {
+          if (active) setLoadingClasses(false);
+        });
+    }
+
     return () => { active = false; };
-  }, []);
+  }, [user.role]);
 
   const validateNewPassword = () => {
     if (newPassword.length < 8) return 'Password must be at least 8 characters long.';
@@ -73,6 +96,52 @@ function FacultyReadOnlyProfile({ initialUser }: { initialUser: Record<string, a
       <dt className="text-sm font-semibold text-gray-body dark:text-gray-400">{label}</dt>
       <dd className="mt-1 rounded-lg border border-border-soft bg-cream/40 px-4 py-2.5 text-ink dark:border-gray-700 dark:bg-gray-800 dark:text-cream">{String(value)}</dd>
     </div>)}</dl>
+
+    {/* Assigned Classes Section (Faculty only, read-only) */}
+    {user.role === 'FACULTY' && (
+      <div className="mt-8 pt-6 border-t border-border-soft dark:border-gray-800">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="font-serif text-lg font-bold text-ink dark:text-cream">Assigned Classes & Sections</h3>
+          <span className="text-xs text-gray-body dark:text-gray-400">Assigned by Admin</span>
+        </div>
+        <p className="text-xs text-gray-body dark:text-neutral-400 mb-3">
+          Classes and teaching sections are assigned by the administrator.
+        </p>
+
+        {loadingClasses ? (
+          <div className="p-4 rounded-lg border border-border-soft bg-cream/20 text-xs text-gray-body dark:border-gray-800 dark:bg-neutral-800/50">
+            Loading assigned classes...
+          </div>
+        ) : assignedClasses.departments.length === 0 && assignedClasses.sections.length === 0 ? (
+          <div className="p-4 rounded-lg border border-dashed border-border-soft bg-cream/20 dark:border-gray-700 dark:bg-neutral-800/40 text-center">
+            <p className="text-sm text-gray-body dark:text-neutral-400">No classes assigned yet.</p>
+            <p className="text-xs text-gray-body/70 dark:text-neutral-500 mt-1">Classes are assigned by the administrator.</p>
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {assignedClasses.departments.map(dept => (
+              <span
+                key={dept.id}
+                className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-maroon/10 text-maroon dark:bg-rose-500/20 dark:text-rose-300 border border-maroon/20 dark:border-rose-500/30"
+              >
+                {dept.batch?.name ? `${dept.batch.name} · ` : ''}{dept.name} (All Sections)
+              </span>
+            ))}
+            {assignedClasses.sections.map(sec => (
+              <span
+                key={sec.id}
+                className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium bg-cream/80 dark:bg-neutral-800 text-ink dark:text-neutral-200 border border-border-soft dark:border-neutral-700"
+              >
+                {sec.department?.batch?.name ? `${sec.department.batch.name} · ` : ''}
+                {sec.department?.name ? `${sec.department.name} — ` : ''}
+                Section {sec.name}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    )}
+
     {!changing ? <button type="button" onClick={() => { setError(''); setSuccess(''); setChanging(true); }} className="mt-6 rounded-full bg-maroon px-6 py-2.5 text-sm font-bold text-white hover:bg-maroon-deep">Change Password</button> :
       <form onSubmit={submitPasswordChange} className="mt-6 space-y-4" noValidate>
         <h3 className="font-serif text-lg font-bold text-ink dark:text-cream">Change Password</h3>
@@ -292,17 +361,15 @@ function LegacyUserProfile() {
           </div>
         )}
 
-        {/* ── DEPARTMENT / SECTION (STUDENT / FACULTY) ── */}
-        {role !== 'ADMIN' && (
+        {/* ── DEPARTMENT / SECTION (STUDENT ONLY) ── */}
+        {role === 'STUDENT' && (
           <div className="space-y-5 pt-5 border-t border-border-soft dark:border-neutral-800">
             <div>
               <h3 className="text-lg font-serif font-bold text-ink dark:text-neutral-100">
-                {role === 'STUDENT' ? 'Your Class Details' : 'Department Enrollment'}
+                Your Class Details
               </h3>
               <p className="text-xs text-gray-body dark:text-neutral-400 mt-0.5">
-                {role === 'STUDENT' 
-                  ? 'Update your class details to receive targeted announcements and quizzes.' 
-                  : 'Select a batch then a department to enroll. Only enrolled departments appear in Student Reports.'}
+                Update your class details to receive targeted announcements and quizzes.
               </p>
             </div>
 

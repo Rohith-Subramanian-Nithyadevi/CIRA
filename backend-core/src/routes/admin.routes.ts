@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getAllFaculty, approveFaculty, getAllUsers, deleteUser, importStudents } from '../controllers/admin.controller';
+import { getAllFaculty, approveFaculty, assignFacultyClasses, getAllUsers, deleteUser, importStudents } from '../controllers/admin.controller';
 import { authenticate, authorize } from '../middlewares/auth.middleware';
 import multer from 'multer';
 
@@ -12,6 +12,8 @@ router.use(authorize(['ADMIN', 'FACULTY']));
 
 router.get('/faculty/all', getAllFaculty);
 router.put('/faculty/:facultyId/approve', approveFaculty);
+router.put('/faculty/:facultyId/assign-classes', authorize(['ADMIN']), assignFacultyClasses);
+router.post('/faculty/:facultyId/assign-classes', authorize(['ADMIN']), assignFacultyClasses);
 
 router.get('/users', getAllUsers);
 router.delete('/users/:id', deleteUser);

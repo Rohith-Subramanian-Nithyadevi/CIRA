@@ -14,7 +14,9 @@ import {
   KeyRound,
   Eye,
   Filter,
-  X
+  X,
+  BookOpen,
+  GraduationCap
 } from 'lucide-react';
 
 interface Faculty {
@@ -22,8 +24,27 @@ interface Faculty {
   name: string;
   email: string;
   employeeId?: string;
-  department?: { id: string; name: string } | null;
+  department?: { id: string; name: string; batchId?: string; batch?: { id: string; name: string; startYear: number } } | null;
   section?: { id: string; name: string } | null;
+  mappedDepartments?: Array<{
+    department: {
+      id: string;
+      name: string;
+      batchId?: string;
+      batch?: { id: string; name: string; startYear: number };
+    };
+  }>;
+  mappedSections?: Array<{
+    section: {
+      id: string;
+      name: string;
+      department?: {
+        id: string;
+        name: string;
+        batch?: { id: string; name: string; startYear: number };
+      };
+    };
+  }>;
   approvalStatus: 'PENDING' | 'APPROVED' | 'REJECTED';
   createdAt?: string;
 }
@@ -122,6 +143,68 @@ export default function FacultyManagement({ initialTab }: FacultyManagementProps
     id: string;
     name: string;
   } | null>(null);
+
+  // Assign classes modal state
+  const [assignModalFaculty, setAssignModalFaculty] = useState<Faculty | null>(null);
+  const [selectedDeptIds, setSelectedDeptIds] = useState<string[]>([]);
+  const [selectedSectionIds, setSelectedSectionIds] = useState<string[]>([]);
+  const [savingAssignments, setSavingAssignments] = useState(false);
+  const [assignSearch, setAssignSearch] = useState('');
+
+  const handleOpenAssignModal = (faculty: Faculty) => {
+    setAssignModalFaculty(faculty);
+    const currDeptIds = (faculty.mappedDepartments || []).map(m => m.department.id);
+    const currSectionIds = (faculty.mappedSections || []).map(m => m.section.id);
+    setSelectedDeptIds(currDeptIds);
+    setSelectedSectionIds(currSectionIds);
+    setAssignSearch('');
+  };
+
+  const handleToggleDeptAssignment = (deptId: string) => {
+    setSelectedDeptIds(prev => 
+      prev.includes(deptId) ? prev.filter(id => id !== deptId) : [...prev, deptId]
+    );
+  };
+
+  const handleToggleSectionAssignment = (sectionId: string) => {
+    setSelectedSectionIds(prev =>
+      prev.includes(sectionId) ? prev.filter(id => id !== sectionId) : [...prev, sectionId]
+    );
+  };
+
+  const handleSaveAssignments = async () => {
+    if (!assignModalFaculty) return;
+    setSavingAssignments(true);
+    try {
+      const res = await apiClient.fetch(`/api/v1/admin/faculty/${assignModalFaculty.id}/assign-classes`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          departmentIds: selectedDeptIds,
+          sectionIds: selectedSectionIds,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.status === 'success') {
+        toast.success(`Classes assigned to ${assignModalFaculty.name} successfully.`);
+        if (data.data?.faculty) {
+          setFacultyList(prev =>
+            prev.map(f => (f.id === assignModalFaculty.id ? { ...f, ...data.data.faculty } : f))
+          );
+        } else {
+          fetchAdminData();
+        }
+        setAssignModalFaculty(null);
+      } else {
+        toast.error(data?.message || 'Failed to assign classes.');
+      }
+    } catch (err) {
+      toast.error('Network error while assigning classes.');
+    } finally {
+      setSavingAssignments(false);
+    }
+  };
 
   // Fetch all primary admin data (faculty, users, batches, and all departments)
   const fetchAdminData = async () => {
@@ -589,6 +672,7 @@ export default function FacultyManagement({ initialTab }: FacultyManagementProps
                       <th className="px-6 py-3">Name</th>
                       <th className="px-6 py-3">Employee ID</th>
                       <th className="px-6 py-3">Email</th>
+                      <th className="px-6 py-3">Assigned Classes</th>
                       <th className="px-6 py-3">Status</th>
                       <th className="px-6 py-3 text-right">Actions</th>
                     </tr>
@@ -600,6 +684,42 @@ export default function FacultyManagement({ initialTab }: FacultyManagementProps
                         <td className="px-6 py-4 font-mono text-xs">{faculty.employeeId || '—'}</td>
                         <td className="px-6 py-4 text-gray-body dark:text-neutral-400">{faculty.email}</td>
                         <td className="px-6 py-4">
+                          {(() => {
+                            const deptCount = faculty.mappedDepartments?.length || 0;
+                            const secCount = faculty.mappedSections?.length || 0;
+                            const totalCount = deptCount + secCount;
+                            if (totalCount === 0) {
+                              return (
+                                <span className="text-xs text-gray-body/60 dark:text-neutral-500 italic">
+                                  No classes assigned
+                                </span>
+                              );
+                            }
+                            return (
+                              <div className="flex flex-wrap gap-1.5 max-w-xs">
+                                {faculty.mappedDepartments?.map(md => (
+                                  <span
+                                    key={`dept-${md.department.id}`}
+                                    title={`${md.department.batch?.name ? `${md.department.batch.name} · ` : ''}${md.department.name} (All Sections)`}
+                                    className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-maroon/10 text-maroon dark:bg-rose-500/20 dark:text-rose-300"
+                                  >
+                                    {md.department.name} (All)
+                                  </span>
+                                ))}
+                                {faculty.mappedSections?.map(ms => (
+                                  <span
+                                    key={`sec-${ms.section.id}`}
+                                    title={`${ms.section.department?.name || ''} - Section ${ms.section.name}`}
+                                    className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-cream-edge/60 dark:bg-neutral-800 text-ink dark:text-neutral-300 border border-border-soft dark:border-neutral-700"
+                                  >
+                                    {ms.section.department?.name ? `${ms.section.department.name} - ` : ''}Sec {ms.section.name}
+                                  </span>
+                                ))}
+                              </div>
+                            );
+                          })()}
+                        </td>
+                        <td className="px-6 py-4">
                           <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${
                             faculty.approvalStatus === 'APPROVED' ? 'bg-green-500/10 text-green-700 dark:text-emerald-300 border-green-200 dark:border-emerald-800' : 
                             faculty.approvalStatus === 'PENDING' ? 'bg-yellow-500/10 text-yellow-700 dark:text-amber-300 border-yellow-200 dark:border-amber-800' : 
@@ -609,6 +729,16 @@ export default function FacultyManagement({ initialTab }: FacultyManagementProps
                           </span>
                         </td>
                         <td className="px-6 py-4 text-right">
+                          {faculty.approvalStatus === 'APPROVED' && (
+                            <button
+                              onClick={() => handleOpenAssignModal(faculty)}
+                              className="text-maroon dark:text-rose-400 hover:text-maroon-deep mr-4 font-semibold inline-flex items-center gap-1 cursor-pointer"
+                              title="Assign classes and sections to this faculty member"
+                            >
+                              <BookOpen className="w-3.5 h-3.5" />
+                              <span>Assign</span>
+                            </button>
+                          )}
                           {faculty.approvalStatus !== 'APPROVED' && (
                             <button
                               onClick={() => handleApproval(faculty.id, 'APPROVED')}
@@ -1054,6 +1184,232 @@ export default function FacultyManagement({ initialTab }: FacultyManagementProps
                   </div>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Class Assignment Modal */}
+      {assignModalFaculty && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="assign-classes-title"
+        >
+          <div className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl border border-border-soft dark:border-neutral-800 bg-white dark:bg-[#1E1E22] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="p-6 border-b border-border-soft dark:border-neutral-800 flex items-start justify-between gap-4 bg-cream/30 dark:bg-neutral-900/40">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-maroon/10 text-maroon dark:bg-rose-500/15 dark:text-rose-400">
+                  <GraduationCap className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 id="assign-classes-title" className="text-xl font-serif font-bold text-ink dark:text-neutral-100">
+                    Assign Classes & Sections
+                  </h3>
+                  <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-gray-body dark:text-neutral-400">
+                    <span className="font-semibold text-ink dark:text-neutral-200">{assignModalFaculty.name}</span>
+                    <span>·</span>
+                    <span>{assignModalFaculty.email}</span>
+                    {assignModalFaculty.employeeId && (
+                      <>
+                        <span>·</span>
+                        <span className="font-mono bg-cream dark:bg-neutral-800 px-1.5 py-0.5 rounded border border-border-soft dark:border-neutral-700">
+                          ID: {assignModalFaculty.employeeId}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAssignModalFaculty(null)}
+                aria-label="Close modal"
+                className="text-gray-body hover:text-ink dark:text-neutral-400 dark:hover:text-neutral-100 p-1.5 rounded-lg hover:bg-cream dark:hover:bg-neutral-800 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Modal Subheader & Search */}
+            <div className="px-6 py-3 border-b border-border-soft dark:border-neutral-800 bg-cream/10 dark:bg-neutral-900/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <p className="text-xs text-gray-body dark:text-neutral-400">
+                Select authorized departments or individual sections. Enrolled classes appear in the faculty member&apos;s Student Reports and exam scoping.
+              </p>
+              {allDepartments.length > 3 && (
+                <div className="relative shrink-0">
+                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-muted" />
+                  <input
+                    type="text"
+                    value={assignSearch}
+                    onChange={(e) => setAssignSearch(e.target.value)}
+                    placeholder="Filter classes..."
+                    className="pl-8 pr-2.5 py-1 text-xs bg-white dark:bg-neutral-800 border border-border-soft dark:border-neutral-700 rounded-lg text-ink dark:text-neutral-100 outline-none w-44"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Modal Body: Batches, Departments & Sections */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {batches.length === 0 && allDepartments.length === 0 ? (
+                <div className="text-center py-8 text-gray-body dark:text-neutral-400 text-sm italic">
+                  No academic batches or departments configured. Please add batches and departments in the Departments tab first.
+                </div>
+              ) : (
+                (() => {
+                  const query = assignSearch.trim().toLowerCase();
+                  const batchGroups = batches.map(batch => {
+                    const depts = allDepartments.filter(d => {
+                      if (d.batchId !== batch.id) return false;
+                      if (!query) return true;
+                      const matchDept = d.name.toLowerCase().includes(query);
+                      const matchBatch = batch.name.toLowerCase().includes(query);
+                      const matchSec = (d.sections || []).some(s => s.name.toLowerCase().includes(query));
+                      return matchDept || matchBatch || matchSec;
+                    });
+                    return { batch, depts };
+                  }).filter(g => g.depts.length > 0);
+
+                  if (batchGroups.length === 0) {
+                    return (
+                      <p className="text-center py-8 text-gray-body dark:text-neutral-400 text-sm italic">
+                        No departments or sections match &ldquo;{assignSearch}&rdquo;.
+                      </p>
+                    );
+                  }
+
+                  return batchGroups.map(({ batch, depts }) => (
+                    <div key={batch.id} className="space-y-3">
+                      <div className="flex items-center gap-2 pb-1.5 border-b border-border-soft dark:border-neutral-800">
+                        <span className="text-xs font-bold uppercase tracking-wider text-maroon dark:text-rose-400">
+                          {batch.name}
+                        </span>
+                        <span className="text-xs text-gray-body dark:text-neutral-500">
+                          (Year {batch.startYear})
+                        </span>
+                      </div>
+
+                      <div className="space-y-3 pl-1">
+                        {depts.map(dept => {
+                          const isDeptSelected = selectedDeptIds.includes(dept.id);
+                          const sections = dept.sections || [];
+
+                          return (
+                            <div 
+                              key={dept.id} 
+                              className={`rounded-xl border p-4 transition-all ${
+                                isDeptSelected 
+                                  ? 'border-maroon/40 bg-maroon/[0.03] dark:border-rose-500/40 dark:bg-rose-500/[0.05]' 
+                                  : 'border-border-soft dark:border-neutral-800 bg-white dark:bg-[#242429]'
+                              }`}
+                            >
+                              {/* Department level checkbox */}
+                              <div className="flex items-start justify-between gap-3">
+                                <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                                  <input
+                                    type="checkbox"
+                                    checked={isDeptSelected}
+                                    onChange={() => handleToggleDeptAssignment(dept.id)}
+                                    className="mt-1 h-4 w-4 rounded border-border-soft text-maroon focus:ring-maroon cursor-pointer"
+                                  />
+                                  <div>
+                                    <span className="font-semibold text-sm text-ink dark:text-neutral-100">
+                                      {dept.name}
+                                    </span>
+                                    <span className="ml-2 text-xs text-maroon dark:text-rose-400 font-medium">
+                                      (All Sections)
+                                    </span>
+                                    <p className="text-xs text-gray-body dark:text-neutral-400 mt-0.5">
+                                      Assigns instructor to all current and future sections in this department.
+                                    </p>
+                                  </div>
+                                </label>
+                              </div>
+
+                              {/* Individual sections */}
+                              {sections.length > 0 && (
+                                <div className="mt-3 pt-3 border-t border-border-soft/60 dark:border-neutral-800/80 pl-6 space-y-2">
+                                  <div className="text-[11px] font-semibold uppercase tracking-wider text-gray-body dark:text-neutral-400">
+                                    Or assign specific sections:
+                                  </div>
+                                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                    {sections.map(section => {
+                                      const isSecSelected = selectedSectionIds.includes(section.id);
+                                      const effectivelySelected = isDeptSelected || isSecSelected;
+
+                                      return (
+                                        <label 
+                                          key={section.id} 
+                                          className={`flex items-center gap-2 p-2 rounded-lg border text-xs cursor-pointer select-none transition-colors ${
+                                            isDeptSelected
+                                              ? 'border-maroon/20 bg-maroon/[0.05] dark:border-rose-500/20 dark:bg-rose-500/10 opacity-75'
+                                              : isSecSelected
+                                                ? 'border-maroon/40 bg-maroon/10 dark:border-rose-500/40 dark:bg-rose-500/20 text-maroon dark:text-rose-300 font-semibold'
+                                                : 'border-border-soft dark:border-neutral-700 bg-cream/30 dark:bg-neutral-800 text-ink dark:text-neutral-200 hover:bg-cream dark:hover:bg-neutral-700'
+                                          }`}
+                                        >
+                                          <input
+                                            type="checkbox"
+                                            checked={effectivelySelected}
+                                            disabled={isDeptSelected}
+                                            onChange={() => handleToggleSectionAssignment(section.id)}
+                                            className="h-3.5 w-3.5 rounded border-border-soft text-maroon focus:ring-maroon cursor-pointer disabled:cursor-not-allowed"
+                                          />
+                                          <span className="truncate">Section {section.name}</span>
+                                          {isDeptSelected && (
+                                            <span className="text-[10px] text-maroon dark:text-rose-400 font-normal ml-auto">
+                                              (via Dept)
+                                            </span>
+                                          )}
+                                        </label>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ));
+                })()
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-border-soft dark:border-neutral-800 bg-cream/30 dark:bg-neutral-900/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="text-xs text-gray-body dark:text-neutral-400 font-medium">
+                {selectedDeptIds.length} whole department(s) and {selectedSectionIds.length} individual section(s) selected
+              </div>
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setAssignModalFaculty(null)}
+                  disabled={savingAssignments}
+                  className="px-4 py-2 text-xs font-bold text-gray-body hover:text-ink dark:text-neutral-400 dark:hover:text-neutral-200 border border-border-soft dark:border-neutral-700 rounded-lg hover:bg-cream dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveAssignments}
+                  disabled={savingAssignments}
+                  className="px-5 py-2 text-xs font-bold text-white bg-maroon hover:bg-maroon-deep dark:bg-maroon dark:hover:bg-maroon-deep rounded-lg shadow-sm transition-colors cursor-pointer disabled:opacity-50 inline-flex items-center gap-1.5"
+                >
+                  {savingAssignments ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <span>Save Assignments</span>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>

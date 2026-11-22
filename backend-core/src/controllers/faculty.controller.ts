@@ -90,8 +90,15 @@ export const evaluateStudent = async (req: Request, res: Response, next: NextFun
 
 export const enrollDepartment = async (req: Request, res: Response, next: NextFunction) => {
   try {
+    if (req.user?.role !== 'ADMIN') {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Faculty self-enrollment is disabled. Classes are assigned exclusively by an administrator.'
+      });
+    }
+
     const { departmentId, sectionId } = req.body;
-    const userId = req.user!.userId;
+    const userId = req.body.userId || req.user!.userId;
 
     if (sectionId) {
       const mapping = await prisma.facultySection.create({
@@ -113,8 +120,15 @@ export const enrollDepartment = async (req: Request, res: Response, next: NextFu
 
 export const unenrollDepartment = async (req: Request, res: Response, next: NextFunction) => {
   try {
+    if (req.user?.role !== 'ADMIN') {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Faculty self-enrollment is disabled. Classes are assigned exclusively by an administrator.'
+      });
+    }
+
     const { departmentId } = req.params;
-    const userId = req.user!.userId;
+    const userId = req.body?.userId || req.user!.userId;
 
     await prisma.facultyDepartment.delete({
       where: { userId_departmentId: { userId, departmentId: departmentId as string } }
@@ -128,8 +142,15 @@ export const unenrollDepartment = async (req: Request, res: Response, next: Next
 
 export const unenrollSection = async (req: Request, res: Response, next: NextFunction) => {
   try {
+    if (req.user?.role !== 'ADMIN') {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Faculty self-enrollment is disabled. Classes are assigned exclusively by an administrator.'
+      });
+    }
+
     const { sectionId } = req.params;
-    const userId = req.user!.userId;
+    const userId = req.body?.userId || req.user!.userId;
 
     await prisma.facultySection.delete({
       where: { userId_sectionId: { userId, sectionId: sectionId as string } }
