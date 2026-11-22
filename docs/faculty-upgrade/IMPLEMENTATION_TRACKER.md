@@ -200,5 +200,33 @@
   - `backend-core`: Added tests in `backend-core/tests/offline-marksheet.test.cjs` for mandatory class selection and unmatched student 400 rejection; all 12 test suites passed (47 tests, 0 failures).
   - `frontend-web`: `tsc -b && vite build` completed with 0 errors; all 26 Jest test suites passed (100 tests, 0 failures).
 
+## Follow-up: Removal of Admin Hub & Consolidation into Faculty Management (2026-11-22)
+
+- **Objective**:
+  - Remove standalone Admin Hub and dedicated `/admin` routes.
+  - Consolidate all administration capabilities (Faculty Approvals, User Management, Student Bulk Import, Batches, Departments, and Sections) directly into the Faculty Management module under horizontal sub-tabs.
+  - Update backend role guards so both `FACULTY` and `ADMIN` roles seamlessly access management routes without 403 errors.
+- **Removed Admin Hub Files & Navigation**:
+  - Deleted `frontend-web/src/pages/AdminDashboard.tsx`.
+  - Removed Admin Hub routes (`/admin/dashboard`) from `App.tsx` and redirected all `/admin` and `/admin/*` traffic directly to `/faculty/dashboard?tab=management`.
+  - Removed legacy Admin Hub navigation items from `DashboardLayout.tsx`.
+- **Merged Faculty Management Module**:
+  - Created `frontend-web/src/components/dashboard/FacultyManagement.tsx`:
+    - Top summary stats: Total Faculty, Pending Approvals, Registered Users, Academic Batches.
+    - Clean horizontal sub-tabs:
+      - **Faculty Approvals**: Searchable list with quick filter chips (`All`, `Pending`, `Approved`, `Rejected`), employee IDs, approval/revoke actions with inline loading.
+      - **User Directory & Student Import**: Bulk CSV/XLSX enrollment with template download & structured rejection diagnostics; user accounts table with role filter and permanent delete action via `DeleteConfirmationDialog`.
+      - **Departments & Sections**: Batch list selector, department creation, department delete, and interactive section creation panel.
+  - Added "Faculty Management" under the "Administration" group in `FacultyDashboard.tsx` (`tab=management` and alias `tab=admin`).
+  - Updated `ProtectedRoute.tsx` and `Login.tsx` to route `ADMIN` and `FACULTY` accounts to the unified workspace.
+- **Backend Role Guard Updates**:
+  - `backend-core/src/routes/admin.routes.ts`: Updated to `authorize(['ADMIN', 'FACULTY'])`.
+  - `backend-core/src/routes/department.routes.ts`: Updated to `authorize(['ADMIN', 'FACULTY'])`.
+  - `backend-core/src/routes/faculty-reports.routes.ts`: Updated to `authorize(['FACULTY', 'ADMIN'])`.
+- **Validation**:
+  - `backend-core`: All 18 test suites passed (85 tests, 0 failures).
+  - `frontend-web`: `tsc -b && vite build` succeeded with 0 errors; all 26 test suites passed (101 tests, 0 failures).
+
+
 
 

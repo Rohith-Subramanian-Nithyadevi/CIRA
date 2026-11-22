@@ -7,9 +7,9 @@ const router = Router();
 // Public route so Registration page can load dropdowns
 router.get('/', getAllDepartments);
 
-// Admin protected routes
+// Admin/Faculty protected routes
 router.use(authenticate);
-router.use(authorize(['ADMIN']));
+router.use(authorize(['ADMIN', 'FACULTY']));
 
 router.post('/', createDepartment);
 router.delete('/:id', deleteDepartment);

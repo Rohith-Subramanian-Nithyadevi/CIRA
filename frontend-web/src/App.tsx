@@ -3,7 +3,6 @@ import { Toaster } from 'sonner';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import LandingPage from './pages/LandingPage';
 import Login from './pages/Login';
-import AdminDashboard from './pages/AdminDashboard';
 import FacultyDashboard from './pages/FacultyDashboard';
 import StudentDashboard from './pages/StudentDashboard';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -53,16 +52,13 @@ function App() {
           </ProtectedRoute>
         } />
         
-        {/* Protected Admin Routes */}
-        <Route path="/admin/dashboard" element={
-          <ProtectedRoute allowedRoles={['ADMIN']}>
-            <AdminDashboard />
-          </ProtectedRoute>
-        } />
+        {/* Legacy Admin Routes redirecting to merged Faculty Management */}
+        <Route path="/admin" element={<Navigate to="/faculty/dashboard?tab=management" replace />} />
+        <Route path="/admin/*" element={<Navigate to="/faculty/dashboard?tab=management" replace />} />
 
-        {/* Protected Faculty Routes */}
+        {/* Protected Faculty & Administration Routes */}
         <Route path="/faculty/dashboard" element={
-          <ProtectedRoute allowedRoles={['FACULTY']}>
+          <ProtectedRoute allowedRoles={['FACULTY', 'ADMIN']}>
             <FacultyDashboard />
           </ProtectedRoute>
         } />

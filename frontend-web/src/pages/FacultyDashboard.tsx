@@ -7,13 +7,14 @@ import QuizManagement from '../components/dashboard/QuizManagement';
 import { StudentReports } from '../components/dashboard/StudentReports';
 import AssignmentManagement from '../components/dashboard/AssignmentManagement';
 import FacultyStudentsDirectory from '../components/dashboard/FacultyStudentsDirectory';
-import { Bell, BookOpen, FileText, Home, ListChecks, ScrollText, User, Users, UserRound } from 'lucide-react';
+import { Bell, BookOpen, FileText, Home, ListChecks, ScrollText, ShieldCheck, User, Users, UserRound } from 'lucide-react';
 import type { DashboardNavGroup } from '../components/DashboardLayout';
 import FacultyCommandPalette from '../components/dashboard/FacultyCommandPalette';
 import { FacultyDemoProvider } from '../context/FacultyDemoContext';
 import QuestionBank from '../components/dashboard/QuestionBank';
 import QuestionPaperManagement from '../components/dashboard/QuestionPaperManagement';
 import { FacultyNotificationsPage, FacultyNotificationsProvider } from '../components/dashboard/FacultyNotifications';
+import FacultyManagement from '../components/dashboard/FacultyManagement';
 
 const facultyNavigation: DashboardNavGroup[] = [
   {
@@ -40,6 +41,12 @@ const facultyNavigation: DashboardNavGroup[] = [
     ],
   },
   {
+    label: 'Administration',
+    items: [
+      { id: 'management', label: 'Faculty Management', icon: ShieldCheck },
+    ],
+  },
+  {
     label: 'Account',
     items: [
       { id: 'profile', label: 'My Profile', icon: User },
@@ -47,7 +54,10 @@ const facultyNavigation: DashboardNavGroup[] = [
   },
 ];
 
-const allowedFacultyTabs = new Set(facultyNavigation.flatMap((group) => group.items.map((item) => item.id)));
+const allowedFacultyTabs = new Set([
+  ...facultyNavigation.flatMap((group) => group.items.map((item) => item.id)),
+  'admin'
+]);
 
 export default function FacultyDashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -87,7 +97,7 @@ export default function FacultyDashboard() {
     <FacultyDemoProvider value={isDemo}>
     <>
     <FacultyNotificationsProvider isDemo={isDemo} onNavigate={navigateFaculty}>
-    <DashboardLayout title={activeTab === 'notifications' ? 'Notifications' : 'Faculty Workspace'} activeTab={activeTab} onTabChange={navigateFaculty} facultyNavigation={facultyNavigation} onCommandPalette={() => setCommandPaletteOpen(true)} isDemo={isDemo} onToggleDemo={setIsDemo} facultySidebarCollapsible>
+    <DashboardLayout title={activeTab === 'notifications' ? 'Notifications' : (activeTab === 'management' || activeTab === 'admin') ? 'Faculty Management' : 'Faculty Workspace'} activeTab={activeTab === 'admin' ? 'management' : activeTab} onTabChange={navigateFaculty} facultyNavigation={facultyNavigation} onCommandPalette={() => setCommandPaletteOpen(true)} isDemo={isDemo} onToggleDemo={setIsDemo} facultySidebarCollapsible>
       {activeTab === 'profile' && <UserProfile />}
       {activeTab === 'home' && <FacultyHome onNavigate={navigateFaculty} />}
       {activeTab === 'notifications' && <FacultyNotificationsPage />}
@@ -96,6 +106,7 @@ export default function FacultyDashboard() {
       {activeTab === 'quizzes' && <QuizManagement initialSubmissionsQuizId={paperSubmissionsId} />}
       {activeTab === 'assignments' && <AssignmentManagement />}
       {activeTab === 'question-bank' && <QuestionBank />}
+      {(activeTab === 'management' || activeTab === 'admin') && <FacultyManagement />}
       {activeTab === 'question-papers' && <QuestionPaperManagement onSubmissions={(id) => {
         setPaperSubmissionsId(id);
         const nextParams = new URLSearchParams(searchParams);

@@ -11,7 +11,6 @@ const renderLogin = () => {
         <Route path="/login" element={<Login />} />
         <Route path="/student/dashboard" element={<h1>Student Dashboard</h1>} />
         <Route path="/faculty/dashboard" element={<h1>Faculty Dashboard</h1>} />
-        <Route path="/admin/dashboard" element={<h1>Admin Dashboard</h1>} />
       </Routes>
       <Toaster />
     </MemoryRouter>

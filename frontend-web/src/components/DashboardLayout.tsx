@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, BookOpen, LogOut, FileText, CheckSquare, Settings, User, Home, BookMarked, Target, Database, Bell, ChevronLeft, ChevronRight, Menu, X, Search } from 'lucide-react';
+import { LayoutDashboard, Users, BookOpen, LogOut, FileText, User, Home, BookMarked, Target, Database, Bell, ChevronLeft, ChevronRight, Menu, X, Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import React, { useEffect, useRef, useState } from 'react';
 import ThemeToggle from './ui/ThemeToggle';
@@ -34,7 +34,7 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
   const mobileNavRef = useRef<HTMLElement>(null);
   const user = JSON.parse(localStorage.getItem('cira_user') || '{}');
   const role = user.role || 'STUDENT';
-  const useFacultyNavigation = role === 'FACULTY' && Boolean(facultyNavigation);
+  const useFacultyNavigation = (role === 'FACULTY' || role === 'ADMIN') && Boolean(facultyNavigation);
 
   const [isCollapsed, setIsCollapsed] = useState(() => {
     return localStorage.getItem('cira_sidebar_collapsed') === 'true';
@@ -170,43 +170,20 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
     const navClass = (tab: string) => getNavClass(tab, closeOnSelect);
     const iconMargin = showLabels ? 'mr-3' : '';
 
-    if (role === 'ADMIN') {
-      return (
-        <>
-          <button title={!showLabels ? 'Admin Hub' : undefined} aria-current={activeTab === 'hub' ? 'page' : undefined} onClick={() => handleNavClick('hub', closeOnSelect)} className={navClass('hub')}>
-            <LayoutDashboard className={`w-5 h-5 shrink-0 ${iconMargin}`} />
-            {showLabels && <span className="truncate">Admin Hub</span>}
-          </button>
-          <button title={!showLabels ? 'Faculty Approvals' : undefined} aria-current={activeTab === 'faculty' ? 'page' : undefined} onClick={() => handleNavClick('faculty', closeOnSelect)} className={navClass('faculty')}>
-            <CheckSquare className={`w-5 h-5 shrink-0 ${iconMargin}`} />
-            {showLabels && <span className="truncate">Faculty Approvals</span>}
-          </button>
-          <button title={!showLabels ? 'User Management' : undefined} aria-current={activeTab === 'users' ? 'page' : undefined} onClick={() => handleNavClick('users', closeOnSelect)} className={navClass('users')}>
-            <Users className={`w-5 h-5 shrink-0 ${iconMargin}`} />
-            {showLabels && <span className="truncate">User Management</span>}
-          </button>
-          <button title={!showLabels ? 'Departments' : undefined} aria-current={activeTab === 'departments' ? 'page' : undefined} onClick={() => handleNavClick('departments', closeOnSelect)} className={navClass('departments')}>
-            <Settings className={`w-5 h-5 shrink-0 ${iconMargin}`} />
-            {showLabels && <span className="truncate">Departments</span>}
-          </button>
-          <button title={!showLabels ? 'My Profile' : undefined} aria-current={activeTab === 'profile' ? 'page' : undefined} onClick={() => handleNavClick('profile', closeOnSelect)} className={navClass('profile')}>
-            <User className={`w-5 h-5 shrink-0 ${iconMargin}`} />
-            {showLabels && <span className="truncate">My Profile</span>}
-          </button>
-        </>
-      );
-    }
-
-    if (role === 'FACULTY' && useFacultyNavigation) {
+    if ((role === 'FACULTY' || role === 'ADMIN') && useFacultyNavigation) {
       return renderFacultyNavigation(closeOnSelect);
     }
 
-    if (role === 'FACULTY') {
+    if (role === 'FACULTY' || role === 'ADMIN') {
       return (
         <>
           <button title={!showLabels ? 'Home' : undefined} aria-current={activeTab === 'home' ? 'page' : undefined} onClick={() => handleNavClick('home', closeOnSelect)} className={navClass('home')}>
             <Home className={`w-5 h-5 shrink-0 ${iconMargin}`} />
             {showLabels && <span className="truncate">Home</span>}
+          </button>
+          <button title={!showLabels ? 'Faculty Management' : undefined} aria-current={activeTab === 'management' ? 'page' : undefined} onClick={() => handleNavClick('management', closeOnSelect)} className={navClass('management')}>
+            <Users className={`w-5 h-5 shrink-0 ${iconMargin}`} />
+            {showLabels && <span className="truncate">Faculty Management</span>}
           </button>
           <button title={!showLabels ? 'Student Reports' : undefined} aria-current={activeTab === 'reports' ? 'page' : undefined} onClick={() => handleNavClick('reports', closeOnSelect)} className={navClass('reports')}>
             <Users className={`w-5 h-5 shrink-0 ${iconMargin}`} />
