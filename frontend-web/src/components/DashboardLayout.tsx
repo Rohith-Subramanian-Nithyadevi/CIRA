@@ -174,7 +174,31 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
       return renderFacultyNavigation(closeOnSelect);
     }
 
-    if (role === 'FACULTY' || role === 'ADMIN') {
+    if (role === 'ADMIN') {
+      return (
+        <>
+          <button title={!showLabels ? 'Home' : undefined} aria-current={activeTab === 'home' ? 'page' : undefined} onClick={() => handleNavClick('home', closeOnSelect)} className={navClass('home')}>
+            <Home className={`w-5 h-5 shrink-0 ${iconMargin}`} />
+            {showLabels && <span className="truncate">Home</span>}
+          </button>
+          <button title={!showLabels ? 'Faculty Management' : undefined} aria-current={activeTab === 'management' ? 'page' : undefined} onClick={() => handleNavClick('management', closeOnSelect)} className={navClass('management')}>
+            <Users className={`w-5 h-5 shrink-0 ${iconMargin}`} />
+            {showLabels && <span className="truncate">Faculty Management</span>}
+          </button>
+          <button title={!showLabels ? 'Student Reports' : undefined} aria-current={activeTab === 'reports' ? 'page' : undefined} onClick={() => handleNavClick('reports', closeOnSelect)} className={navClass('reports')}>
+            <Users className={`w-5 h-5 shrink-0 ${iconMargin}`} />
+            {showLabels && <span className="flex-1 text-left truncate">Student Reports</span>}
+            {showLabels && <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-maroon/10 text-maroon dark:bg-maroon/30 dark:text-red-300 border border-maroon/20">Analytics</span>}
+          </button>
+          <button title={!showLabels ? 'My Profile' : undefined} aria-current={activeTab === 'profile' ? 'page' : undefined} onClick={() => handleNavClick('profile', closeOnSelect)} className={navClass('profile')}>
+            <User className={`w-5 h-5 shrink-0 ${iconMargin}`} />
+            {showLabels && <span className="truncate">My Profile</span>}
+          </button>
+        </>
+      );
+    }
+
+    if (role === 'FACULTY') {
       return (
         <>
           <button title={!showLabels ? 'Home' : undefined} aria-current={activeTab === 'home' ? 'page' : undefined} onClick={() => handleNavClick('home', closeOnSelect)} className={navClass('home')}>

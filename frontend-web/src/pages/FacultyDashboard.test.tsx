@@ -16,6 +16,7 @@ jest.mock('../components/dashboard/FacultyStudentsDirectory', () => ({ __esModul
 jest.mock('../components/dashboard/FacultyCommandPalette', () => ({ __esModule: true, default: () => null }));
 jest.mock('../components/dashboard/QuestionBank', () => ({ __esModule: true, default: () => <div>Question Bank page</div> }));
 jest.mock('../components/dashboard/QuestionPaperManagement', () => ({ __esModule: true, default: () => <div>Question Papers page</div> }));
+jest.mock('../components/dashboard/FacultyManagement', () => ({ __esModule: true, default: () => <div>Faculty Management page</div> }));
 jest.mock('../components/dashboard/FacultyNotifications', () => ({
   FacultyNotificationsProvider: ({ children }: any) => children,
   FacultyNotificationsPage: () => <div>Notifications page</div>,
@@ -66,5 +67,37 @@ describe('faculty dashboard navigation', () => {
       </MemoryRouter>
     );
     expect(screen.getByText('Overview page')).toBeInTheDocument();
+  });
+
+  it('completely removes the Assessments dock from navigation for ADMIN users', () => {
+    localStorage.setItem('cira_user', JSON.stringify({ role: 'ADMIN' }));
+    render(
+      <MemoryRouter initialEntries={['/faculty/dashboard']}>
+        <FacultyDashboard />
+      </MemoryRouter>
+    );
+
+    // Assessments dock items must not exist in admin navigation
+    expect(screen.queryByRole('button', { name: 'Quizzes' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Assignments' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Question Bank' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Question Papers' })).not.toBeInTheDocument();
+
+    // Faculty Management and Workspace must be present
+    expect(screen.getByRole('button', { name: 'Faculty Management' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Overview' })).toBeInTheDocument();
+    expect(screen.getByText('Faculty Management page')).toBeInTheDocument();
+  });
+
+  it('redirects ADMIN users away from assessment tabs to Faculty Management', () => {
+    localStorage.setItem('cira_user', JSON.stringify({ role: 'ADMIN' }));
+    render(
+      <MemoryRouter initialEntries={['/faculty/dashboard?tab=quizzes']}>
+        <FacultyDashboard />
+      </MemoryRouter>
+    );
+
+    expect(screen.queryByText('Quizzes page')).not.toBeInTheDocument();
+    expect(screen.getByText('Faculty Management page')).toBeInTheDocument();
   });
 });
