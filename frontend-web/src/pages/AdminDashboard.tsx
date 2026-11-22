@@ -217,7 +217,7 @@ export default function AdminDashboard() {
       
       {activeTab === 'hub' && (
         <div className="space-y-8">
-          <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <section className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="bg-white dark:bg-[#1E1E22] p-6 rounded-xl border border-border-soft dark:border-neutral-800 shadow-sm">
               <h3 className="text-gray-body dark:text-neutral-400 text-sm font-medium">Total Faculty</h3>
               <p className="text-3xl font-bold mt-2 text-maroon dark:text-rose-400">{facultyList.length}</p>
@@ -225,10 +225,6 @@ export default function AdminDashboard() {
             <div className="bg-white dark:bg-[#1E1E22] p-6 rounded-xl border border-border-soft dark:border-neutral-800 shadow-sm">
               <h3 className="text-gray-body dark:text-neutral-400 text-sm font-medium">Pending Approvals</h3>
               <p className="text-3xl font-bold mt-2 text-maroon dark:text-rose-400">{facultyList.filter(f => f.approvalStatus === 'PENDING').length}</p>
-            </div>
-            <div className="bg-white dark:bg-[#1E1E22] p-6 rounded-xl border border-border-soft dark:border-neutral-800 shadow-sm">
-              <h3 className="text-gray-body dark:text-neutral-400 text-sm font-medium">System Health</h3>
-              <p className="text-3xl font-bold mt-2 text-green-600 dark:text-emerald-400">100%</p>
             </div>
           </section>
 
