@@ -227,26 +227,30 @@
   - `backend-core`: All 18 test suites passed (85 tests, 0 failures).
   - `frontend-web`: `tsc -b && vite build` succeeded with 0 errors; all 26 test suites passed (101 tests, 0 failures).
 
-## Follow-up: Admin Global Reports Scope & Offline Marksheet Modal Hook Stability (2026-11-22)
+## Follow-up: Refactor Administration into 3 Dedicated Separate Dashboards (2026-11-22)
 
 - **Objective**:
-  - Fix React hook order exception (`Uncaught Error: Rendered more hooks than during the previous render`) in `OfflineMarksheetModal.tsx`.
-  - Fix `ERR_FEATURE_UNAVAILABLE` on `/api/v1/faculty/reports/performance-bands` by synchronizing `QuizAttempt.sourceType` column to Neon PostgreSQL.
-  - Remove redundant class/department enrollment fields for Admin in `UserProfile.tsx` since Admin has global institutional access.
-  - Enable Admin institutional scoping in `StudentReports.tsx` with `"All departments"`, `"All assigned sections"`, and `"All years"`.
-- **Fixes Applied**:
-  - **Hook Ordering in `OfflineMarksheetModal.tsx`**:
-    - Grouped all 27 hooks (`useState`, `useRef`, `useMemo`, `useEffect`) strictly at the top of the component body before any helper functions or event handlers, moving `displayedRows` next to `computedTotalMarksA`.
-    - Updated `QuizManagement.tsx` to conditionally mount `OfflineMarksheetModal` (`{showOfflineModal && <OfflineMarksheetModal ... />}`), preventing closed-state background hook runs and avoiding HMR reconciliation mismatches.
-  - **Neon PostgreSQL Sync**:
-    - Ran non-destructive `npx prisma db push` to synchronize `QuizAttempt.sourceType` and `Quiz.sourceType` onto the database, resolving `P2022` Prisma errors on queries with `include: { quizAttempts: true }`.
-  - **Admin Global Scoping**:
-    - Updated `UserProfile.tsx` to hide department/class enrollment forms when `user.role === 'ADMIN'` and display the global scope badge: `All Departments (Global Administrative Scope)`.
-    - Updated `backend-core/src/controllers/faculty.controller.ts` so `resetStudentPassword` accepts `ADMIN` with global student scope.
-    - Updated `StudentReports.tsx` filter labels for admin view to reflect full institutional analytics.
+  - Unstack congested single-page administration layout into 3 separate, clean, independent dashboards matching original design:
+    1. **Faculty Approval** (`tab=approvals`): Dedicated view for reviewing pending/approved faculty registrations with status filters and approve/reject/revoke actions.
+    2. **Student / User Directory** (`tab=users`): Dedicated view with Year/Batch, Department, and Section dropdown filters, role filtering, clickable student profiles (`StudentProfileView`), password reset, account deletion, and bulk student CSV/XLSX import.
+    3. **Batches, Departments & Sections** (`tab=departments`): Dedicated 3-column academic structure view with batch selector, inline department creation, and interactive section management.
+- **Frontend & Navigation Refactoring**:
+  - `frontend-web/src/pages/FacultyDashboard.tsx`:
+    - Updated `facultyNavigation` under `Administration` to offer direct tabs: `Faculty Approval` (`approvals`), `Student / User Directory` (`users`), and `Batches & Departments` (`departments`), alongside `Faculty Management` (`management`).
+    - Added dedicated tab rendering and header titles for each view.
+  - `frontend-web/src/components/DashboardLayout.tsx`:
+    - Added fallback admin and faculty navigation buttons for the three individual administrative modules.
+  - `frontend-web/src/components/dashboard/FacultyManagement.tsx`:
+    - Refactored into 3 independent, uncluttered dashboard views each with its own header, metric cards, actions, and filter bar.
+    - Integrated `StudentProfileView` modal for clickable student profile inspection.
+    - Added clean top-level horizontal navigation pills with pending counters to switch seamlessly between views without clutter.
+- **Backend Enhancements**:
+  - `backend-core/src/controllers/admin.controller.ts`:
+    - Enriched `getAllUsers` and `getAllFaculty` to select `rollNumber`, `employeeId`, `department` (with batch details), and `section` for complete directory filtering.
 - **Validation**:
   - `backend-core`: `npm run build` (`tsc`) succeeded; all 18 test suites passed (85 tests, 0 failures).
   - `frontend-web`: `npm run build` (`tsc -b && vite build`) succeeded with 0 errors; all 26 Jest test suites passed (103 tests, 0 failures).
+
 
 
 

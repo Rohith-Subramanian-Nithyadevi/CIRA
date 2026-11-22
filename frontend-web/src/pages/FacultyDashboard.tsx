@@ -7,7 +7,7 @@ import QuizManagement from '../components/dashboard/QuizManagement';
 import { StudentReports } from '../components/dashboard/StudentReports';
 import AssignmentManagement from '../components/dashboard/AssignmentManagement';
 import FacultyStudentsDirectory from '../components/dashboard/FacultyStudentsDirectory';
-import { Bell, BookOpen, FileText, Home, ListChecks, ScrollText, ShieldCheck, User, Users, UserRound } from 'lucide-react';
+import { Bell, BookOpen, FileText, Home, ListChecks, ScrollText, ShieldCheck, User, Users, UserRound, CheckSquare, Building2 } from 'lucide-react';
 import type { DashboardNavGroup } from '../components/DashboardLayout';
 import FacultyCommandPalette from '../components/dashboard/FacultyCommandPalette';
 import { FacultyDemoProvider } from '../context/FacultyDemoContext';
@@ -44,6 +44,9 @@ const facultyNavigation: DashboardNavGroup[] = [
     label: 'Administration',
     items: [
       { id: 'management', label: 'Faculty Management', icon: ShieldCheck },
+      { id: 'approvals', label: 'Faculty Approval', icon: CheckSquare },
+      { id: 'users', label: 'Student / User Directory', icon: Users },
+      { id: 'departments', label: 'Batches & Departments', icon: Building2 },
     ],
   },
   {
@@ -121,7 +124,28 @@ export default function FacultyDashboard() {
     <FacultyDemoProvider value={isDemo}>
     <>
     <FacultyNotificationsProvider isDemo={isDemo} onNavigate={navigateFaculty}>
-    <DashboardLayout title={activeTab === 'notifications' ? 'Notifications' : (activeTab === 'management' || activeTab === 'admin') ? 'Faculty Management' : 'Faculty Workspace'} activeTab={activeTab === 'admin' ? 'management' : activeTab} onTabChange={navigateFaculty} facultyNavigation={currentNavigation} onCommandPalette={() => setCommandPaletteOpen(true)} isDemo={isDemo} onToggleDemo={setIsDemo} facultySidebarCollapsible>
+    <DashboardLayout
+      title={
+        activeTab === 'notifications'
+          ? 'Notifications'
+          : (activeTab === 'approvals' || activeTab === 'faculty-approvals')
+          ? 'Faculty Approval'
+          : (activeTab === 'users' || activeTab === 'user-directory')
+          ? 'Student & User Directory'
+          : (activeTab === 'departments' || activeTab === 'academic-structure')
+          ? 'Batches & Departments'
+          : (activeTab === 'management' || activeTab === 'admin')
+          ? 'Faculty Management'
+          : 'Faculty Workspace'
+      }
+      activeTab={activeTab === 'admin' ? 'management' : activeTab}
+      onTabChange={navigateFaculty}
+      facultyNavigation={currentNavigation}
+      onCommandPalette={() => setCommandPaletteOpen(true)}
+      isDemo={isDemo}
+      onToggleDemo={setIsDemo}
+      facultySidebarCollapsible
+    >
       {activeTab === 'profile' && <UserProfile />}
       {activeTab === 'home' && <FacultyHome onNavigate={navigateFaculty} />}
       {activeTab === 'notifications' && <FacultyNotificationsPage />}
@@ -130,7 +154,10 @@ export default function FacultyDashboard() {
       {activeTab === 'quizzes' && <QuizManagement initialSubmissionsQuizId={paperSubmissionsId} />}
       {activeTab === 'assignments' && <AssignmentManagement />}
       {activeTab === 'question-bank' && <QuestionBank />}
-      {(activeTab === 'management' || activeTab === 'admin') && <FacultyManagement />}
+      {(activeTab === 'management' || activeTab === 'admin') && <FacultyManagement onNavigateTab={navigateFaculty} />}
+      {(activeTab === 'approvals' || activeTab === 'faculty-approvals') && <FacultyManagement initialTab="approvals" onNavigateTab={navigateFaculty} />}
+      {(activeTab === 'users' || activeTab === 'user-directory') && <FacultyManagement initialTab="users" onNavigateTab={navigateFaculty} />}
+      {(activeTab === 'departments' || activeTab === 'academic-structure') && <FacultyManagement initialTab="departments" onNavigateTab={navigateFaculty} />}
       {activeTab === 'question-papers' && <QuestionPaperManagement onSubmissions={(id) => {
         setPaperSubmissionsId(id);
         const nextParams = new URLSearchParams(searchParams);
