@@ -177,25 +177,21 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
     if (role === 'ADMIN') {
       return (
         <>
-          <button title={!showLabels ? 'Home' : undefined} aria-current={activeTab === 'home' ? 'page' : undefined} onClick={() => handleNavClick('home', closeOnSelect)} className={navClass('home')}>
+          <button title={!showLabels ? 'Overview' : undefined} aria-current={activeTab === 'home' ? 'page' : undefined} onClick={() => handleNavClick('home', closeOnSelect)} className={navClass('home')}>
             <Home className={`w-5 h-5 shrink-0 ${iconMargin}`} />
-            {showLabels && <span className="truncate">Home</span>}
+            {showLabels && <span className="truncate">Overview</span>}
           </button>
-          <button title={!showLabels ? 'Faculty Management' : undefined} aria-current={activeTab === 'management' ? 'page' : undefined} onClick={() => handleNavClick('management', closeOnSelect)} className={navClass('management')}>
-            <Users className={`w-5 h-5 shrink-0 ${iconMargin}`} />
-            {showLabels && <span className="truncate">Faculty Management</span>}
-          </button>
-          <button title={!showLabels ? 'Faculty Approval' : undefined} aria-current={activeTab === 'approvals' ? 'page' : undefined} onClick={() => handleNavClick('approvals', closeOnSelect)} className={navClass('approvals')}>
+          <button title={!showLabels ? 'Faculty Approvals' : undefined} aria-current={activeTab === 'approvals' ? 'page' : undefined} onClick={() => handleNavClick('approvals', closeOnSelect)} className={navClass('approvals')}>
             <CheckSquare className={`w-5 h-5 shrink-0 ${iconMargin}`} />
-            {showLabels && <span className="truncate">Faculty Approval</span>}
+            {showLabels && <span className="truncate">Faculty Approvals</span>}
           </button>
-          <button title={!showLabels ? 'Student / User Directory' : undefined} aria-current={activeTab === 'users' ? 'page' : undefined} onClick={() => handleNavClick('users', closeOnSelect)} className={navClass('users')}>
+          <button title={!showLabels ? 'User Management' : undefined} aria-current={activeTab === 'users' ? 'page' : undefined} onClick={() => handleNavClick('users', closeOnSelect)} className={navClass('users')}>
             <Users className={`w-5 h-5 shrink-0 ${iconMargin}`} />
-            {showLabels && <span className="truncate">Student / User Directory</span>}
+            {showLabels && <span className="truncate">User Management</span>}
           </button>
-          <button title={!showLabels ? 'Batches & Departments' : undefined} aria-current={activeTab === 'departments' ? 'page' : undefined} onClick={() => handleNavClick('departments', closeOnSelect)} className={navClass('departments')}>
+          <button title={!showLabels ? 'Departments' : undefined} aria-current={activeTab === 'departments' ? 'page' : undefined} onClick={() => handleNavClick('departments', closeOnSelect)} className={navClass('departments')}>
             <Building2 className={`w-5 h-5 shrink-0 ${iconMargin}`} />
-            {showLabels && <span className="truncate">Batches & Departments</span>}
+            {showLabels && <span className="truncate">Departments</span>}
           </button>
           <button title={!showLabels ? 'Student Reports' : undefined} aria-current={activeTab === 'reports' ? 'page' : undefined} onClick={() => handleNavClick('reports', closeOnSelect)} className={navClass('reports')}>
             <Users className={`w-5 h-5 shrink-0 ${iconMargin}`} />
@@ -212,25 +208,13 @@ export default function DashboardLayout({ children, title, activeTab, onTabChang
     if (role === 'FACULTY') {
       return (
         <>
-          <button title={!showLabels ? 'Home' : undefined} aria-current={activeTab === 'home' ? 'page' : undefined} onClick={() => handleNavClick('home', closeOnSelect)} className={navClass('home')}>
+          <button title={!showLabels ? 'Overview' : undefined} aria-current={activeTab === 'home' ? 'page' : undefined} onClick={() => handleNavClick('home', closeOnSelect)} className={navClass('home')}>
             <Home className={`w-5 h-5 shrink-0 ${iconMargin}`} />
-            {showLabels && <span className="truncate">Home</span>}
+            {showLabels && <span className="truncate">Overview</span>}
           </button>
-          <button title={!showLabels ? 'Faculty Management' : undefined} aria-current={activeTab === 'management' ? 'page' : undefined} onClick={() => handleNavClick('management', closeOnSelect)} className={navClass('management')}>
+          <button title={!showLabels ? 'Student Directory' : undefined} aria-current={activeTab === 'students' ? 'page' : undefined} onClick={() => handleNavClick('students', closeOnSelect)} className={navClass('students')}>
             <Users className={`w-5 h-5 shrink-0 ${iconMargin}`} />
-            {showLabels && <span className="truncate">Faculty Management</span>}
-          </button>
-          <button title={!showLabels ? 'Faculty Approval' : undefined} aria-current={activeTab === 'approvals' ? 'page' : undefined} onClick={() => handleNavClick('approvals', closeOnSelect)} className={navClass('approvals')}>
-            <CheckSquare className={`w-5 h-5 shrink-0 ${iconMargin}`} />
-            {showLabels && <span className="truncate">Faculty Approval</span>}
-          </button>
-          <button title={!showLabels ? 'Student / User Directory' : undefined} aria-current={activeTab === 'users' ? 'page' : undefined} onClick={() => handleNavClick('users', closeOnSelect)} className={navClass('users')}>
-            <Users className={`w-5 h-5 shrink-0 ${iconMargin}`} />
-            {showLabels && <span className="truncate">Student / User Directory</span>}
-          </button>
-          <button title={!showLabels ? 'Batches & Departments' : undefined} aria-current={activeTab === 'departments' ? 'page' : undefined} onClick={() => handleNavClick('departments', closeOnSelect)} className={navClass('departments')}>
-            <Building2 className={`w-5 h-5 shrink-0 ${iconMargin}`} />
-            {showLabels && <span className="truncate">Batches & Departments</span>}
+            {showLabels && <span className="truncate">Student Directory</span>}
           </button>
           <button title={!showLabels ? 'Student Reports' : undefined} aria-current={activeTab === 'reports' ? 'page' : undefined} onClick={() => handleNavClick('reports', closeOnSelect)} className={navClass('reports')}>
             <Users className={`w-5 h-5 shrink-0 ${iconMargin}`} />

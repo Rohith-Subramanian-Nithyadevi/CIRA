@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/apiClient';
@@ -6,28 +6,15 @@ import { DeleteConfirmationDialog } from '@/components/ui/DeleteConfirmationDial
 import StudentProfileView from './StudentProfileView';
 import { downloadCsv } from '@/lib/csv';
 import { 
-  Users, 
-  CheckSquare, 
-  Building2, 
   FileSpreadsheet, 
   Upload, 
   Search, 
   Trash2, 
   RefreshCw, 
-  Clock, 
-  CheckCircle2, 
-  XCircle, 
-  GraduationCap,
-  ShieldCheck,
-  UserCheck,
   KeyRound,
   Eye,
   Filter,
-  X,
-  Layers,
-  ChevronRight,
-  Loader2,
-  Calendar
+  X
 } from 'lucide-react';
 
 interface Faculty {
@@ -79,74 +66,39 @@ interface FacultyManagementProps {
   onNavigateTab?: (tab: string) => void;
 }
 
-export default function FacultyManagement({ initialTab, onNavigateTab }: FacultyManagementProps) {
-  const [searchParams, setSearchParams] = useSearchParams();
+export default function FacultyManagement({ initialTab }: FacultyManagementProps) {
+  const [searchParams] = useSearchParams();
   
-  // Resolve active section from URL query or prop
-  const activeSectionFromQuery = (searchParams.get('section') || searchParams.get('subtab')) as ManagementSection | null;
-  const currentTabParam = searchParams.get('tab');
-  
-  const initialActive = useMemo<ManagementSection>(() => {
+  // Resolve active section from props or current query parameter
+  const activeSection = useMemo<ManagementSection>(() => {
     if (initialTab) return initialTab;
-    if (currentTabParam === 'approvals' || currentTabParam === 'faculty-approvals') return 'approvals';
-    if (currentTabParam === 'users' || currentTabParam === 'user-directory') return 'users';
-    if (currentTabParam === 'departments' || currentTabParam === 'academic-structure') return 'departments';
-    if (activeSectionFromQuery === 'users' || activeSectionFromQuery === 'departments' || activeSectionFromQuery === 'approvals') {
-      return activeSectionFromQuery;
-    }
+    const tabParam = searchParams.get('tab');
+    if (tabParam === 'users' || tabParam === 'user-directory') return 'users';
+    if (tabParam === 'departments' || tabParam === 'academic-structure') return 'departments';
     return 'approvals';
-  }, [initialTab, currentTabParam, activeSectionFromQuery]);
-
-  const [activeSection, setActiveSection] = useState<ManagementSection>(initialActive);
-
-  // Sync state when URL params change
-  useEffect(() => {
-    if (currentTabParam === 'approvals' || currentTabParam === 'faculty-approvals') {
-      setActiveSection('approvals');
-    } else if (currentTabParam === 'users' || currentTabParam === 'user-directory') {
-      setActiveSection('users');
-    } else if (currentTabParam === 'departments' || currentTabParam === 'academic-structure') {
-      setActiveSection('departments');
-    } else if (activeSectionFromQuery) {
-      setActiveSection(activeSectionFromQuery);
-    }
-  }, [currentTabParam, activeSectionFromQuery]);
-
-  const handleSwitchSection = (section: ManagementSection) => {
-    setActiveSection(section);
-    const nextParams = new URLSearchParams(searchParams);
-    nextParams.set('section', section);
-    setSearchParams(nextParams);
-    if (onNavigateTab) {
-      if (section === 'approvals') onNavigateTab('approvals');
-      else if (section === 'users') onNavigateTab('users');
-      else if (section === 'departments') onNavigateTab('departments');
-    }
-  };
+  }, [initialTab, searchParams]);
 
   const [loading, setLoading] = useState(true);
 
   // Core data states
   const [facultyList, setFacultyList] = useState<Faculty[]>([]);
   const [userList, setUserList] = useState<User[]>([]);
-  const [departments, setDepartments] = useState<Department[]>([]);
   const [batches, setBatches] = useState<Batch[]>([]);
+  const [allDepartments, setAllDepartments] = useState<Department[]>([]);
 
-  // Section 1: Faculty Approvals filters
+  // Faculty Approvals filters
   const [facultySearch, setFacultySearch] = useState('');
   const [facultyStatusFilter, setFacultyStatusFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('ALL');
 
-  // Section 2: Student & User Directory filters
+  // User Management filters & profile view
   const [userSearch, setUserSearch] = useState('');
-  const [userRoleFilter, setUserRoleFilter] = useState<string>('ALL');
-  const [userBatchFilter, setUserBatchFilter] = useState<string>('');
-  const [userDeptFilter, setUserDeptFilter] = useState<string>('');
-  const [userSectionFilter, setUserSectionFilter] = useState<string>('');
+  const [userBatchFilter, setUserBatchFilter] = useState('');
+  const [userDeptFilter, setUserDeptFilter] = useState('');
+  const [userSectionFilter, setUserSectionFilter] = useState('');
   const [profileStudentId, setProfileStudentId] = useState<string | null>(null);
   const [resettingStudentId, setResettingStudentId] = useState<string | null>(null);
-  const [showBulkImport, setShowBulkImport] = useState(false);
 
-  // Section 3: Batches & Departments structure
+  // Batches & Departments structure state
   const [selectedBatchId, setSelectedBatchId] = useState('');
   const [selectedDeptId, setSelectedDeptId] = useState('');
   const [newDeptName, setNewDeptName] = useState('');
@@ -171,31 +123,59 @@ export default function FacultyManagement({ initialTab, onNavigateTab }: Faculty
     name: string;
   } | null>(null);
 
-  // Fetch all primary admin data
+  // Fetch all primary admin data (faculty, users, batches, and all departments)
   const fetchAdminData = async () => {
     try {
       setLoading(true);
-      const [facRes, userRes, batchRes] = await Promise.all([
+      const [facRes, userRes, batchRes, deptRes] = await Promise.all([
         apiClient.fetch('/api/v1/admin/faculty/all'),
         apiClient.fetch('/api/v1/admin/users'),
-        apiClient.fetch('/api/v1/batches')
+        apiClient.fetch('/api/v1/batches'),
+        apiClient.fetch('/api/v1/departments')
       ]);
 
-      const facData = await facRes.json();
-      const userData = await userRes.json();
-      const batchData = await batchRes.json();
+      const facData = await facRes.json().catch(() => ({}));
+      const userData = await userRes.json().catch(() => ({}));
+      const batchData = await batchRes.json().catch(() => ({}));
+      const deptData = await deptRes.json().catch(() => ({}));
 
-      if (facData.status === 'success' && facData.data?.faculty) {
+      if (facData.data?.faculty) {
         setFacultyList(facData.data.faculty);
+      } else if (Array.isArray(facData.data)) {
+        setFacultyList(facData.data);
       }
-      if (userData.status === 'success' && userData.data?.users) {
-        setUserList(userData.data.users);
+
+      if (userData.data?.users) {
+        const sortedUsers = [...userData.data.users].sort((a: User, b: User) => {
+          if (a.role !== b.role) return a.role.localeCompare(b.role);
+          const rollA = a.rollNumber || '';
+          const rollB = b.rollNumber || '';
+          return rollA.localeCompare(rollB);
+        });
+        setUserList(sortedUsers);
+      } else if (Array.isArray(userData.data)) {
+        setUserList(userData.data);
       }
-      if (batchData.status === 'success' && batchData.data?.batches) {
-        setBatches(batchData.data.batches);
-        if (batchData.data.batches.length > 0 && !selectedBatchId) {
-          setSelectedBatchId(batchData.data.batches[0].id);
-        }
+
+      const fetchedDepts: Department[] = deptData.data?.departments || (Array.isArray(deptData.data) ? deptData.data : []);
+      setAllDepartments(fetchedDepts);
+
+      let loadedBatches: Batch[] = [];
+      if (batchData.data?.batches) {
+        loadedBatches = batchData.data.batches;
+        setBatches(loadedBatches);
+      } else if (Array.isArray(batchData.data)) {
+        loadedBatches = batchData.data;
+        setBatches(loadedBatches);
+      }
+
+      // Auto-select a batch that has existing departments, or fallback to the first batch
+      if (loadedBatches.length > 0) {
+        setSelectedBatchId(prev => {
+          if (prev && loadedBatches.some(b => b.id === prev)) return prev;
+          const batchWithDepts = loadedBatches.find(b => fetchedDepts.some(d => d.batchId === b.id));
+          return batchWithDepts ? batchWithDepts.id : loadedBatches[0].id;
+        });
       }
     } catch (err: any) {
       console.error('Failed to fetch administration data', err);
@@ -209,32 +189,24 @@ export default function FacultyManagement({ initialTab, onNavigateTab }: Faculty
     void fetchAdminData();
   }, []);
 
-  // Fetch departments when selected batch changes
-  useEffect(() => {
-    if (!selectedBatchId) {
-      setDepartments([]);
-      return;
-    }
-    const fetchDepartments = async () => {
-      try {
-        const res = await apiClient.fetch(`/api/v1/departments?batchId=${selectedBatchId}`);
-        const data = await res.json();
-        if (data.status === 'success' && data.data?.departments) {
-          setDepartments(data.data.departments);
-          if (data.data.departments.length > 0 && !selectedDeptId) {
-            setSelectedDeptId(data.data.departments[0].id);
-          } else if (data.data.departments.length === 0) {
-            setSelectedDeptId('');
-          }
-        }
-      } catch (err) {
-        console.error('Failed to fetch departments', err);
-      }
-    };
-    void fetchDepartments();
-  }, [selectedBatchId]);
+  // Departments for the currently selected batch in Batches & Departments view
+  const departmentsForSelectedBatch = useMemo(() => {
+    if (!selectedBatchId) return allDepartments;
+    return allDepartments.filter(d => d.batchId === selectedBatchId);
+  }, [allDepartments, selectedBatchId]);
 
-  // Section 1: Faculty Approval action
+  // Auto-select the first department in the selected batch
+  useEffect(() => {
+    if (departmentsForSelectedBatch.length > 0) {
+      if (!selectedDeptId || !departmentsForSelectedBatch.some(d => d.id === selectedDeptId)) {
+        setSelectedDeptId(departmentsForSelectedBatch[0].id);
+      }
+    } else {
+      setSelectedDeptId('');
+    }
+  }, [departmentsForSelectedBatch, selectedDeptId]);
+
+  // Handle Faculty Approval / Rejection
   const handleApproval = async (id: string, status: 'APPROVED' | 'REJECTED') => {
     try {
       setActionLoadingId(id);
@@ -243,66 +215,47 @@ export default function FacultyManagement({ initialTab, onNavigateTab }: Faculty
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status })
       });
-      const data = await res.json();
-      if (res.ok && data.status === 'success') {
-        toast.success(`Faculty member status updated to ${status}.`);
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && (!data.status || data.status === 'success')) {
+        toast.success(status === 'APPROVED' ? 'Faculty approved successfully' : 'Faculty access revoked');
         setFacultyList(prev => prev.map(f => f.id === id ? { ...f, approvalStatus: status } : f));
         setUserList(prev => prev.map(u => u.id === id ? { ...u, approvalStatus: status } : u));
       } else {
-        toast.error(data.message || 'Failed to update faculty status.');
+        toast.error(data.message || 'Failed to update faculty status');
       }
     } catch (err) {
-      toast.error('Network error while updating approval status.');
+      toast.error('Network error updating faculty status');
     } finally {
       setActionLoadingId(null);
     }
   };
 
-  // Section 2: Student Password Reset
-  const handleResetStudentPassword = async (studentId: string, studentName: string) => {
-    try {
-      setResettingStudentId(studentId);
-      const res = await apiClient.fetch(`/api/v1/faculty/students/${studentId}/reset-password`, {
-        method: 'POST'
-      });
-      const data = await res.json();
-      if (res.ok && data.status === 'success') {
-        toast.success(`Password reset instructions sent for ${studentName}.`);
-      } else {
-        toast.error(data.message || 'Failed to initiate password reset.');
-      }
-    } catch (err) {
-      toast.error('Error initiating password reset.');
-    } finally {
-      setResettingStudentId(null);
-    }
-  };
-
-  // Section 2: Bulk Student Import
-  const handleStudentBulkImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Bulk Student File Import
+  const handleImportStudents = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const formData = new FormData();
     formData.append('file', file);
 
-    setImportingStudents(true);
-    setImportSummary(null);
-
     try {
-      const res = await apiClient.fetch('/api/v1/admin/students/bulk-import', {
+      setImportingStudents(true);
+      setImportSummary(null);
+
+      const res = await apiClient.fetch('/api/v1/admin/users/bulk-import-students', {
         method: 'POST',
         body: formData
       });
-      const data = await res.json();
-      if (res.ok && data.status === 'success') {
-        toast.success(`Successfully enrolled ${data.data.imported} student(s)!`);
-        setImportSummary(data.data);
+
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && (data.status === 'success' || data.imported !== undefined)) {
+        toast.success(`Successfully imported ${data.data?.imported ?? data.imported ?? 0} students!`);
+        setImportSummary(data.data || data);
         void fetchAdminData();
       } else {
         toast.error(data.message || 'Bulk student import failed.');
-        if (data.data?.rejectedRows) {
-          setImportSummary(data.data);
+        if (data.data?.rejectedRows || data.rejectedRows) {
+          setImportSummary(data.data || data);
         }
       }
     } catch (err: any) {
@@ -313,14 +266,14 @@ export default function FacultyManagement({ initialTab, onNavigateTab }: Faculty
     }
   };
 
-  // Download Student Import CSV Template
+  // Download Student Import Template
   const handleDownloadTemplate = () => {
     const headers = ['name', 'email', 'rollNumber', 'batch', 'department', 'section', 'personalEmail', 'phone'];
     const sampleRows = [
       {
         name: 'Arun Kumar',
         email: 'arun@college.edu',
-        rollNumber: '21CS001',
+        rollNumber: 'CH.SC.U4CSE24001',
         batch: '2024',
         department: 'Computer Science & Engineering',
         section: 'A',
@@ -330,7 +283,7 @@ export default function FacultyManagement({ initialTab, onNavigateTab }: Faculty
       {
         name: 'Bhavna Sharma',
         email: 'bhavna@college.edu',
-        rollNumber: '21CS002',
+        rollNumber: 'CH.SC.U4CSE24002',
         batch: '2024',
         department: 'Computer Science & Engineering',
         section: 'B',
@@ -338,11 +291,31 @@ export default function FacultyManagement({ initialTab, onNavigateTab }: Faculty
         phone: '9876543211'
       }
     ];
-    downloadCsv(sampleRows, headers, 'student_bulk_enrollment_template');
-    toast.success('Sample student enrollment template downloaded.');
+    downloadCsv(sampleRows, headers, 'Student_Bulk_Import_Template');
+    toast.success('Student enrollment template downloaded.');
   };
 
-  // Section 3: Create Department
+  // Password reset for individual student
+  const handleResetPassword = async (user: User) => {
+    try {
+      setResettingStudentId(user.id);
+      const res = await apiClient.fetch(`/api/v1/admin/users/${user.id}/reset-password`, {
+        method: 'POST'
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok && (!data || data.status === 'success')) {
+        toast.success(`Password reset successfully for ${user.name}`);
+      } else {
+        toast.error(data?.message || 'Failed to reset password');
+      }
+    } catch {
+      toast.error('Network error resetting student password');
+    } finally {
+      setResettingStudentId(null);
+    }
+  };
+
+  // Create Department
   const handleCreateDepartment = async () => {
     if (!selectedBatchId) {
       toast.error('Please select an academic batch first.');
@@ -361,11 +334,15 @@ export default function FacultyManagement({ initialTab, onNavigateTab }: Faculty
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: cleanName, batchId: selectedBatchId })
       });
-      const data = await res.json();
-      if (res.ok && data.status === 'success' && data.data?.department) {
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.data?.department) {
         toast.success(`Department "${cleanName}" created successfully!`);
-        setDepartments(prev => [...prev, data.data.department]);
-        setSelectedDeptId(data.data.department.id);
+        const createdDept: Department = {
+          ...data.data.department,
+          sections: data.data.department.sections || []
+        };
+        setAllDepartments(prev => [...prev, createdDept]);
+        setSelectedDeptId(createdDept.id);
         setNewDeptName('');
       } else {
         toast.error(data.message || 'Failed to create department.');
@@ -377,7 +354,7 @@ export default function FacultyManagement({ initialTab, onNavigateTab }: Faculty
     }
   };
 
-  // Section 3: Create Section
+  // Create Section
   const handleCreateSection = async () => {
     if (!selectedDeptId) {
       toast.error('Please select a department first.');
@@ -396,15 +373,15 @@ export default function FacultyManagement({ initialTab, onNavigateTab }: Faculty
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: cleanName, departmentId: selectedDeptId })
       });
-      const data = await res.json();
-      if (res.ok && data.status === 'success' && data.data?.section) {
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.data?.section) {
         toast.success(`Section "${cleanName}" added!`);
-        setDepartments(prev =>
+        setAllDepartments(prev =>
           prev.map(dept => {
             if (dept.id !== selectedDeptId) return dept;
             return {
               ...dept,
-              sections: [...dept.sections, data.data.section]
+              sections: [...(dept.sections || []), data.data.section]
             };
           })
         );
@@ -419,7 +396,7 @@ export default function FacultyManagement({ initialTab, onNavigateTab }: Faculty
     }
   };
 
-  // Confirm delete handler (User or Department)
+  // Confirm delete (User or Department)
   const handleConfirmDelete = async () => {
     if (!pendingDelete) return;
     const { type, id, name } = pendingDelete;
@@ -434,7 +411,7 @@ export default function FacultyManagement({ initialTab, onNavigateTab }: Faculty
           setUserList(prev => prev.filter(u => u.id !== id));
           setFacultyList(prev => prev.filter(f => f.id !== id));
         } else {
-          setDepartments(prev => prev.filter(d => d.id !== id));
+          setAllDepartments(prev => prev.filter(d => d.id !== id));
           if (selectedDeptId === id) setSelectedDeptId('');
         }
       } else {
@@ -447,60 +424,48 @@ export default function FacultyManagement({ initialTab, onNavigateTab }: Faculty
     }
   };
 
-  // -------------------------------------------------------------
-  // Filtered Data Lists
-  // -------------------------------------------------------------
-
-  // Section 1: Filtered Faculty
+  // Filtered Faculty List
   const filteredFaculty = useMemo(() => {
     return facultyList.filter(f => {
-      const matchSearch =
-        !facultySearch.trim() ||
-        f.name.toLowerCase().includes(facultySearch.toLowerCase()) ||
-        f.email.toLowerCase().includes(facultySearch.toLowerCase()) ||
-        (f.employeeId && f.employeeId.toLowerCase().includes(facultySearch.toLowerCase()));
-
-      const matchStatus = facultyStatusFilter === 'ALL' || f.approvalStatus === facultyStatusFilter;
-      return matchSearch && matchStatus;
+      if (facultyStatusFilter !== 'ALL' && f.approvalStatus !== facultyStatusFilter) {
+        return false;
+      }
+      if (facultySearch.trim()) {
+        const q = facultySearch.toLowerCase();
+        const matchName = f.name?.toLowerCase().includes(q);
+        const matchEmail = f.email?.toLowerCase().includes(q);
+        const matchEmp = f.employeeId ? f.employeeId.toLowerCase().includes(q) : false;
+        if (!matchName && !matchEmail && !matchEmp) return false;
+      }
+      return true;
     });
-  }, [facultyList, facultySearch, facultyStatusFilter]);
+  }, [facultyList, facultyStatusFilter, facultySearch]);
 
-  // Section 2: Department options for User Directory filter
-  const availableDeptsForUserFilter = useMemo(() => {
-    if (!userBatchFilter) {
-      const allDeptsMap = new Map<string, { id: string; name: string }>();
-      userList.forEach(u => {
-        if (u.department) allDeptsMap.set(u.department.id, { id: u.department.id, name: u.department.name });
-      });
-      return Array.from(allDeptsMap.values());
+  // Students Only in User Management (exclude Faculty / Admin)
+  const studentUsers = useMemo(() => {
+    return userList.filter(u => u.role === 'STUDENT');
+  }, [userList]);
+
+  // Department options for User Management filter
+  const userFilterDeptOptions = useMemo(() => {
+    if (!userBatchFilter) return allDepartments;
+    return allDepartments.filter(d => d.batchId === userBatchFilter);
+  }, [allDepartments, userBatchFilter]);
+
+  // Section options for User Management filter
+  const userFilterSectionOptions = useMemo(() => {
+    if (!userDeptFilter) {
+      return Array.from(new Set(userFilterDeptOptions.flatMap(d => (d.sections || []).map(s => s.name))))
+        .sort()
+        .map(name => ({ id: name, name }));
     }
-    const deptsInBatch = new Map<string, { id: string; name: string }>();
-    userList.forEach(u => {
-      if (u.department && (u.department.batchId === userBatchFilter || String(u.department.batch?.startYear) === userBatchFilter)) {
-        deptsInBatch.set(u.department.id, { id: u.department.id, name: u.department.name });
-      }
-    });
-    return Array.from(deptsInBatch.values());
-  }, [userList, userBatchFilter]);
+    const dept = userFilterDeptOptions.find(d => d.id === userDeptFilter || d.name === userDeptFilter);
+    return dept ? (dept.sections || []) : [];
+  }, [userDeptFilter, userFilterDeptOptions]);
 
-  // Section 2: Section options for User Directory filter
-  const availableSectionsForUserFilter = useMemo(() => {
-    if (!userDeptFilter) return [];
-    const secMap = new Map<string, string>();
-    userList.forEach(u => {
-      if (u.department?.id === userDeptFilter && u.section) {
-        secMap.set(u.section.id, u.section.name);
-      }
-    });
-    return Array.from(secMap.entries()).map(([id, name]) => ({ id, name }));
-  }, [userList, userDeptFilter]);
-
-  // Section 2: Filtered Users
-  const filteredUsers = useMemo(() => {
-    return userList.filter(u => {
-      // Role filter
-      if (userRoleFilter !== 'ALL' && u.role !== userRoleFilter) return false;
-
+  // Filtered Students List
+  const filteredStudents = useMemo(() => {
+    return studentUsers.filter(u => {
       // Batch filter
       if (userBatchFilter) {
         const uBatchId = u.department?.batchId;
@@ -509,35 +474,29 @@ export default function FacultyManagement({ initialTab, onNavigateTab }: Faculty
       }
 
       // Department filter
-      if (userDeptFilter && u.department?.id !== userDeptFilter) return false;
+      if (userDeptFilter && u.department?.id !== userDeptFilter && u.department?.name !== userDeptFilter) {
+        return false;
+      }
 
       // Section filter
-      if (userSectionFilter && u.section?.id !== userSectionFilter) return false;
+      if (userSectionFilter && u.section?.id !== userSectionFilter && u.section?.name !== userSectionFilter) {
+        return false;
+      }
 
       // Search filter
       if (userSearch.trim()) {
         const q = userSearch.toLowerCase();
-        const matchName = u.name.toLowerCase().includes(q);
-        const matchEmail = u.email.toLowerCase().includes(q);
+        const matchName = u.name?.toLowerCase().includes(q);
+        const matchEmail = u.email?.toLowerCase().includes(q);
         const matchRoll = u.rollNumber ? u.rollNumber.toLowerCase().includes(q) : false;
-        const matchEmp = u.employeeId ? u.employeeId.toLowerCase().includes(q) : false;
-        if (!matchName && !matchEmail && !matchRoll && !matchEmp) return false;
+        if (!matchName && !matchEmail && !matchRoll) return false;
       }
 
       return true;
     });
-  }, [userList, userRoleFilter, userBatchFilter, userDeptFilter, userSectionFilter, userSearch]);
+  }, [studentUsers, userBatchFilter, userDeptFilter, userSectionFilter, userSearch]);
 
-  // Pending faculty count for badge
-  const pendingFacultyCount = facultyList.filter(f => f.approvalStatus === 'PENDING').length;
-  const approvedFacultyCount = facultyList.filter(f => f.approvalStatus === 'APPROVED').length;
-  const rejectedFacultyCount = facultyList.filter(f => f.approvalStatus === 'REJECTED').length;
-
-  const totalStudentsCount = userList.filter(u => u.role === 'STUDENT').length;
-  const totalFacultyRoleCount = userList.filter(u => u.role === 'FACULTY').length;
-  const totalAdminsCount = userList.filter(u => u.role === 'ADMIN').length;
-
-  // If a student's profile is opened from the User Directory, render the full StudentProfileView
+  // If a student's profile is opened from User Management, render StudentProfileView
   if (profileStudentId) {
     return (
       <div className="space-y-4">
@@ -545,7 +504,7 @@ export default function FacultyManagement({ initialTab, onNavigateTab }: Faculty
           onClick={() => setProfileStudentId(null)}
           className="inline-flex items-center gap-2 text-xs font-bold text-gray-body hover:text-maroon px-3 py-1.5 rounded-lg border border-border-soft hover:bg-cream transition-colors cursor-pointer"
         >
-          &larr; Back to Student & User Directory
+          &larr; Back to User Management
         </button>
         <StudentProfileView studentId={profileStudentId} onBack={() => setProfileStudentId(null)} />
       </div>
@@ -555,1005 +514,546 @@ export default function FacultyManagement({ initialTab, onNavigateTab }: Faculty
   return (
     <div className="space-y-6">
       {/* ============================================================ */}
-      {/* Clean Top Administration Sub-Dashboard Navigation Tabs       */}
-      {/* ============================================================ */}
-      <div className="bg-white dark:bg-[#1E1E22] rounded-2xl border border-border-soft dark:border-neutral-800 p-2 shadow-xs">
-        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
-          <button
-            onClick={() => handleSwitchSection('approvals')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
-              activeSection === 'approvals'
-                ? 'bg-maroon text-white shadow-xs'
-                : 'text-gray-body dark:text-neutral-400 hover:text-ink dark:hover:text-neutral-200 hover:bg-cream/40 dark:hover:bg-neutral-800/60'
-            }`}
-          >
-            <CheckSquare className="w-4 h-4" />
-            <span>1. Faculty Approval</span>
-            {pendingFacultyCount > 0 && (
-              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                activeSection === 'approvals'
-                  ? 'bg-white text-maroon'
-                  : 'bg-amber-100 text-amber-900 dark:bg-amber-900/60 dark:text-amber-300'
-              }`}>
-                {pendingFacultyCount} pending
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={() => handleSwitchSection('users')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
-              activeSection === 'users'
-                ? 'bg-maroon text-white shadow-xs'
-                : 'text-gray-body dark:text-neutral-400 hover:text-ink dark:hover:text-neutral-200 hover:bg-cream/40 dark:hover:bg-neutral-800/60'
-            }`}
-          >
-            <Users className="w-4 h-4" />
-            <span>2. Student / User Directory</span>
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-              activeSection === 'users' ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-neutral-800 text-gray-body'
-            }`}>
-              {userList.length}
-            </span>
-          </button>
-
-          <button
-            onClick={() => handleSwitchSection('departments')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
-              activeSection === 'departments'
-                ? 'bg-maroon text-white shadow-xs'
-                : 'text-gray-body dark:text-neutral-400 hover:text-ink dark:hover:text-neutral-200 hover:bg-cream/40 dark:hover:bg-neutral-800/60'
-            }`}
-          >
-            <Building2 className="w-4 h-4" />
-            <span>3. Batches, Departments & Sections</span>
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-              activeSection === 'departments' ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-neutral-800 text-gray-body'
-            }`}>
-              {batches.length} batches
-            </span>
-          </button>
-        </div>
-      </div>
-
-      {/* ============================================================ */}
-      {/* DASHBOARD VIEW 1: FACULTY APPROVAL & ACCESS CONTROL          */}
+      {/* 1. FACULTY APPROVALS VIEW (Standalone)                       */}
       {/* ============================================================ */}
       {activeSection === 'approvals' && (
-        <div className="space-y-6 animate-in fade-in duration-300">
-          {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-maroon/10 text-maroon flex items-center justify-center font-bold text-lg shrink-0">
-                <CheckSquare className="w-5 h-5" />
-              </div>
-              <div>
-                <h1 className="text-xl sm:text-2xl font-serif font-bold text-ink dark:text-neutral-100">
-                  Faculty Approval & Verification
-                </h1>
-                <p className="text-xs text-gray-body dark:text-neutral-400">
-                  Review pending instructor registration requests and manage active teaching privileges.
-                </p>
-              </div>
+        <div className="space-y-6 animate-in fade-in duration-200">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-serif font-bold text-ink dark:text-neutral-100">Faculty Approvals</h1>
+              <p className="text-sm text-gray-body dark:text-neutral-400">Review pending instructor registrations and manage teaching privileges.</p>
             </div>
             <button
               onClick={fetchAdminData}
               disabled={loading}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-gray-body hover:text-maroon border border-border-soft rounded-xl hover:bg-cream/50 transition-colors cursor-pointer self-start sm:self-auto"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-gray-body hover:text-maroon border border-border-soft rounded-lg hover:bg-cream/50 transition-colors cursor-pointer self-start sm:self-auto"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-maroon' : ''}`} />
-              <span>Refresh Records</span>
+              <span>Refresh</span>
             </button>
           </div>
 
           {/* Metric Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="p-4 bg-white dark:bg-[#1E1E22] rounded-2xl border border-border-soft dark:border-neutral-800 shadow-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-gray-body uppercase tracking-wider">Total Faculty</span>
-                <Users className="w-4 h-4 text-maroon" />
-              </div>
-              <div className="text-2xl font-bold font-serif text-ink dark:text-neutral-100 mt-2">
-                {facultyList.length}
+          <section className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="bg-white dark:bg-[#1E1E22] p-6 rounded-xl border border-border-soft dark:border-neutral-800 shadow-sm">
+              <h3 className="text-gray-body dark:text-neutral-400 text-sm font-medium">Total Faculty</h3>
+              <p className="text-3xl font-bold mt-2 text-maroon dark:text-rose-400">{facultyList.length}</p>
+            </div>
+            <div className="bg-white dark:bg-[#1E1E22] p-6 rounded-xl border border-border-soft dark:border-neutral-800 shadow-sm">
+              <h3 className="text-gray-body dark:text-neutral-400 text-sm font-medium">Pending Approvals</h3>
+              <p className="text-3xl font-bold mt-2 text-maroon dark:text-rose-400">
+                {facultyList.filter(f => f.approvalStatus === 'PENDING').length}
+              </p>
+            </div>
+          </section>
+
+          {/* Faculty Table Section */}
+          <section className="bg-white dark:bg-[#1E1E22] rounded-xl border border-border-soft dark:border-neutral-800 p-6 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+              <h2 className="text-xl font-serif font-bold text-ink dark:text-neutral-100">Faculty Management</h2>
+              
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-muted" />
+                  <input
+                    type="text"
+                    value={facultySearch}
+                    onChange={e => setFacultySearch(e.target.value)}
+                    placeholder="Search faculty..."
+                    className="pl-9 pr-3 py-1.5 text-xs bg-cream/40 dark:bg-neutral-800 border border-border-soft dark:border-neutral-700 rounded-lg focus:border-maroon focus:ring-1 focus:ring-maroon text-ink dark:text-neutral-100 outline-none w-48 sm:w-60"
+                  />
+                </div>
+                <div className="flex items-center gap-1 bg-cream/40 dark:bg-neutral-800 p-1 rounded-lg border border-border-soft dark:border-neutral-700 text-xs font-semibold">
+                  {(['ALL', 'PENDING', 'APPROVED', 'REJECTED'] as const).map(status => (
+                    <button
+                      key={status}
+                      onClick={() => setFacultyStatusFilter(status)}
+                      className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
+                        facultyStatusFilter === status ? 'bg-maroon text-white shadow-xs' : 'text-gray-body dark:text-neutral-400 hover:text-ink'
+                      }`}
+                    >
+                      {status === 'ALL' ? 'All' : status.charAt(0) + status.slice(1).toLowerCase()}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
-            <div className="p-4 bg-white dark:bg-[#1E1E22] rounded-2xl border border-amber-200 dark:border-amber-900/40 shadow-xs bg-amber-50/20">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-amber-800 dark:text-amber-400 uppercase tracking-wider">Pending Approvals</span>
-                <Clock className="w-4 h-4 text-amber-600" />
-              </div>
-              <div className="text-2xl font-bold font-serif text-amber-900 dark:text-amber-300 mt-2">
-                {pendingFacultyCount}
-              </div>
-            </div>
-
-            <div className="p-4 bg-white dark:bg-[#1E1E22] rounded-2xl border border-emerald-200 dark:border-emerald-900/40 shadow-xs bg-emerald-50/20">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-emerald-800 dark:text-emerald-400 uppercase tracking-wider">Approved Faculty</span>
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              </div>
-              <div className="text-2xl font-bold font-serif text-emerald-900 dark:text-emerald-300 mt-2">
-                {approvedFacultyCount}
-              </div>
-            </div>
-
-            <div className="p-4 bg-white dark:bg-[#1E1E22] rounded-2xl border border-rose-200 dark:border-rose-900/40 shadow-xs bg-rose-50/20">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-rose-800 dark:text-rose-400 uppercase tracking-wider">Revoked / Rejected</span>
-                <XCircle className="w-4 h-4 text-rose-600" />
-              </div>
-              <div className="text-2xl font-bold font-serif text-rose-900 dark:text-rose-300 mt-2">
-                {rejectedFacultyCount}
-              </div>
-            </div>
-          </div>
-
-          {/* Filter Bar */}
-          <div className="bg-white dark:bg-[#1E1E22] p-4 rounded-2xl border border-border-soft dark:border-neutral-800 shadow-xs flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 text-gray-body absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Search faculty by name, email, employee ID..."
-                value={facultySearch}
-                onChange={e => setFacultySearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 text-sm bg-slate-50 dark:bg-[#25252A] border border-border-soft dark:border-neutral-700 rounded-xl focus:outline-none focus:ring-1 focus:ring-maroon text-ink dark:text-neutral-100"
-              />
-              {facultySearch && (
-                <button
-                  onClick={() => setFacultySearch('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-body hover:text-ink"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-
-            <div className="flex items-center gap-1.5 overflow-x-auto self-start sm:self-auto">
-              <span className="text-xs text-gray-body font-semibold mr-1">Status:</span>
-              {(['ALL', 'PENDING', 'APPROVED', 'REJECTED'] as const).map(status => (
-                <button
-                  key={status}
-                  onClick={() => setFacultyStatusFilter(status)}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    facultyStatusFilter === status
-                      ? 'bg-maroon text-white shadow-xs'
-                      : 'bg-slate-100 dark:bg-neutral-800 text-gray-body dark:text-neutral-400 hover:text-ink'
-                  }`}
-                >
-                  {status === 'ALL' ? 'All' : status === 'PENDING' ? 'Pending' : status === 'APPROVED' ? 'Approved' : 'Rejected'}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Faculty Approvals Table */}
-          <div className="bg-white dark:bg-[#1E1E22] rounded-2xl border border-border-soft dark:border-neutral-800 shadow-xs overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 dark:bg-neutral-900 text-xs uppercase font-bold text-gray-body border-b border-border-soft dark:border-neutral-800">
-                  <tr>
-                    <th className="py-3 px-4">Faculty Member</th>
-                    <th className="py-3 px-4">Employee ID</th>
-                    <th className="py-3 px-4">Email</th>
-                    <th className="py-3 px-4">Department</th>
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4 text-right">Approval Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border-soft dark:divide-neutral-800">
-                  {filteredFaculty.length === 0 ? (
+            {filteredFaculty.length === 0 ? (
+              <p className="text-gray-body dark:text-neutral-400 text-sm italic py-4">No faculty records found.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left text-ink dark:text-neutral-200">
+                  <thead className="text-xs uppercase bg-cream-edge/40 dark:bg-neutral-800/70 border-b border-border-soft dark:border-neutral-700 text-gray-body dark:text-neutral-400">
                     <tr>
-                      <td colSpan={6} className="py-12 text-center text-gray-body">
-                        <Users className="w-8 h-8 text-maroon/40 mx-auto mb-2" />
-                        <p className="font-semibold text-sm">No faculty members found</p>
-                        <p className="text-xs text-gray-body mt-0.5">
-                          {facultySearch || facultyStatusFilter !== 'ALL'
-                            ? 'Try clearing the search query or status filter.'
-                            : 'No faculty registration requests have been recorded yet.'}
-                        </p>
-                      </td>
+                      <th className="px-6 py-3">Name</th>
+                      <th className="px-6 py-3">Employee ID</th>
+                      <th className="px-6 py-3">Email</th>
+                      <th className="px-6 py-3">Status</th>
+                      <th className="px-6 py-3 text-right">Actions</th>
                     </tr>
-                  ) : (
-                    filteredFaculty.map(faculty => {
-                      const isPending = faculty.approvalStatus === 'PENDING';
-                      const isApproved = faculty.approvalStatus === 'APPROVED';
-                      const isActionLoading = actionLoadingId === faculty.id;
-
-                      return (
-                        <tr key={faculty.id} className="hover:bg-cream/20 dark:hover:bg-neutral-800/40 transition-colors">
-                          <td className="py-3.5 px-4">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-maroon/10 text-maroon flex items-center justify-center font-bold text-xs shrink-0">
-                                {faculty.name.slice(0, 2).toUpperCase()}
-                              </div>
-                              <div>
-                                <span className="font-bold text-ink dark:text-neutral-100 block">
-                                  {faculty.name}
-                                </span>
-                                {faculty.createdAt && (
-                                  <span className="text-[11px] text-gray-body">
-                                    Joined {new Date(faculty.createdAt).toLocaleDateString()}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </td>
-                          <td className="py-3.5 px-4 font-mono text-xs text-gray-body">
-                            {faculty.employeeId || '—'}
-                          </td>
-                          <td className="py-3.5 px-4 text-xs text-gray-body font-medium">
-                            {faculty.email}
-                          </td>
-                          <td className="py-3.5 px-4 text-xs font-semibold text-ink dark:text-neutral-200">
-                            {faculty.department?.name || <span className="text-gray-body italic">Unassigned</span>}
-                          </td>
-                          <td className="py-3.5 px-4">
-                            {isApproved ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
-                                <CheckCircle2 className="w-3 h-3" /> Approved
-                              </span>
-                            ) : isPending ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
-                                <Clock className="w-3 h-3" /> Pending Review
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300">
-                                <XCircle className="w-3 h-3" /> Revoked
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-3.5 px-4 text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              {isPending ? (
-                                <>
-                                  <button
-                                    onClick={() => handleApproval(faculty.id, 'APPROVED')}
-                                    disabled={isActionLoading}
-                                    className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors disabled:opacity-50 flex items-center gap-1 cursor-pointer"
-                                  >
-                                    {isActionLoading && <Loader2 className="w-3 h-3 animate-spin" />}
-                                    Approve Access
-                                  </button>
-                                  <button
-                                    onClick={() => handleApproval(faculty.id, 'REJECTED')}
-                                    disabled={isActionLoading}
-                                    className="px-2.5 py-1 text-rose-600 hover:text-rose-700 border border-rose-200 hover:bg-rose-50 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
-                                  >
-                                    Reject
-                                  </button>
-                                </>
-                              ) : isApproved ? (
-                                <button
-                                  onClick={() => handleApproval(faculty.id, 'REJECTED')}
-                                  disabled={isActionLoading}
-                                  className="px-2.5 py-1 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30 border border-rose-200 dark:border-rose-900 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer flex items-center gap-1 ml-auto"
-                                >
-                                  {isActionLoading && <Loader2 className="w-3 h-3 animate-spin" />}
-                                  Revoke Access
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={() => handleApproval(faculty.id, 'APPROVED')}
-                                  disabled={isActionLoading}
-                                  className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors disabled:opacity-50 cursor-pointer flex items-center gap-1 ml-auto"
-                                >
-                                  {isActionLoading && <Loader2 className="w-3 h-3 animate-spin" />}
-                                  Reinstate Access
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                  </thead>
+                  <tbody>
+                    {filteredFaculty.map(faculty => (
+                      <tr key={faculty.id} className="border-b border-border-soft dark:border-neutral-800 hover:bg-cream/40 dark:hover:bg-neutral-800/40 transition-colors">
+                        <td className="px-6 py-4 font-semibold text-ink dark:text-neutral-100">{faculty.name}</td>
+                        <td className="px-6 py-4 font-mono text-xs">{faculty.employeeId || '—'}</td>
+                        <td className="px-6 py-4 text-gray-body dark:text-neutral-400">{faculty.email}</td>
+                        <td className="px-6 py-4">
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${
+                            faculty.approvalStatus === 'APPROVED' ? 'bg-green-500/10 text-green-700 dark:text-emerald-300 border-green-200 dark:border-emerald-800' : 
+                            faculty.approvalStatus === 'PENDING' ? 'bg-yellow-500/10 text-yellow-700 dark:text-amber-300 border-yellow-200 dark:border-amber-800' : 
+                            'bg-red-500/10 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800'
+                          }`}>
+                            {faculty.approvalStatus}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          {faculty.approvalStatus !== 'APPROVED' && (
+                            <button
+                              onClick={() => handleApproval(faculty.id, 'APPROVED')}
+                              disabled={actionLoadingId === faculty.id}
+                              className="text-green-600 dark:text-emerald-400 hover:text-green-700 mr-4 font-semibold cursor-pointer"
+                            >
+                              Approve
+                            </button>
+                          )}
+                          {faculty.approvalStatus !== 'REJECTED' && (
+                            <button
+                              onClick={() => handleApproval(faculty.id, 'REJECTED')}
+                              disabled={actionLoadingId === faculty.id}
+                              className="text-red-600 dark:text-red-400 hover:text-red-700 font-semibold cursor-pointer"
+                            >
+                              {faculty.approvalStatus === 'APPROVED' ? 'Revoke Access' : 'Reject'}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
         </div>
       )}
 
       {/* ============================================================ */}
-      {/* DASHBOARD VIEW 2: STUDENT & USER DIRECTORY                   */}
+      {/* 2. USER MANAGEMENT VIEW (Students Only, Standalone)          */}
       {/* ============================================================ */}
       {activeSection === 'users' && (
-        <div className="space-y-6 animate-in fade-in duration-300">
-          {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-maroon/10 text-maroon flex items-center justify-center font-bold text-lg shrink-0">
-                <Users className="w-5 h-5" />
+        <div className="space-y-6 animate-in fade-in duration-200">
+          {/* Bulk Import Students Card */}
+          <div className="rounded-xl border border-maroon/20 dark:border-rose-500/30 bg-cream/30 dark:bg-neutral-900/40 p-6 shadow-sm">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-maroon/10 dark:bg-rose-500/15 text-maroon dark:text-rose-400">
+                <FileSpreadsheet className="h-5 w-5" />
               </div>
               <div>
-                <h1 className="text-xl sm:text-2xl font-serif font-bold text-ink dark:text-neutral-100">
-                  Student & User Directory
-                </h1>
-                <p className="text-xs text-gray-body dark:text-neutral-400">
-                  Filter students by batch, department, and section, inspect individual profiles, and bulk-enroll students.
+                <h2 className="text-lg font-serif font-bold text-ink dark:text-neutral-100">Bulk import students</h2>
+                <p className="mt-1 text-xs leading-5 text-gray-body dark:text-neutral-400">
+                  Import a CSV or XLSX file. Students will be automatically grouped by Campus, Batch, Branch, and Section based on their Roll Number (e.g. <code>CH.SC.U4CSE24142</code>). Please ensure the <code>Date of Birth</code> column is formatted as DD/MM/YYYY for correct password generation.
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
-              <button
-                onClick={() => setShowBulkImport(!showBulkImport)}
-                className={`inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl border transition-colors cursor-pointer ${
-                  showBulkImport
-                    ? 'bg-maroon text-white border-maroon'
-                    : 'bg-white dark:bg-[#1E1E22] text-gray-body hover:text-maroon border-border-soft hover:bg-cream/50'
-                }`}
-              >
-                <Upload className="w-3.5 h-3.5" />
-                <span>{showBulkImport ? 'Hide Bulk Import' : 'Bulk Import Students'}</span>
-              </button>
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+              <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-maroon px-6 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-maroon-deep hover:shadow-md">
+                <Upload className="h-4 w-4" />
+                {importingStudents ? 'Importing...' : 'Upload Student File'}
+                <input type="file" accept=".csv,.xlsx,.xls" className="sr-only" disabled={importingStudents} onChange={handleImportStudents} />
+              </label>
 
               <button
-                onClick={fetchAdminData}
-                disabled={loading}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-gray-body hover:text-maroon border border-border-soft rounded-xl hover:bg-cream/50 transition-colors cursor-pointer"
+                onClick={handleDownloadTemplate}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-white dark:bg-[#25252A] border border-border-soft dark:border-neutral-700 px-6 py-2.5 text-sm font-bold text-ink dark:text-neutral-100 shadow-sm transition-all hover:-translate-y-0.5 hover:border-maroon hover:text-maroon cursor-pointer"
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-maroon' : ''}`} />
-                <span>Refresh</span>
+                <FileSpreadsheet className="h-4 w-4" />
+                Download Template
               </button>
             </div>
+
+            {importSummary && (
+              <div className={`mt-3 rounded-lg border px-4 py-3 text-sm ${importSummary.rejected ? 'border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200' : 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-emerald-300'}`}>
+                <p className="font-semibold">Imported: {importSummary.imported} · Rejected: {importSummary.rejected}. {importSummary.message}</p>
+                {importSummary.rejectedRows && importSummary.rejectedRows.length > 0 && (
+                  <div className="mt-2 max-h-32 overflow-y-auto rounded bg-white/50 dark:bg-black/20 p-2 text-xs">
+                    <ul className="list-inside list-disc space-y-1">
+                      {importSummary.rejectedRows.map((r, i) => (
+                        <li key={i}><strong>Row {r.row}:</strong> {r.reason}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
-          {/* Metric Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="p-4 bg-white dark:bg-[#1E1E22] rounded-2xl border border-border-soft dark:border-neutral-800 shadow-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-gray-body uppercase tracking-wider">Total Students</span>
-                <GraduationCap className="w-4 h-4 text-blue-600" />
+          {/* User Management Section */}
+          <div className="bg-white dark:bg-[#1E1E22] rounded-xl border border-border-soft dark:border-neutral-800 p-6 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-serif font-bold text-ink dark:text-neutral-100">User Management</h2>
+                <p className="text-xs text-gray-body dark:text-neutral-400">Institutional student accounts with academic batch, department, and section filters.</p>
               </div>
-              <div className="text-2xl font-bold font-serif text-ink dark:text-neutral-100 mt-2">
-                {totalStudentsCount}
-              </div>
-            </div>
 
-            <div className="p-4 bg-white dark:bg-[#1E1E22] rounded-2xl border border-border-soft dark:border-neutral-800 shadow-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-gray-body uppercase tracking-wider">Faculty Members</span>
-                <Users className="w-4 h-4 text-maroon" />
-              </div>
-              <div className="text-2xl font-bold font-serif text-ink dark:text-neutral-100 mt-2">
-                {totalFacultyRoleCount}
-              </div>
-            </div>
-
-            <div className="p-4 bg-white dark:bg-[#1E1E22] rounded-2xl border border-border-soft dark:border-neutral-800 shadow-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-gray-body uppercase tracking-wider">Administrators</span>
-                <ShieldCheck className="w-4 h-4 text-amber-600" />
-              </div>
-              <div className="text-2xl font-bold font-serif text-ink dark:text-neutral-100 mt-2">
-                {totalAdminsCount}
-              </div>
-            </div>
-
-            <div className="p-4 bg-white dark:bg-[#1E1E22] rounded-2xl border border-border-soft dark:border-neutral-800 shadow-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-gray-body uppercase tracking-wider">Total Accounts</span>
-                <UserCheck className="w-4 h-4 text-emerald-600" />
-              </div>
-              <div className="text-2xl font-bold font-serif text-ink dark:text-neutral-100 mt-2">
-                {userList.length}
-              </div>
-            </div>
-          </div>
-
-          {/* Bulk Student Enrollment Card (Collapsible) */}
-          {showBulkImport && (
-            <div className="p-5 sm:p-6 bg-cream/30 dark:bg-neutral-900/40 rounded-2xl border border-maroon/20 dark:border-rose-500/30 shadow-xs space-y-4 animate-in fade-in duration-200">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-maroon/10 text-maroon flex items-center justify-center font-bold text-base shrink-0">
-                    <FileSpreadsheet className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-serif font-bold text-sm text-ink dark:text-neutral-100">
-                      Bulk Student Enrollment
-                    </h3>
-                    <p className="text-xs text-gray-body dark:text-neutral-400">
-                      Upload CSV or XLSX file containing student roster details with automatic class assignment.
-                    </p>
-                  </div>
-                </div>
+              <div className="flex items-center gap-2">
                 <button
-                  onClick={handleDownloadTemplate}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-[#25252A] border border-border-soft text-ink dark:text-neutral-200 text-xs font-bold rounded-lg hover:bg-cream transition-colors cursor-pointer self-start sm:self-auto"
+                  onClick={fetchAdminData}
+                  disabled={loading}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-gray-body hover:text-maroon border border-border-soft rounded-lg hover:bg-cream/50 transition-colors cursor-pointer"
                 >
-                  <FileSpreadsheet className="w-3.5 h-3.5 text-maroon" />
-                  <span>Download Sample Template</span>
+                  <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-maroon' : ''}`} />
+                  <span>Refresh</span>
                 </button>
               </div>
+            </div>
 
-              {/* Upload Dropzone */}
-              <div className="border-2 border-dashed border-border-soft dark:border-neutral-700 hover:border-maroon/50 rounded-xl p-5 text-center bg-white dark:bg-[#1E1E22] transition-colors relative">
-                <input
-                  type="file"
-                  accept=".csv, .xlsx, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, text/csv"
-                  onChange={handleStudentBulkImport}
-                  disabled={importingStudents}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
-                />
-                <div className="flex flex-col items-center justify-center space-y-2">
-                  <div className="w-10 h-10 rounded-full bg-maroon/10 flex items-center justify-center text-maroon">
-                    {importingStudents ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
-                  </div>
-                  <div>
-                    <span className="text-xs font-bold text-maroon hover:underline">
-                      {importingStudents ? 'Processing spreadsheet...' : 'Click to upload or drag and drop'}
-                    </span>
-                    <p className="text-[11px] text-gray-body dark:text-neutral-400 mt-0.5">
-                      Accepts .CSV or .XLSX files with columns: name, email, rollNumber, batch, department, section
-                    </p>
-                  </div>
-                </div>
+            {/* Batch, Department, Section Filters and Search Bar */}
+            <div className="p-4 bg-cream/40 dark:bg-neutral-800/40 rounded-xl border border-border-soft dark:border-neutral-700/60 flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-gray-body">
+                <Filter className="w-3.5 h-3.5 text-maroon" />
+                <span>Filters:</span>
               </div>
 
-              {/* Import Results Feedback */}
-              {importSummary && (
-                <div className="p-4 rounded-xl border border-border-soft bg-white dark:bg-[#1E1E22] space-y-2">
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs font-bold text-emerald-600 flex items-center gap-1">
-                      <CheckCircle2 className="w-4 h-4" /> {importSummary.imported} Enrolled
-                    </span>
-                    {importSummary.rejected > 0 && (
-                      <span className="text-xs font-bold text-rose-600 flex items-center gap-1">
-                        <XCircle className="w-4 h-4" /> {importSummary.rejected} Rejected
-                      </span>
-                    )}
-                  </div>
-                  {importSummary.rejectedRows && importSummary.rejectedRows.length > 0 && (
-                    <div className="mt-2 max-h-40 overflow-y-auto text-xs space-y-1 p-2 bg-slate-50 dark:bg-neutral-900 rounded-lg">
-                      <p className="font-bold text-gray-body uppercase text-[10px]">Rejection Diagnostics:</p>
-                      {importSummary.rejectedRows.map((r, i) => (
-                        <div key={i} className="text-rose-600 font-mono text-[11px]">
-                          Row {r.row}: {r.reason}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+              {/* Batch Filter */}
+              <select
+                value={userBatchFilter}
+                onChange={e => {
+                  setUserBatchFilter(e.target.value);
+                  setUserDeptFilter('');
+                  setUserSectionFilter('');
+                }}
+                className="px-3 py-1.5 text-xs bg-white dark:bg-[#25252A] border border-border-soft dark:border-neutral-700 rounded-lg text-ink dark:text-neutral-200 outline-none focus:border-maroon focus:ring-1 focus:ring-maroon"
+              >
+                <option value="">All Batches</option>
+                {batches.map(b => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
 
-          {/* User / Student Filters Bar */}
-          <div className="bg-white dark:bg-[#1E1E22] p-4 rounded-2xl border border-border-soft dark:border-neutral-800 shadow-xs space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-ink dark:text-neutral-200 flex items-center gap-1.5 uppercase tracking-wider">
-                <Filter className="w-3.5 h-3.5 text-maroon" /> Directory Class & Role Filters
-              </span>
-              {(userBatchFilter || userDeptFilter || userSectionFilter || userRoleFilter !== 'ALL' || userSearch) && (
+              {/* Department Filter */}
+              <select
+                value={userDeptFilter}
+                onChange={e => {
+                  setUserDeptFilter(e.target.value);
+                  setUserSectionFilter('');
+                }}
+                className="px-3 py-1.5 text-xs bg-white dark:bg-[#25252A] border border-border-soft dark:border-neutral-700 rounded-lg text-ink dark:text-neutral-200 outline-none focus:border-maroon focus:ring-1 focus:ring-maroon"
+              >
+                <option value="">All Departments</option>
+                {userFilterDeptOptions.map(d => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+
+              {/* Section Filter */}
+              <select
+                value={userSectionFilter}
+                onChange={e => setUserSectionFilter(e.target.value)}
+                className="px-3 py-1.5 text-xs bg-white dark:bg-[#25252A] border border-border-soft dark:border-neutral-700 rounded-lg text-ink dark:text-neutral-200 outline-none focus:border-maroon focus:ring-1 focus:ring-maroon"
+              >
+                <option value="">All Sections</option>
+                {userFilterSectionOptions.map(s => (
+                  <option key={s.id} value={s.id}>Section {s.name}</option>
+                ))}
+              </select>
+
+              {/* Search Bar */}
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-muted" />
+                <input
+                  type="text"
+                  value={userSearch}
+                  onChange={e => setUserSearch(e.target.value)}
+                  placeholder="Search student by name, roll no, email..."
+                  className="w-full pl-8 pr-3 py-1.5 text-xs bg-white dark:bg-[#25252A] border border-border-soft dark:border-neutral-700 rounded-lg text-ink dark:text-neutral-200 outline-none focus:border-maroon focus:ring-1 focus:ring-maroon"
+                />
+              </div>
+
+              {/* Clear Filters */}
+              {(userBatchFilter || userDeptFilter || userSectionFilter || userSearch) && (
                 <button
                   onClick={() => {
                     setUserBatchFilter('');
                     setUserDeptFilter('');
                     setUserSectionFilter('');
-                    setUserRoleFilter('ALL');
                     setUserSearch('');
                   }}
-                  className="text-xs text-maroon font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                  className="px-2.5 py-1.5 text-xs text-maroon hover:bg-maroon/10 rounded-lg font-bold flex items-center gap-1 cursor-pointer transition-colors"
                 >
-                  <X className="w-3 h-3" /> Clear All Filters
+                  <X className="w-3.5 h-3.5" />
+                  <span>Clear</span>
                 </button>
               )}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
-              {/* Batch / Year Dropdown */}
-              <div>
-                <label className="text-[11px] font-semibold text-gray-body block mb-1">Academic Batch / Year</label>
-                <select
-                  value={userBatchFilter}
-                  onChange={e => {
-                    setUserBatchFilter(e.target.value);
-                    setUserDeptFilter('');
-                    setUserSectionFilter('');
-                  }}
-                  className="w-full h-9 px-2.5 rounded-xl border border-border-soft dark:border-neutral-700 bg-slate-50 dark:bg-[#25252A] text-xs font-medium text-ink dark:text-neutral-100 focus:outline-none focus:ring-1 focus:ring-maroon"
-                >
-                  <option value="">All Years / Batches</option>
-                  {batches.map(b => (
-                    <option key={b.id} value={b.name}>
-                      Batch {b.name} ({b.startYear})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Department Dropdown */}
-              <div>
-                <label className="text-[11px] font-semibold text-gray-body block mb-1">Department</label>
-                <select
-                  value={userDeptFilter}
-                  onChange={e => {
-                    setUserDeptFilter(e.target.value);
-                    setUserSectionFilter('');
-                  }}
-                  className="w-full h-9 px-2.5 rounded-xl border border-border-soft dark:border-neutral-700 bg-slate-50 dark:bg-[#25252A] text-xs font-medium text-ink dark:text-neutral-100 focus:outline-none focus:ring-1 focus:ring-maroon"
-                >
-                  <option value="">All Departments</option>
-                  {availableDeptsForUserFilter.map(d => (
-                    <option key={d.id} value={d.id}>
-                      {d.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Section Dropdown */}
-              <div>
-                <label className="text-[11px] font-semibold text-gray-body block mb-1">Section</label>
-                <select
-                  value={userSectionFilter}
-                  onChange={e => setUserSectionFilter(e.target.value)}
-                  disabled={!userDeptFilter}
-                  className="w-full h-9 px-2.5 rounded-xl border border-border-soft dark:border-neutral-700 bg-slate-50 dark:bg-[#25252A] text-xs font-medium text-ink dark:text-neutral-100 focus:outline-none focus:ring-1 focus:ring-maroon disabled:opacity-50"
-                >
-                  <option value="">All Sections</option>
-                  {availableSectionsForUserFilter.map(s => (
-                    <option key={s.id} value={s.id}>
-                      Section {s.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Role Dropdown */}
-              <div>
-                <label className="text-[11px] font-semibold text-gray-body block mb-1">Account Role</label>
-                <select
-                  value={userRoleFilter}
-                  onChange={e => setUserRoleFilter(e.target.value)}
-                  className="w-full h-9 px-2.5 rounded-xl border border-border-soft dark:border-neutral-700 bg-slate-50 dark:bg-[#25252A] text-xs font-medium text-ink dark:text-neutral-100 focus:outline-none focus:ring-1 focus:ring-maroon"
-                >
-                  <option value="ALL">All Roles</option>
-                  <option value="STUDENT">Students</option>
-                  <option value="FACULTY">Faculty</option>
-                  <option value="ADMIN">Administrators</option>
-                </select>
-              </div>
-
-              {/* Search Bar */}
-              <div>
-                <label className="text-[11px] font-semibold text-gray-body block mb-1">Search User</label>
-                <div className="relative">
-                  <Search className="w-3.5 h-3.5 text-gray-body absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    placeholder="Search name, roll..."
-                    value={userSearch}
-                    onChange={e => setUserSearch(e.target.value)}
-                    className="w-full h-9 pl-9 pr-3 text-xs bg-slate-50 dark:bg-[#25252A] border border-border-soft dark:border-neutral-700 rounded-xl focus:outline-none focus:ring-1 focus:ring-maroon text-ink dark:text-neutral-100"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* User Directory Table */}
-          <div className="bg-white dark:bg-[#1E1E22] rounded-2xl border border-border-soft dark:border-neutral-800 shadow-xs overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 dark:bg-neutral-900 text-xs uppercase font-bold text-gray-body border-b border-border-soft dark:border-neutral-800">
-                  <tr>
-                    <th className="py-3 px-4">User / Student</th>
-                    <th className="py-3 px-4">Roll / ID</th>
-                    <th className="py-3 px-4">Role</th>
-                    <th className="py-3 px-4">Department & Batch</th>
-                    <th className="py-3 px-4">Section</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border-soft dark:divide-neutral-800">
-                  {filteredUsers.length === 0 ? (
+            {/* Students Table */}
+            {filteredStudents.length === 0 ? (
+              <p className="text-gray-body dark:text-neutral-400 text-sm italic py-4">No student records match the selected criteria.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left text-ink dark:text-neutral-200">
+                  <thead className="text-xs uppercase bg-cream-edge/40 dark:bg-neutral-800/70 border-b border-border-soft dark:border-neutral-700 text-gray-body dark:text-neutral-400">
                     <tr>
-                      <td colSpan={6} className="py-12 text-center text-gray-body">
-                        <Users className="w-8 h-8 text-maroon/40 mx-auto mb-2" />
-                        <p className="font-semibold text-sm">No user records match these filters</p>
-                        <p className="text-xs text-gray-body mt-0.5">
-                          Try modifying your class filter or clearing the search box.
-                        </p>
-                      </td>
+                      <th className="px-6 py-3">Student Name</th>
+                      <th className="px-6 py-3">Roll Number</th>
+                      <th className="px-6 py-3">Email</th>
+                      <th className="px-6 py-3">Academic Scope</th>
+                      <th className="px-6 py-3">Status</th>
+                      <th className="px-6 py-3 text-right">Actions</th>
                     </tr>
-                  ) : (
-                    filteredUsers.map(user => {
-                      const isStudent = user.role === 'STUDENT';
-                      const isResetting = resettingStudentId === user.id;
-
-                      return (
-                        <tr key={user.id} className="hover:bg-cream/20 dark:hover:bg-neutral-800/40 transition-colors">
-                          <td className="py-3 px-4">
-                            <div className="flex items-center gap-3">
-                              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
-                                isStudent
-                                  ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300'
-                                  : user.role === 'FACULTY'
-                                  ? 'bg-maroon/10 text-maroon'
-                                  : 'bg-amber-100 text-amber-800'
-                              }`}>
-                                {user.name.slice(0, 2).toUpperCase()}
-                              </div>
-                              <div>
-                                <span className="font-bold text-ink dark:text-neutral-100 block">
-                                  {user.name}
-                                </span>
-                                <span className="text-[11px] text-gray-body block">
-                                  {user.email}
-                                </span>
-                              </div>
-                            </div>
-                          </td>
-
-                          <td className="py-3 px-4 font-mono text-xs text-gray-body">
-                            {user.rollNumber || user.employeeId || '—'}
-                          </td>
-
-                          <td className="py-3 px-4">
-                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${
-                              isStudent
-                                ? 'bg-blue-50 text-blue-800 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-300'
-                                : user.role === 'FACULTY'
-                                ? 'bg-maroon/10 text-maroon border border-maroon/20'
-                                : 'bg-amber-50 text-amber-900 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300'
-                            }`}>
-                              {user.role}
-                            </span>
-                          </td>
-
-                          <td className="py-3 px-4 text-xs">
-                            <span className="font-semibold text-ink dark:text-neutral-200 block">
-                              {user.department?.name || <span className="text-gray-body italic">Unassigned</span>}
-                            </span>
-                            {user.department?.batch && (
-                              <span className="text-[11px] text-gray-body">
-                                Batch {user.department.batch.name} ({user.department.batch.startYear})
-                              </span>
-                            )}
-                          </td>
-
-                          <td className="py-3 px-4 text-xs font-semibold text-ink dark:text-neutral-200">
-                            {user.section ? `Sec ${user.section.name}` : <span className="text-gray-body">—</span>}
-                          </td>
-
-                          <td className="py-3 px-4 text-right">
-                            <div className="flex items-center justify-end gap-1.5">
-                              {/* Clickable Student Profile Button */}
-                              {isStudent && (
-                                <button
-                                  onClick={() => setProfileStudentId(user.id)}
-                                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-white dark:bg-[#25252A] border border-border-soft hover:border-maroon/40 text-ink dark:text-neutral-200 hover:text-maroon rounded-lg text-xs font-bold transition-colors cursor-pointer"
-                                  title="Inspect full student performance profile"
-                                >
-                                  <Eye className="w-3.5 h-3.5 text-maroon" />
-                                  <span>Profile</span>
-                                </button>
-                              )}
-
-                              {/* Student Password Reset Button */}
-                              {isStudent && (
-                                <button
-                                  onClick={() => handleResetStudentPassword(user.id, user.name)}
-                                  disabled={isResetting}
-                                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-white dark:bg-[#25252A] border border-border-soft text-gray-body hover:text-ink rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
-                                  title="Send password reset link to student email"
-                                >
-                                  {isResetting ? <Loader2 className="w-3 h-3 animate-spin text-maroon" /> : <KeyRound className="w-3 h-3" />}
-                                  <span>Reset</span>
-                                </button>
-                              )}
-
-                              {/* Delete Account Confirmation */}
-                              <button
-                                onClick={() => setPendingDelete({ type: 'user', id: user.id, name: `${user.name} (${user.email})` })}
-                                className="p-1 text-gray-body hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
-                                title="Delete user account"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Table Footer Count */}
-            <div className="py-3 px-4 bg-slate-50/60 dark:bg-neutral-900/60 border-t border-border-soft dark:border-neutral-800 text-xs text-gray-body flex items-center justify-between">
-              <span>Showing {filteredUsers.length} of {userList.length} user accounts</span>
-              <span className="text-[11px]">Server-authenticated institutional records</span>
-            </div>
+                  </thead>
+                  <tbody>
+                    {filteredStudents.map(student => (
+                      <tr key={student.id} className="border-b border-border-soft dark:border-neutral-800 hover:bg-cream/40 dark:hover:bg-neutral-800/40 transition-colors">
+                        <td className="px-6 py-4 font-semibold text-ink dark:text-neutral-100">
+                          <button
+                            onClick={() => setProfileStudentId(student.id)}
+                            className="text-left font-bold text-ink dark:text-neutral-100 hover:text-maroon dark:hover:text-rose-400 cursor-pointer transition-colors"
+                          >
+                            {student.name}
+                          </button>
+                        </td>
+                        <td className="px-6 py-4 font-mono text-xs text-gray-body dark:text-neutral-300">
+                          {student.rollNumber || '—'}
+                        </td>
+                        <td className="px-6 py-4 text-gray-body dark:text-neutral-400 text-xs">
+                          {student.email}
+                        </td>
+                        <td className="px-6 py-4 text-xs text-gray-body dark:text-neutral-300">
+                          {student.department?.name || 'Department Unassigned'}
+                          {student.section?.name ? ` · Sec ${student.section.name}` : ''}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${
+                            student.approvalStatus === 'APPROVED' ? 'bg-green-500/10 text-green-700 dark:text-emerald-300 border-green-200 dark:border-emerald-800' : 
+                            student.approvalStatus === 'PENDING' ? 'bg-yellow-500/10 text-yellow-700 dark:text-amber-300 border-yellow-200 dark:border-amber-800' : 
+                            'bg-red-500/10 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800'
+                          }`}>
+                            {student.approvalStatus || 'APPROVED'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => setProfileStudentId(student.id)}
+                              className="px-2 py-1 text-xs font-bold text-gray-body hover:text-maroon border border-border-soft rounded-lg hover:bg-cream/50 transition-colors cursor-pointer flex items-center gap-1"
+                              title="View Student Profile"
+                            >
+                              <Eye className="w-3 h-3" />
+                              <span>Profile</span>
+                            </button>
+                            <button
+                              onClick={() => handleResetPassword(student)}
+                              disabled={resettingStudentId === student.id}
+                              className="px-2 py-1 text-xs font-bold text-gray-body hover:text-amber-600 border border-border-soft rounded-lg hover:bg-amber-50 transition-colors cursor-pointer flex items-center gap-1"
+                              title="Reset Password"
+                            >
+                              <KeyRound className="w-3 h-3" />
+                              <span>Reset</span>
+                            </button>
+                            <button
+                              onClick={() => setPendingDelete({ type: 'user', id: student.id, name: student.name || student.email })}
+                              className="p-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                              title="Delete Student"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}
 
       {/* ============================================================ */}
-      {/* DASHBOARD VIEW 3: BATCHES, DEPARTMENTS & SECTIONS            */}
+      {/* 3. DEPARTMENTS VIEW (3-Column Layout, Standalone)            */}
       {/* ============================================================ */}
       {activeSection === 'departments' && (
-        <div className="space-y-6 animate-in fade-in duration-300">
-          {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-maroon/10 text-maroon flex items-center justify-center font-bold text-lg shrink-0">
-                <Building2 className="w-5 h-5" />
-              </div>
-              <div>
-                <h1 className="text-xl sm:text-2xl font-serif font-bold text-ink dark:text-neutral-100">
-                  Batches, Departments & Sections
-                </h1>
-                <p className="text-xs text-gray-body dark:text-neutral-400">
-                  Configure institutional academic structure, batches, engineering departments, and class sections.
-                </p>
-              </div>
+        <div className="space-y-6 animate-in fade-in duration-200">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-serif font-bold text-ink dark:text-neutral-100">Batches & Departments</h1>
+              <p className="text-sm text-gray-body dark:text-neutral-400">Configure academic batches, departments, and class sections.</p>
             </div>
-
             <button
               onClick={fetchAdminData}
               disabled={loading}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-gray-body hover:text-maroon border border-border-soft rounded-xl hover:bg-cream/50 transition-colors cursor-pointer self-start sm:self-auto"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-gray-body hover:text-maroon border border-border-soft rounded-lg hover:bg-cream/50 transition-colors cursor-pointer self-start sm:self-auto"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-maroon' : ''}`} />
-              <span>Refresh Structure</span>
+              <span>Refresh</span>
             </button>
           </div>
 
-          {/* Metric Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="p-4 bg-white dark:bg-[#1E1E22] rounded-2xl border border-border-soft dark:border-neutral-800 shadow-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-gray-body uppercase tracking-wider">Academic Batches</span>
-                <Calendar className="w-4 h-4 text-maroon" />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Column 1: Batches List with Department Count */}
+            <div className="p-6 bg-white dark:bg-[#1E1E22] rounded-xl border border-border-soft dark:border-neutral-800 shadow-sm overflow-y-auto max-h-[600px] col-span-1">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-serif font-bold text-ink dark:text-neutral-100">Batches</h2>
+                <span className="text-xs text-gray-body dark:text-neutral-400 font-semibold">{batches.length} batches</span>
               </div>
-              <div className="text-2xl font-bold font-serif text-ink dark:text-neutral-100 mt-2">
-                {batches.length}
-              </div>
-            </div>
 
-            <div className="p-4 bg-white dark:bg-[#1E1E22] rounded-2xl border border-border-soft dark:border-neutral-800 shadow-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-gray-body uppercase tracking-wider">Departments in Batch</span>
-                <Building2 className="w-4 h-4 text-maroon" />
-              </div>
-              <div className="text-2xl font-bold font-serif text-ink dark:text-neutral-100 mt-2">
-                {departments.length}
-              </div>
-            </div>
-
-            <div className="p-4 bg-white dark:bg-[#1E1E22] rounded-2xl border border-border-soft dark:border-neutral-800 shadow-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-gray-body uppercase tracking-wider">Sections in Department</span>
-                <Layers className="w-4 h-4 text-maroon" />
-              </div>
-              <div className="text-2xl font-bold font-serif text-ink dark:text-neutral-100 mt-2">
-                {departments.find(d => d.id === selectedDeptId)?.sections.length || 0}
-              </div>
-            </div>
-          </div>
-
-          {/* 3-Column Original Clean Structure Layout */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Step 1: Batches Column (4 cols) */}
-            <div className="lg:col-span-4 space-y-4">
-              <div className="bg-white dark:bg-[#1E1E22] p-5 rounded-2xl border border-border-soft dark:border-neutral-800 shadow-xs">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-serif font-bold text-ink dark:text-neutral-100 uppercase tracking-wider text-xs">
-                    1. Select Academic Batch
-                  </h3>
-                  <span className="text-[11px] text-gray-body font-semibold">
-                    {batches.length} available
-                  </span>
-                </div>
-
-                <div className="space-y-2">
-                  {batches.length === 0 ? (
-                    <p className="text-xs text-gray-body py-4 text-center italic">No academic batches configured.</p>
-                  ) : (
-                    batches.map(batch => {
-                      const isSelected = selectedBatchId === batch.id;
-                      return (
-                        <button
-                          key={batch.id}
-                          onClick={() => {
-                            setSelectedBatchId(batch.id);
-                            setSelectedDeptId('');
-                          }}
-                          className={`w-full p-3.5 rounded-xl border text-left transition-all flex items-center justify-between cursor-pointer ${
-                            isSelected
-                              ? 'border-maroon bg-maroon/5 dark:bg-rose-950/20 ring-1 ring-maroon'
-                              : 'border-border-soft dark:border-neutral-700 hover:border-gray-300 dark:hover:border-neutral-600 bg-white dark:bg-[#222227]'
-                          }`}
-                        >
-                          <div>
-                            <span className="font-bold text-sm text-ink dark:text-neutral-100 block">
-                              Batch {batch.name}
-                            </span>
-                            <span className="text-[11px] text-gray-body">
-                              Starting year: {batch.startYear}
-                            </span>
-                          </div>
-                          <ChevronRight className={`w-4 h-4 ${isSelected ? 'text-maroon' : 'text-gray-body/40'}`} />
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Step 2: Departments Column (4 cols) */}
-            <div className="lg:col-span-4 space-y-4">
-              <div className="bg-white dark:bg-[#1E1E22] p-5 rounded-2xl border border-border-soft dark:border-neutral-800 shadow-xs space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-serif font-bold text-ink dark:text-neutral-100 uppercase tracking-wider text-xs">
-                    2. Departments in Batch
-                  </h3>
-                  <span className="text-[11px] text-gray-body font-semibold">
-                    {departments.length} depts
-                  </span>
-                </div>
-
-                {/* Create Department Form */}
-                <div className="p-3 bg-slate-50 dark:bg-neutral-900/60 rounded-xl border border-border-soft dark:border-neutral-700/60 space-y-2">
-                  <span className="text-[11px] font-bold text-gray-body block">Create New Department</span>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="e.g. Mechanical Engineering"
-                      value={newDeptName}
-                      onChange={e => setNewDeptName(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && handleCreateDepartment()}
-                      className="flex-1 px-3 py-1.5 text-xs bg-white dark:bg-[#25252A] border border-border-soft dark:border-neutral-700 rounded-lg text-ink dark:text-neutral-100 focus:outline-none focus:ring-1 focus:ring-maroon"
-                    />
-                    <button
-                      onClick={handleCreateDepartment}
-                      disabled={creatingDept || !newDeptName.trim()}
-                      className="px-3 py-1.5 bg-maroon text-white text-xs font-bold rounded-lg hover:bg-maroon-deep transition-colors disabled:opacity-50 shrink-0 cursor-pointer flex items-center gap-1"
+              {batches.length === 0 ? (
+                <p className="text-sm text-gray-body dark:text-neutral-400 italic">No batches created.</p>
+              ) : (
+                batches.map(b => {
+                  const count = allDepartments.filter(d => d.batchId === b.id).length;
+                  const isSelected = selectedBatchId === b.id;
+                  return (
+                    <div
+                      key={b.id}
+                      className={`p-4 border rounded-xl mb-3 cursor-pointer transition-colors flex items-center justify-between ${
+                        isSelected
+                          ? 'border-maroon dark:border-rose-400 bg-maroon/5 dark:bg-rose-500/15 ring-1 ring-maroon dark:ring-rose-400'
+                          : 'border-border-soft dark:border-neutral-800 hover:border-maroon/30 hover:bg-cream/40 dark:hover:bg-neutral-800/50'
+                      }`}
+                      onClick={() => {
+                        setSelectedBatchId(b.id);
+                        setSelectedDeptId('');
+                      }}
                     >
-                      {creatingDept && <Loader2 className="w-3 h-3 animate-spin" />}
-                      Add
-                    </button>
-                  </div>
-                </div>
-
-                {/* Departments List */}
-                <div className="space-y-2 max-h-[420px] overflow-y-auto">
-                  {departments.length === 0 ? (
-                    <div className="py-8 text-center text-gray-body">
-                      <Building2 className="w-6 h-6 text-maroon/30 mx-auto mb-1.5" />
-                      <p className="text-xs font-semibold">No departments in this batch</p>
-                      <p className="text-[11px] text-gray-body mt-0.5">Use the form above to add a department.</p>
+                      <div>
+                        <h3 className="font-bold text-ink dark:text-neutral-100 text-base">{b.name}</h3>
+                        <p className="text-xs text-gray-body dark:text-neutral-400 mt-0.5">
+                          {count} {count === 1 ? 'department' : 'departments'}
+                        </p>
+                      </div>
+                      {isSelected && (
+                        <span className="w-2.5 h-2.5 rounded-full bg-maroon dark:bg-rose-400 shrink-0" />
+                      )}
                     </div>
-                  ) : (
-                    departments.map(dept => {
-                      const isSelected = selectedDeptId === dept.id;
-                      return (
-                        <div
-                          key={dept.id}
-                          onClick={() => setSelectedDeptId(dept.id)}
-                          className={`p-3 rounded-xl border text-left transition-all flex items-center justify-between cursor-pointer ${
-                            isSelected
-                              ? 'border-maroon bg-maroon/5 dark:bg-rose-950/20 ring-1 ring-maroon'
-                              : 'border-border-soft dark:border-neutral-700 hover:border-gray-300 dark:hover:border-neutral-600 bg-white dark:bg-[#222227]'
-                          }`}
-                        >
-                          <div>
-                            <span className="font-bold text-xs text-ink dark:text-neutral-100 block">
-                              {dept.name}
-                            </span>
-                            <span className="text-[10px] text-gray-body">
-                              {dept.sections.length} section(s)
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setPendingDelete({ type: 'department', id: dept.id, name: dept.name });
-                              }}
-                              className="p-1 text-gray-body hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors"
-                              title="Delete department"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                            <ChevronRight className={`w-3.5 h-3.5 ${isSelected ? 'text-maroon' : 'text-gray-body/30'}`} />
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
+                  );
+                })
+              )}
             </div>
 
-            {/* Step 3: Sections Column (4 cols) */}
-            <div className="lg:col-span-4 space-y-4">
-              <div className="bg-white dark:bg-[#1E1E22] p-5 rounded-2xl border border-border-soft dark:border-neutral-800 shadow-xs space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-serif font-bold text-ink dark:text-neutral-100 uppercase tracking-wider text-xs">
-                    3. Manage Sections
-                  </h3>
-                  {selectedDeptId && (
-                    <span className="text-[11px] font-bold text-maroon">
-                      {departments.find(d => d.id === selectedDeptId)?.name}
-                    </span>
-                  )}
+            {/* Column 2: Departments & Sections */}
+            <div className="col-span-2 space-y-6">
+              {!selectedBatchId ? (
+                <div className="p-6 bg-white dark:bg-[#1E1E22] rounded-xl border border-border-soft dark:border-neutral-800 shadow-sm flex items-center justify-center h-full min-h-[300px]">
+                  <p className="text-gray-body dark:text-neutral-400 italic">Select a batch to manage departments.</p>
                 </div>
-
-                {!selectedDeptId ? (
-                  <div className="py-12 text-center text-gray-body">
-                    <Layers className="w-8 h-8 text-maroon/30 mx-auto mb-2" />
-                    <p className="text-xs font-semibold">Select a Department</p>
-                    <p className="text-[11px] text-gray-body mt-0.5 max-w-xs mx-auto">
-                      Choose a department in Step 2 to configure and view its class sections.
-                    </p>
-                  </div>
-                ) : (
-                  <>
-                    {/* Add Section Form */}
-                    <div className="p-3 bg-slate-50 dark:bg-neutral-900/60 rounded-xl border border-border-soft dark:border-neutral-700/60 space-y-2">
-                      <span className="text-[11px] font-bold text-gray-body block">Add Section to Department</span>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          placeholder="e.g. A, B, C, CSE-1"
-                          value={newSectionName}
-                          onChange={e => setNewSectionName(e.target.value)}
-                          onKeyDown={e => e.key === 'Enter' && handleCreateSection()}
-                          className="flex-1 px-3 py-1.5 text-xs bg-white dark:bg-[#25252A] border border-border-soft dark:border-neutral-700 rounded-lg text-ink dark:text-neutral-100 focus:outline-none focus:ring-1 focus:ring-maroon"
-                        />
-                        <button
-                          onClick={handleCreateSection}
-                          disabled={creatingSection || !newSectionName.trim()}
-                          className="px-3 py-1.5 bg-maroon text-white text-xs font-bold rounded-lg hover:bg-maroon-deep transition-colors disabled:opacity-50 shrink-0 cursor-pointer flex items-center gap-1"
-                        >
-                          {creatingSection && <Loader2 className="w-3 h-3 animate-spin" />}
-                          Add Section
-                        </button>
-                      </div>
+              ) : (
+                <>
+                  {/* Create Department Card */}
+                  <div className="p-6 bg-white dark:bg-[#1E1E22] rounded-xl border border-border-soft dark:border-neutral-800 shadow-sm">
+                    <h2 className="text-xl font-serif font-bold mb-4 text-ink dark:text-neutral-100">
+                      Create Department for {batches.find(b => b.id === selectedBatchId)?.name || 'Selected Batch'}
+                    </h2>
+                    <div className="flex gap-4">
+                      <input
+                        type="text"
+                        value={newDeptName}
+                        onChange={e => setNewDeptName(e.target.value)}
+                        placeholder="Department Name (e.g. Mechanical Engineering)"
+                        className="flex-1 px-4 py-2.5 bg-white dark:bg-[#25252A] border border-border-soft dark:border-neutral-700 rounded-lg focus:border-maroon focus:ring-1 focus:ring-maroon text-ink dark:text-neutral-100 outline-none text-sm"
+                      />
+                      <button
+                        onClick={handleCreateDepartment}
+                        disabled={creatingDept}
+                        className="px-6 py-2.5 bg-maroon hover:bg-maroon-deep text-white rounded-full font-bold transition-all hover:scale-105 active:scale-95 text-sm shadow-sm cursor-pointer disabled:opacity-50"
+                      >
+                        {creatingDept ? 'Creating...' : 'Create'}
+                      </button>
                     </div>
+                  </div>
 
-                    {/* Sections List */}
-                    <div className="space-y-2 max-h-[420px] overflow-y-auto">
-                      {departments.find(d => d.id === selectedDeptId)?.sections.length === 0 ? (
-                        <div className="py-8 text-center text-gray-body">
-                          <Layers className="w-6 h-6 text-maroon/30 mx-auto mb-1.5" />
-                          <p className="text-xs font-semibold">No sections created yet</p>
-                          <p className="text-[11px] text-gray-body mt-0.5">Add sections like "A" or "B" using the form above.</p>
-                        </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Departments List */}
+                    <div className="p-6 bg-white dark:bg-[#1E1E22] rounded-xl border border-border-soft dark:border-neutral-800 shadow-sm overflow-y-auto max-h-[400px]">
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-lg font-serif font-bold text-ink dark:text-neutral-100">Departments List</h2>
+                        <span className="text-xs text-gray-body dark:text-neutral-400 font-semibold">
+                          {departmentsForSelectedBatch.length} {departmentsForSelectedBatch.length === 1 ? 'dept' : 'depts'}
+                        </span>
+                      </div>
+
+                      {departmentsForSelectedBatch.length === 0 ? (
+                        <p className="text-sm text-gray-body dark:text-neutral-400 italic">No departments created in this batch.</p>
                       ) : (
-                        departments.find(d => d.id === selectedDeptId)?.sections.map(section => (
+                        departmentsForSelectedBatch.map(d => (
                           <div
-                            key={section.id}
-                            className="p-3 bg-white dark:bg-[#222227] border border-border-soft dark:border-neutral-700 rounded-xl flex items-center justify-between"
+                            key={d.id}
+                            className={`p-4 border rounded-xl mb-3 cursor-pointer transition-colors flex justify-between items-center ${
+                              selectedDeptId === d.id
+                                ? 'border-maroon dark:border-rose-400 bg-maroon/5 dark:bg-rose-500/15 ring-1 ring-maroon dark:ring-rose-400'
+                                : 'border-border-soft dark:border-neutral-800 hover:border-maroon/30 hover:bg-cream/40 dark:hover:bg-neutral-800/50'
+                            }`}
+                            onClick={() => setSelectedDeptId(d.id)}
                           >
-                            <div className="flex items-center gap-2.5">
-                              <span className="w-7 h-7 rounded-lg bg-cream dark:bg-neutral-800 text-maroon font-bold text-xs flex items-center justify-center">
-                                {section.name}
-                              </span>
-                              <span className="text-xs font-bold text-ink dark:text-neutral-100">
-                                Section {section.name}
-                              </span>
+                            <div>
+                              <h3 className="font-bold text-ink dark:text-neutral-100">{d.name}</h3>
+                              <p className="text-xs text-gray-body dark:text-neutral-400 mt-0.5">
+                                {(d.sections || []).length} { (d.sections || []).length === 1 ? 'section' : 'sections'}
+                              </p>
                             </div>
-                            <span className="text-[11px] text-emerald-700 dark:text-emerald-400 font-semibold bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full">
-                              Active
-                            </span>
+                            <button
+                              onClick={e => {
+                                e.stopPropagation();
+                                setPendingDelete({ type: 'department', id: d.id, name: d.name });
+                              }}
+                              className="text-red-600 dark:text-red-400 text-xs font-semibold hover:underline cursor-pointer"
+                            >
+                              Delete
+                            </button>
                           </div>
                         ))
                       )}
                     </div>
-                  </>
-                )}
-              </div>
+
+                    {/* Manage Sections */}
+                    <div className="p-6 bg-white dark:bg-[#1E1E22] rounded-xl border border-border-soft dark:border-neutral-800 shadow-sm">
+                      <h2 className="text-lg font-serif font-bold mb-4 text-ink dark:text-neutral-100">Manage Sections</h2>
+                      {!selectedDeptId ? (
+                        <p className="text-gray-body dark:text-neutral-400 italic text-sm">Select a department to manage sections.</p>
+                      ) : (
+                        <div className="space-y-4">
+                          <h3 className="font-bold text-maroon dark:text-rose-400">
+                            {departmentsForSelectedBatch.find(d => d.id === selectedDeptId)?.name}
+                          </h3>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={newSectionName}
+                              onChange={e => setNewSectionName(e.target.value)}
+                              placeholder="Section (e.g. A, B)"
+                              className="w-full px-4 py-2 bg-white dark:bg-[#25252A] border border-border-soft dark:border-neutral-700 rounded-lg focus:border-maroon focus:ring-1 focus:ring-maroon text-ink dark:text-neutral-100 outline-none text-sm"
+                            />
+                            <button
+                              onClick={handleCreateSection}
+                              disabled={creatingSection}
+                              className="px-6 py-2 bg-maroon hover:bg-maroon-deep text-white rounded-full font-bold transition-all text-sm shadow-sm cursor-pointer disabled:opacity-50"
+                            >
+                              {creatingSection ? 'Adding...' : 'Add'}
+                            </button>
+                          </div>
+                          <div className="mt-4 space-y-2 max-h-[250px] overflow-y-auto">
+                            {(departmentsForSelectedBatch.find(d => d.id === selectedDeptId)?.sections || []).length === 0 ? (
+                              <p className="text-xs text-gray-body dark:text-neutral-400 italic">No sections created yet.</p>
+                            ) : (
+                              (departmentsForSelectedBatch.find(d => d.id === selectedDeptId)?.sections || []).map(s => (
+                                <div
+                                  key={s.id}
+                                  className="p-3 bg-cream/40 dark:bg-neutral-800/50 border border-border-soft dark:border-neutral-700 rounded-lg flex justify-between items-center text-sm text-ink dark:text-neutral-100"
+                                >
+                                  <span>Section {s.name}</span>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -1566,10 +1066,10 @@ export default function FacultyManagement({ initialTab, onNavigateTab }: Faculty
         title="Confirm Deletion"
         description={
           pendingDelete?.type === 'department'
-            ? 'Deleting this department will permanently remove it and all associated sections. This action cannot be undone.'
-            : 'Deleting this user account will permanently remove their profile, permissions, and session records. This action cannot be undone.'
+            ? 'Deleting this department will permanently remove it and its sections. This action cannot be undone.'
+            : 'Deleting this user account will permanently remove their access and profile. This action cannot be undone.'
         }
-        confirmLabel="Permanently Delete"
+        confirmLabel="Delete"
         onCancel={() => setPendingDelete(null)}
         onConfirm={handleConfirmDelete}
       />

@@ -7,7 +7,7 @@ import QuizManagement from '../components/dashboard/QuizManagement';
 import { StudentReports } from '../components/dashboard/StudentReports';
 import AssignmentManagement from '../components/dashboard/AssignmentManagement';
 import FacultyStudentsDirectory from '../components/dashboard/FacultyStudentsDirectory';
-import { Bell, BookOpen, FileText, Home, ListChecks, ScrollText, ShieldCheck, User, Users, UserRound, CheckSquare, Building2 } from 'lucide-react';
+import { Bell, BookOpen, FileText, Home, ListChecks, ScrollText, User, Users, UserRound, CheckSquare, Building2 } from 'lucide-react';
 import type { DashboardNavGroup } from '../components/DashboardLayout';
 import FacultyCommandPalette from '../components/dashboard/FacultyCommandPalette';
 import { FacultyDemoProvider } from '../context/FacultyDemoContext';
@@ -43,10 +43,9 @@ const facultyNavigation: DashboardNavGroup[] = [
   {
     label: 'Administration',
     items: [
-      { id: 'management', label: 'Faculty Management', icon: ShieldCheck },
-      { id: 'approvals', label: 'Faculty Approval', icon: CheckSquare },
-      { id: 'users', label: 'Student / User Directory', icon: Users },
-      { id: 'departments', label: 'Batches & Departments', icon: Building2 },
+      { id: 'approvals', label: 'Faculty Approvals', icon: CheckSquare },
+      { id: 'users', label: 'User Management', icon: Users },
+      { id: 'departments', label: 'Departments', icon: Building2 },
     ],
   },
   {
@@ -62,22 +61,28 @@ export default function FacultyDashboard() {
   const user = JSON.parse(localStorage.getItem('cira_user') || '{}');
   const isAdmin = user.role === 'ADMIN';
 
-  // For Admin role: remove the entire Assessments dock (Quizzes, Assignments, Question Bank, Question Papers)
+  // For Admin role: show Administration, remove Assessments dock.
+  // For Faculty role: show Assessments, remove Administration dock completely.
   const currentNavigation = useMemo(() => {
     if (isAdmin) {
       return facultyNavigation.filter((group) => group.label !== 'Assessments');
     }
-    return facultyNavigation;
+    return facultyNavigation.filter((group) => group.label !== 'Administration');
   }, [isAdmin]);
 
   const currentAllowedTabs = useMemo(() => {
-    return new Set([
-      ...currentNavigation.flatMap((group) => group.items.map((item) => item.id)),
-      'admin'
-    ]);
-  }, [currentNavigation]);
+    const allowed = new Set(currentNavigation.flatMap((group) => group.items.map((item) => item.id)));
+    if (isAdmin) {
+      allowed.add('management');
+      allowed.add('admin');
+      allowed.add('faculty-approvals');
+      allowed.add('user-directory');
+      allowed.add('academic-structure');
+    }
+    return allowed;
+  }, [currentNavigation, isAdmin]);
 
-  const defaultTab = isAdmin ? 'management' : 'home';
+  const defaultTab = isAdmin ? 'approvals' : 'home';
   const rawTab = searchParams.get('tab') || defaultTab;
   const activeTab = currentAllowedTabs.has(rawTab) ? rawTab : defaultTab;
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
@@ -87,7 +92,13 @@ export default function FacultyDashboard() {
   useEffect(() => {
     if (isAdmin && ['quizzes', 'assignments', 'question-bank', 'question-papers'].includes(rawTab)) {
       const nextParams = new URLSearchParams(searchParams);
-      nextParams.set('tab', 'management');
+      nextParams.set('tab', 'approvals');
+      setSearchParams(nextParams, { replace: true });
+      return;
+    }
+    if (!isAdmin && ['approvals', 'users', 'departments', 'management', 'admin', 'faculty-approvals', 'user-directory', 'academic-structure'].includes(rawTab)) {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete('tab');
       setSearchParams(nextParams, { replace: true });
       return;
     }
@@ -128,17 +139,15 @@ export default function FacultyDashboard() {
       title={
         activeTab === 'notifications'
           ? 'Notifications'
-          : (activeTab === 'approvals' || activeTab === 'faculty-approvals')
-          ? 'Faculty Approval'
+          : (activeTab === 'approvals' || activeTab === 'management' || activeTab === 'admin' || activeTab === 'faculty-approvals')
+          ? 'Faculty Approvals'
           : (activeTab === 'users' || activeTab === 'user-directory')
-          ? 'Student & User Directory'
+          ? 'User Management'
           : (activeTab === 'departments' || activeTab === 'academic-structure')
-          ? 'Batches & Departments'
-          : (activeTab === 'management' || activeTab === 'admin')
-          ? 'Faculty Management'
+          ? 'Departments'
           : 'Faculty Workspace'
       }
-      activeTab={activeTab === 'admin' ? 'management' : activeTab}
+      activeTab={activeTab === 'admin' ? 'approvals' : activeTab === 'management' ? 'approvals' : activeTab}
       onTabChange={navigateFaculty}
       facultyNavigation={currentNavigation}
       onCommandPalette={() => setCommandPaletteOpen(true)}
@@ -154,10 +163,15 @@ export default function FacultyDashboard() {
       {activeTab === 'quizzes' && <QuizManagement initialSubmissionsQuizId={paperSubmissionsId} />}
       {activeTab === 'assignments' && <AssignmentManagement />}
       {activeTab === 'question-bank' && <QuestionBank />}
-      {(activeTab === 'management' || activeTab === 'admin') && <FacultyManagement onNavigateTab={navigateFaculty} />}
-      {(activeTab === 'approvals' || activeTab === 'faculty-approvals') && <FacultyManagement initialTab="approvals" onNavigateTab={navigateFaculty} />}
-      {(activeTab === 'users' || activeTab === 'user-directory') && <FacultyManagement initialTab="users" onNavigateTab={navigateFaculty} />}
-      {(activeTab === 'departments' || activeTab === 'academic-structure') && <FacultyManagement initialTab="departments" onNavigateTab={navigateFaculty} />}
+      {(activeTab === 'approvals' || activeTab === 'management' || activeTab === 'admin' || activeTab === 'faculty-approvals') && (
+        <FacultyManagement initialTab="approvals" onNavigateTab={navigateFaculty} />
+      )}
+      {(activeTab === 'users' || activeTab === 'user-directory') && (
+        <FacultyManagement initialTab="users" onNavigateTab={navigateFaculty} />
+      )}
+      {(activeTab === 'departments' || activeTab === 'academic-structure') && (
+        <FacultyManagement initialTab="departments" onNavigateTab={navigateFaculty} />
+      )}
       {activeTab === 'question-papers' && <QuestionPaperManagement onSubmissions={(id) => {
         setPaperSubmissionsId(id);
         const nextParams = new URLSearchParams(searchParams);
