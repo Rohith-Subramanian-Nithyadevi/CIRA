@@ -121,6 +121,17 @@ export const OfflineMarksheetModal: React.FC<OfflineMarksheetModalProps> = ({
     return questions.reduce((sum, q) => sum + (Number(q.maxMarks) || 0), 0);
   }, [questions]);
 
+  // Filtered rows for Step 2 table
+  const displayedRows = useMemo(() => {
+    if (rowStatusFilter === 'VALID') {
+      return rows.filter(r => r.matched && (!r.errors || r.errors.length === 0));
+    }
+    if (rowStatusFilter === 'ISSUES') {
+      return rows.filter(r => r.matched === false || (r.errors && r.errors.length > 0));
+    }
+    return rows;
+  }, [rows, rowStatusFilter]);
+
   const activeTotalMarks = mode === 'QUESTION_WISE' ? computedTotalMarksA : (Number(totalMarksB) || 50);
 
   // Fetch classes if none passed via props
@@ -601,17 +612,6 @@ export const OfflineMarksheetModal: React.FC<OfflineMarksheetModalProps> = ({
       setImporting(false);
     }
   };
-
-  // Filtered rows for Step 2 table
-  const displayedRows = useMemo(() => {
-    if (rowStatusFilter === 'VALID') {
-      return rows.filter(r => r.matched && (!r.errors || r.errors.length === 0));
-    }
-    if (rowStatusFilter === 'ISSUES') {
-      return rows.filter(r => r.matched === false || (r.errors && r.errors.length > 0));
-    }
-    return rows;
-  }, [rows, rowStatusFilter]);
 
   const selectedClassLabel = loadedClasses.find(c => c.id === selectedClassId)?.label || 'No class selected';
 

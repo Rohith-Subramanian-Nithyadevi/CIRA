@@ -4789,15 +4789,17 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
       onConfirm={handleConfirmDeleteQuiz}
     />
 
-    <OfflineMarksheetModal
-      open={showOfflineModal}
-      onClose={() => setShowOfflineModal(false)}
-      onSuccess={(newQuizId) => {
-        void fetchQuizzes(1);
-        handleOpenSubmissions(newQuizId);
-      }}
-      availableClasses={assignedClasses}
-    />
+    {showOfflineModal && (
+      <OfflineMarksheetModal
+        open={showOfflineModal}
+        onClose={() => setShowOfflineModal(false)}
+        onSuccess={(newQuizId) => {
+          void fetchQuizzes(1);
+          handleOpenSubmissions(newQuizId);
+        }}
+        availableClasses={assignedClasses}
+      />
+    )}
     </>
   );
 }

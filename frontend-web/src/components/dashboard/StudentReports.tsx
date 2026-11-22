@@ -41,6 +41,8 @@ import { facultyDemoBatches, facultyDemoDepartments, facultyDemoQuizzes, faculty
 
 export const StudentReports = () => {
   const isDemo = useFacultyDemo();
+  const user = JSON.parse(localStorage.getItem('cira_user') || '{}');
+  const isAdmin = user.role === 'ADMIN';
   const [authorizedFilterOptions, setAuthorizedFilterOptions] = useState<{ years: number[]; departments: any[]; sections: any[] }>({ years: [], departments: [], sections: [] });
   const [filterOptionsLoading, setFilterOptionsLoading] = useState(!isDemo);
   const [filterOptionsError, setFilterOptionsError] = useState<string | null>(null);
@@ -452,7 +454,7 @@ export const StudentReports = () => {
       <SectionHeader
         eyebrow="Students and insights"
         title="Student Reports"
-        description="Select an authorized branch, batch, section, or quiz to inspect returned performance data."
+        description={isAdmin ? "Full institutional scope: Inspect student performance across all departments, batches, sections, or quizzes." : "Select an authorized branch, batch, section, or quiz to inspect returned performance data."}
         action={<div className="flex gap-2"><button type="button" onClick={resetReportFilters} className="rounded-lg border border-border-soft bg-white px-3 py-2 text-sm font-semibold text-ink hover:bg-cream">Reset filters</button><button type="button" onClick={() => window.print()} className="rounded-lg border border-border-soft bg-white px-3 py-2 text-sm font-semibold text-ink hover:bg-cream print:hidden">Print</button></div>}
         className="mb-6"
       />
@@ -460,17 +462,17 @@ export const StudentReports = () => {
         {!isDemo && <div className="grid w-full gap-3 rounded-2xl border border-border-soft bg-white p-4 shadow-sm sm:grid-cols-2 xl:grid-cols-4" aria-label="Report filters">
           <label className="space-y-1 text-xs font-semibold text-gray-body">Year
             <select value={selectedBatch || ''} onChange={(event) => handleSelectBatch(event.target.value)} disabled={filterOptionsLoading || Boolean(filterOptionsError)} className="h-10 w-full rounded-lg border border-border-soft bg-white px-3 text-sm text-ink disabled:opacity-60">
-              <option value="">All assigned years</option>{availableBatches.map((batch) => <option key={batch.id} value={batch.id}>{batch.startYear}</option>)}
+              <option value="">{isAdmin ? 'All years' : 'All assigned years'}</option>{availableBatches.map((batch) => <option key={batch.id} value={batch.id}>{batch.startYear}</option>)}
             </select>
           </label>
           <label className="space-y-1 text-xs font-semibold text-gray-body">Department
             <select value={selectedDept || ''} onChange={(event) => event.target.value ? handleSelectBranch(event.target.value) : handleResetToBatch()} disabled={filterOptionsLoading || Boolean(filterOptionsError)} className="h-10 w-full rounded-lg border border-border-soft bg-white px-3 text-sm text-ink disabled:opacity-60">
-              <option value="">All assigned departments</option>{availableDepartments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
+              <option value="">{isAdmin ? 'All departments' : 'All assigned departments'}</option>{availableDepartments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
             </select>
           </label>
           <label className="space-y-1 text-xs font-semibold text-gray-body">Section
             <select value={selectedSection || ''} onChange={(event) => { setSelectedSection(event.target.value || null); setSelectedQuiz(null); }} disabled={!selectedDept || filterOptionsLoading || Boolean(filterOptionsError)} className="h-10 w-full rounded-lg border border-border-soft bg-white px-3 text-sm text-ink disabled:opacity-60">
-              <option value="">All assigned sections</option>{(availableDepartments.find((department) => department.id === selectedDept)?.sections || []).map((section: any) => <option key={section.id} value={section.id}>{section.name}</option>)}
+              <option value="">{isAdmin ? 'All sections' : 'All assigned sections'}</option>{(availableDepartments.find((department) => department.id === selectedDept)?.sections || []).map((section: any) => <option key={section.id} value={section.id}>{section.name}</option>)}
             </select>
           </label>
           <label className="space-y-1 text-xs font-semibold text-gray-body">Assessment / quiz

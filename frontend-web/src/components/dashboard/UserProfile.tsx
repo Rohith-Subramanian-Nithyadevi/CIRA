@@ -5,7 +5,7 @@ import { apiClient, getApiErrorMessage } from '@/lib/apiClient';
 
 export default function UserProfile() {
   const user = JSON.parse(localStorage.getItem('cira_user') || '{}');
-  if (user.role === 'FACULTY') return <FacultyReadOnlyProfile initialUser={user} />;
+  if (user.role === 'FACULTY' || user.role === 'ADMIN') return <FacultyReadOnlyProfile initialUser={user} />;
   return <LegacyUserProfile />;
 }
 
@@ -60,7 +60,8 @@ function FacultyReadOnlyProfile({ initialUser }: { initialUser: Record<string, a
 
   const fields = [
     ['Full Name', user.name], ['Email Address', user.email], ['Personal Email', user.personalEmail], ['Phone Number', user.phone],
-    ['Department', user.department?.name || user.departmentName], ['Designation', user.designation || user.subject],
+    ['Department', user.role === 'ADMIN' ? 'All Departments (Global Administrative Scope)' : (user.department?.name || user.departmentName)],
+    ['Designation', user.role === 'ADMIN' ? 'System Administrator' : (user.designation || user.subject)],
     ['Employee ID', user.employeeId], ['Role', user.role], ['Approval Status', user.approvalStatus],
   ].filter(([, value]) => value);
 
@@ -291,75 +292,75 @@ function LegacyUserProfile() {
           </div>
         )}
 
-        {/* ── DEPARTMENT / SECTION (STUDENT) ── */}
-        <div className="space-y-5 pt-5 border-t border-border-soft dark:border-neutral-800">
-          <div>
-            <h3 className="text-lg font-serif font-bold text-ink dark:text-neutral-100">
-              {role === 'STUDENT' ? 'Your Class Details' : 'Department Enrollment'}
-            </h3>
-            <p className="text-xs text-gray-body dark:text-neutral-400 mt-0.5">
-              {role === 'STUDENT' 
-                ? 'Update your class details to receive targeted announcements and quizzes.' 
-                : 'Select a batch then a department to enroll. Only enrolled departments appear in Student Reports.'}
-            </p>
+        {/* ── DEPARTMENT / SECTION (STUDENT / FACULTY) ── */}
+        {role !== 'ADMIN' && (
+          <div className="space-y-5 pt-5 border-t border-border-soft dark:border-neutral-800">
+            <div>
+              <h3 className="text-lg font-serif font-bold text-ink dark:text-neutral-100">
+                {role === 'STUDENT' ? 'Your Class Details' : 'Department Enrollment'}
+              </h3>
+              <p className="text-xs text-gray-body dark:text-neutral-400 mt-0.5">
+                {role === 'STUDENT' 
+                  ? 'Update your class details to receive targeted announcements and quizzes.' 
+                  : 'Select a batch then a department to enroll. Only enrolled departments appear in Student Reports.'}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-body dark:text-neutral-400 mb-1.5 uppercase tracking-wide">Batch</label>
+                <select
+                  disabled={role === 'STUDENT' && !isEditing}
+                  value={enrollBatchId}
+                  onChange={(e) => { setEnrollBatchId(e.target.value); setEnrollDeptId(''); setEnrollSectionId(''); }}
+                  className="w-full px-3 py-2 bg-white dark:bg-[#242429] text-ink dark:text-neutral-100 border border-border-soft dark:border-neutral-700 rounded-lg focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon transition-colors text-sm font-semibold appearance-none disabled:opacity-75 disabled:cursor-not-allowed"
+                >
+                  <option value="">Select Batch…</option>
+                  {batches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  {enrollBatchId && !batches.some(b => b.id === enrollBatchId) && (
+                    <option value={enrollBatchId}>{user.department?.batch?.name || 'Current Batch'}</option>
+                  )}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-body dark:text-neutral-400 mb-1.5 uppercase tracking-wide">Department</label>
+                <select
+                  disabled={(role === 'STUDENT' && !isEditing) || !enrollBatchId || (availableDepts.length === 0 && !enrollDeptId)}
+                  value={enrollDeptId}
+                  onChange={(e) => { setEnrollDeptId(e.target.value); setEnrollSectionId(''); }}
+                  className="w-full px-3 py-2 bg-white dark:bg-[#242429] text-ink dark:text-neutral-100 border border-border-soft dark:border-neutral-700 rounded-lg focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon transition-colors text-sm font-semibold appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <option value="">
+                    {!enrollBatchId ? 'Select a batch first' : availableDepts.length === 0 ? 'No departments' : 'Select Department…'}
+                  </option>
+                  {availableDepts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                  {enrollDeptId && !availableDepts.some(d => d.id === enrollDeptId) && (
+                    <option value={enrollDeptId}>{user.department?.name || 'Current Department'}</option>
+                  )}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-body dark:text-neutral-400 mb-1.5 uppercase tracking-wide">Section</label>
+                <select
+                  disabled={(role === 'STUDENT' && !isEditing) || !enrollDeptId || (availableSections.length === 0 && !enrollSectionId)}
+                  value={enrollSectionId}
+                  onChange={(e) => setEnrollSectionId(e.target.value)}
+                  className="w-full px-3 py-2 bg-white dark:bg-[#242429] text-ink dark:text-neutral-100 border border-border-soft dark:border-neutral-700 rounded-lg focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon transition-colors text-sm font-semibold appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <option value={role === 'STUDENT' ? "" : "all"}>
+                    {!enrollDeptId ? 'Select a department first' : (role === 'STUDENT' ? 'Select Section...' : 'All Sections')}
+                  </option>
+                  {availableSections.map(s => <option key={s.id} value={s.id}>Section {s.name}</option>)}
+                  {enrollSectionId && enrollSectionId !== 'all' && !availableSections.some(s => s.id === enrollSectionId) && (
+                    <option value={enrollSectionId}>Section {user.section?.name || enrollSectionId}</option>
+                  )}
+                </select>
+              </div>
+            </div>
           </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-gray-body dark:text-neutral-400 mb-1.5 uppercase tracking-wide">Batch</label>
-              <select
-                disabled={role === 'STUDENT' && !isEditing}
-                value={enrollBatchId}
-                onChange={(e) => { setEnrollBatchId(e.target.value); setEnrollDeptId(''); setEnrollSectionId(''); }}
-                className="w-full px-3 py-2 bg-white dark:bg-[#242429] text-ink dark:text-neutral-100 border border-border-soft dark:border-neutral-700 rounded-lg focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon transition-colors text-sm font-semibold appearance-none disabled:opacity-75 disabled:cursor-not-allowed"
-              >
-                <option value="">Select Batch…</option>
-                {batches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                {enrollBatchId && !batches.some(b => b.id === enrollBatchId) && (
-                  <option value={enrollBatchId}>{user.department?.batch?.name || 'Current Batch'}</option>
-                )}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-gray-body dark:text-neutral-400 mb-1.5 uppercase tracking-wide">Department</label>
-              <select
-                disabled={(role === 'STUDENT' && !isEditing) || !enrollBatchId || (availableDepts.length === 0 && !enrollDeptId)}
-                value={enrollDeptId}
-                onChange={(e) => { setEnrollDeptId(e.target.value); setEnrollSectionId(''); }}
-                className="w-full px-3 py-2 bg-white dark:bg-[#242429] text-ink dark:text-neutral-100 border border-border-soft dark:border-neutral-700 rounded-lg focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon transition-colors text-sm font-semibold appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <option value="">
-                  {!enrollBatchId ? 'Select a batch first' : availableDepts.length === 0 ? 'No departments' : 'Select Department…'}
-                </option>
-                {availableDepts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                {enrollDeptId && !availableDepts.some(d => d.id === enrollDeptId) && (
-                  <option value={enrollDeptId}>{user.department?.name || 'Current Department'}</option>
-                )}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-gray-body dark:text-neutral-400 mb-1.5 uppercase tracking-wide">Section</label>
-              <select
-                disabled={(role === 'STUDENT' && !isEditing) || !enrollDeptId || (availableSections.length === 0 && !enrollSectionId)}
-                value={enrollSectionId}
-                onChange={(e) => setEnrollSectionId(e.target.value)}
-                className="w-full px-3 py-2 bg-white dark:bg-[#242429] text-ink dark:text-neutral-100 border border-border-soft dark:border-neutral-700 rounded-lg focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon transition-colors text-sm font-semibold appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <option value={role === 'STUDENT' ? "" : "all"}>
-                  {!enrollDeptId ? 'Select a department first' : (role === 'STUDENT' ? 'Select Section...' : 'All Sections')}
-                </option>
-                {availableSections.map(s => <option key={s.id} value={s.id}>Section {s.name}</option>)}
-                {enrollSectionId && enrollSectionId !== 'all' && !availableSections.some(s => s.id === enrollSectionId) && (
-                  <option value={enrollSectionId}>Section {user.section?.name || enrollSectionId}</option>
-                )}
-              </select>
-            </div>
-          </div>
-
-
-        </div>
+        )}
 
         {/* Save / Edit buttons */}
         <div className="pt-4 border-t border-border-soft dark:border-gray-800 flex gap-4">

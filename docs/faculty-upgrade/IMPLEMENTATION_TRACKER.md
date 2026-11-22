@@ -227,6 +227,28 @@
   - `backend-core`: All 18 test suites passed (85 tests, 0 failures).
   - `frontend-web`: `tsc -b && vite build` succeeded with 0 errors; all 26 test suites passed (101 tests, 0 failures).
 
+## Follow-up: Admin Global Reports Scope & Offline Marksheet Modal Hook Stability (2026-11-22)
+
+- **Objective**:
+  - Fix React hook order exception (`Uncaught Error: Rendered more hooks than during the previous render`) in `OfflineMarksheetModal.tsx`.
+  - Fix `ERR_FEATURE_UNAVAILABLE` on `/api/v1/faculty/reports/performance-bands` by synchronizing `QuizAttempt.sourceType` column to Neon PostgreSQL.
+  - Remove redundant class/department enrollment fields for Admin in `UserProfile.tsx` since Admin has global institutional access.
+  - Enable Admin institutional scoping in `StudentReports.tsx` with `"All departments"`, `"All assigned sections"`, and `"All years"`.
+- **Fixes Applied**:
+  - **Hook Ordering in `OfflineMarksheetModal.tsx`**:
+    - Grouped all 27 hooks (`useState`, `useRef`, `useMemo`, `useEffect`) strictly at the top of the component body before any helper functions or event handlers, moving `displayedRows` next to `computedTotalMarksA`.
+    - Updated `QuizManagement.tsx` to conditionally mount `OfflineMarksheetModal` (`{showOfflineModal && <OfflineMarksheetModal ... />}`), preventing closed-state background hook runs and avoiding HMR reconciliation mismatches.
+  - **Neon PostgreSQL Sync**:
+    - Ran non-destructive `npx prisma db push` to synchronize `QuizAttempt.sourceType` and `Quiz.sourceType` onto the database, resolving `P2022` Prisma errors on queries with `include: { quizAttempts: true }`.
+  - **Admin Global Scoping**:
+    - Updated `UserProfile.tsx` to hide department/class enrollment forms when `user.role === 'ADMIN'` and display the global scope badge: `All Departments (Global Administrative Scope)`.
+    - Updated `backend-core/src/controllers/faculty.controller.ts` so `resetStudentPassword` accepts `ADMIN` with global student scope.
+    - Updated `StudentReports.tsx` filter labels for admin view to reflect full institutional analytics.
+- **Validation**:
+  - `backend-core`: `npm run build` (`tsc`) succeeded; all 18 test suites passed (85 tests, 0 failures).
+  - `frontend-web`: `npm run build` (`tsc -b && vite build`) succeeded with 0 errors; all 26 Jest test suites passed (103 tests, 0 failures).
+
+
 
 
 
