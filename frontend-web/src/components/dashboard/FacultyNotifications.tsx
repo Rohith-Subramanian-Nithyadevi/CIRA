@@ -1,4 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { Activity, Bell, BookOpen, Check, ClipboardList, Loader2, MessageSquare, RefreshCw } from 'lucide-react';
 import { apiClient } from '@/lib/apiClient';
 import { facultyDemoNotifications } from '@/lib/facultyDemoData';
@@ -59,19 +60,78 @@ export const notificationMeta = (type: string) => {
 
 export function FacultyNotificationBell({ onNavigate }: { onNavigate: (tab: string) => void }) {
   const state = useFacultyNotifications(); const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLElement>(null);
+  const [popoverPosition, setPopoverPosition] = useState<CSSProperties | null>(null);
+  const updatePopoverPosition = useCallback(() => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    const bounds = trigger.getBoundingClientRect();
+    const gutter = 16;
+    const gap = 8;
+    const width = Math.min(352, Math.max(0, window.innerWidth - gutter * 2));
+    const right = Math.min(
+      Math.max(window.innerWidth - bounds.right, gutter),
+      window.innerWidth - width - gutter,
+    );
+    const spaceBelow = Math.max(0, window.innerHeight - bounds.bottom - gap - gutter);
+    const spaceAbove = Math.max(0, bounds.top - gap - gutter);
+    const placeAbove = spaceBelow < Math.min(320, window.innerHeight / 2) && spaceAbove > spaceBelow;
+    const availableHeight = placeAbove ? spaceAbove : spaceBelow;
+    setPopoverPosition({
+      position: 'fixed',
+      right: `${right}px`,
+      width: `${width}px`,
+      maxHeight: `${availableHeight}px`,
+      ...(placeAbove
+        ? { bottom: `${window.innerHeight - bounds.top + gap}px` }
+        : { top: `${bounds.bottom + gap}px` }),
+    });
+  }, []);
+  useEffect(() => {
+    if (!open) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node) || triggerRef.current?.contains(target) || popoverRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setOpen(false);
+      triggerRef.current?.focus();
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('resize', updatePopoverPosition);
+    window.addEventListener('scroll', updatePopoverPosition, true);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('resize', updatePopoverPosition);
+      window.removeEventListener('scroll', updatePopoverPosition, true);
+    };
+  }, [open, updatePopoverPosition]);
   if (!state) return null;
   const unread = state.notifications.filter((item) => !item.read).length;
   const openItem = async (item: FacultyNotification) => { const ok = item.read || await state.markRead(item.id); if (ok) { state.navigateTo(item.id); setOpen(false); } };
+  const togglePopover = () => {
+    const nextOpen = !open;
+    if (nextOpen) {
+      updatePopoverPosition();
+      if (!state.notifications.length) void state.refresh();
+    }
+    setOpen(nextOpen);
+  };
   return <div className="relative">
-    <button type="button" aria-label={`Notifications${unread ? `, ${unread} unread` : ''}`} aria-expanded={open} aria-controls="faculty-notification-popover" onClick={() => { setOpen((value) => !value); if (!state.notifications.length) void state.refresh(); }} className="relative rounded-lg border border-border-soft bg-white p-2 text-gray-body hover:bg-cream hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maroon/30 dark:bg-[#242124] dark:hover:bg-[#302b2f] dark:hover:text-cream">
+    <button ref={triggerRef} type="button" aria-label={`Notifications${unread ? `, ${unread} unread` : ''}`} aria-expanded={open} aria-controls="faculty-notification-popover" onClick={togglePopover} className="relative rounded-lg border border-border-soft bg-white p-2 text-gray-body hover:bg-cream hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maroon/30 dark:bg-[#242124] dark:hover:bg-[#302b2f] dark:hover:text-cream">
       <Bell className="h-4 w-4" aria-hidden="true" />{unread > 0 && <span className="absolute -right-1 -top-1 min-w-4 rounded-full border-2 border-white bg-red-600 px-1 text-center text-[9px] font-bold leading-3 text-white dark:border-[#1A1A1A]">{unread > 99 ? '99+' : unread}</span>}
     </button>
-    {open && <section id="faculty-notification-popover" role="region" aria-label="Recent notifications" className="absolute right-0 z-50 mt-2 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-border-soft bg-white shadow-lg dark:border-gray-700 dark:bg-[#1A1A1A]">
-      <div className="flex items-center justify-between border-b border-border-soft px-4 py-3"><div><h3 className="text-sm font-bold text-ink dark:text-white">Notifications</h3><p className="text-xs text-gray-body">{unread} unread</p></div><button type="button" aria-label="Refresh notifications" onClick={() => void state.refresh()} className="rounded p-1.5 text-gray-body hover:bg-cream"><RefreshCw className={`h-4 w-4 ${state.loading ? 'animate-spin' : ''}`} /></button></div>
+    {open && typeof document !== 'undefined' && createPortal(<section ref={popoverRef} id="faculty-notification-popover" role="region" aria-label="Recent notifications" style={popoverPosition ?? undefined} className="z-50 flex flex-col overflow-hidden rounded-xl border border-border-soft bg-white shadow-lg dark:border-gray-700 dark:bg-[#1A1A1A]">
+      <div className="flex shrink-0 items-center justify-between border-b border-border-soft px-4 py-3"><div><h3 className="text-sm font-bold text-ink dark:text-white">Notifications</h3><p className="text-xs text-gray-body">{unread} unread</p></div><button type="button" aria-label="Refresh notifications" onClick={() => void state.refresh()} className="rounded p-1.5 text-gray-body hover:bg-cream"><RefreshCw className={`h-4 w-4 ${state.loading ? 'animate-spin' : ''}`} /></button></div>
       {state.error && <ErrorState message={state.error} onRetry={state.refresh} className="m-3 min-h-20" />}
-      {state.loading && !state.notifications.length ? <div role="status" className="flex items-center gap-2 p-5 text-sm text-gray-body"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div> : !state.notifications.length ? <div className="p-4"><EmptyState icon={<Bell className="h-6 w-6 text-maroon" />} title="No notifications" description="You're all caught up." className="min-h-28 p-3" /></div> : <div className="max-h-[60vh] divide-y divide-border-soft overflow-y-auto">{state.notifications.slice(0, 5).map((item) => { const meta = notificationMeta(item.type); const Icon = meta.Icon; return <article key={item.id} className={`flex gap-3 px-4 py-3 ${item.read ? '' : 'bg-cream/50 dark:bg-gray-800/60'}`}><Icon className="mt-0.5 h-4 w-4 shrink-0 text-maroon" /><div className="min-w-0 flex-1"><p className="text-xs font-semibold text-ink dark:text-white">{meta.title}</p><p className="mt-0.5 text-xs text-gray-body">{item.message}</p><p className="mt-1 text-[10px] text-gray-body">{meta.category} · {new Date(item.createdAt).toLocaleString()}</p><div className="mt-2 flex gap-3">{meta.destination && <button type="button" onClick={() => void openItem(item)} className="text-xs font-semibold text-maroon underline">Open</button>}{!item.read && <button type="button" onClick={() => void state.markRead(item.id)} className="text-xs font-semibold text-gray-body underline">Mark read</button>}</div></div></article>; })}</div>}
+      {state.loading && !state.notifications.length ? <div role="status" className="flex items-center gap-2 p-5 text-sm text-gray-body"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div> : !state.notifications.length ? <div className="p-4"><EmptyState icon={<Bell className="h-6 w-6 text-maroon" />} title="No notifications" description="You're all caught up." className="min-h-28 p-3" /></div> : <div className="min-h-0 flex-1 divide-y divide-border-soft overflow-y-auto">{state.notifications.slice(0, 5).map((item) => { const meta = notificationMeta(item.type); const Icon = meta.Icon; return <article key={item.id} className={`flex gap-3 px-4 py-3 ${item.read ? '' : 'bg-cream/50 dark:bg-gray-800/60'}`}><Icon className="mt-0.5 h-4 w-4 shrink-0 text-maroon" /><div className="min-w-0 flex-1"><p className="text-xs font-semibold text-ink dark:text-white">{meta.title}</p><p className="mt-0.5 text-xs text-gray-body">{item.message}</p><p className="mt-1 text-[10px] text-gray-body">{meta.category} · {new Date(item.createdAt).toLocaleString()}</p><div className="mt-2 flex gap-3">{meta.destination && <button type="button" onClick={() => void openItem(item)} className="text-xs font-semibold text-maroon underline">Open</button>}{!item.read && <button type="button" onClick={() => void state.markRead(item.id)} className="text-xs font-semibold text-gray-body underline">Mark read</button>}</div></div></article>; })}</div>}
       <div className="border-t border-border-soft p-3"><button type="button" onClick={() => { onNavigate('notifications'); setOpen(false); }} className="w-full rounded-lg px-3 py-2 text-sm font-semibold text-maroon hover:bg-cream">View all notifications</button></div>
-    </section>}
+    </section>, document.body)}
   </div>;
 }
 

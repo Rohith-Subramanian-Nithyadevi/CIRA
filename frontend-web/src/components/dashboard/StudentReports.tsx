@@ -32,7 +32,7 @@ import {
 } from 'lucide-react';
 import StudentProfileView from './StudentProfileView';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { SectionHeader } from '@/components/ui/facultyPrimitives';
+import { LoadingState, SectionHeader } from '@/components/ui/facultyPrimitives';
 import { apiClient } from '@/lib/apiClient';
 import { clearSavedFilters, getFilterStorageKey, getStoredUserKey, readSavedFilters, writeSavedFilters } from '@/lib/facultyPersistence';
 import { downloadCsv } from '@/lib/csv';
@@ -45,6 +45,7 @@ export const StudentReports = () => {
   const isAdmin = user.role === 'ADMIN';
   const [authorizedFilterOptions, setAuthorizedFilterOptions] = useState<{ years: number[]; departments: any[]; sections: any[] }>({ years: [], departments: [], sections: [] });
   const [filterOptionsLoading, setFilterOptionsLoading] = useState(!isDemo);
+  const [hasLoadedFilterOptions, setHasLoadedFilterOptions] = useState(isDemo);
   const [filterOptionsError, setFilterOptionsError] = useState<string | null>(null);
   const [filterOptionsRetry, setFilterOptionsRetry] = useState(0);
   const availableBatches = isDemo
@@ -57,7 +58,6 @@ export const StudentReports = () => {
         sections: authorizedFilterOptions.sections.filter((section) => section.departmentId === department.id),
       }));
 
-  const [loading, setLoading] = useState(true);
   const [quizzes, setQuizzes] = useState<any[]>([]);
   
   const reportFilterKey = getFilterStorageKey('reports', getStoredUserKey());
@@ -75,6 +75,7 @@ export const StudentReports = () => {
         sections: facultyDemoDepartments.flatMap((department) => department.sections),
       });
       setFilterOptionsLoading(false);
+      setHasLoadedFilterOptions(true);
       setFilterOptionsError(null);
       return;
     }
@@ -88,7 +89,12 @@ export const StudentReports = () => {
       .then((response) => response.json())
       .then((json) => { if (!controller.signal.aborted) setAuthorizedFilterOptions(json.data || { years: [], departments: [], sections: [] }); })
       .catch((err) => { if (!controller.signal.aborted) setFilterOptionsError(err.message || 'Could not load your assigned classes.'); })
-      .finally(() => { if (!controller.signal.aborted) setFilterOptionsLoading(false); });
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setFilterOptionsLoading(false);
+          setHasLoadedFilterOptions(true);
+        }
+      });
     return () => controller.abort();
   }, [isDemo, selectedBatch, selectedDept, filterOptionsRetry]);
   
@@ -170,20 +176,6 @@ export const StudentReports = () => {
     setSelectedQuiz(null);
     setSearchTerm('');
     setSearchedStudentId(null);
-  };
-
-  useEffect(() => {
-    fetchInitialData();
-  }, []);
-
-  const fetchInitialData = async () => {
-    try {
-      setLoading(true);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
   };
 
   const fetchPostedQuizzes = async () => {
@@ -431,12 +423,8 @@ export const StudentReports = () => {
     };
   }, [selectedDept, selectedSection, selectedQuiz, quizzes, quizAnalytics]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-[50vh]">
-        <Loader2 className="w-8 h-8 animate-spin text-maroon" />
-      </div>
-    );
+  if (!hasLoadedFilterOptions) {
+    return <LoadingState label="Loading student reports..." className="min-h-[50vh] border-0 bg-transparent" />;
   }
 
   // RENDER STUDENT PROFILE

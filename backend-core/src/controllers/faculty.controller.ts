@@ -177,7 +177,7 @@ export const getStudents = async (req: Request, res: Response, next: NextFunctio
       prisma.user.count({ where }),
       prisma.user.findMany({
         where,
-        orderBy: [{ name: 'asc' }, { rollNumber: 'asc' }],
+        orderBy: [{ rollNumber: { sort: 'asc', nulls: 'last' } }, { name: 'asc' }],
         skip: (page - 1) * limit,
         take: limit,
         select: {
