@@ -41,6 +41,8 @@ import { facultyDemoBatches, facultyDemoDepartments, facultyDemoQuizzes, faculty
 
 export const StudentReports = () => {
   const isDemo = useFacultyDemo();
+  const user = JSON.parse(localStorage.getItem('cira_user') || '{}');
+  const isAdmin = user.role === 'ADMIN';
   const [authorizedFilterOptions, setAuthorizedFilterOptions] = useState<{ years: number[]; departments: any[]; sections: any[] }>({ years: [], departments: [], sections: [] });
   const [filterOptionsLoading, setFilterOptionsLoading] = useState(!isDemo);
   const [hasLoadedFilterOptions, setHasLoadedFilterOptions] = useState(isDemo);
@@ -415,7 +417,9 @@ export const StudentReports = () => {
       leaderboard: analytics?.leaderboard || [],
       topicAverages: analytics?.topicAverages || [],
       summary: analytics?.summary,
-      title: quizMetadata?.title
+      title: quizMetadata?.title || analytics?.quiz?.title,
+      sourceType: quizMetadata?.sourceType || analytics?.quiz?.sourceType || 'ONLINE',
+      hasQuestionBreakdown: quizMetadata?.hasQuestionBreakdown ?? analytics?.quiz?.hasQuestionBreakdown ?? true
     };
   }, [selectedDept, selectedSection, selectedQuiz, quizzes, quizAnalytics]);
 
@@ -438,7 +442,7 @@ export const StudentReports = () => {
       <SectionHeader
         eyebrow="Students and insights"
         title="Student Reports"
-        description="Select an authorized branch, batch, section, or quiz to inspect returned performance data."
+        description={isAdmin ? "Full institutional scope: Inspect student performance across all departments, batches, sections, or quizzes." : "Select an authorized branch, batch, section, or quiz to inspect returned performance data."}
         action={<div className="flex gap-2"><button type="button" onClick={resetReportFilters} className="rounded-lg border border-border-soft bg-white px-3 py-2 text-sm font-semibold text-ink hover:bg-cream">Reset filters</button><button type="button" onClick={() => window.print()} className="rounded-lg border border-border-soft bg-white px-3 py-2 text-sm font-semibold text-ink hover:bg-cream print:hidden">Print</button></div>}
         className="mb-6"
       />
@@ -446,17 +450,17 @@ export const StudentReports = () => {
         {!isDemo && <div className="grid w-full gap-3 rounded-2xl border border-border-soft bg-white p-4 shadow-sm sm:grid-cols-2 xl:grid-cols-4" aria-label="Report filters">
           <label className="space-y-1 text-xs font-semibold text-gray-body">Year
             <select value={selectedBatch || ''} onChange={(event) => handleSelectBatch(event.target.value)} disabled={filterOptionsLoading || Boolean(filterOptionsError)} className="h-10 w-full rounded-lg border border-border-soft bg-white px-3 text-sm text-ink disabled:opacity-60">
-              <option value="">All assigned years</option>{availableBatches.map((batch) => <option key={batch.id} value={batch.id}>{batch.startYear}</option>)}
+              <option value="">{isAdmin ? 'All years' : 'All assigned years'}</option>{availableBatches.map((batch) => <option key={batch.id} value={batch.id}>{batch.startYear}</option>)}
             </select>
           </label>
           <label className="space-y-1 text-xs font-semibold text-gray-body">Department
             <select value={selectedDept || ''} onChange={(event) => event.target.value ? handleSelectBranch(event.target.value) : handleResetToBatch()} disabled={filterOptionsLoading || Boolean(filterOptionsError)} className="h-10 w-full rounded-lg border border-border-soft bg-white px-3 text-sm text-ink disabled:opacity-60">
-              <option value="">All assigned departments</option>{availableDepartments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
+              <option value="">{isAdmin ? 'All departments' : 'All assigned departments'}</option>{availableDepartments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
             </select>
           </label>
           <label className="space-y-1 text-xs font-semibold text-gray-body">Section
             <select value={selectedSection || ''} onChange={(event) => { setSelectedSection(event.target.value || null); setSelectedQuiz(null); }} disabled={!selectedDept || filterOptionsLoading || Boolean(filterOptionsError)} className="h-10 w-full rounded-lg border border-border-soft bg-white px-3 text-sm text-ink disabled:opacity-60">
-              <option value="">All assigned sections</option>{(availableDepartments.find((department) => department.id === selectedDept)?.sections || []).map((section: any) => <option key={section.id} value={section.id}>{section.name}</option>)}
+              <option value="">{isAdmin ? 'All sections' : 'All assigned sections'}</option>{(availableDepartments.find((department) => department.id === selectedDept)?.sections || []).map((section: any) => <option key={section.id} value={section.id}>{section.name}</option>)}
             </select>
           </label>
           <label className="space-y-1 text-xs font-semibold text-gray-body">Assessment / quiz
@@ -667,7 +671,19 @@ export const StudentReports = () => {
         </div>
       </div>
 
-      {!selectedDept && availableDepartments.length > 0 && (
+      {!selectedDept && filterOptionsLoading && !isDemo && (
+        <div className="rounded-2xl border border-border-soft dark:border-neutral-800 bg-white/70 dark:bg-[#1E1E22] p-12 text-center shadow-xs">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-maroon/10 text-maroon">
+            <Loader2 className="h-7 w-7 animate-spin" />
+          </div>
+          <h2 className="font-serif text-lg font-bold text-ink dark:text-neutral-100">Loading student reports & filters…</h2>
+          <p className="mx-auto mt-1 max-w-sm text-xs text-gray-body dark:text-neutral-400">
+            Fetching your authorized classes and academic departments.
+          </p>
+        </div>
+      )}
+
+      {!filterOptionsLoading && !selectedDept && availableDepartments.length > 0 && (
         <div className="rounded-2xl border border-maroon/20 bg-white/90 dark:bg-[#1E1E22] p-8 text-center shadow-sm animate-in fade-in duration-300">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-maroon/10 text-maroon">
             <Users className="h-7 w-7" />
@@ -679,14 +695,14 @@ export const StudentReports = () => {
           <button
             type="button"
             onClick={() => setIsBranchDropdownOpen(true)}
-            className="mt-5 rounded-lg bg-maroon px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-maroon-deep"
+            className="mt-5 rounded-lg bg-maroon px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-maroon-deep cursor-pointer"
           >
             Choose Branch
           </button>
         </div>
       )}
 
-      {!selectedDept && availableDepartments.length === 0 && (
+      {!filterOptionsLoading && !selectedDept && availableDepartments.length === 0 && (
         <div className="space-y-6 animate-in fade-in duration-500">
           <section className="overflow-hidden rounded-2xl border border-maroon/20 bg-[linear-gradient(120deg,#fffaf2_0%,#ffffff_55%,#f8eee7_100%)] dark:bg-none dark:bg-[#1E1E22] shadow-sm">
             <div className="border-b border-maroon/10 px-6 py-5 md:px-8">
@@ -988,7 +1004,14 @@ export const StudentReports = () => {
                   onClick={() => setSelectedQuiz(quiz.id)}
                   className="w-full text-left bg-white dark:bg-[#1E1E22] border border-border-soft rounded-xl p-6 hover:border-maroon/40 transition-all shadow-sm group relative overflow-hidden"
                 >
-                  <h3 className="text-lg font-bold text-ink mb-1 relative z-10">{quiz.title}</h3>
+                  <div className="flex flex-col gap-1 mb-1 relative z-10">
+                    <h3 className="text-lg font-bold text-ink">{quiz.title}</h3>
+                    {quiz.sourceType === 'OFFLINE' && (
+                      <span className="w-fit px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-900/50">
+                        Offline / External Quiz
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-gray-body mb-4 relative z-10">Conducted on {new Date(quiz.createdAt).toLocaleDateString()}</p>
                   <div className="flex items-center text-maroon text-xs font-bold relative z-10">
                     View detailed analytics <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
@@ -1012,7 +1035,14 @@ export const StudentReports = () => {
         <div className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
             <div>
-              <h2 className="text-xl font-serif font-bold text-ink">{quizDetails.title}</h2>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-xl font-serif font-bold text-ink">{quizDetails.title}</h2>
+                {quizDetails.sourceType === 'OFFLINE' && (
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-900/50">
+                    Offline / External Quiz
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-gray-body mt-0.5">
                 Detailed assessment analytics, topic strengths & leaderboard
               </p>
@@ -1091,7 +1121,16 @@ export const StudentReports = () => {
                 {quizAnalyticsLoading ? (
                   <div className="flex h-full items-center justify-center text-xs font-semibold text-gray-body"><Loader2 className="mr-2 h-4 w-4 animate-spin text-maroon" />Loading topic analysis...</div>
                 ) : quizDetails.topicAverages.length === 0 ? (
-                  <div className="flex h-full items-center justify-center px-8 text-center text-xs text-gray-body">Topic averages will appear after responses have been marked and the questions include topic labels.</div>
+                  <div className="flex flex-col h-full items-center justify-center px-8 text-center text-xs text-gray-body gap-1.5 py-6">
+                    {quizDetails.hasQuestionBreakdown === false || (quizDetails.sourceType === 'OFFLINE' && !quizDetails.hasQuestionBreakdown) ? (
+                      <>
+                        <span className="font-semibold text-ink text-sm">Overall score imported (no per-question topic breakdown)</span>
+                        <span className="max-w-md">This assessment was imported as overall total marks. Subject and batch averages are updated.</span>
+                      </>
+                    ) : (
+                      <span>Topic averages will appear after responses have been marked and the questions include topic labels.</span>
+                    )}
+                  </div>
                 ) : <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={quizDetails.topicAverages} layout="vertical" margin={{ top: 10, right: 30, left: 40, bottom: 0 }} barSize={24}>
                     <defs>

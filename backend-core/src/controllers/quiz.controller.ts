@@ -739,6 +739,8 @@ export const getSubmissions = async (req: Request, res: Response, next: NextFunc
         subject: true,
         totalMarks: true,
         answersPublished: true,
+        sourceType: true,
+        hasQuestionBreakdown: true,
         createdBy: true,
         performanceBands: true,
         questions: {
@@ -996,6 +998,8 @@ export const getSubmissions = async (req: Request, res: Response, next: NextFunc
         subject: quiz.subject,
         totalMarks: quiz.totalMarks,
         answersPublished: quiz.answersPublished,
+        sourceType: (quiz as any).sourceType || 'ONLINE',
+        hasQuestionBreakdown: (quiz as any).hasQuestionBreakdown ?? true,
         questionPoolCount: (quiz as any).performanceBands?.questionPoolCount ?? null,
         questions: resolvedQuizQuestions,
       },

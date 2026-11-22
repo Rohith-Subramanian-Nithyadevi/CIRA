@@ -16,6 +16,7 @@ jest.mock('../components/dashboard/FacultyStudentsDirectory', () => ({ __esModul
 jest.mock('../components/dashboard/FacultyCommandPalette', () => ({ __esModule: true, default: () => null }));
 jest.mock('../components/dashboard/QuestionBank', () => ({ __esModule: true, default: () => <div>Question Bank page</div> }));
 jest.mock('../components/dashboard/QuestionPaperManagement', () => ({ __esModule: true, default: () => <div>Question Papers page</div> }));
+jest.mock('../components/dashboard/FacultyManagement', () => ({ __esModule: true, default: () => <div>Faculty Management page</div> }));
 jest.mock('../components/dashboard/FacultyNotifications', () => ({
   FacultyNotificationsProvider: ({ children }: any) => children,
   FacultyNotificationsPage: () => <div>Notifications page</div>,
@@ -66,5 +67,72 @@ describe('faculty dashboard navigation', () => {
       </MemoryRouter>
     );
     expect(screen.getByText('Overview page')).toBeInTheDocument();
+  });
+
+  it('completely removes Administration dock items from navigation for FACULTY users', () => {
+    localStorage.setItem('cira_user', JSON.stringify({ role: 'FACULTY' }));
+    render(
+      <MemoryRouter initialEntries={['/faculty/dashboard']}>
+        <FacultyDashboard />
+      </MemoryRouter>
+    );
+
+    // Admin controls must NOT exist for faculty
+    expect(screen.queryByRole('button', { name: 'Faculty Approvals' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'User Management' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Departments' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Faculty Management' })).not.toBeInTheDocument();
+
+    // Faculty assessment items must be present
+    expect(screen.getByRole('button', { name: 'Quizzes' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Assignments' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Question Bank' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Question Papers' })).toBeInTheDocument();
+  });
+
+  it('redirects FACULTY users away from admin tabs to Overview', () => {
+    localStorage.setItem('cira_user', JSON.stringify({ role: 'FACULTY' }));
+    render(
+      <MemoryRouter initialEntries={['/faculty/dashboard?tab=approvals']}>
+        <FacultyDashboard />
+      </MemoryRouter>
+    );
+
+    expect(screen.queryByText('Faculty Management page')).not.toBeInTheDocument();
+    expect(screen.getByText('Overview page')).toBeInTheDocument();
+  });
+
+  it('completely removes the Assessments dock from navigation for ADMIN users', () => {
+    localStorage.setItem('cira_user', JSON.stringify({ role: 'ADMIN' }));
+    render(
+      <MemoryRouter initialEntries={['/faculty/dashboard']}>
+        <FacultyDashboard />
+      </MemoryRouter>
+    );
+
+    // Assessments dock items must not exist in admin navigation
+    expect(screen.queryByRole('button', { name: 'Quizzes' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Assignments' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Question Bank' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Question Papers' })).not.toBeInTheDocument();
+
+    // Administration items and Workspace must be present
+    expect(screen.getByRole('button', { name: 'Faculty Approvals' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'User Management' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Departments' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Overview' })).toBeInTheDocument();
+    expect(screen.getByText('Faculty Management page')).toBeInTheDocument();
+  });
+
+  it('redirects ADMIN users away from assessment tabs to Faculty Management', () => {
+    localStorage.setItem('cira_user', JSON.stringify({ role: 'ADMIN' }));
+    render(
+      <MemoryRouter initialEntries={['/faculty/dashboard?tab=quizzes']}>
+        <FacultyDashboard />
+      </MemoryRouter>
+    );
+
+    expect(screen.queryByText('Quizzes page')).not.toBeInTheDocument();
+    expect(screen.getByText('Faculty Management page')).toBeInTheDocument();
   });
 });

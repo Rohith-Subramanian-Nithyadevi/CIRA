@@ -35,7 +35,7 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
 
     if (!allowedRoles.includes(user.role)) {
       // Redirect to their proper dashboard if they try to access another role's route
-      if (user.role === 'ADMIN') return <Navigate to="/admin/dashboard" replace />;
+      if (user.role === 'ADMIN') return <Navigate to="/faculty/dashboard?tab=management" replace />;
       if (user.role === 'FACULTY') return <Navigate to="/faculty/dashboard" replace />;
       return <Navigate to="/student/dashboard" replace />;
     }

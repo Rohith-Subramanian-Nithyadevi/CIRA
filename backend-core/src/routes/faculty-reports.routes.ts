@@ -5,7 +5,7 @@ import { attachFacultyScope } from '../middlewares/faculty-scope.middleware';
 
 const router = Router();
 
-router.use(authenticate, authorize(['FACULTY']), attachFacultyScope);
+router.use(authenticate, authorize(['FACULTY', 'ADMIN']), attachFacultyScope);
 
 router.get('/performance-bands', getPerformanceBands);
 router.get('/quiz/:quizId', getQuizAnalytics);

@@ -37,8 +37,8 @@ export default function Login() {
     const params = new URLSearchParams(location.search);
     const candidate = params.get('redirect') || (location.state as { from?: string } | null)?.from || '';
     if (candidate && candidate.startsWith('/') && !candidate.startsWith('//')) {
-      if (loggedInRole === 'ADMIN' && candidate.startsWith('/admin')) return candidate;
-      if (loggedInRole === 'FACULTY' && candidate.startsWith('/faculty')) return candidate;
+      if ((loggedInRole === 'ADMIN' || loggedInRole === 'FACULTY') && candidate.startsWith('/faculty')) return candidate;
+      if (loggedInRole === 'ADMIN' && candidate.startsWith('/admin')) return '/faculty/dashboard?tab=management';
       if (
         loggedInRole === 'STUDENT' &&
         (candidate.startsWith('/student') || candidate.startsWith('/exam-portal'))
@@ -46,7 +46,7 @@ export default function Login() {
         return candidate;
       }
     }
-    if (loggedInRole === 'ADMIN') return '/admin/dashboard';
+    if (loggedInRole === 'ADMIN') return '/faculty/dashboard?tab=management';
     if (loggedInRole === 'FACULTY') return '/faculty/dashboard';
     return '/student/dashboard';
   };

@@ -12,12 +12,12 @@ const LoginProbe = () => {
   );
 };
 
-const renderProtectedRoute = (initialPath = '/admin/dashboard') => {
+const renderProtectedRoute = (initialPath = '/faculty/dashboard') => {
   render(
     <MemoryRouter initialEntries={[initialPath]}>
       <Routes>
         <Route path="/login" element={<h1>Login Screen</h1>} />
-        <Route path="/admin/dashboard" element={<h1>Admin Dashboard</h1>} />
+        <Route path="/student/dashboard" element={<h1>Student Dashboard</h1>} />
         <Route
           path="/faculty/dashboard"
           element={
@@ -71,12 +71,12 @@ describe('ProtectedRoute', () => {
     localStorage.setItem('cira_token', 'valid-token');
     localStorage.setItem(
       'cira_user',
-      JSON.stringify({ role: 'ADMIN', approvalStatus: 'APPROVED' })
+      JSON.stringify({ role: 'STUDENT', approvalStatus: 'APPROVED' })
     );
 
     renderProtectedRoute('/faculty/dashboard');
 
-    expect(screen.getByRole('heading', { name: /admin dashboard/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /student dashboard/i })).toBeInTheDocument();
   });
 
   it('shows pending approval messaging for faculty accounts waiting on admin approval', () => {

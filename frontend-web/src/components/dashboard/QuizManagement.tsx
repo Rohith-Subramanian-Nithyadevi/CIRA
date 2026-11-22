@@ -13,10 +13,11 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Card, CardContent } from '@/components/ui/card';
-import { Sparkles, Clipboard, Check, AlertCircle, Pencil, FileText, ChevronLeft, ChevronRight, Printer, Maximize2, X, Lock, Unlock } from 'lucide-react';
+import { Sparkles, Clipboard, Check, AlertCircle, Pencil, FileText, ChevronLeft, ChevronRight, Printer, Maximize2, X, Lock, Unlock, UploadCloud } from 'lucide-react';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingState, ErrorState, ConfirmationDialog } from '@/components/ui/facultyPrimitives';
 import { DeleteConfirmationDialog } from '@/components/ui/DeleteConfirmationDialog';
+import { OfflineMarksheetModal } from './OfflineMarksheetModal';
 
 type QuizWizardStep = 1 | 2 | 3 | 4 | 5;
 const OBJECTIVE_QUESTION_TYPES = ['MCQ', 'MULTI_SELECT', 'TRUE_FALSE', 'MATCHING', 'NUMERICAL', 'FILL_BLANK'];
@@ -626,6 +627,7 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
   const [completedWizardSteps, setCompletedWizardSteps] = useState<QuizWizardStep[]>([]);
   const [stepErrors, setStepErrors] = useState<Record<string, string>>({});
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+  const [showOfflineModal, setShowOfflineModal] = useState(false);
 
   // Template Config State
   const [showTemplateModal, setShowTemplateModal] = useState(false);
@@ -695,6 +697,8 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
     totalMarks?: number;
     answersPublished: boolean;
     questions?: any[];
+    sourceType?: 'ONLINE' | 'OFFLINE';
+    hasQuestionBreakdown?: boolean;
   } | null>(null);
   const [showPublishConfirm, setShowPublishConfirm] = useState(false);
   const [selectedViolationRow, setSelectedViolationRow] = useState<any | null>(null);
@@ -3534,8 +3538,29 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
             />
           ) : (
             <div className="space-y-5">
-              {/* Live 30-Second Refreshing Access OTP Card */}
-              {activeSubmissionsQuiz?.id && (
+              {/* Live 30-Second Refreshing Access OTP Card or Offline Banner */}
+              {activeSubmissionsQuiz?.sourceType === 'OFFLINE' ? (
+                <div className="bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-900/40 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3 shadow-xs">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-200 flex items-center justify-center font-bold text-lg shrink-0">
+                      📝
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-serif font-bold text-sm text-ink">
+                          Offline / External Marksheet Assessment
+                        </h4>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-900/40 text-amber-900 dark:text-amber-200 uppercase">
+                          {activeSubmissionsQuiz.hasQuestionBreakdown ? 'Question-Wise Breakdown' : 'Total Score Only'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-body mt-0.5">
+                        Marks were imported directly from offline classroom assessments. Real-time proctoring and OTP verification were not required.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : activeSubmissionsQuiz?.id && (
                 <div className="bg-white dark:bg-[#18181B] border border-maroon/20 rounded-xl p-4 shadow-sm flex flex-wrap items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-maroon/10 text-maroon flex items-center justify-center font-bold text-lg shrink-0">
@@ -4576,38 +4601,49 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
     <>
     <Card className="bg-white dark:bg-[#1E1E22] border border-border-soft text-ink shadow-sm rounded-xl">
       <CardContent className="p-6">
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
           <h2 className="text-xl font-serif font-bold text-ink">Quiz Management</h2>
-          <button
-            onClick={() => {
-              setActiveQuizId(null);
-              setFormData({
-                title: '',
-                subject: facultySubject,
-                description: '',
-                totalMarks: '',
-                passingMarks: '',
-                durationMinutes: '60',
-                startDate: '',
-                endDate: '',
-                targetDepartments: [],
-                targetSections: [],
-                questionPoolCount: '',
-              });
-              setQuestions([{ type: 'MCQ', text: '', marks: 1, options: ['', '', '', ''], answerKey: '', topic: '' }]);
-              setParsedTotalMarks(0);
-              setParsedTotalQuestions(0);
-              setWizardStep(1);
-              setCompletedWizardSteps([]);
-              setStepErrors({});
-              setShowDiscardConfirm(false);
-              setActiveView('create');
-              syncQuizUrlParams({ view: 'create', quizId: null, attemptId: null });
-            }}
-            className="px-5 py-2 bg-maroon hover:bg-maroon-deep text-white rounded-full text-sm font-bold transition-all shadow-sm hover:scale-105 active:scale-95"
-          >
-            + Create New Quiz
-          </button>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowOfflineModal(true)}
+              className="px-4 py-2 border-maroon text-maroon hover:bg-maroon hover:text-white rounded-full text-sm font-bold transition-all shadow-sm flex items-center gap-1.5"
+            >
+              <UploadCloud className="w-4 h-4" />
+              Import External Marksheet
+            </Button>
+            <button
+              onClick={() => {
+                setActiveQuizId(null);
+                setFormData({
+                  title: '',
+                  subject: facultySubject,
+                  description: '',
+                  totalMarks: '',
+                  passingMarks: '',
+                  durationMinutes: '60',
+                  startDate: '',
+                  endDate: '',
+                  targetDepartments: [],
+                  targetSections: [],
+                  questionPoolCount: '',
+                });
+                setQuestions([{ type: 'MCQ', text: '', marks: 1, options: ['', '', '', ''], answerKey: '', topic: '' }]);
+                setParsedTotalMarks(0);
+                setParsedTotalQuestions(0);
+                setWizardStep(1);
+                setCompletedWizardSteps([]);
+                setStepErrors({});
+                setShowDiscardConfirm(false);
+                setActiveView('create');
+                syncQuizUrlParams({ view: 'create', quizId: null, attemptId: null });
+              }}
+              className="px-5 py-2 bg-maroon hover:bg-maroon-deep text-white rounded-full text-sm font-bold transition-all shadow-sm hover:scale-105 active:scale-95"
+            >
+              + Create New Quiz
+            </button>
+          </div>
         </div>
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <Input aria-label="Search quizzes" value={quizSearch} onChange={event => setQuizSearch(event.target.value)} placeholder="Search quizzes..." className="max-w-sm bg-white border-border-soft text-sm" />
@@ -4659,7 +4695,16 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
               <TableBody>
                 {visibleQuizzes.map((quiz) => (
                   <TableRow key={quiz.id} className="border-b border-border-soft hover:bg-cream/20 transition-colors">
-                    <TableCell className="w-[200px] max-w-[200px] whitespace-normal break-words font-semibold text-ink">{quiz.title}</TableCell>
+                    <TableCell className="w-[200px] max-w-[200px] whitespace-normal break-words font-semibold text-ink">
+                      <div className="flex flex-col items-start gap-1">
+                        <span>{quiz.title}</span>
+                        {quiz.sourceType === 'OFFLINE' && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-900/50">
+                            Offline / External Quiz
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell className="max-w-[150px] whitespace-normal break-words text-gray-body">{quiz.subject}</TableCell>
                     <TableCell className="whitespace-normal text-gray-body text-xs">
                       <div>From: {quiz.startDate ? new Date(quiz.startDate).toLocaleString() : 'Immediately'}</div>
@@ -4743,6 +4788,18 @@ export default function QuizManagement({ initialSubmissionsQuizId }: { initialSu
       onCancel={() => setQuizPendingDelete(null)}
       onConfirm={handleConfirmDeleteQuiz}
     />
+
+    {showOfflineModal && (
+      <OfflineMarksheetModal
+        open={showOfflineModal}
+        onClose={() => setShowOfflineModal(false)}
+        onSuccess={(newQuizId) => {
+          void fetchQuizzes(1);
+          handleOpenSubmissions(newQuizId);
+        }}
+        availableClasses={assignedClasses}
+      />
+    )}
     </>
   );
 }

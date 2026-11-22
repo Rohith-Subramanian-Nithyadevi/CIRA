@@ -177,10 +177,19 @@ export const getAllFaculty = async (req: Request, res: Response, next: NextFunct
         name: true,
         email: true,
         employeeId: true,
-        department: true,
+        department: {
+          select: {
+            id: true,
+            name: true,
+            batchId: true,
+            batch: { select: { id: true, name: true, startYear: true } }
+          }
+        },
+        section: { select: { id: true, name: true } },
         approvalStatus: true,
         createdAt: true
-      }
+      },
+      orderBy: [{ name: 'asc' }]
     });
 
     res.status(200).json({
@@ -228,10 +237,21 @@ export const getAllUsers = async (req: Request, res: Response, next: NextFunctio
         name: true,
         email: true,
         role: true,
-        department: true,
+        rollNumber: true,
+        employeeId: true,
+        department: {
+          select: {
+            id: true,
+            name: true,
+            batchId: true,
+            batch: { select: { id: true, name: true, startYear: true } }
+          }
+        },
+        section: { select: { id: true, name: true } },
         approvalStatus: true,
         createdAt: true
-      }
+      },
+      orderBy: [{ role: 'asc' }, { name: 'asc' }]
     });
 
     res.status(200).json({

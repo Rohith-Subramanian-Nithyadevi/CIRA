@@ -238,11 +238,12 @@ export const getStudentFilterOptions = async (req: Request, res: Response, next:
 
 export const resetStudentPassword = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    if (req.user?.role !== 'FACULTY' || !req.user.userId) {
-      throw new ForbiddenError('Only assigned faculty can initiate a student password reset.', 'ERR_FORBIDDEN_STUDENT_RESET');
+    const isAdmin = req.user?.role === 'ADMIN';
+    if (!req.user || (req.user.role !== 'FACULTY' && !isAdmin) || !req.user.userId) {
+      throw new ForbiddenError('Only assigned faculty or administrators can initiate a student password reset.', 'ERR_FORBIDDEN_STUDENT_RESET');
     }
     const student = await prisma.user.findFirst({
-      where: { AND: [buildFacultyStudentWhere(req.facultyScope), { id: req.params.studentId as string }] },
+      where: { AND: [buildFacultyStudentWhere(req.facultyScope, {}, isAdmin), { id: req.params.studentId as string }] },
       select: { id: true, role: true, authProvider: true, password: true, personalEmail: true },
     });
     if (!student) throw new NotFoundError('Student was not found in your assigned classes.', 'ERR_STUDENT_OUT_OF_SCOPE');
@@ -290,6 +291,8 @@ export const searchStudent = async (req: Request, res: Response, next: NextFunct
                 title: true,
                 subject: true,
                 totalMarks: true,
+                sourceType: true,
+                hasQuestionBreakdown: true,
                 createdAt: true
               }
             },
@@ -352,6 +355,8 @@ export const searchStudent = async (req: Request, res: Response, next: NextFunct
       return {
         quizId: attempt.quizId,
         title: attempt.quiz.title,
+        sourceType: (attempt.quiz as any).sourceType || 'ONLINE',
+        hasQuestionBreakdown: (attempt.quiz as any).hasQuestionBreakdown ?? true,
         score: percentage,
         totalScore,
         maxScore,
@@ -399,7 +404,7 @@ export const getStudentProfile = async (req: Request, res: Response, next: NextF
         quizAttempts: {
           where: { status: { in: ['SUBMITTED', 'EVALUATED'] } },
           include: {
-            quiz: { select: { id: true, title: true, subject: true, totalMarks: true, createdAt: true } },
+            quiz: { select: { id: true, title: true, subject: true, totalMarks: true, sourceType: true, hasQuestionBreakdown: true, createdAt: true } },
             responses: { include: { question: { select: { topic: true, marks: true } } } }
           },
           orderBy: { createdAt: 'desc' }
@@ -443,6 +448,8 @@ export const getStudentProfile = async (req: Request, res: Response, next: NextF
       return {
         quizId: attempt.quizId,
         title: attempt.quiz.title,
+        sourceType: (attempt.quiz as any).sourceType || 'ONLINE',
+        hasQuestionBreakdown: (attempt.quiz as any).hasQuestionBreakdown ?? true,
         score: percentage,
         band,
         date: attempt.createdAt.toISOString(),

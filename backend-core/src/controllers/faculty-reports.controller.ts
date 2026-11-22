@@ -197,6 +197,8 @@ export const getQuizAnalytics = async (req: Request, res: Response, next: NextFu
         id: true,
         title: true,
         totalMarks: true,
+        sourceType: true,
+        hasQuestionBreakdown: true,
         createdBy: true,
         targetDepartments: { select: { departmentId: true } },
         targetSections: { select: { sectionId: true } },
@@ -306,7 +308,12 @@ export const getQuizAnalytics = async (req: Request, res: Response, next: NextFu
     res.status(200).json({
       status: 'success',
       data: {
-        quiz: { id: quiz.id, title: quiz.title },
+        quiz: {
+          id: quiz.id,
+          title: quiz.title,
+          sourceType: (quiz as any).sourceType || 'ONLINE',
+          hasQuestionBreakdown: (quiz as any).hasQuestionBreakdown ?? true
+        },
         summary: {
           attended: attempts.length,
           evaluated: attempts.filter(attempt => attempt.status === 'EVALUATED').length,
